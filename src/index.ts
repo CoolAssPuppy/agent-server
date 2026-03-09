@@ -17,4 +17,5 @@ export { FileWatcher, extractWatchConfigs, expandHome, type FileWatchConfig } fr
 export { ExecutorRegistry, type ExecutorFn } from './execution/executor-registry.js';
 export { createReporter } from './reporting/reporter-factory.js';
 export { generatePlist, installLaunchAgent, uninstallLaunchAgent } from './platform/launchd.js';
+export { routeMessage, buildRoutingPrompt, parseRoutingResponse, type RouteResult } from './channels/router.js';
 export { initAgentServer } from './platform/init.js';

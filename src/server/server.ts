@@ -17,6 +17,7 @@ import { InteractionStore } from '../interaction/store.js';
 import type { InteractionRequest } from '../interaction/schema.js';
 import { createTelegramChannel } from '../channels/telegram.js';
 import { formatCompletionNotification, formatFailureNotification } from '../interaction/notification.js';
+import { routeMessage } from '../channels/router.js';
 import { randomUUID } from 'crypto';
 
 export type ServerInstance = {
@@ -86,7 +87,9 @@ export function startServer(config: ServerConfig): ServerInstance {
       .catch((err) => console.error(`[notification] Failed for ${agent.id}:`, err));
   }
 
-  function triggerRunForAgent(agent: AgentConfig, promptSuffix?: string): string {
+  type RunDoneCallback = (result: { status: 'completed' | 'failed'; summary?: string; error?: string }) => void;
+
+  function triggerRunForAgent(agent: AgentConfig, promptSuffix?: string, onDone?: RunDoneCallback): string {
     const runId = randomUUID();
     store.add({
       runId,
@@ -138,6 +141,7 @@ export function startServer(config: ServerConfig): ServerInstance {
           void handleInteractionResult(runId, agent, result.interaction);
         }
         sendNotification(agent, 'completed', result.summary);
+        onDone?.({ status: 'completed', summary: result.summary });
         return result;
       },
       createReporter: (rid, name) => createReporter(config, rid, name),
@@ -150,6 +154,7 @@ export function startServer(config: ServerConfig): ServerInstance {
           error: result.error,
         });
         sendNotification(agent, 'failed', result.error);
+        onDone?.({ status: 'failed', error: result.error });
       }
     }).catch((err) => {
       const errorMsg = err instanceof Error ? err.message : String(err);
@@ -159,6 +164,7 @@ export function startServer(config: ServerConfig): ServerInstance {
         error: errorMsg,
       });
       sendNotification(agent, 'failed', errorMsg);
+      onDone?.({ status: 'failed', error: errorMsg });
     });
 
     return runId;
@@ -244,6 +250,34 @@ export function startServer(config: ServerConfig): ServerInstance {
       void triggerRun(interaction.replyAgentId, promptSuffix).catch((err) => {
         console.error(`[telegram] Failed to trigger ${interaction.replyAgentId}: ${err}`);
       });
+    });
+
+    telegramChannel.onMessage((text) => {
+      void (async () => {
+        try {
+          const agents = await discoverAgents(config.agentsDir);
+          const result = await routeMessage(text, agents);
+
+          if (!result.agent) {
+            await telegramChannel.notify('No matching agent found for your message.');
+            return;
+          }
+
+          const agent = result.agent;
+          await telegramChannel.notify(`Running ${agent.name}...`);
+
+          triggerRunForAgent(agent, result.context, (done) => {
+            const message = done.status === 'completed'
+              ? formatCompletionNotification(agent.name, done.summary)
+              : formatFailureNotification(agent.name, done.error);
+            void telegramChannel.notify(message);
+          });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`[telegram] Message routing failed: ${msg}`);
+          void telegramChannel.notify(`Error: ${msg}`);
+        }
+      })();
     });
 
     channelDispatcher.register(telegramChannel);

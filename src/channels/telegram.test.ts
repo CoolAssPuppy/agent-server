@@ -216,6 +216,60 @@ describe('TelegramChannel', () => {
   });
 });
 
+describe('TelegramChannel onMessage', () => {
+  function makeChannel(): {
+    channel: TelegramChannel;
+    mockApi: {
+      sendMessage: ReturnType<typeof vi.fn>;
+      answerCallbackQuery: ReturnType<typeof vi.fn>;
+    };
+  } {
+    const mockApi = {
+      sendMessage: vi.fn().mockResolvedValue({ message_id: 42 }),
+      answerCallbackQuery: vi.fn().mockResolvedValue(true),
+    };
+    const channel = new TelegramChannel({ api: mockApi, chatId: 12345 });
+    return { channel, mockApi };
+  }
+
+  it('calls registered message callbacks when handleIncomingMessage is called', () => {
+    const { channel } = makeChannel();
+    const messages: string[] = [];
+    channel.onMessage((text) => messages.push(text));
+
+    channel.handleIncomingMessage('Check Bougainville tonight');
+    expect(messages).toEqual(['Check Bougainville tonight']);
+  });
+
+  it('does not call message callbacks when a pending interaction exists', async () => {
+    const { channel } = makeChannel();
+    const messages: string[] = [];
+    channel.onMessage((text) => messages.push(text));
+
+    const request: InteractionRequest = {
+      message: 'Pick a slot',
+      options: [{ label: '19:00', value: 'Book 19:00' }],
+      freeText: false,
+    };
+    await channel.send('int-1', request);
+
+    channel.handleIncomingMessage('hello');
+    expect(messages).toHaveLength(0);
+  });
+
+  it('supports multiple message callbacks', () => {
+    const { channel } = makeChannel();
+    const first: string[] = [];
+    const second: string[] = [];
+    channel.onMessage((text) => first.push(text));
+    channel.onMessage((text) => second.push(text));
+
+    channel.handleIncomingMessage('test');
+    expect(first).toEqual(['test']);
+    expect(second).toEqual(['test']);
+  });
+});
+
 describe('encodeCallbackData / parseCallbackData', () => {
   it('round-trips interaction ID and option index', () => {
     const encoded = encodeCallbackData('abc-123', 2);

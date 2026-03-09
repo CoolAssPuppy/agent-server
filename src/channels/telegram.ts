@@ -75,11 +75,14 @@ export function buildInlineKeyboard(
   return keyboard;
 }
 
+export type MessageCallback = (text: string) => void;
+
 export class TelegramChannel implements Channel {
   readonly name = 'telegram';
   private api: TelegramApi;
   private chatId: number | undefined;
   private callbacks: ReplyCallback[] = [];
+  private messageCallbacks: MessageCallback[] = [];
   private pendingInteractions = new Map<string, InteractionRequest>();
   private lastPendingId: string | undefined;
   private bot: Bot | undefined;
@@ -109,6 +112,18 @@ export class TelegramChannel implements Channel {
 
   onReply(callback: ReplyCallback): void {
     this.callbacks.push(callback);
+  }
+
+  onMessage(callback: MessageCallback): void {
+    this.messageCallbacks.push(callback);
+  }
+
+  handleIncomingMessage(text: string): void {
+    if (this.pendingInteractions.size > 0) return;
+
+    for (const cb of this.messageCallbacks) {
+      cb(text);
+    }
   }
 
   setChatId(chatId: number): void {
@@ -230,9 +245,12 @@ export async function createTelegramChannel(
 
   bot.on('message:text', (ctx) => {
     const lastId = channel.getLastPendingInteractionId();
-    if (!lastId) return;
+    if (lastId) {
+      channel.handleTextReply(lastId, ctx.message.text);
+      return;
+    }
 
-    channel.handleTextReply(lastId, ctx.message.text);
+    channel.handleIncomingMessage(ctx.message.text);
   });
 
   return channel;
