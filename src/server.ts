@@ -9,6 +9,7 @@ import { runAgent } from './runner.js';
 import { executeAgent } from './executor.js';
 import { createReporter } from './reporter-factory.js';
 import { shouldRun } from './scheduler.js';
+import { FileWatcher, extractWatchConfigs } from './file-watcher.js';
 import { randomUUID } from 'crypto';
 
 export type ServerInstance = {
@@ -126,10 +127,32 @@ export function startServer(config: ServerConfig): ServerInstance {
     void runDueAgents();
   }, config.checkIntervalMs);
 
+  async function setupFileWatchers(): Promise<FileWatcher | null> {
+    const agents = await discoverAgents(config.agentsDir);
+    const watchConfigs = extractWatchConfigs(agents);
+    if (watchConfigs.length === 0) return null;
+
+    console.log(`  File watches: ${watchConfigs.length} path(s)`);
+    const watcher = new FileWatcher({
+      watches: watchConfigs,
+      onChange: (agentId, filePath) => {
+        console.log(`[file-watch] ${filePath} changed, triggering ${agentId}`);
+        void triggerRun(agentId).catch((err) => {
+          console.error(`[file-watch] Failed to trigger ${agentId}: ${err}`);
+        });
+      },
+    });
+    watcher.start();
+    return watcher;
+  }
+
+  const fileWatcherPromise = setupFileWatchers();
+
   return {
     stop: () => {
       clearInterval(interval);
       httpServer.close();
+      void fileWatcherPromise.then((w) => w?.stop());
       console.log('Agent Server stopped.');
     },
   };

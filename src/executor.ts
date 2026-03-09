@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import type { AgentConfig } from './agent-config.js';
 import type { Reporter } from './runner.js';
+import { expandHome } from './file-watcher.js';
 
 const MAX_SUMMARY_LENGTH = 200;
 
@@ -134,7 +135,7 @@ export async function executeAgent(
   args.push(agent.prompt);
 
   const cwd = agent.working_directory
-    ? agent.working_directory.replace(/^~/, process.env.HOME ?? '')
+    ? expandHome(agent.working_directory)
     : process.env.HOME ?? process.cwd();
 
   return new Promise((resolve, reject) => {
