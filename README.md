@@ -102,7 +102,7 @@ max_turns: 10
 |---|---|---|---|
 | `id` | yes | | Unique identifier (used in CLI and API) |
 | `name` | yes | | Display name |
-| `description` | no | | What this agent does |
+| `description` | no | | What this agent does. Used by Telegram message routing to match messages to agents. |
 | `schedule` | no | | Cron expression (e.g., `0 9 * * 1-5`). Omit for on-demand agents. |
 | `timezone` | no | | IANA timezone for schedule evaluation (e.g., `America/Los_Angeles`) |
 | `prompt` | yes* | | The prompt sent to Claude Code. *In frontmatter format, the Markdown body is the prompt. |
@@ -448,10 +448,12 @@ The CLI loads `~/.agent-server/.env` at startup. Shell environment variables tak
 | `AGENT_SERVER_HEARTBEAT_MS` | `30000` | Heartbeat interval during runs (ms) |
 | `AGENT_SERVER_PORT` | `47821` | HTTP API port |
 | `AGENT_SERVER_TELEGRAM_BOT_TOKEN` | | Telegram bot token for interactive agents and notifications |
+| `ANTHROPIC_API_KEY` | | Anthropic API key. Required for Telegram message routing (agent selection via Haiku). |
 
 Example `~/.agent-server/.env`:
 
 ```
+ANTHROPIC_API_KEY=sk-ant-...
 AGENT_SERVER_PANEL_URL=https://your-panel.vercel.app
 AGENT_SERVER_PANEL_API_KEY=ap_live_...
 AGENT_SERVER_TELEGRAM_BOT_TOKEN=7123456789:AAH...
@@ -494,7 +496,7 @@ The Telegram bot supports three modes: triggering agents via natural language, i
 3. Start the server with `agent-server start`. The bot connects via long-polling (no public IP needed).
 4. Send `/start` to the bot on Telegram. This registers your chat ID and persists it to `~/.agent-server/telegram.json`.
 
-**Triggering agents**: Send any message to the bot and it picks the right agent based on your message and the agents' descriptions. For example, "Check Bougainville in Lisbon tonight for 4" would match a restaurant-checker agent. The bot confirms which agent is running and sends the result when it finishes.
+**Triggering agents**: Send any message to the bot and it picks the right agent based on your message and the agents' descriptions. For example, "Check Bougainville in Lisbon tonight for 4" would match a restaurant-checker agent. The bot confirms which agent is running and sends the result when it finishes. Write clear `description` fields on your agents -- the router uses them to match messages to agents.
 
 **Interactive agents**: Agents with `interaction.channel: telegram` send structured questions with inline keyboard buttons. Tapping a button triggers a follow-up agent.
 
@@ -650,6 +652,7 @@ src/
   execution/                 Running agents
     executor.ts                Stream event parsing, tool metadata extraction, types
     executor-registry.ts       Plugin registry for swappable executors
+    permissions.ts             Glob-based tool permission matching (canUseTool callback)
     runner.ts                  Orchestrates lock -> report -> execute -> release
     lockfile.ts                PID-based file locks with stale detection
 
