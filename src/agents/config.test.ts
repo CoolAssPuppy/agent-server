@@ -108,6 +108,38 @@ describe('AgentConfigSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('accepts config with interaction block', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'interactive',
+      name: 'Interactive Agent',
+      prompt: 'Do something interactive.',
+      interaction: {
+        channel: 'telegram',
+        on_reply: 'follow-up-agent',
+        timeout: '1h',
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.interaction?.channel).toBe('telegram');
+      expect(result.data.interaction?.on_reply).toBe('follow-up-agent');
+      expect(result.data.interaction?.timeout).toBe('1h');
+    }
+  });
+
+  it('applies default timeout for interaction config', () => {
+    const result = AgentConfigSchema.parse({
+      id: 'interactive',
+      name: 'Interactive Agent',
+      prompt: 'Do something.',
+      interaction: {
+        channel: 'telegram',
+        on_reply: 'next-agent',
+      },
+    });
+    expect(result.interaction?.timeout).toBe('30m');
+  });
 });
 
 describe('parseAgentYaml', () => {

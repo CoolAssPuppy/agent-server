@@ -202,6 +202,34 @@ describe('runAgent', () => {
     expect(executedAgent.prompt).toBe('Base prompt.');
   });
 
+  it('includes interaction request in result when present', async () => {
+    const lockDir = createTempDir('runner');
+    dirs.push(lockDir);
+    const interaction = {
+      message: 'Pick a slot',
+      options: [{ label: '19:00', value: 'Book 19:00' }],
+      freeText: false,
+    };
+
+    const result = await runAgent({
+      agent: makeAgent({
+        interaction: { channel: 'telegram', on_reply: 'booker', timeout: '30m' },
+      }),
+      lockDir,
+      execute: async () => makeExecutionResult({ interaction }),
+      createReporter: () => ({
+        start: noop,
+        progress: noop,
+        complete: noop,
+        fail: noop,
+        stop: () => {},
+      }),
+    });
+
+    expect(result.status).toBe('completed');
+    expect(result.result?.interaction).toEqual(interaction);
+  });
+
   it('returns skipped when agent is already locked', async () => {
     const lockDir = createTempDir('runner');
     dirs.push(lockDir);

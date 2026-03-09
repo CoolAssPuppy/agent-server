@@ -1,3 +1,5 @@
+import type { InteractionRequest } from '../interaction/schema.js';
+
 const MAX_SUMMARY_LENGTH = 200;
 
 export type ClaudeStreamEvent = {
@@ -23,6 +25,7 @@ export type ExecutionResult = {
   filesRead: string[];
   filesWritten: string[];
   commandsRun: string[];
+  interaction?: InteractionRequest;
 };
 
 export function parseStreamEvent(line: string): ClaudeStreamEvent | null {
@@ -45,6 +48,18 @@ function truncate(text: string): string {
   return text.slice(0, MAX_SUMMARY_LENGTH) + '...';
 }
 
+export function extractTextParts(event: ClaudeStreamEvent): string[] {
+  if (event.type !== 'assistant' || !event.message?.content) return [];
+
+  const parts: string[] = [];
+  for (const block of event.message.content) {
+    if (block.type === 'text' && block.text) {
+      parts.push(block.text);
+    }
+  }
+  return parts;
+}
+
 export function summarizeTurn(event: ClaudeStreamEvent): string | null {
   if (event.type === 'result' && typeof event.result === 'string') {
     return truncate(event.result);
@@ -52,13 +67,11 @@ export function summarizeTurn(event: ClaudeStreamEvent): string | null {
 
   if (event.type !== 'assistant' || !event.message?.content) return null;
 
-  const textParts: string[] = [];
+  const textParts = extractTextParts(event);
   let toolName: string | null = null;
 
   for (const block of event.message.content) {
-    if (block.type === 'text' && block.text) {
-      textParts.push(block.text);
-    } else if (block.type === 'tool_use' && block.name) {
+    if (block.type === 'tool_use' && block.name) {
       toolName = block.name;
     }
   }

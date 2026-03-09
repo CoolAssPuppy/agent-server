@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { parse as parseYaml } from 'yaml';
+import { InteractionConfigSchema } from '../interaction/schema.js';
 
 const TriggerRefSchema = z.object({
   agent: z.string().min(1),
@@ -30,6 +31,7 @@ export const AgentConfigSchema = z
     on_failure: z.array(TriggerRefSchema).optional(),
     watch: z.array(FileWatchSchema).optional(),
     executor: z.string().optional(),
+    interaction: InteractionConfigSchema.optional(),
   })
   .passthrough();
 

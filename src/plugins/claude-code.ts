@@ -4,10 +4,12 @@ import type { Reporter } from '../execution/runner.js';
 import {
   parseStreamEvent,
   extractToolMetadata,
+  extractTextParts,
   summarizeTurn,
   type ExecutionResult,
 } from '../execution/executor.js';
 import { expandHome } from '../agents/file-watcher.js';
+import { parseInteractionBlock } from '../interaction/parser.js';
 
 export async function executeAgent(
   agent: AgentConfig,
@@ -45,6 +47,7 @@ export async function executeAgent(
     const allCommandsRun: string[] = [];
     let lastSummary = '';
     let buffer = '';
+    let lastAssistantText = '';
 
     child.stdout.on('data', (chunk: Buffer) => {
       buffer += chunk.toString();
@@ -59,6 +62,10 @@ export async function executeAgent(
 
         if (event.type === 'assistant') {
           turnCount++;
+          const texts = extractTextParts(event);
+          if (texts.length > 0) {
+            lastAssistantText = texts.join('\n');
+          }
         }
 
         meta.toolNames.forEach((name) => toolsUsed.add(name));
@@ -98,6 +105,8 @@ export async function executeAgent(
         return;
       }
 
+      const interaction = parseInteractionBlock(lastAssistantText);
+
       resolve({
         summary: lastSummary || 'Agent completed',
         output: {},
@@ -112,6 +121,7 @@ export async function executeAgent(
         filesRead: [...allFilesRead],
         filesWritten: [...allFilesWritten],
         commandsRun: allCommandsRun,
+        interaction,
       });
     });
 
