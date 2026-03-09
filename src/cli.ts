@@ -4,7 +4,8 @@ import { Command } from 'commander';
 import { homedir } from 'os';
 import { join } from 'path';
 import { loadConfig } from './config.js';
-import { listAgents, runSingleAgent, startDaemon } from './daemon.js';
+import { listAgents, runSingleAgent } from './daemon.js';
+import { startServer } from './server.js';
 import { initAgentServer } from './init.js';
 
 const program = new Command();
@@ -16,13 +17,13 @@ program
 
 program
   .command('start')
-  .description('Start the daemon (checks for due agents on a timer)')
+  .description('Start the server with HTTP API and agent scheduler')
   .action(() => {
     const config = loadConfig();
-    const daemon = startDaemon(config);
+    const server = startServer(config);
 
     const shutdown = () => {
-      daemon.stop();
+      server.stop();
       process.exit(0);
     };
 

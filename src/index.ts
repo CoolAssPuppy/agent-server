@@ -7,4 +7,7 @@ export { executeAgent, parseStreamEvent, summarizeTurn, extractToolMetadata, typ
 export { runAgent, type RunResult, type Reporter } from './runner.js';
 export { loadConfig, ServerConfigSchema, type ServerConfig } from './config.js';
 export { runDueAgents, runSingleAgent, listAgents, startDaemon } from './daemon.js';
+export { RunStore, type StoredRun } from './store.js';
+export { createApi } from './api.js';
+export { startServer, type ServerInstance } from './server.js';
 export { initAgentServer } from './init.js';
