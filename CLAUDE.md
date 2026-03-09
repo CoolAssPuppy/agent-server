@@ -12,18 +12,27 @@ src/
     scheduler.ts         -- Cron expression evaluation (cron-parser v5)
     triggers.ts          -- Agent chaining (on_complete, on_failure)
     file-watcher.ts      -- File watch triggers with debounce and glob
+  channels/
+    channel.ts           -- Channel interface + ChannelReply type
+    console.ts           -- Console channel (readline, numbered options)
+    telegram.ts          -- Telegram channel (grammY, long-polling, inline keyboards)
+    dispatcher.ts        -- Maps channel names to Channel instances
   execution/
     executor.ts          -- Stream event parsing, tool metadata extraction, types
     executor-registry.ts -- Plugin registry for model-agnostic execution
     runner.ts            -- Orchestrates lock -> report -> execute -> release
     lockfile.ts          -- PID-based file locks with stale detection
+  interaction/
+    parser.ts            -- Parses ```interaction blocks from agent output
+    schema.ts            -- InteractionRequest + InteractionConfig Zod schemas
+    store.ts             -- In-memory pending interaction store with expiry
   reporting/
     reporter.ts          -- A2A telemetry reporter with heartbeat
     reporter-factory.ts  -- Creates noop or telemetry reporter based on config
     store.ts             -- In-memory run state store with eviction
   server/
     api.ts               -- Hono HTTP API routes
-    server.ts            -- Combined HTTP server + agent scheduler
+    server.ts            -- Combined HTTP server + agent scheduler + Telegram
     daemon.ts            -- Timer loop, single-run, list commands
   platform/
     config.ts            -- ServerConfig from AGENT_SERVER_* env vars
@@ -45,6 +54,7 @@ sample-agents/           -- Example agent YAML configs
 - cron-parser v5 (`CronExpressionParser.parse()`, NOT `parseExpression()`)
 - Hono for HTTP API
 - Commander for CLI
+- grammY for Telegram bot (long-polling, inline keyboards)
 - yaml for YAML parsing
 - vitest for testing
 
@@ -100,9 +110,59 @@ Agents can define `on_complete` and `on_failure` arrays referencing other agent 
 
 Agents can declare `watch` paths in their YAML config. The `FileWatcher` class monitors these paths with `fs.watch`, applies glob filtering for directories, and debounces rapid changes. The `expandHome()` utility (in `agents/file-watcher.ts`) handles `~` expansion and is shared with `plugins/claude-code.ts`.
 
+### Interactive agents
+
+Agents can request user input by outputting a fenced `interaction` block in their response. The executor parses this and routes it through the channel system.
+
+**Interaction request format** (output by the agent):
+````
+```interaction
+{
+  "message": "Found 3 slots at Bougainville",
+  "options": [
+    { "label": "19:00", "value": "Book 19:00" },
+    { "label": "20:30", "value": "Book 20:30" }
+  ],
+  "freeText": false
+}
+```
+````
+
+**Agent config for interactions:**
+```yaml
+interaction:
+  channel: telegram    # or "console" for CLI mode
+  on_reply: booker     # agent ID to trigger with the user's reply
+  timeout: 1h          # how long to wait for a reply (default: 30m)
+```
+
+The user's reply becomes the `--with` prompt suffix for the `on_reply` agent. This chains two stateless runs with a human decision in between.
+
+### Channel adapter pattern
+
+Channels implement the `Channel` interface from `channels/channel.ts`. Each channel handles sending interaction requests and receiving replies for its platform.
+
+- **Console**: Numbered options + readline. Used in `agent-server run` CLI mode.
+- **Telegram**: Inline keyboards via grammY long-polling. No public IP needed. Set `AGENT_SERVER_TELEGRAM_BOT_TOKEN` to enable.
+- **Dispatcher**: `ChannelDispatcher` maps channel names to instances. Logs a warning if a channel isn't configured.
+
+### Telegram setup
+
+1. Create a bot via @BotFather, get a token
+2. Add `AGENT_SERVER_TELEGRAM_BOT_TOKEN=<token>` to `~/.agent-server/.env`
+3. Start the server. The bot connects via long-polling.
+4. Message the bot `/start` to register your chat ID (stored in `~/.agent-server/telegram.json`)
+5. Agents with `interaction.channel: telegram` will send inline keyboard messages
+
+Callback data uses `index:interactionId` encoding to stay within Telegram's 64-byte limit. Parse with `parseCallbackData()`, encode with `encodeCallbackData()`.
+
+### Interaction store
+
+`InteractionStore` tracks pending interactions with expiry. The server runs a 60-second sweep to expire stale interactions. States: `pending` -> `acted` or `expired`.
+
 ### HTTP API
 
-Hono app created via `createApi()` with dependency injection. Routes: `/agents`, `/agents/:id`, `/agents/:id/run`, `/runs`, `/runs/:id`, `/health`. The `startServer()` function combines HTTP + scheduler in one process.
+Hono app created via `createApi()` with dependency injection. Routes: `/agents`, `/agents/:id`, `/agents/:id/run`, `/runs`, `/runs/:id`, `/health`. The `startServer()` function combines HTTP + scheduler + Telegram in one process.
 
 ## Agent definition formats
 
@@ -116,7 +176,7 @@ All fields including the prompt live in one YAML file:
 id: my-agent
 name: My Agent
 description: What this agent does
-schedule: "*/5 * * * *"
+schedule: "*/5 * * * *"       # optional, omit for on-demand agents
 timezone: America/Los_Angeles
 prompt: |
   Multi-line prompt for the agent...
@@ -135,6 +195,10 @@ on_complete:             # optional agent chaining
   - agent: downstream-agent
 on_failure:
   - agent: alert-agent
+interaction:             # optional interactive agent config
+  channel: telegram
+  on_reply: downstream-agent
+  timeout: 1h
 ```
 
 ### Hybrid frontmatter + Markdown
@@ -177,6 +241,7 @@ npm run dev           # Dev mode with tsx watch
 agent-server init            # Create ~/.agent-server/ with sample agent
 agent-server start           # Start server with HTTP API on port 47821
 agent-server run <agentId>   # Run one agent immediately
+agent-server run <agentId> --with "context"  # Run with extra context appended to prompt
 agent-server list            # List discovered agents
 agent-server install         # Install macOS LaunchAgent
 agent-server uninstall       # Remove macOS LaunchAgent
@@ -196,6 +261,7 @@ The CLI loads `~/.agent-server/.env` at startup. Shell env vars and Doppler (`do
 | AGENT_SERVER_PANEL_API_KEY | (none) | API key for Agent Panel |
 | AGENT_SERVER_HEARTBEAT_MS | 30000 | Heartbeat interval |
 | AGENT_SERVER_PORT | 47821 | HTTP API port |
+| AGENT_SERVER_TELEGRAM_BOT_TOKEN | (none) | Telegram bot token for interactive agents |
 
 ## Testing
 
@@ -208,3 +274,6 @@ TDD is mandatory. Tests are colocated with source files (`*.test.ts`). Use facto
 - Cancel running agents via API
 - Wire triggers into server run completion flow
 - Sleep/wake catch-up logic for LaunchAgent
+- Non-interactive Telegram notifications (agent completion alerts)
+- Multi-step interaction flows (agent -> user -> agent -> user chains)
+- Expired interaction cleanup in Telegram (edit message to show "Expired")

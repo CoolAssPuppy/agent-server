@@ -2,7 +2,7 @@
 
 A lightweight orchestration server that runs AI agents in the background using [Claude Code](https://docs.anthropic.com/en/docs/claude-code) as its execution engine.
 
-Define agents as Markdown or YAML files with cron schedules. Agent Server discovers them, runs them on schedule, prevents concurrent execution with file locks, and reports telemetry in [A2A](https://google.github.io/A2A/) format.
+Define agents as Markdown or YAML files with cron schedules. Agent Server discovers them, runs them on schedule, prevents concurrent execution with file locks, and reports telemetry in [A2A](https://google.github.io/A2A/) format. Agents can request user input via Telegram and chain to other agents based on the reply.
 
 ## How it works
 
@@ -158,7 +158,7 @@ max_turns: 10
 | `id` | yes | | Unique identifier |
 | `name` | yes | | Display name |
 | `description` | no | | What this agent does |
-| `schedule` | yes | | Cron expression (e.g., `0 9 * * 1-5`) |
+| `schedule` | no | | Cron expression (e.g., `0 9 * * 1-5`). Omit for on-demand agents. |
 | `timezone` | no | UTC | IANA timezone for schedule evaluation |
 | `prompt` | yes* | | The prompt sent to Claude Code (*provided by Markdown body in frontmatter format) |
 | `max_turns` | no | 20 | Maximum conversation turns |
@@ -169,6 +169,57 @@ max_turns: 10
 | `on_complete` | no | | Agents to trigger on successful completion |
 | `on_failure` | no | | Agents to trigger on failure |
 | `watch` | no | | File paths to watch for changes (triggers runs outside the cron schedule) |
+| `interaction` | no | | Interactive agent config (see below) |
+
+### Interactive agents
+
+Agents can ask the user a question and continue based on the answer. The agent outputs a fenced `interaction` block in its response, and Agent Server routes it to the configured channel (Telegram or console).
+
+```yaml
+id: restaurant-checker
+name: Restaurant Availability Checker
+prompt: |
+  Check availability at Bougainville tonight for 4 people.
+  If you find slots, output an interaction block asking which to book.
+interaction:
+  channel: telegram      # "telegram" or "console"
+  on_reply: restaurant-booker
+  timeout: 1h            # default: 30m
+```
+
+The agent's output includes a structured interaction request:
+
+````
+```interaction
+{
+  "message": "Found 3 slots at Bougainville tonight",
+  "options": [
+    { "label": "19:00", "value": "Book Bougainville, 19:00, 4 guests" },
+    { "label": "20:30", "value": "Book Bougainville, 20:30, 4 guests" },
+    { "label": "21:00", "value": "Book Bougainville, 21:00, 4 guests" }
+  ],
+  "freeText": false
+}
+```
+````
+
+When the user taps a button in Telegram (or types a number in the console), the selected option's `value` becomes the `--with` context for the `on_reply` agent:
+
+```bash
+# Equivalent to what happens automatically:
+agent-server run restaurant-booker --with "Book Bougainville, 20:30, 4 guests"
+```
+
+#### Telegram setup
+
+1. Create a bot via [@BotFather](https://t.me/BotFather) and get a token
+2. Add to `~/.agent-server/.env`:
+   ```
+   AGENT_SERVER_TELEGRAM_BOT_TOKEN=7123456789:AAH...
+   ```
+3. Start the server. The bot connects via long-polling (no public IP needed).
+4. Send `/start` to the bot on Telegram to register your chat ID
+5. Agents with `interaction.channel: telegram` now deliver inline keyboards to your Telegram
 
 ### Agent chaining
 
@@ -297,6 +348,7 @@ Events are POSTed to `{AGENT_SERVER_PANEL_URL}/api/runs/{runId}/status` with an 
 agent-server init            # Create ~/.agent-server/ with a sample agent
 agent-server start           # Start server with HTTP API + scheduler
 agent-server run <agentId>   # Run an agent immediately (ignores schedule)
+agent-server run <agentId> --with "extra context"  # Run with context appended to prompt
 agent-server list            # List all discovered agents
 agent-server install         # Install macOS LaunchAgent for auto-start
 agent-server uninstall       # Remove macOS LaunchAgent
@@ -310,6 +362,9 @@ The server exposes a local API on port 47821 (configurable):
 curl http://localhost:47821/agents                        # List all agents
 curl http://localhost:47821/agents/daily-summary           # Get agent detail
 curl -X POST http://localhost:47821/agents/daily-summary/run  # Trigger a run
+curl -X POST http://localhost:47821/agents/daily-summary/run \
+  -H 'Content-Type: application/json' \
+  -d '{"with": "extra context"}'                              # Run with context
 curl http://localhost:47821/runs                           # List recent runs
 curl http://localhost:47821/runs?agent_id=daily-summary    # Filter by agent
 curl http://localhost:47821/runs/{runId}                   # Run detail with progress
@@ -332,6 +387,7 @@ The CLI loads `~/.agent-server/.env` at startup. Shell environment variables and
 | `AGENT_SERVER_PANEL_API_KEY` | | API key for telemetry |
 | `AGENT_SERVER_HEARTBEAT_MS` | `30000` | Heartbeat interval (ms) |
 | `AGENT_SERVER_PORT` | `47821` | HTTP API port |
+| `AGENT_SERVER_TELEGRAM_BOT_TOKEN` | | Telegram bot token for interactive agents |
 
 ### macOS auto-start
 
@@ -355,11 +411,22 @@ src/
     triggers.ts                Agent chaining (on_complete, on_failure)
     file-watcher.ts            File watch triggers with debounce and glob
 
+  channels/                  Messaging channel adapters
+    channel.ts                 Channel interface + ChannelReply type
+    console.ts                 Console channel (readline, numbered options)
+    telegram.ts                Telegram channel (grammY, long-polling, inline keyboards)
+    dispatcher.ts              Maps channel names to Channel instances
+
   execution/                 Running agents
     executor.ts                Stream event parsing, tool metadata extraction, types
     executor-registry.ts       Plugin registry for swappable executors
     runner.ts                  Orchestrates lock -> report -> execute -> release
     lockfile.ts                PID-based file locks with stale detection
+
+  interaction/               Interactive agent support
+    parser.ts                  Parses interaction blocks from agent output
+    schema.ts                  InteractionRequest + InteractionConfig Zod schemas
+    store.ts                   In-memory pending interaction store with expiry
 
   reporting/                 Telemetry and state
     reporter.ts                A2A telemetry reporter with heartbeat
@@ -388,7 +455,7 @@ src/
 
 ```bash
 npm install
-npm test              # 154 tests
+npm test              # 222 tests
 npm run type-check    # TypeScript strict mode
 npm run build         # Compile to dist/
 npm run dev           # Watch mode
@@ -403,6 +470,7 @@ Tests are colocated with source files (`*.test.ts`). TDD with factory functions 
 - [cron-parser](https://github.com/harrisiirak/cron-parser) v5 for schedule evaluation
 - [Hono](https://hono.dev/) for the HTTP API
 - [Commander](https://github.com/tj/commander.js) for the CLI
+- [grammY](https://grammy.dev/) for Telegram bot integration (long-polling)
 - [dotenv](https://github.com/motdotla/dotenv) for `.env` file loading
 - [Vitest](https://vitest.dev/) for testing
 

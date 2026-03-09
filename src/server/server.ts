@@ -1,4 +1,5 @@
 import { serve } from '@hono/node-server';
+import { join } from 'path';
 import type { ServerConfig } from '../platform/config.js';
 import type { AgentConfig } from '../agents/config.js';
 import type { Reporter } from '../execution/runner.js';
@@ -11,19 +12,61 @@ import { ExecutorRegistry } from '../execution/executor-registry.js';
 import { createReporter } from '../reporting/reporter-factory.js';
 import { shouldRun } from '../agents/scheduler.js';
 import { FileWatcher, extractWatchConfigs } from '../agents/file-watcher.js';
+import { ChannelDispatcher } from '../channels/dispatcher.js';
+import { InteractionStore } from '../interaction/store.js';
+import type { InteractionRequest } from '../interaction/schema.js';
+import { createTelegramChannel } from '../channels/telegram.js';
 import { randomUUID } from 'crypto';
 
 export type ServerInstance = {
   stop: () => void;
 };
 
+const TIMEOUT_PATTERN = /^(\d+)(m|h)$/;
+const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
+
+function parseTimeout(timeout: string): number {
+  const match = TIMEOUT_PATTERN.exec(timeout);
+  if (!match) return DEFAULT_TIMEOUT_MS;
+
+  const value = parseInt(match[1], 10);
+  const unit = match[2];
+  return unit === 'h' ? value * 60 * 60 * 1000 : value * 60 * 1000;
+}
+
 export function startServer(config: ServerConfig): ServerInstance {
   const store = new RunStore();
+  const interactionStore = new InteractionStore();
+  const channelDispatcher = new ChannelDispatcher();
   const port = config.port;
 
   const executorRegistry = new ExecutorRegistry();
   executorRegistry.register('claude-code', executeAgent);
   executorRegistry.setDefault('claude-code');
+
+  async function handleInteractionResult(
+    runId: string,
+    agent: AgentConfig,
+    interaction: InteractionRequest,
+  ): Promise<void> {
+    if (!agent.interaction) return;
+
+    const interactionId = randomUUID();
+    const timeoutMs = parseTimeout(agent.interaction.timeout);
+
+    interactionStore.add({
+      id: interactionId,
+      runId,
+      agentId: agent.id,
+      replyAgentId: agent.interaction.on_reply,
+      request: interaction,
+      channel: agent.interaction.channel,
+      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + timeoutMs),
+    });
+
+    await channelDispatcher.dispatch(interactionId, agent.interaction.channel, interaction);
+  }
 
   function triggerRunForAgent(agent: AgentConfig, promptSuffix?: string): string {
     const runId = randomUUID();
@@ -73,6 +116,9 @@ export function startServer(config: ServerConfig): ServerInstance {
           filesWritten: result.filesWritten,
           commandsRun: result.commandsRun,
         });
+        if (result.interaction && agent.interaction) {
+          void handleInteractionResult(runId, agent, result.interaction);
+        }
         return result;
       },
       createReporter: (rid, name) => createReporter(config, rid, name),
@@ -155,11 +201,50 @@ export function startServer(config: ServerConfig): ServerInstance {
 
   const fileWatcherPromise = setupFileWatchers();
 
+  async function setupTelegram(): Promise<void> {
+    if (!config.telegramBotToken) return;
+
+    const chatIdPath = join(config.agentsDir, '..', 'telegram.json');
+    const telegramChannel = await createTelegramChannel({
+      botToken: config.telegramBotToken,
+      chatIdPath,
+    });
+
+    telegramChannel.onReply((reply) => {
+      const interaction = interactionStore.get(reply.interactionId);
+      if (!interaction || interaction.status !== 'pending') return;
+
+      interactionStore.markActed(reply.interactionId);
+      const promptSuffix = reply.selectedValue ?? reply.freeText;
+      if (!promptSuffix) return;
+
+      console.log(`[telegram] Reply for ${interaction.agentId}, triggering ${interaction.replyAgentId}`);
+      void triggerRun(interaction.replyAgentId, promptSuffix).catch((err) => {
+        console.error(`[telegram] Failed to trigger ${interaction.replyAgentId}: ${err}`);
+      });
+    });
+
+    channelDispatcher.register(telegramChannel);
+    await telegramChannel.start();
+    console.log('  Telegram: connected');
+  }
+
+  const telegramPromise = setupTelegram();
+
+  const expiryInterval = setInterval(() => {
+    const expired = interactionStore.expireStale();
+    if (expired.length > 0) {
+      console.log(`[interactions] Expired ${expired.length} stale interaction(s)`);
+    }
+  }, 60_000);
+
   return {
     stop: () => {
       clearInterval(interval);
+      clearInterval(expiryInterval);
       httpServer.close();
       void fileWatcherPromise.then((w) => w?.stop());
+      void telegramPromise.then(() => channelDispatcher.stopAll());
       console.log('Agent Server stopped.');
     },
   };

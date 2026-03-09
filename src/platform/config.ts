@@ -31,6 +31,7 @@ export const ServerConfigSchema = z.object({
   checkIntervalMs: z.number().int().positive().default(60_000),
   heartbeatMs: z.number().int().positive().default(30_000),
   port: z.number().int().positive().default(47821),
+  telegramBotToken: z.string().optional(),
 });
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
@@ -51,5 +52,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     port: env.AGENT_SERVER_PORT
       ? Number(env.AGENT_SERVER_PORT)
       : undefined,
+    telegramBotToken: env.AGENT_SERVER_TELEGRAM_BOT_TOKEN || undefined,
   });
 }
