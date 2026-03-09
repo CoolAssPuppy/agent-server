@@ -1,11 +1,14 @@
+import { randomUUID } from 'crypto';
 import type { ServerConfig } from '../platform/config.js';
 import type { AgentConfig } from '../agents/config.js';
 import { discoverAgents } from '../agents/discovery.js';
 import { shouldRun } from '../agents/scheduler.js';
-import { runAgent } from '../execution/runner.js';
+import { runAgent, type RunResult } from '../execution/runner.js';
 import { executeAgent } from '../plugins/claude-code.js';
 import { ExecutorRegistry } from '../execution/executor-registry.js';
 import { createReporter } from '../reporting/reporter-factory.js';
+import { ConsoleChannel } from '../channels/console.js';
+import type { ChannelReply } from '../channels/channel.js';
 
 function createDefaultRegistry(): ExecutorRegistry {
   const registry = new ExecutorRegistry();
@@ -82,22 +85,69 @@ export async function runSingleAgent(
 
   if (result.status === 'skipped') {
     console.log('Skipped: agent is already running');
-  } else if (result.status === 'completed') {
-    console.log(`Completed (run: ${result.runId})\n`);
-    if (result.result) {
-      console.log(`Summary: ${result.result.summary}`);
-      console.log(`Turns: ${result.result.turnCount}`);
-      if (result.result.toolsUsed.length > 0) {
-        console.log(`Tools used: ${result.result.toolsUsed.join(', ')}`);
-      }
-      if (result.result.filesWritten.length > 0) {
-        console.log(`Files written: ${result.result.filesWritten.join(', ')}`);
-      }
-    }
-  } else {
+    return;
+  }
+
+  if (result.status === 'failed') {
     console.error(`Failed: ${result.error}`);
     process.exitCode = 1;
+    return;
   }
+
+  console.log(`Completed (run: ${result.runId})\n`);
+  if (result.result) {
+    console.log(`Summary: ${result.result.summary}`);
+    console.log(`Turns: ${result.result.turnCount}`);
+    if (result.result.toolsUsed.length > 0) {
+      console.log(`Tools used: ${result.result.toolsUsed.join(', ')}`);
+    }
+    if (result.result.filesWritten.length > 0) {
+      console.log(`Files written: ${result.result.filesWritten.join(', ')}`);
+    }
+  }
+
+  if (agent.interaction?.on_reply) {
+    const replyAgent = agents.find((a) => a.id === agent.interaction!.on_reply);
+    if (!replyAgent) {
+      console.error(`Reply agent not found: ${agent.interaction.on_reply}`);
+      return;
+    }
+    await handleInteraction(config, agent, result, replyAgent);
+  }
+}
+
+async function handleInteraction(
+  config: ServerConfig,
+  agent: AgentConfig,
+  result: RunResult,
+  replyAgent: AgentConfig,
+): Promise<void> {
+  if (!result.result?.interaction || !agent.interaction) return;
+
+  const interaction = result.result.interaction;
+  const interactionId = randomUUID();
+
+  if (agent.interaction.channel !== 'console') {
+    console.log(`\nInteraction request sent to ${agent.interaction.channel} (not handled in CLI mode)`);
+    return;
+  }
+
+  const channel = new ConsoleChannel();
+  let reply: ChannelReply | undefined;
+
+  channel.onReply((r) => {
+    reply = r;
+  });
+
+  await channel.send(interactionId, interaction);
+
+  if (!reply) return;
+
+  const promptSuffix = reply.selectedValue ?? reply.freeText;
+  if (!promptSuffix) return;
+
+  console.log(`\nTriggering ${replyAgent.name} (${replyAgent.id})...`);
+  await runSingleAgent(config, replyAgent.id, { promptSuffix });
 }
 
 export async function listAgents(config: ServerConfig): Promise<void> {
