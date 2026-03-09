@@ -1,0 +1,41 @@
+id: dependency-audit
+name: Dependency Security Audit
+description: >
+  Weekly audit of npm dependencies for known vulnerabilities
+  and outdated packages. Generates a report with upgrade paths.
+
+schedule: "0 8 * * 1"
+timezone: America/Los_Angeles
+
+prompt: |
+  Run a security and freshness audit on this project's dependencies:
+
+  1. Run `npm audit` and capture the output
+  2. Run `npm outdated` and capture the output
+  3. For any critical or high severity vulnerabilities:
+     - Check if a patch version is available
+     - Note if the vulnerable package is direct or transitive
+  4. For outdated packages:
+     - Flag major version bumps that may have breaking changes
+     - Note packages more than 2 major versions behind
+
+  Generate a report at ~/reports/dependency-audit-{date}.md with:
+
+  ## Security Vulnerabilities
+  (list with severity, package name, fix available)
+
+  ## Outdated Packages
+  (table: package, current, latest, type of update)
+
+  ## Recommended Actions
+  (prioritized list of what to update first)
+
+  If everything is clean, report that.
+
+tools:
+  - Read
+  - Write
+  - Bash
+
+max_turns: 10
+enabled: true

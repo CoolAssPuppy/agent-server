@@ -29,6 +29,7 @@ export const AgentConfigSchema = z
     on_complete: z.array(TriggerRefSchema).optional(),
     on_failure: z.array(TriggerRefSchema).optional(),
     watch: z.array(FileWatchSchema).optional(),
+    executor: z.string().optional(),
   })
   .passthrough();
 

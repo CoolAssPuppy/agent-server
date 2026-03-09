@@ -4,13 +4,22 @@ import { discoverAgents } from './discovery.js';
 import { shouldRun } from './scheduler.js';
 import { runAgent } from './runner.js';
 import { executeAgent } from './executor.js';
+import { ExecutorRegistry } from './executor-registry.js';
 import { createReporter } from './reporter-factory.js';
 
+function createDefaultRegistry(): ExecutorRegistry {
+  const registry = new ExecutorRegistry();
+  registry.register('claude-code', executeAgent);
+  registry.setDefault('claude-code');
+  return registry;
+}
+
 function runAgentWithConfig(config: ServerConfig, agent: AgentConfig) {
+  const registry = createDefaultRegistry();
   return runAgent({
     agent,
     lockDir: config.lockDir,
-    execute: executeAgent,
+    execute: (a, reporter) => registry.resolve(a)(a, reporter),
     createReporter: (runId, agentName) => createReporter(config, runId, agentName),
   });
 }

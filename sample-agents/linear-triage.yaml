@@ -1,0 +1,39 @@
+id: linear-triage
+name: Linear Issue Triage
+description: >
+  Reviews new Linear issues without labels or priority, suggests
+  categorization, and adds initial triage comments.
+
+schedule: "0 10 * * 1-5"
+timezone: America/Los_Angeles
+
+prompt: |
+  Review all Linear issues that were created in the last 24 hours
+  and lack proper categorization. For each untriaged issue:
+
+  1. Read the issue title and description
+  2. Suggest appropriate labels based on content:
+     - bug, feature, improvement, chore, documentation
+  3. Suggest a priority level (urgent, high, medium, low)
+  4. If the issue description is vague, add a comment asking
+     for clarification with specific questions
+
+  Do not modify issues directly. Instead, create a triage report
+  saved to ~/reports/triage-{today's date}.md with your
+  recommendations for each issue.
+
+  Format each entry as:
+  ## [ISSUE-ID] Issue Title
+  - **Suggested labels:** bug, backend
+  - **Suggested priority:** medium
+  - **Notes:** Description is clear, ready for estimation
+  ---
+
+tools:
+  - Read
+  - Write
+  - Bash
+
+max_turns: 20
+enabled: true
+working_directory: "~"

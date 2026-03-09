@@ -1,0 +1,37 @@
+id: changelog-watcher
+name: Changelog Generator
+description: >
+  Watches a project's git log and generates a human-readable
+  changelog entry when new commits land on main.
+
+schedule: "0 18 * * 1-5"
+timezone: America/Los_Angeles
+
+prompt: |
+  Generate a changelog entry for today's work. Steps:
+
+  1. Run `git log --oneline --since="today 00:00"` to find today's commits
+  2. If no commits today, skip and report "No changes today"
+  3. Group commits by type using conventional commit prefixes:
+     - feat: -> Added
+     - fix: -> Fixed
+     - refactor: -> Changed
+     - docs: -> Documentation
+     - test: -> Testing
+     - chore: -> Maintenance
+  4. Write a clean changelog entry in Keep a Changelog format
+  5. Prepend the entry to CHANGELOG.md (create if missing)
+
+  Keep descriptions concise. One line per change. No commit hashes
+  in the output. Focus on what changed from a user's perspective,
+  not implementation details.
+
+tools:
+  - Read
+  - Write
+  - Bash
+  - Glob
+  - Grep
+
+max_turns: 10
+enabled: true

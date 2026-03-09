@@ -1,0 +1,39 @@
+id: meeting-prep
+name: Meeting Preparation Brief
+description: >
+  Runs 30 minutes before each meeting block, preparing context
+  from Linear issues, Slack threads, and recent documents related
+  to meeting attendees and topics.
+
+schedule: "30 8,12 * * 1-5"
+timezone: America/Los_Angeles
+
+prompt: |
+  Prepare a meeting brief for my upcoming meetings in the next 2 hours.
+
+  For each meeting:
+  1. Read the calendar event title, description, and attendees
+  2. Search for recent Slack messages involving the attendees
+  3. Check Linear for any shared projects or recent issue activity
+  4. Look for any documents or notes related to the meeting topic
+
+  Create a brief for each meeting saved to ~/meetings/{date}/:
+
+  ## {Meeting Title} - {Time}
+  **Attendees:** list
+  **Context:** What this meeting is likely about based on recent activity
+  **Key Points:** Relevant recent updates from Slack/Linear
+  **Questions to Raise:** Based on open items or blockers
+  **Documents:** Links to relevant docs
+
+  Keep each brief under 300 words. Focus on actionable context,
+  not exhaustive history.
+
+tools:
+  - Read
+  - Write
+  - Bash
+
+max_turns: 15
+enabled: true
+working_directory: "~"

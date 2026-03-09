@@ -7,6 +7,7 @@ import { discoverAgents } from './discovery.js';
 import { RunStore } from './store.js';
 import { runAgent } from './runner.js';
 import { executeAgent } from './executor.js';
+import { ExecutorRegistry } from './executor-registry.js';
 import { createReporter } from './reporter-factory.js';
 import { shouldRun } from './scheduler.js';
 import { FileWatcher, extractWatchConfigs } from './file-watcher.js';
@@ -19,6 +20,10 @@ export type ServerInstance = {
 export function startServer(config: ServerConfig): ServerInstance {
   const store = new RunStore();
   const port = config.port;
+
+  const executorRegistry = new ExecutorRegistry();
+  executorRegistry.register('claude-code', executeAgent);
+  executorRegistry.setDefault('claude-code');
 
   function triggerRunForAgent(agent: AgentConfig): string {
     const runId = randomUUID();
@@ -56,7 +61,8 @@ export function startServer(config: ServerConfig): ServerInstance {
           fail: (error) => reporter.fail(error),
           stop: () => reporter.stop(),
         };
-        const result = await executeAgent(a, wrappedReporter);
+        const executor = executorRegistry.resolve(a);
+        const result = await executor(a, wrappedReporter);
         store.update(runId, {
           status: 'completed',
           completedAt: new Date(),

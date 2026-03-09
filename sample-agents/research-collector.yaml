@@ -1,0 +1,37 @@
+id: research-collector
+name: Research Collector
+description: >
+  Collects research from web sources on configured topics and saves
+  findings as markdown files. Triggers the markdown-processor agent
+  on completion for quality review.
+
+schedule: "0 7 * * 1-5"
+timezone: America/Los_Angeles
+
+prompt: |
+  Research the topics listed in ~/research/topics.md and collect
+  findings for each topic:
+
+  1. Read ~/research/topics.md for the list of active research topics
+  2. For each topic, search for recent developments (last 7 days)
+  3. Write a research summary for each topic to ~/Documents/notes/research-{topic-slug}-{date}.md
+
+  Each summary should include:
+  - Key findings with source attribution
+  - How this relates to our current projects
+  - Action items or things to watch
+
+  Keep each summary focused and under 500 words.
+
+tools:
+  - Read
+  - Write
+  - Bash
+  - Glob
+
+max_turns: 20
+enabled: true
+working_directory: "~"
+
+on_complete:
+  - agent: markdown-processor

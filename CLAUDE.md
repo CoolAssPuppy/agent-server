@@ -6,23 +6,27 @@ Lightweight orchestration server that runs AI agents in the background using Cla
 
 ```
 src/
-  agent-config.ts    -- Zod schema + YAML parser for agent definitions
-  discovery.ts       -- Reads YAML files from agents directory
-  scheduler.ts       -- Cron expression evaluation (cron-parser v5)
-  lockfile.ts        -- PID-based file locks with stale detection
-  reporter.ts        -- A2A telemetry reporter with heartbeat
-  executor.ts        -- Spawns `claude --print --output-format stream-json`
-  runner.ts          -- Orchestrates lock -> report -> execute -> release
-  daemon.ts          -- Timer loop, single-run, list commands (legacy)
-  store.ts           -- In-memory run state store with eviction
-  api.ts             -- Hono HTTP API routes
-  server.ts          -- Combined HTTP server + agent scheduler
-  triggers.ts        -- Agent chaining (on_complete, on_failure)
-  launchd.ts         -- macOS LaunchAgent plist generation
-  config.ts          -- ServerConfig from AGENT_SERVER_* env vars
-  init.ts            -- Scaffolds ~/.agent-server/ with sample agent
-  cli.ts             -- Commander CLI: start, run, list, init, install, uninstall
-  index.ts           -- Barrel exports for library use
+  agent-config.ts        -- Zod schema + YAML parser for agent definitions
+  discovery.ts           -- Reads YAML files from agents directory
+  scheduler.ts           -- Cron expression evaluation (cron-parser v5)
+  lockfile.ts            -- PID-based file locks with stale detection
+  reporter.ts            -- A2A telemetry reporter with heartbeat
+  executor.ts            -- Claude Code executor (spawns `claude --print`)
+  executor-registry.ts   -- Plugin registry for model-agnostic execution
+  runner.ts              -- Orchestrates lock -> report -> execute -> release
+  daemon.ts              -- Timer loop, single-run, list commands
+  store.ts               -- In-memory run state store with eviction
+  api.ts                 -- Hono HTTP API routes
+  server.ts              -- Combined HTTP server + agent scheduler
+  triggers.ts            -- Agent chaining (on_complete, on_failure)
+  file-watcher.ts        -- File watch triggers with debounce and glob
+  launchd.ts             -- macOS LaunchAgent plist generation
+  config.ts              -- ServerConfig from AGENT_SERVER_* env vars
+  init.ts                -- Scaffolds ~/.agent-server/ with sample agent
+  cli.ts                 -- Commander CLI: start, run, list, init, install, uninstall
+  index.ts               -- Barrel exports for library use
+
+sample-agents/           -- Example agent YAML configs
 ```
 
 ## Tech stack
@@ -36,6 +40,25 @@ src/
 - vitest for testing
 
 ## Key patterns
+
+### Executor plugin registry
+
+Agents can specify which executor to use via the optional `executor` field in their YAML config. The `ExecutorRegistry` maps executor names to functions. Claude Code is the default executor. To add a new executor:
+
+```typescript
+import { ExecutorRegistry, type ExecutorFn } from './executor-registry.js';
+
+const codexExecutor: ExecutorFn = async (agent, reporter) => {
+  // Your implementation here
+};
+
+registry.register('codex', codexExecutor);
+```
+
+Agents select their executor:
+```yaml
+executor: codex  # defaults to 'claude-code' if omitted
+```
 
 ### Reporter interface
 
@@ -64,14 +87,45 @@ PID-based locks in the locks directory. Stale lock detection via `process.kill(p
 
 Agents can define `on_complete` and `on_failure` arrays referencing other agent IDs. Use `evaluateTriggers()` to find downstream agents after a run completes.
 
+### File watch triggers
+
+Agents can declare `watch` paths in their YAML config. The `FileWatcher` class monitors these paths with `fs.watch`, applies glob filtering for directories, and debounces rapid changes. The `expandHome()` utility (in file-watcher.ts) handles `~` expansion and is shared with executor.ts.
+
 ### HTTP API
 
 Hono app created via `createApi()` with dependency injection. Routes: `/agents`, `/agents/:id`, `/agents/:id/run`, `/runs`, `/runs/:id`, `/health`. The `startServer()` function combines HTTP + scheduler in one process.
 
+## Agent YAML format
+
+```yaml
+id: my-agent
+name: My Agent
+description: What this agent does
+schedule: "*/5 * * * *"
+timezone: America/Los_Angeles
+prompt: |
+  Multi-line prompt for the agent...
+tools:
+  - Read
+  - Write
+  - Bash
+max_turns: 20
+enabled: true
+working_directory: "~/projects/my-project"
+executor: claude-code    # optional, defaults to claude-code
+watch:                   # optional file triggers
+  - path: "~/output"
+    glob: "*.md"
+on_complete:             # optional agent chaining
+  - agent: downstream-agent
+on_failure:
+  - agent: alert-agent
+```
+
 ## Commands
 
 ```bash
-npm test              # Run all 112 tests
+npm test              # Run all tests
 npm run type-check    # TypeScript strict check
 npm run build         # Compile to dist/
 npm run dev           # Dev mode with tsx watch
@@ -103,14 +157,12 @@ agent-server uninstall       # Remove macOS LaunchAgent
 
 ## Testing
 
-TDD is mandatory. 112 tests across 14 files. Tests are colocated with source files (`*.test.ts`). Use factory functions for test data, never `let`/`beforeEach` mutation.
+TDD is mandatory. Tests are colocated with source files (`*.test.ts`). Use factory functions for test data, never `let`/`beforeEach` mutation.
 
 ## Future work
 
 - Agent SDK integration when `@anthropic-ai/claude-code` SDK is stable
 - WebSocket streaming for live run progress
 - Cancel running agents via API
-- File watch triggers (fs.watch with debounce)
 - Wire triggers into server run completion flow
 - Sleep/wake catch-up logic for LaunchAgent
-- Native Mac app (planned)

@@ -1,0 +1,36 @@
+id: daily-standup
+name: Daily Standup Summary
+description: >
+  Summarizes yesterday's activity across Slack, Linear, and GitHub
+  into a concise standup update. Runs every weekday morning.
+
+schedule: "0 9 * * 1-5"
+timezone: America/Los_Angeles
+
+prompt: |
+  Generate a daily standup summary for today. Follow this structure:
+
+  **What I did yesterday:**
+  - Check Slack channels for messages I sent or was mentioned in
+  - Check Linear for issues I completed, commented on, or moved
+  - Check any git commits from yesterday
+
+  **What I'm doing today:**
+  - Check Linear for issues assigned to me that are in progress or todo
+  - Check my calendar for meetings
+
+  **Blockers:**
+  - Flag any issues marked as blocked in Linear
+  - Flag any unanswered questions from Slack threads
+
+  Write the summary in first person, keep it under 200 words.
+  Save the output to ~/standup/standup-{today's date}.md
+
+tools:
+  - Read
+  - Write
+  - Bash
+
+max_turns: 15
+enabled: true
+working_directory: "~"
