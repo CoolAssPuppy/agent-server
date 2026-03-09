@@ -20,7 +20,6 @@ describe('sample agents', () => {
 
       expect(agent.id).toBeTruthy();
       expect(agent.name).toBeTruthy();
-      expect(agent.schedule).toBeTruthy();
       expect(agent.prompt).toBeTruthy();
       expect(agent.tools.length).toBeGreaterThan(0);
       expect(agent.max_turns).toBeGreaterThan(0);

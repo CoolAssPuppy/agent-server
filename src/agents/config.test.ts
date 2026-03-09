@@ -86,6 +86,28 @@ describe('AgentConfigSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('accepts config without a schedule (on-demand agent)', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'on-demand',
+      name: 'On Demand Agent',
+      prompt: 'Do something on demand.',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.schedule).toBeUndefined();
+    }
+  });
+
+  it('rejects empty schedule string', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'test',
+      name: 'Test',
+      schedule: '',
+      prompt: 'Do something.',
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('parseAgentYaml', () => {
@@ -238,5 +260,21 @@ describe('parseAgentFile', () => {
     expect(config.max_turns).toBe(20);
     expect(config.enabled).toBe(true);
     expect(config.tools).toEqual([]);
+  });
+
+  it('parses on-demand agent without schedule', () => {
+    const content = `---
+id: on-demand
+name: On Demand Agent
+tools:
+  - Bash
+---
+
+Do something when triggered manually.
+`;
+    const config = parseAgentFile(content);
+    expect(config.id).toBe('on-demand');
+    expect(config.schedule).toBeUndefined();
+    expect(config.prompt).toBe('Do something when triggered manually.');
   });
 });

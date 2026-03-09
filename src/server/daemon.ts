@@ -14,13 +14,18 @@ function createDefaultRegistry(): ExecutorRegistry {
   return registry;
 }
 
-function runAgentWithConfig(config: ServerConfig, agent: AgentConfig) {
+type RunOptions = {
+  promptSuffix?: string;
+};
+
+function runAgentWithConfig(config: ServerConfig, agent: AgentConfig, options: RunOptions = {}) {
   const registry = createDefaultRegistry();
   return runAgent({
     agent,
     lockDir: config.lockDir,
     execute: (a, reporter) => registry.resolve(a)(a, reporter),
     createReporter: (runId, agentName) => createReporter(config, runId, agentName),
+    promptSuffix: options.promptSuffix,
   });
 }
 
@@ -56,6 +61,7 @@ export async function runDueAgents(config: ServerConfig): Promise<void> {
 export async function runSingleAgent(
   config: ServerConfig,
   agentId: string,
+  options: RunOptions = {},
 ): Promise<void> {
   const agents = await discoverAgents(config.agentsDir);
   const agent = agents.find((a) => a.id === agentId);
@@ -68,8 +74,11 @@ export async function runSingleAgent(
   }
 
   console.log(`Running agent: ${agent.name} (${agent.id})`);
+  if (options.promptSuffix) {
+    console.log(`  with: ${options.promptSuffix}`);
+  }
 
-  const result = await runAgentWithConfig(config, agent);
+  const result = await runAgentWithConfig(config, agent, options);
 
   if (result.status === 'skipped') {
     console.log('Skipped: agent is already running');
@@ -105,7 +114,7 @@ export async function listAgents(config: ServerConfig): Promise<void> {
   const rows = agents.map((a) => ({
     id: a.id,
     name: a.name,
-    schedule: a.schedule,
+    schedule: a.schedule ?? '(on-demand)',
     enabled: a.enabled ? 'yes' : 'no',
     turns: String(a.max_turns),
   }));

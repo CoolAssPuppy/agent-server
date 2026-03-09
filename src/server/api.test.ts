@@ -59,7 +59,18 @@ describe('API routes', () => {
 
       const body = await res.json();
       expect(body.runId).toBe('run-123');
-      expect(triggerRun).toHaveBeenCalledWith('test-agent');
+      expect(triggerRun).toHaveBeenCalledWith('test-agent', undefined);
+    });
+
+    it('passes prompt suffix from request body', async () => {
+      const app = createApp();
+      const res = await app.request('/agents/test-agent/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ with: 'Bougainville tonight for 4' }),
+      });
+      expect(res.status).toBe(202);
+      expect(triggerRun).toHaveBeenCalledWith('test-agent', 'Bougainville tonight for 4');
     });
 
     it('returns 404 for unknown agent', async () => {

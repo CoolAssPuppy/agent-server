@@ -19,7 +19,7 @@ export const AgentConfigSchema = z
     id: z.string().min(1),
     name: z.string().min(1),
     description: z.string().optional(),
-    schedule: z.string().min(1),
+    schedule: z.string().min(1).optional(),
     timezone: z.string().optional(),
     prompt: z.string().min(1),
     tools: z.array(z.string()).default([]),

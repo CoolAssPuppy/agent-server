@@ -5,7 +5,7 @@ import type { RunStore } from '../reporting/store.js';
 type ApiDependencies = {
   getAgents: () => Promise<AgentConfig[]>;
   store: RunStore;
-  triggerRun: (agentId: string) => Promise<string>;
+  triggerRun: (agentId: string, promptSuffix?: string) => Promise<string>;
 };
 
 export function createApi(deps: ApiDependencies): Hono {
@@ -33,7 +33,15 @@ export function createApi(deps: ApiDependencies): Hono {
     const agent = agents.find((a) => a.id === agentId);
     if (!agent) return c.json({ error: 'Agent not found' }, 404);
 
-    const runId = await deps.triggerRun(agentId);
+    let promptSuffix: string | undefined;
+    try {
+      const body = await c.req.json<{ with?: string }>();
+      promptSuffix = body.with;
+    } catch {
+      // No body or invalid JSON is fine
+    }
+
+    const runId = await deps.triggerRun(agentId, promptSuffix);
     return c.json({ runId, agentId }, 202);
   });
 

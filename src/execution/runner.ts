@@ -23,10 +23,11 @@ type RunAgentOptions = {
   lockDir: string;
   execute: (agent: AgentConfig, reporter: Reporter) => Promise<ExecutionResult>;
   createReporter: (runId: string, agentName: string) => Reporter;
+  promptSuffix?: string;
 };
 
 export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
-  const { agent, lockDir, execute, createReporter } = options;
+  const { agent, lockDir, execute, createReporter, promptSuffix } = options;
 
   if (!acquireLock(lockDir, agent.id)) {
     return { status: 'skipped' };
@@ -35,9 +36,13 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
   const runId = randomUUID();
   const reporter = createReporter(runId, agent.name);
 
+  const effectiveAgent = promptSuffix
+    ? { ...agent, prompt: `${agent.prompt}\n\n${promptSuffix}` }
+    : agent;
+
   try {
     await reporter.start();
-    const result = await execute(agent, reporter);
+    const result = await execute(effectiveAgent, reporter);
     await reporter.complete(result);
     reporter.stop();
     return { runId, status: 'completed', result };

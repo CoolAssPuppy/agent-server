@@ -156,6 +156,52 @@ describe('runAgent', () => {
     expect(isLocked(lockDir, 'test-agent')).toBe(false);
   });
 
+  it('appends promptSuffix to agent prompt before executing', async () => {
+    const lockDir = createTempDir('runner');
+    dirs.push(lockDir);
+    const execute = vi.fn().mockResolvedValue(makeExecutionResult());
+
+    await runAgent({
+      agent: makeAgent({ prompt: 'Base prompt.' }),
+      lockDir,
+      execute,
+      createReporter: () => ({
+        start: noop,
+        progress: noop,
+        complete: noop,
+        fail: noop,
+        stop: () => {},
+      }),
+      promptSuffix: 'Bougainville in Lisbon, 4 people, tonight',
+    });
+
+    const executedAgent = execute.mock.calls[0][0] as { prompt: string };
+    expect(executedAgent.prompt).toContain('Base prompt.');
+    expect(executedAgent.prompt).toContain('Bougainville in Lisbon, 4 people, tonight');
+  });
+
+  it('does not modify agent prompt when no promptSuffix provided', async () => {
+    const lockDir = createTempDir('runner');
+    dirs.push(lockDir);
+    const execute = vi.fn().mockResolvedValue(makeExecutionResult());
+
+    await runAgent({
+      agent: makeAgent({ prompt: 'Base prompt.' }),
+      lockDir,
+      execute,
+      createReporter: () => ({
+        start: noop,
+        progress: noop,
+        complete: noop,
+        fail: noop,
+        stop: () => {},
+      }),
+    });
+
+    const executedAgent = execute.mock.calls[0][0] as { prompt: string };
+    expect(executedAgent.prompt).toBe('Base prompt.');
+  });
+
   it('returns skipped when agent is already locked', async () => {
     const lockDir = createTempDir('runner');
     dirs.push(lockDir);

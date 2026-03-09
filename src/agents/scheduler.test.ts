@@ -62,6 +62,12 @@ describe('shouldRun', () => {
     const utc8am = new Date('2026-03-09T08:00:00Z');
     expect(shouldRun(agent, utc8am)).toBe(true);
   });
+
+  it('returns false for agents without a schedule', () => {
+    const agent = makeAgent({ schedule: undefined });
+    const now = new Date('2026-03-09T10:00:00Z');
+    expect(shouldRun(agent, now)).toBe(false);
+  });
 });
 
 describe('getNextRun', () => {

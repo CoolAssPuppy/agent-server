@@ -39,9 +39,10 @@ program
 program
   .command('run <agentId>')
   .description('Run a specific agent immediately (ignores schedule)')
-  .action(async (agentId: string) => {
+  .option('--with <context>', 'Extra context appended to the agent prompt')
+  .action(async (agentId: string, opts: { with?: string }) => {
     const config = loadConfig();
-    await runSingleAgent(config, agentId);
+    await runSingleAgent(config, agentId, { promptSuffix: opts.with });
   });
 
 program

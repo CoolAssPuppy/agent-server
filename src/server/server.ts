@@ -25,7 +25,7 @@ export function startServer(config: ServerConfig): ServerInstance {
   executorRegistry.register('claude-code', executeAgent);
   executorRegistry.setDefault('claude-code');
 
-  function triggerRunForAgent(agent: AgentConfig): string {
+  function triggerRunForAgent(agent: AgentConfig, promptSuffix?: string): string {
     const runId = randomUUID();
     store.add({
       runId,
@@ -76,6 +76,7 @@ export function startServer(config: ServerConfig): ServerInstance {
         return result;
       },
       createReporter: (rid, name) => createReporter(config, rid, name),
+      promptSuffix,
     }).then((result) => {
       if (result.status === 'failed') {
         store.update(runId, {
@@ -95,11 +96,11 @@ export function startServer(config: ServerConfig): ServerInstance {
     return runId;
   }
 
-  async function triggerRun(agentId: string): Promise<string> {
+  async function triggerRun(agentId: string, promptSuffix?: string): Promise<string> {
     const agents = await discoverAgents(config.agentsDir);
     const agent = agents.find((a) => a.id === agentId);
     if (!agent) throw new Error(`Agent not found: ${agentId}`);
-    return triggerRunForAgent(agent);
+    return triggerRunForAgent(agent, promptSuffix);
   }
 
   async function runDueAgents(): Promise<void> {
