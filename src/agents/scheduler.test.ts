@@ -68,6 +68,12 @@ describe('shouldRun', () => {
     const now = new Date('2026-03-09T10:00:00Z');
     expect(shouldRun(agent, now)).toBe(false);
   });
+
+  it('returns false for invalid cron expressions instead of throwing', () => {
+    const agent = makeAgent({ schedule: '0 0 31 2 *' });
+    const now = new Date('2026-03-09T10:00:00Z');
+    expect(shouldRun(agent, now)).toBe(false);
+  });
 });
 
 describe('getNextRun', () => {

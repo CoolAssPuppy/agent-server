@@ -8,11 +8,15 @@ export function shouldRun(agent: AgentConfig, now: Date): boolean {
   const truncated = new Date(now);
   truncated.setSeconds(0, 0);
 
-  const expr = CronExpressionParser.parse(agent.schedule, {
-    tz: agent.timezone,
-  });
-
-  return expr.includesDate(truncated);
+  try {
+    const expr = CronExpressionParser.parse(agent.schedule, {
+      tz: agent.timezone,
+    });
+    return expr.includesDate(truncated);
+  } catch {
+    console.warn(`Invalid cron expression for agent "${agent.id}": ${agent.schedule}`);
+    return false;
+  }
 }
 
 export function getNextRun(agent: AgentConfig, now: Date): Date | undefined {
