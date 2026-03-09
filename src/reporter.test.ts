@@ -1,0 +1,142 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { TelemetryReporter, type StatusEvent } from './reporter.js';
+
+function createMockFetch() {
+  return vi.fn().mockResolvedValue({ ok: true, status: 200 });
+}
+
+function makeReporter(overrides: { fetch?: typeof fetch; heartbeatMs?: number } = {}) {
+  return new TelemetryReporter({
+    runId: 'run-123',
+    agentName: 'Test Agent',
+    endpoint: 'https://panel.example.com/api/runs/run-123/status',
+    apiKey: 'ap_live_test',
+    fetch: overrides.fetch ?? createMockFetch(),
+    heartbeatMs: overrides.heartbeatMs ?? 0,
+  });
+}
+
+describe('TelemetryReporter', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('sends a working event on start', async () => {
+    const mockFetch = createMockFetch();
+    const reporter = makeReporter({ fetch: mockFetch });
+
+    await reporter.start();
+    reporter.stop();
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url, options] = mockFetch.mock.calls[0];
+    expect(url).toBe('https://panel.example.com/api/runs/run-123/status');
+    const body = JSON.parse(options.body) as StatusEvent;
+    expect(body.state).toBe('working');
+    expect(body.agent).toBe('Test Agent');
+  });
+
+  it('sends a completed event on successful finish', async () => {
+    const mockFetch = createMockFetch();
+    const reporter = makeReporter({ fetch: mockFetch });
+
+    await reporter.start();
+    await reporter.complete({ summary: 'Done', usage: { total_tokens: 100 } });
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const body = JSON.parse(mockFetch.mock.calls[1][1].body) as StatusEvent;
+    expect(body.state).toBe('completed');
+    expect(body.result?.summary).toBe('Done');
+  });
+
+  it('sends a failed event on error', async () => {
+    const mockFetch = createMockFetch();
+    const reporter = makeReporter({ fetch: mockFetch });
+
+    await reporter.start();
+    await reporter.fail(new Error('Something broke'));
+
+    const body = JSON.parse(mockFetch.mock.calls[1][1].body) as StatusEvent;
+    expect(body.state).toBe('failed');
+    expect(body.error?.message).toBe('Something broke');
+  });
+
+  it('sends progress events with message and metadata', async () => {
+    const mockFetch = createMockFetch();
+    const reporter = makeReporter({ fetch: mockFetch });
+
+    await reporter.start();
+    await reporter.progress('Processing items', {
+      turns_completed: 5,
+      tools_used: ['web_search'],
+    });
+
+    const body = JSON.parse(mockFetch.mock.calls[1][1].body) as StatusEvent;
+    expect(body.state).toBe('working');
+    expect(body.message).toBe('Processing items');
+    expect(body.metadata?.turns_completed).toBe(5);
+  });
+
+  it('includes authorization header', async () => {
+    const mockFetch = createMockFetch();
+    const reporter = makeReporter({ fetch: mockFetch });
+
+    await reporter.start();
+    reporter.stop();
+
+    const headers = mockFetch.mock.calls[0][1].headers;
+    expect(headers['Authorization']).toBe('Bearer ap_live_test');
+    expect(headers['Content-Type']).toBe('application/json');
+  });
+
+  it('includes ISO timestamp in events', async () => {
+    const mockFetch = createMockFetch();
+    const reporter = makeReporter({ fetch: mockFetch });
+
+    await reporter.start();
+    reporter.stop();
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body) as StatusEvent;
+    expect(body.timestamp).toBeDefined();
+    expect(() => new Date(body.timestamp!)).not.toThrow();
+  });
+
+  it('does not throw when fetch fails', async () => {
+    const failingFetch = vi.fn().mockRejectedValue(new Error('Network error'));
+    const reporter = makeReporter({ fetch: failingFetch });
+
+    await expect(reporter.start()).resolves.toBeUndefined();
+    reporter.stop();
+  });
+
+  it('sends heartbeat events at configured interval', async () => {
+    const mockFetch = createMockFetch();
+    const reporter = makeReporter({ fetch: mockFetch, heartbeatMs: 1000 });
+
+    await reporter.start();
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+
+    reporter.stop();
+  });
+
+  it('stops heartbeat when stop is called', async () => {
+    const mockFetch = createMockFetch();
+    const reporter = makeReporter({ fetch: mockFetch, heartbeatMs: 1000 });
+
+    await reporter.start();
+    reporter.stop();
+
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+});
