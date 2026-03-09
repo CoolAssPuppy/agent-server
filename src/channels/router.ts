@@ -1,10 +1,15 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { AgentConfig } from '../agents/config.js';
 
-export type RouteResult = {
-  agent: AgentConfig | undefined;
-  context: string;
-};
+export type RouteResult =
+  | { type: 'route'; agent: AgentConfig; context: string }
+  | { type: 'list'; context: string }
+  | { type: 'none'; context: string };
+
+type ParsedResponse =
+  | { type: 'route'; agent: AgentConfig }
+  | { type: 'list' }
+  | { type: 'none' };
 
 type CreateMessageFn = (params: {
   model: string;
@@ -18,22 +23,29 @@ export function buildRoutingPrompt(message: string, agents: AgentConfig[]): stri
     .join('\n');
 
   return [
-    'You are a message router. Given a user message and a list of available agents, respond with ONLY the agent ID that best matches the request. If no agent matches, respond with NONE.',
+    'You are a message router. Given a user message and a list of available agents, respond with ONLY the agent ID that best matches the request.',
+    '',
+    'If the user is asking about capabilities, what agents are available, or what you can do, respond with LIST.',
+    'If no agent matches, respond with NONE.',
     '',
     'Available agents:',
     agentList,
     '',
     `User message: ${message}`,
     '',
-    'Respond with just the agent ID or NONE. No explanation.',
+    'Respond with just the agent ID, LIST, or NONE. No explanation.',
   ].join('\n');
 }
 
-export function parseRoutingResponse(response: string, agents: AgentConfig[]): AgentConfig | undefined {
+export function parseRoutingResponse(response: string, agents: AgentConfig[]): ParsedResponse {
   const cleaned = response.trim();
-  if (cleaned === 'NONE') return undefined;
+  if (cleaned === 'LIST') return { type: 'list' };
+  if (cleaned === 'NONE') return { type: 'none' };
 
-  return agents.find((a) => a.id === cleaned);
+  const agent = agents.find((a) => a.id === cleaned);
+  if (!agent) return { type: 'none' };
+
+  return { type: 'route', agent };
 }
 
 const defaultCreateMessage: CreateMessageFn = (() => {
@@ -71,7 +83,11 @@ export async function routeMessage(
     .map((block) => block.text ?? '')
     .join('');
 
-  const agent = parseRoutingResponse(text, agents);
+  const parsed = parseRoutingResponse(text, agents);
 
-  return { agent, context: message };
+  if (parsed.type === 'route') {
+    return { type: 'route', agent: parsed.agent, context: message };
+  }
+
+  return { ...parsed, context: message };
 }

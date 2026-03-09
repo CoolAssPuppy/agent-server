@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildRoutingPrompt, parseRoutingResponse, routeMessage } from './router.js';
+import { buildRoutingPrompt, parseRoutingResponse, routeMessage, type RouteResult } from './router.js';
 import type { AgentConfig } from '../agents/config.js';
 
 function makeAgent(overrides: Partial<AgentConfig> = {}): AgentConfig {
@@ -44,35 +44,57 @@ describe('buildRoutingPrompt', () => {
     const prompt = buildRoutingPrompt('do something', agents);
     expect(prompt).toContain('My Cool Agent');
   });
+
+  it('includes LIST instruction for capability queries', () => {
+    const agents = [makeAgent({ id: 'test-agent' })];
+    const prompt = buildRoutingPrompt('what can you do?', agents);
+    expect(prompt).toContain('LIST');
+  });
 });
 
 describe('parseRoutingResponse', () => {
-  it('returns the matched agent for a clean response', () => {
+  it('returns a route result for a matched agent', () => {
     const restaurantAgent = makeAgent({ id: 'restaurant-checker' });
     const agents = [restaurantAgent, makeAgent({ id: 'daily-standup' })];
 
-    expect(parseRoutingResponse('restaurant-checker', agents)).toBe(restaurantAgent);
+    const result = parseRoutingResponse('restaurant-checker', agents);
+    expect(result).toEqual({ type: 'route', agent: restaurantAgent });
   });
 
-  it('returns undefined when response is NONE', () => {
+  it('returns a none result when response is NONE', () => {
     const agents = [makeAgent({ id: 'test-agent' })];
-    expect(parseRoutingResponse('NONE', agents)).toBeUndefined();
+    const result = parseRoutingResponse('NONE', agents);
+    expect(result).toEqual({ type: 'none' });
   });
 
-  it('returns undefined when response does not match any agent', () => {
+  it('returns a none result when response does not match any agent', () => {
     const agents = [makeAgent({ id: 'test-agent' })];
-    expect(parseRoutingResponse('nonexistent-agent', agents)).toBeUndefined();
+    const result = parseRoutingResponse('nonexistent-agent', agents);
+    expect(result).toEqual({ type: 'none' });
   });
 
   it('trims whitespace from response', () => {
     const agent = makeAgent({ id: 'daily-standup' });
     const agents = [agent];
-    expect(parseRoutingResponse('  daily-standup  \n', agents)).toBe(agent);
+    const result = parseRoutingResponse('  daily-standup  \n', agents);
+    expect(result).toEqual({ type: 'route', agent });
+  });
+
+  it('returns a list result when response is LIST', () => {
+    const agents = [makeAgent({ id: 'test-agent' })];
+    const result = parseRoutingResponse('LIST', agents);
+    expect(result).toEqual({ type: 'list' });
+  });
+
+  it('returns a list result when response is LIST with whitespace', () => {
+    const agents = [makeAgent({ id: 'test-agent' })];
+    const result = parseRoutingResponse('  LIST\n', agents);
+    expect(result).toEqual({ type: 'list' });
   });
 });
 
 describe('routeMessage', () => {
-  it('returns the matched agent and the original message as context', async () => {
+  it('returns a route result with the matched agent and context', async () => {
     const restaurantAgent = makeAgent({ id: 'restaurant-checker', description: 'Checks restaurant availability' });
     const agents = [
       restaurantAgent,
@@ -81,15 +103,25 @@ describe('routeMessage', () => {
 
     const result = await routeMessage('Check Bougainville tonight for 4', agents, mockCreate('restaurant-checker'));
 
-    expect(result.agent).toBe(restaurantAgent);
-    expect(result.context).toBe('Check Bougainville tonight for 4');
+    expect(result).toEqual({
+      type: 'route',
+      agent: restaurantAgent,
+      context: 'Check Bougainville tonight for 4',
+    });
   });
 
-  it('returns undefined agent when no agent matches', async () => {
+  it('returns a none result when no agent matches', async () => {
     const agents = [makeAgent({ id: 'daily-standup' })];
 
     const result = await routeMessage('What is the meaning of life?', agents, mockCreate('NONE'));
-    expect(result.agent).toBeUndefined();
+    expect(result).toEqual({ type: 'none', context: 'What is the meaning of life?' });
+  });
+
+  it('returns a list result when LLM responds with LIST', async () => {
+    const agents = [makeAgent({ id: 'daily-standup', description: 'Generates standup summaries' })];
+
+    const result = await routeMessage('What can you do?', agents, mockCreate('LIST'));
+    expect(result).toEqual({ type: 'list', context: 'What can you do?' });
   });
 
   it('passes agent list to the create function in the prompt', async () => {

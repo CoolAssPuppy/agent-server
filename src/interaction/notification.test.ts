@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { formatCompletionNotification, formatFailureNotification } from './notification.js';
+import { formatCompletionNotification, formatFailureNotification, formatAgentListMessage } from './notification.js';
+import { makeAgent } from '../test-factories.js';
 
 describe('formatCompletionNotification', () => {
   it('formats a completion notification with summary', () => {
@@ -13,6 +14,45 @@ describe('formatCompletionNotification', () => {
     const message = formatCompletionNotification('Daily Standup');
     expect(message).toContain('Daily Standup');
     expect(message).toContain('completed');
+  });
+});
+
+describe('formatAgentListMessage', () => {
+  it('lists agents with name and description', () => {
+    const agents = [
+      makeAgent({ id: 'restaurant-checker', name: 'Restaurant Checker', description: 'Checks availability' }),
+      makeAgent({ id: 'daily-standup', name: 'Daily Standup', description: 'Generates standup summaries' }),
+    ];
+
+    const message = formatAgentListMessage(agents);
+
+    expect(message).toContain('Restaurant Checker');
+    expect(message).toContain('Checks availability');
+    expect(message).toContain('Daily Standup');
+    expect(message).toContain('Generates standup summaries');
+  });
+
+  it('shows schedule for scheduled agents', () => {
+    const agents = [
+      makeAgent({ id: 'scheduled', name: 'Scheduled Agent', schedule: '0 9 * * *' }),
+    ];
+
+    const message = formatAgentListMessage(agents);
+    expect(message).toContain('0 9 * * *');
+  });
+
+  it('shows on-demand for agents without a schedule', () => {
+    const agents = [
+      makeAgent({ id: 'on-demand', name: 'On Demand Agent', schedule: undefined }),
+    ];
+
+    const message = formatAgentListMessage(agents);
+    expect(message).toContain('On-demand');
+  });
+
+  it('returns a fallback message when no agents are installed', () => {
+    const message = formatAgentListMessage([]);
+    expect(message).toContain('No agents');
   });
 });
 

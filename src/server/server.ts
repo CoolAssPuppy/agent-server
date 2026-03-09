@@ -16,7 +16,7 @@ import { ChannelDispatcher } from '../channels/dispatcher.js';
 import { InteractionStore } from '../interaction/store.js';
 import type { InteractionRequest } from '../interaction/schema.js';
 import { createTelegramChannel } from '../channels/telegram.js';
-import { formatCompletionNotification, formatFailureNotification } from '../interaction/notification.js';
+import { formatCompletionNotification, formatFailureNotification, formatAgentListMessage } from '../interaction/notification.js';
 import { routeMessage } from '../channels/router.js';
 import { randomUUID } from 'crypto';
 
@@ -258,12 +258,17 @@ export function startServer(config: ServerConfig): ServerInstance {
           const agents = await discoverAgents(config.agentsDir);
           const result = await routeMessage(text, agents);
 
-          if (!result.agent) {
+          if (result.type === 'list') {
+            await telegramChannel.notify(formatAgentListMessage(agents));
+            return;
+          }
+
+          if (result.type === 'none') {
             await telegramChannel.notify('No matching agent found for your message.');
             return;
           }
 
-          const agent = result.agent;
+          const { agent } = result;
           await telegramChannel.notify(`Running ${agent.name}...`);
 
           triggerRunForAgent(agent, result.context, (done) => {
