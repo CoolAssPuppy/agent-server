@@ -108,8 +108,9 @@ max_turns: 10
 | `prompt` | yes* | | The prompt sent to Claude Code. *In frontmatter format, the Markdown body is the prompt. |
 | `max_turns` | no | `20` | Maximum agentic conversation turns |
 | `working_directory` | no | `$HOME` | Working directory for the Claude Code session. Supports `~`. |
-| `tools` | no | `[]` | Allowed tools list. Empty means all tools are available. |
-| `disallowed_tools` | no | `[]` | Tools to explicitly deny. Removed from the model's context entirely. |
+| `tools` | no | `[]` | Allowed tools list (SDK-level). Empty means all tools are available. |
+| `disallowed_tools` | no | `[]` | Tools to explicitly deny (SDK-level). Removed from the model's context entirely. |
+| `permissions` | no | | Fine-grained tool permissions with glob patterns. See [tool permissions](#example-tool-permissions). |
 | `permission_mode` | no | `bypassPermissions` | SDK permission mode: `bypassPermissions`, `acceptEdits`, `dontAsk`, `default`, `plan` |
 | `enabled` | no | `true` | Whether the scheduler runs this agent |
 | `executor` | no | `claude-code` | Which executor plugin to use |
@@ -267,36 +268,44 @@ Interaction requests support:
 - **Both**: options and free text together
 - **Timeout**: defaults to 30 minutes, configurable per agent
 
-### Example: restricted permissions
+### Example: tool permissions
 
-Control what an agent can and cannot do. Use `disallowed_tools` to block specific tools, or `permission_mode` to change how permissions are handled:
+Control exactly what an agent can and cannot do with the `permissions` block. When `permissions` is defined, only explicitly allowed tools can be used. Deny rules take precedence over allow rules. Patterns support `*` wildcards.
 
 ```yaml
-id: read-only-reviewer
-name: Code Reviewer
+id: research-agent
+name: Research Agent
 schedule: "0 9 * * 1-5"
 prompt: |
-  Review the latest changes in ~/projects/app and write
-  a summary to ~/reviews/review-{date}.md
-tools:
-  - Read
-  - Write
-  - Glob
-  - Grep
-disallowed_tools:
-  - Bash
-  - Edit
-permission_mode: acceptEdits   # default: bypassPermissions
+  Research recent activity across Linear and Slack.
+  Write a summary to ~/reports/research-{date}.md
+permissions:
+  allow:
+    - Read
+    - Write
+    - Glob
+    - Grep
+    - "mcp__claude_ai_Linear__list_*"
+    - "mcp__claude_ai_Linear__get_*"
+    - "mcp__claude_ai_Slack__search_*"
+    - "mcp__claude_ai_Slack__read_*"
+  deny:
+    - "mcp__*__create_*"
+    - "mcp__*__update_*"
+    - "mcp__*__delete_*"
 max_turns: 20
-working_directory: "~/projects/app"
+working_directory: "~"
 ```
 
-Permission modes:
-- `bypassPermissions` (default) -- skips all permission checks. Best for headless, trusted agents.
-- `acceptEdits` -- auto-accepts file edits but prompts for other operations.
-- `dontAsk` -- denies anything not pre-approved. Strictest headless mode.
-- `default` -- standard interactive behavior (not useful for headless agents).
-- `plan` -- planning mode, no tool execution.
+This agent can read from Linear and Slack via MCP, write markdown files to the filesystem, but cannot create, update, or delete anything through MCP servers. It also cannot use Bash or Edit since those are not in the allow list.
+
+Pattern matching rules:
+- `Read` -- exact match, allows the Read tool
+- `mcp__claude_ai_Linear__list_*` -- allows any Linear tool starting with `list_`
+- `mcp__*__create_*` -- denies any MCP tool with `create_` in the action name, across all servers
+- `*` -- matches everything (use with caution)
+
+When `permissions` is not defined, the agent uses `bypassPermissions` mode and all tools are available.
 
 ### Example: notifications
 
@@ -641,7 +650,7 @@ src/
 
 ```bash
 npm install
-npm test              # 254 tests
+npm test              # 281 tests
 npm run type-check    # TypeScript strict mode
 npm run build         # Compile to dist/
 npm run dev           # Watch mode with tsx

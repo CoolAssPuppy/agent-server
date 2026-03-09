@@ -160,6 +160,68 @@ describe('AgentConfigSchema', () => {
     expect(result.notification?.on_failure).toBe(true);
   });
 
+  it('accepts config with permissions block', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'restricted',
+      name: 'Restricted Agent',
+      prompt: 'Read only.',
+      permissions: {
+        allow: ['Read', 'Glob', 'Grep', 'mcp__claude_ai_Linear__list_*'],
+        deny: ['Bash', 'mcp__*__create_*'],
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.permissions?.allow).toEqual(['Read', 'Glob', 'Grep', 'mcp__claude_ai_Linear__list_*']);
+      expect(result.data.permissions?.deny).toEqual(['Bash', 'mcp__*__create_*']);
+    }
+  });
+
+  it('accepts permissions with only allow rules', () => {
+    const result = AgentConfigSchema.parse({
+      id: 'test',
+      name: 'Test',
+      prompt: 'Do something.',
+      permissions: {
+        allow: ['Read', 'Write'],
+      },
+    });
+    expect(result.permissions?.allow).toEqual(['Read', 'Write']);
+    expect(result.permissions?.deny).toEqual([]);
+  });
+
+  it('accepts permissions with only deny rules', () => {
+    const result = AgentConfigSchema.parse({
+      id: 'test',
+      name: 'Test',
+      prompt: 'Do something.',
+      permissions: {
+        deny: ['Bash'],
+      },
+    });
+    expect(result.permissions?.allow).toEqual([]);
+    expect(result.permissions?.deny).toEqual(['Bash']);
+  });
+
+  it('defaults permissions to undefined when not specified', () => {
+    const result = AgentConfigSchema.parse({
+      id: 'test',
+      name: 'Test',
+      prompt: 'Do something.',
+    });
+    expect(result.permissions).toBeUndefined();
+  });
+
+  it('rejects empty strings in permissions allow list', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'test',
+      name: 'Test',
+      prompt: 'Do something.',
+      permissions: { allow: [''] },
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('accepts config with disallowed_tools', () => {
     const result = AgentConfigSchema.safeParse({
       id: 'safe-agent',

@@ -20,6 +20,7 @@ src/
   execution/
     executor.ts          -- Stream event parsing, tool metadata extraction, types
     executor-registry.ts -- Plugin registry for model-agnostic execution
+    permissions.ts       -- Glob-based tool permission matching (canUseTool)
     runner.ts            -- Orchestrates lock -> report -> execute -> release
     lockfile.ts          -- PID-based file locks with stale detection
   interaction/
@@ -142,6 +143,10 @@ interaction:
 
 The user's reply becomes the `--with` prompt suffix for the `on_reply` agent. This chains two stateless runs with a human decision in between.
 
+### Tool permissions
+
+When an agent defines a `permissions` block, `buildCanUseTool()` in `execution/permissions.ts` creates a `canUseTool` callback passed to the SDK. The callback uses `isToolAllowed()` which checks deny patterns first (deny wins), then allow patterns. Only explicitly allowed tools pass. Pattern matching uses `matchesPattern()` which converts `*` to `.*` regex. When `permissions` is not defined, no callback is set and the SDK's default permission mode applies.
+
 ### Channel adapter pattern
 
 Channels implement the `Channel` interface from `channels/channel.ts`. Each channel handles sending interaction requests and receiving replies for its platform.
@@ -194,6 +199,13 @@ max_turns: 20
 enabled: true
 working_directory: "~/projects/my-project"
 permission_mode: bypassPermissions  # optional: bypassPermissions | acceptEdits | dontAsk | default | plan
+permissions:             # optional, glob-based tool permissions (allowlist model)
+  allow:
+    - Read
+    - Write
+    - "mcp__claude_ai_Linear__list_*"
+  deny:
+    - "mcp__*__create_*"
 executor: claude-code    # optional, defaults to claude-code
 watch:                   # optional file triggers
   - path: "~/output"

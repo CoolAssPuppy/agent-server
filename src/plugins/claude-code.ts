@@ -5,6 +5,7 @@ import type { Reporter } from '../execution/runner.js';
 import { truncate, WRITE_TOOLS, type ExecutionResult } from '../execution/executor.js';
 import { expandHome } from '../agents/file-watcher.js';
 import { parseInteractionBlock } from '../interaction/parser.js';
+import { buildCanUseTool } from '../execution/permissions.js';
 
 export async function executeAgent(
   agent: AgentConfig,
@@ -25,6 +26,7 @@ export async function executeAgent(
     disallowedTools: agent.disallowed_tools && agent.disallowed_tools.length > 0
       ? agent.disallowed_tools
       : undefined,
+    canUseTool: agent.permissions ? buildCanUseTool(agent.permissions) : undefined,
   };
 
   let turnCount = 0;

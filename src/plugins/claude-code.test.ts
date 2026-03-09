@@ -261,6 +261,65 @@ describe('executeAgent with Agent SDK', () => {
     expect(callArgs.options.cwd).toBe(process.env.HOME ?? process.cwd());
   });
 
+  it('passes canUseTool callback when permissions are defined', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createResultSuccess({ result: 'Done', num_turns: 1 }),
+    ]));
+
+    const reporter = createMockReporter();
+    const agent = createAgentConfig({
+      permissions: { allow: ['Read', 'Glob'], deny: ['Bash'] },
+    });
+
+    await executeAgent(agent, reporter);
+
+    const callArgs = mockQuery.mock.calls[0][0];
+    expect(callArgs.options.canUseTool).toBeTypeOf('function');
+  });
+
+  it('does not set canUseTool when permissions are undefined', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createResultSuccess({ result: 'Done', num_turns: 1 }),
+    ]));
+
+    const reporter = createMockReporter();
+    await executeAgent(createAgentConfig(), reporter);
+
+    const callArgs = mockQuery.mock.calls[0][0];
+    expect(callArgs.options.canUseTool).toBeUndefined();
+  });
+
+  it('canUseTool callback allows permitted tools and denies others', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createResultSuccess({ result: 'Done', num_turns: 1 }),
+    ]));
+
+    const reporter = createMockReporter();
+    const agent = createAgentConfig({
+      permissions: { allow: ['Read', 'Write'], deny: ['Bash'] },
+    });
+
+    await executeAgent(agent, reporter);
+
+    const canUseTool = mockQuery.mock.calls[0][0].options.canUseTool;
+    const opts = { signal: new AbortController().signal, toolUseID: 't1' };
+
+    const allowed = await canUseTool('Read', {}, opts);
+    expect(allowed.behavior).toBe('allow');
+
+    const denied = await canUseTool('Bash', {}, opts);
+    expect(denied.behavior).toBe('deny');
+
+    const unlisted = await canUseTool('Edit', {}, opts);
+    expect(unlisted.behavior).toBe('deny');
+  });
+
   it('returns default summary when result text is empty', async () => {
     const { executeAgent } = await import('./claude-code.js');
 

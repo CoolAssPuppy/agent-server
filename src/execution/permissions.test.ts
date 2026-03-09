@@ -1,0 +1,110 @@
+import { describe, it, expect } from 'vitest';
+import { matchesPattern, isToolAllowed, buildCanUseTool } from './permissions.js';
+
+describe('matchesPattern', () => {
+  it('matches exact tool names', () => {
+    expect(matchesPattern('Read', 'Read')).toBe(true);
+  });
+
+  it('rejects non-matching exact names', () => {
+    expect(matchesPattern('Read', 'Write')).toBe(false);
+  });
+
+  it('matches trailing wildcard', () => {
+    expect(matchesPattern('mcp__claude_ai_Linear__list_issues', 'mcp__claude_ai_Linear__list_*')).toBe(true);
+  });
+
+  it('matches middle wildcard', () => {
+    expect(matchesPattern('mcp__claude_ai_Notion__delete_page', 'mcp__*__delete_*')).toBe(true);
+  });
+
+  it('matches leading wildcard', () => {
+    expect(matchesPattern('web_search', '*_search')).toBe(true);
+  });
+
+  it('matches single wildcard against any string', () => {
+    expect(matchesPattern('anything_at_all', '*')).toBe(true);
+  });
+
+  it('is case sensitive', () => {
+    expect(matchesPattern('read', 'Read')).toBe(false);
+  });
+
+  it('does not treat partial matches as full matches', () => {
+    expect(matchesPattern('ReadFile', 'Read')).toBe(false);
+  });
+
+  it('escapes regex special characters in patterns', () => {
+    expect(matchesPattern('tool.name', 'tool.name')).toBe(true);
+    expect(matchesPattern('toolXname', 'tool.name')).toBe(false);
+  });
+
+  it('handles multiple wildcards', () => {
+    expect(matchesPattern('mcp__claude_ai_Linear__list_issues', 'mcp__*__*')).toBe(true);
+  });
+});
+
+describe('isToolAllowed', () => {
+  it('allows a tool that matches an allow pattern', () => {
+    expect(isToolAllowed('Read', { allow: ['Read', 'Write'], deny: [] })).toBe(true);
+  });
+
+  it('allows a tool matching a wildcard allow pattern', () => {
+    expect(isToolAllowed(
+      'mcp__claude_ai_Linear__list_projects',
+      { allow: ['mcp__claude_ai_Linear__list_*'], deny: [] },
+    )).toBe(true);
+  });
+
+  it('denies a tool not in either list', () => {
+    expect(isToolAllowed('Bash', { allow: ['Read', 'Write'], deny: [] })).toBe(false);
+  });
+
+  it('denies a tool matching a deny pattern even if it matches allow', () => {
+    expect(isToolAllowed('mcp__claude_ai_Linear__create_issue', {
+      allow: ['mcp__claude_ai_Linear__*'],
+      deny: ['mcp__*__create_*'],
+    })).toBe(false);
+  });
+
+  it('denies everything when both lists are empty', () => {
+    expect(isToolAllowed('Read', { allow: [], deny: [] })).toBe(false);
+  });
+
+  it('denies a tool matching an exact deny rule', () => {
+    expect(isToolAllowed('Bash', { allow: ['*'], deny: ['Bash'] })).toBe(false);
+  });
+});
+
+describe('buildCanUseTool', () => {
+  it('returns allow for permitted tools', async () => {
+    const canUseTool = buildCanUseTool({ allow: ['Read', 'Write'], deny: [] });
+    const result = await canUseTool('Read', {}, makeToolOptions());
+    expect(result.behavior).toBe('allow');
+  });
+
+  it('returns deny with message for unpermitted tools', async () => {
+    const canUseTool = buildCanUseTool({ allow: ['Read'], deny: [] });
+    const result = await canUseTool('Bash', {}, makeToolOptions());
+    expect(result.behavior).toBe('deny');
+    if (result.behavior === 'deny') {
+      expect(result.message).toContain('Bash');
+    }
+  });
+
+  it('returns deny for tools matching deny patterns', async () => {
+    const canUseTool = buildCanUseTool({
+      allow: ['mcp__claude_ai_Linear__*'],
+      deny: ['mcp__*__create_*'],
+    });
+    const result = await canUseTool('mcp__claude_ai_Linear__create_issue', {}, makeToolOptions());
+    expect(result.behavior).toBe('deny');
+  });
+});
+
+function makeToolOptions() {
+  return {
+    signal: new AbortController().signal,
+    toolUseID: 'tool-1',
+  };
+}

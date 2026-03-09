@@ -15,6 +15,13 @@ const FileWatchSchema = z.object({
 
 export type FileWatch = z.infer<typeof FileWatchSchema>;
 
+export const PermissionsSchema = z.object({
+  allow: z.array(z.string().min(1)).default([]),
+  deny: z.array(z.string().min(1)).default([]),
+});
+
+export type Permissions = z.infer<typeof PermissionsSchema>;
+
 export const AgentConfigSchema = z
   .object({
     id: z.string().min(1),
@@ -33,6 +40,7 @@ export const AgentConfigSchema = z
     on_failure: z.array(TriggerRefSchema).optional(),
     watch: z.array(FileWatchSchema).optional(),
     executor: z.string().optional(),
+    permissions: PermissionsSchema.optional(),
     interaction: InteractionConfigSchema.optional(),
     notification: NotificationConfigSchema.optional(),
   })
