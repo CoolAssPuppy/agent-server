@@ -6,7 +6,7 @@ Define agents as Markdown or YAML files with cron schedules. Agent Server discov
 
 ## How it works
 
-Agent Server is a scheduler and process manager for Claude Code. It does not call the Anthropic API directly. Instead, it spawns `claude --print --output-format stream-json` as a child process, pipes the agent's prompt via stdin, and streams structured JSON events from stdout.
+Agent Server uses the [Claude Agent SDK](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) to run Claude Code programmatically. It calls the SDK's `query()` function with the agent's prompt, streams structured messages from the async generator, and extracts tool usage, file operations, and command metadata from each turn.
 
 This means agents inherit everything Claude Code provides: MCP server integrations (Slack, Linear, Notion, GitHub, etc.), tool permissions, model selection, and context management. Agent Server just runs the prompt and records what happens.
 
@@ -107,8 +107,8 @@ max_turns: 10
 | `timezone` | no | | IANA timezone for schedule evaluation (e.g., `America/Los_Angeles`) |
 | `prompt` | yes* | | The prompt sent to Claude Code. *In frontmatter format, the Markdown body is the prompt. |
 | `max_turns` | no | `20` | Maximum agentic conversation turns |
-| `working_directory` | no | `$HOME` | Working directory for the Claude Code process. Supports `~`. |
-| `tools` | no | `[]` | Allowed tools list. Empty means all tools are allowed. |
+| `working_directory` | no | `$HOME` | Working directory for the Claude Code session. Supports `~`. |
+| `tools` | no | `[]` | Allowed tools list. Empty means all tools are available. |
 | `enabled` | no | `true` | Whether the scheduler runs this agent |
 | `executor` | no | `claude-code` | Which executor plugin to use |
 | `on_complete` | no | | Agents to trigger on successful completion |
@@ -314,8 +314,8 @@ agent-server list
 3. For each agent whose cron expression matches the current minute:
    - Acquires a PID-based file lock (skips if already running)
    - Creates a telemetry reporter (or a noop reporter if no panel is configured)
-   - Spawns `claude --print` with the agent's prompt piped via stdin
-   - Parses the streaming JSON output, extracting tool usage, files read/written, and commands run
+   - Calls the Agent SDK's `query()` with the agent's prompt and configuration
+   - Iterates over the SDK message stream, extracting tool usage, files read/written, and commands run
    - Reports progress events to the telemetry endpoint on every turn
    - Sends heartbeats every 30 seconds to signal liveness
    - On completion, reports the result and sends any configured notifications
@@ -383,17 +383,17 @@ AGENT_SERVER_PANEL_API_KEY=ap_live_...
 AGENT_SERVER_TELEGRAM_BOT_TOKEN=7123456789:AAH...
 ```
 
-### Claude Code setup
+### Claude Code and the Agent SDK
 
-Agent Server spawns Claude Code with:
+Agent Server uses the Claude Agent SDK to run Claude Code as a library. Each agent run calls `query()` with:
 
-```bash
-claude --print --output-format stream-json --max-turns <max_turns> --verbose
-```
+- The agent's prompt
+- `maxTurns` from the agent config (default 20)
+- `cwd` set to the agent's `working_directory` (default `$HOME`)
+- `permissionMode: 'bypassPermissions'` for headless execution
+- `allowedTools` from the agent config (if specified)
 
-The prompt is piped via stdin. If the agent specifies tools, they are passed via `--allowedTools`. The process inherits the current environment, so Claude Code uses whatever MCP servers and permissions are configured in `~/.claude/settings.json`.
-
-For headless execution, MCP tool permissions must be pre-approved since there is no interactive prompt. Add them to your Claude Code settings:
+The SDK process inherits the current environment, so Claude Code uses whatever MCP servers and permissions are configured in `~/.claude/settings.json`. For headless execution, MCP tool permissions must be pre-approved since there is no interactive prompt. Add them to your Claude Code settings:
 
 ```json
 {
@@ -517,14 +517,14 @@ Events are POSTed to `{AGENT_SERVER_PANEL_URL}/api/runs/{runId}/status` with an 
   "state": "failed",
   "timestamp": "2026-03-10T05:01:12.345Z",
   "error": {
-    "message": "Claude Code exited with code 1: ..."
+    "message": "Agent failed: error_during_execution"
   }
 }
 ```
 
 ## Executor plugins
 
-The default executor spawns Claude Code, but the system is pluggable. Agents can specify an `executor` field in their config to use a different backend:
+The default executor uses the Claude Agent SDK, but the system is pluggable. Agents can specify an `executor` field in their config to use a different backend:
 
 ```yaml
 executor: codex  # defaults to 'claude-code' if omitted
@@ -596,7 +596,7 @@ src/
     init.ts                    Scaffolds ~/.agent-server/ with sample agent
 
   plugins/                   Executor implementations
-    claude-code.ts             Claude Code executor (spawns `claude --print`)
+    claude-code.ts             Claude Code executor (Agent SDK query())
 
   cli.ts                     Commander CLI entry point
   index.ts                   Barrel exports for library use
@@ -607,7 +607,7 @@ src/
 
 ```bash
 npm install
-npm test              # 236 tests
+npm test              # 246 tests
 npm run type-check    # TypeScript strict mode
 npm run build         # Compile to dist/
 npm run dev           # Watch mode with tsx
@@ -618,6 +618,7 @@ Tests are colocated with source files (`*.test.ts`). The project uses TDD with f
 ## Tech stack
 
 - TypeScript strict mode, ES2022, ESM
+- [Claude Agent SDK](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) for running Claude Code programmatically
 - [Zod](https://zod.dev/) for schema validation
 - [cron-parser](https://github.com/harrisiirak/cron-parser) v5 for schedule evaluation
 - [Hono](https://hono.dev/) for the HTTP API

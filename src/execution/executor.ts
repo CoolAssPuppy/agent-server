@@ -1,6 +1,6 @@
 import type { InteractionRequest } from '../interaction/schema.js';
 
-const MAX_SUMMARY_LENGTH = 200;
+export const MAX_SUMMARY_LENGTH = 200;
 
 export type ClaudeStreamEvent = {
   type: string;
@@ -43,7 +43,7 @@ export function parseStreamEvent(line: string): ClaudeStreamEvent | null {
   }
 }
 
-function truncate(text: string): string {
+export function truncate(text: string): string {
   if (text.length <= MAX_SUMMARY_LENGTH) return text;
   return text.slice(0, MAX_SUMMARY_LENGTH) + '...';
 }
@@ -94,7 +94,7 @@ type ToolMetadata = {
   commandsRun: string[];
 };
 
-const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit']);
+export const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit']);
 
 export function extractToolMetadata(event: ClaudeStreamEvent): ToolMetadata {
   const toolNames: string[] = [];

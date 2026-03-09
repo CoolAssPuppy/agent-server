@@ -1,13 +1,8 @@
-import { spawn } from 'child_process';
+import { query } from '@anthropic-ai/claude-agent-sdk';
+import type { Options } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentConfig } from '../agents/config.js';
 import type { Reporter } from '../execution/runner.js';
-import {
-  parseStreamEvent,
-  extractToolMetadata,
-  extractTextParts,
-  summarizeTurn,
-  type ExecutionResult,
-} from '../execution/executor.js';
+import { truncate, WRITE_TOOLS, type ExecutionResult } from '../execution/executor.js';
 import { expandHome } from '../agents/file-watcher.js';
 import { parseInteractionBlock } from '../interaction/parser.js';
 
@@ -15,118 +10,135 @@ export async function executeAgent(
   agent: AgentConfig,
   reporter: Reporter,
 ): Promise<ExecutionResult> {
-  const args = [
-    '--print',
-    '--output-format', 'stream-json',
-    '--max-turns', String(agent.max_turns),
-    '--verbose',
-  ];
-
-  if (agent.tools.length > 0) {
-    args.push('--allowedTools', agent.tools.join(','));
-  }
-
   const cwd = agent.working_directory
     ? expandHome(agent.working_directory)
     : process.env.HOME ?? process.cwd();
 
-  return new Promise((resolve, reject) => {
-    const child = spawn('claude', args, {
-      cwd,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env },
-    });
+  const options: Options = {
+    maxTurns: agent.max_turns,
+    cwd,
+    permissionMode: 'bypassPermissions',
+    allowDangerouslySkipPermissions: true,
+    allowedTools: agent.tools.length > 0 ? agent.tools : undefined,
+  };
 
-    child.stdin.write(agent.prompt);
-    child.stdin.end();
+  let turnCount = 0;
+  const toolsUsed = new Set<string>();
+  const allFilesRead = new Set<string>();
+  const allFilesWritten = new Set<string>();
+  const allCommandsRun: string[] = [];
+  let lastAssistantText = '';
+  let lastToolName: string | null = null;
 
-    let turnCount = 0;
-    const toolsUsed = new Set<string>();
-    const allFilesRead = new Set<string>();
-    const allFilesWritten = new Set<string>();
-    const allCommandsRun: string[] = [];
-    let lastSummary = '';
-    let buffer = '';
-    let lastAssistantText = '';
+  const stream = query({ prompt: agent.prompt, options });
 
-    child.stdout.on('data', (chunk: Buffer) => {
-      buffer += chunk.toString();
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
+  for await (const message of stream) {
+    if (message.type === 'assistant') {
+      turnCount++;
+      const content = message.message?.content;
+      if (!Array.isArray(content)) continue;
 
-      for (const line of lines) {
-        const event = parseStreamEvent(line);
-        if (!event) continue;
+      const textParts: string[] = [];
 
-        const meta = extractToolMetadata(event);
+      for (const block of content) {
+        if (block.type === 'text' && 'text' in block) {
+          textParts.push(block.text as string);
+        }
 
-        if (event.type === 'assistant') {
-          turnCount++;
-          const texts = extractTextParts(event);
-          if (texts.length > 0) {
-            lastAssistantText = texts.join('\n');
+        if (block.type === 'tool_use' && 'name' in block) {
+          const name = block.name as string;
+          toolsUsed.add(name);
+          lastToolName = name;
+
+          const input = ('input' in block ? block.input : {}) as Record<string, unknown>;
+          const filePath = typeof input.file_path === 'string' ? input.file_path : null;
+
+          if (name === 'Read' && filePath) {
+            allFilesRead.add(filePath);
+          } else if (WRITE_TOOLS.has(name) && filePath) {
+            allFilesWritten.add(filePath);
+          } else if (name === 'Bash' && typeof input.command === 'string') {
+            allCommandsRun.push(input.command);
           }
         }
-
-        meta.toolNames.forEach((name) => toolsUsed.add(name));
-        meta.filesRead.forEach((f) => allFilesRead.add(f));
-        meta.filesWritten.forEach((f) => allFilesWritten.add(f));
-        allCommandsRun.push(...meta.commandsRun);
-
-        const summary = summarizeTurn(event);
-        if (summary) {
-          lastSummary = summary;
-          void reporter.progress(summary, {
-            turns_completed: turnCount,
-            tools_used: [...toolsUsed],
-            files_written: [...allFilesWritten],
-            commands_run: allCommandsRun.length,
-          });
-        }
-      }
-    });
-
-    let stderr = '';
-    child.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString();
-    });
-
-    child.on('close', (code) => {
-      if (buffer.trim()) {
-        const event = parseStreamEvent(buffer);
-        if (event) {
-          const summary = summarizeTurn(event);
-          if (summary) lastSummary = summary;
-        }
       }
 
-      if (code !== 0) {
-        reject(new Error(`Claude Code exited with code ${code}: ${stderr.slice(0, 500)}`));
-        return;
+      if (textParts.length > 0) {
+        lastAssistantText = textParts.join('\n');
       }
 
-      const interaction = parseInteractionBlock(lastAssistantText);
+      const summary = textParts.length > 0
+        ? truncate(textParts.join(' '))
+        : lastToolName
+          ? `Using tool: ${lastToolName}`
+          : null;
 
-      resolve({
-        summary: lastSummary || 'Agent completed',
-        output: {},
-        usage: {
-          turns: turnCount,
-          files_read: allFilesRead.size,
-          files_written: allFilesWritten.size,
+      if (summary) {
+        void reporter.progress(summary, {
+          turns_completed: turnCount,
+          tools_used: [...toolsUsed],
+          files_written: [...allFilesWritten],
           commands_run: allCommandsRun.length,
-        },
-        turnCount,
-        toolsUsed: [...toolsUsed],
-        filesRead: [...allFilesRead],
-        filesWritten: [...allFilesWritten],
-        commandsRun: allCommandsRun,
-        interaction,
-      });
-    });
+        });
+      }
+    }
 
-    child.on('error', (err) => {
-      reject(new Error(`Failed to spawn Claude Code: ${err.message}`));
-    });
+    if (message.type === 'result') {
+      if (message.subtype !== 'success') {
+        const errors = 'errors' in message ? (message.errors as string[]) : [];
+        throw new Error(errors.join('; ') || `Agent failed: ${message.subtype}`);
+      }
+
+      const resultText = 'result' in message ? (message.result as string) : '';
+
+      return buildResult({
+        summary: resultText || 'Agent completed',
+        turnCount: message.num_turns,
+        toolsUsed,
+        allFilesRead,
+        allFilesWritten,
+        allCommandsRun,
+        lastAssistantText,
+      });
+    }
+  }
+
+  return buildResult({
+    summary: lastAssistantText || 'Agent completed',
+    turnCount,
+    toolsUsed,
+    allFilesRead,
+    allFilesWritten,
+    allCommandsRun,
+    lastAssistantText,
   });
+}
+
+function buildResult(params: {
+  summary: string;
+  turnCount: number;
+  toolsUsed: Set<string>;
+  allFilesRead: Set<string>;
+  allFilesWritten: Set<string>;
+  allCommandsRun: string[];
+  lastAssistantText: string;
+}): ExecutionResult {
+  const interaction = parseInteractionBlock(params.lastAssistantText);
+
+  return {
+    summary: params.summary,
+    output: {},
+    usage: {
+      turns: params.turnCount,
+      files_read: params.allFilesRead.size,
+      files_written: params.allFilesWritten.size,
+      commands_run: params.allCommandsRun.length,
+    },
+    turnCount: params.turnCount,
+    toolsUsed: [...params.toolsUsed],
+    filesRead: [...params.allFilesRead],
+    filesWritten: [...params.allFilesWritten],
+    commandsRun: params.allCommandsRun,
+    interaction,
+  };
 }

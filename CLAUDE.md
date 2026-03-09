@@ -1,6 +1,6 @@
 # Agent Server
 
-Lightweight orchestration server that runs AI agents in the background using Claude Code as its execution engine. Agents are defined as YAML or Markdown files with cron schedules. The server discovers agents, evaluates schedules, acquires locks, spawns Claude Code processes, streams events, and reports telemetry in A2A format.
+Lightweight orchestration server that runs AI agents in the background using Claude Code as its execution engine. Agents are defined as YAML or Markdown files with cron schedules. The server discovers agents, evaluates schedules, acquires locks, runs Claude Code via the Agent SDK, streams events, and reports telemetry in A2A format.
 
 ## Architecture
 
@@ -40,7 +40,7 @@ src/
     launchd.ts           -- macOS LaunchAgent plist generation
     init.ts              -- Scaffolds ~/.agent-server/ with sample agent
   plugins/
-    claude-code.ts       -- Claude Code executor (spawns `claude --print`)
+    claude-code.ts       -- Claude Code executor (Agent SDK query())
   cli.ts                 -- Commander CLI: start, run, list, init, install, uninstall
   index.ts               -- Barrel exports for library use
   test-factories.ts      -- Shared test data factories
@@ -51,6 +51,7 @@ sample-agents/           -- Example agent YAML configs
 ## Tech stack
 
 - TypeScript strict mode, ES2022, ESM
+- @anthropic-ai/claude-agent-sdk for running Claude Code programmatically
 - Zod for schema validation
 - cron-parser v5 (`CronExpressionParser.parse()`, NOT `parseExpression()`)
 - Hono for HTTP API
@@ -95,9 +96,11 @@ expr.next().toDate();      // Date
 
 The old `parseExpression()` function does not exist in v5.
 
-### Streaming JSON from Claude Code
+### Claude Agent SDK
 
-Claude Code with `--print --output-format stream-json` outputs one JSON object per line. Parse with `parseStreamEvent()`. Extract rich metadata with `extractToolMetadata()`. Event types: `assistant` (has message.content blocks), `result` (final output).
+The executor in `plugins/claude-code.ts` uses `query()` from `@anthropic-ai/claude-agent-sdk`. It passes the agent's prompt and an `Options` object with `maxTurns`, `cwd`, `permissionMode: 'bypassPermissions'`, and optionally `allowedTools`. The SDK returns an `AsyncGenerator<SDKMessage>`. Key message types: `assistant` (has `message.content` blocks with text/tool_use), `result` (subtype `success` or error variants, has `num_turns`, `result` text).
+
+The legacy `parseStreamEvent()` and `extractToolMetadata()` functions in `execution/executor.ts` still exist for CLI stream parsing compatibility but are not used by the SDK executor.
 
 ### File locking
 
@@ -280,7 +283,6 @@ Notification messages are formatted by `formatCompletionNotification()` and `for
 
 ## Future work
 
-- Agent SDK integration when `@anthropic-ai/claude-code` SDK is stable
 - WebSocket streaming for live run progress
 - Cancel running agents via API
 - Wire triggers into server run completion flow
