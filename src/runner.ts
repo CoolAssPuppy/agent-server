@@ -10,7 +10,7 @@ export type RunResult = {
   result?: ExecutionResult;
 };
 
-type Reporter = {
+export type Reporter = {
   start: () => Promise<void> | void;
   progress: (message: string, metadata?: Record<string, unknown>) => Promise<void> | void;
   complete: (result: { summary: string; usage?: Record<string, unknown> }) => Promise<void> | void;

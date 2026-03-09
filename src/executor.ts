@@ -1,6 +1,6 @@
 import { spawn } from 'child_process';
 import type { AgentConfig } from './agent-config.js';
-import type { TelemetryReporter } from './reporter.js';
+import type { Reporter } from './runner.js';
 
 const MAX_SUMMARY_LENGTH = 200;
 
@@ -77,7 +77,7 @@ export function summarizeTurn(event: ClaudeStreamEvent): string | null {
 
 export async function executeAgent(
   agent: AgentConfig,
-  reporter: TelemetryReporter,
+  reporter: Reporter,
 ): Promise<ExecutionResult> {
   const args = [
     '--print',

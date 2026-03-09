@@ -1,11 +1,13 @@
 import type { ServerConfig } from './config.js';
+import type { AgentConfig } from './agent-config.js';
+import type { Reporter } from './runner.js';
 import { discoverAgents } from './discovery.js';
 import { shouldRun } from './scheduler.js';
 import { runAgent } from './runner.js';
 import { executeAgent } from './executor.js';
 import { TelemetryReporter } from './reporter.js';
 
-function createReporter(config: ServerConfig, runId: string, agentName: string) {
+function createReporter(config: ServerConfig, runId: string, agentName: string): Reporter {
   if (!config.panelUrl || !config.panelApiKey) {
     return {
       start: async () => {},
@@ -25,6 +27,15 @@ function createReporter(config: ServerConfig, runId: string, agentName: string) 
   });
 }
 
+function runAgentWithConfig(config: ServerConfig, agent: AgentConfig) {
+  return runAgent({
+    agent,
+    lockDir: config.lockDir,
+    execute: executeAgent,
+    createReporter: (runId, agentName) => createReporter(config, runId, agentName),
+  });
+}
+
 export async function runDueAgents(config: ServerConfig): Promise<void> {
   const agents = await discoverAgents(config.agentsDir);
   const now = new Date();
@@ -35,14 +46,7 @@ export async function runDueAgents(config: ServerConfig): Promise<void> {
   console.log(`[${now.toISOString()}] ${dueAgents.length} agent(s) due: ${dueAgents.map((a) => a.id).join(', ')}`);
 
   const results = await Promise.allSettled(
-    dueAgents.map((agent) =>
-      runAgent({
-        agent,
-        lockDir: config.lockDir,
-        execute: (a, reporter) => executeAgent(a, reporter as TelemetryReporter),
-        createReporter: (runId, agentName) => createReporter(config, runId, agentName),
-      })
-    )
+    dueAgents.map((agent) => runAgentWithConfig(config, agent))
   );
 
   for (let i = 0; i < results.length; i++) {
@@ -77,12 +81,7 @@ export async function runSingleAgent(
 
   console.log(`Running agent: ${agent.name} (${agent.id})`);
 
-  const result = await runAgent({
-    agent,
-    lockDir: config.lockDir,
-    execute: (a, reporter) => executeAgent(a, reporter as TelemetryReporter),
-    createReporter: (runId, agentName) => createReporter(config, runId, agentName),
-  });
+  const result = await runAgentWithConfig(config, agent);
 
   if (result.status === 'skipped') {
     console.log('Skipped: agent is already running');
