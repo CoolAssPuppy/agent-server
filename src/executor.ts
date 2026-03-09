@@ -1,0 +1,172 @@
+import { spawn } from 'child_process';
+import type { AgentConfig } from './agent-config.js';
+import type { TelemetryReporter } from './reporter.js';
+
+const MAX_SUMMARY_LENGTH = 200;
+
+export type ClaudeStreamEvent = {
+  type: string;
+  message?: {
+    content?: Array<{
+      type: string;
+      text?: string;
+      name?: string;
+      input?: Record<string, unknown>;
+    }>;
+  };
+  result?: string;
+  [key: string]: unknown;
+};
+
+export type ExecutionResult = {
+  summary: string;
+  output: Record<string, unknown>;
+  usage: Record<string, unknown>;
+  turnCount: number;
+  toolsUsed: string[];
+};
+
+export function parseStreamEvent(line: string): ClaudeStreamEvent | null {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      return null;
+    }
+    return parsed as ClaudeStreamEvent;
+  } catch {
+    return null;
+  }
+}
+
+function truncate(text: string): string {
+  if (text.length <= MAX_SUMMARY_LENGTH) return text;
+  return text.slice(0, MAX_SUMMARY_LENGTH) + '...';
+}
+
+export function summarizeTurn(event: ClaudeStreamEvent): string | null {
+  if (event.type === 'result' && typeof event.result === 'string') {
+    return truncate(event.result);
+  }
+
+  if (event.type !== 'assistant' || !event.message?.content) return null;
+
+  const textParts: string[] = [];
+  let toolName: string | null = null;
+
+  for (const block of event.message.content) {
+    if (block.type === 'text' && block.text) {
+      textParts.push(block.text);
+    } else if (block.type === 'tool_use' && block.name) {
+      toolName = block.name;
+    }
+  }
+
+  if (textParts.length > 0) {
+    return truncate(textParts.join(' '));
+  }
+
+  if (toolName) {
+    return `Using tool: ${toolName}`;
+  }
+
+  return null;
+}
+
+export async function executeAgent(
+  agent: AgentConfig,
+  reporter: TelemetryReporter,
+): Promise<ExecutionResult> {
+  const args = [
+    '--print',
+    '--output-format', 'stream-json',
+    '--max-turns', String(agent.max_turns),
+    '--verbose',
+  ];
+
+  if (agent.tools.length > 0) {
+    args.push('--allowedTools', agent.tools.join(','));
+  }
+
+  args.push(agent.prompt);
+
+  const cwd = agent.working_directory
+    ? agent.working_directory.replace(/^~/, process.env.HOME ?? '')
+    : process.env.HOME ?? process.cwd();
+
+  return new Promise((resolve, reject) => {
+    const child = spawn('claude', args, {
+      cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env },
+    });
+
+    let turnCount = 0;
+    const toolsUsed = new Set<string>();
+    let lastSummary = '';
+    let buffer = '';
+
+    child.stdout.on('data', (chunk: Buffer) => {
+      buffer += chunk.toString();
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+
+      for (const line of lines) {
+        const event = parseStreamEvent(line);
+        if (!event) continue;
+
+        if (event.type === 'assistant') {
+          turnCount++;
+          for (const block of event.message?.content ?? []) {
+            if (block.type === 'tool_use' && block.name) {
+              toolsUsed.add(block.name);
+            }
+          }
+        }
+
+        const summary = summarizeTurn(event);
+        if (summary) {
+          lastSummary = summary;
+          void reporter.progress(summary, {
+            turns_completed: turnCount,
+            tools_used: [...toolsUsed],
+          });
+        }
+      }
+    });
+
+    let stderr = '';
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+
+    child.on('close', (code) => {
+      if (buffer.trim()) {
+        const event = parseStreamEvent(buffer);
+        if (event) {
+          const summary = summarizeTurn(event);
+          if (summary) lastSummary = summary;
+        }
+      }
+
+      if (code !== 0) {
+        reject(new Error(`Claude Code exited with code ${code}: ${stderr.slice(0, 500)}`));
+        return;
+      }
+
+      resolve({
+        summary: lastSummary || 'Agent completed',
+        output: {},
+        usage: { turns: turnCount },
+        turnCount,
+        toolsUsed: [...toolsUsed],
+      });
+    });
+
+    child.on('error', (err) => {
+      reject(new Error(`Failed to spawn Claude Code: ${err.message}`));
+    });
+  });
+}
