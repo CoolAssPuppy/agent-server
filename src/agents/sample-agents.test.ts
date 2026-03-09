@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'fs';
 import { join, extname } from 'path';
-import { parseAgentFile } from './agent-config.js';
+import { parseAgentFile } from './config.js';
 import { AGENT_EXTENSIONS } from './discovery.js';
 
-const sampleDir = join(import.meta.dirname, '..', 'sample-agents');
+const sampleDir = join(import.meta.dirname, '..', '..', 'sample-agents');
 
 describe('sample agents', () => {
   const agentFiles = readdirSync(sampleDir).filter((f) => AGENT_EXTENSIONS.has(extname(f)));

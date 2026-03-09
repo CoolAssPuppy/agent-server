@@ -1,16 +1,16 @@
 import { serve } from '@hono/node-server';
-import type { ServerConfig } from './config.js';
-import type { AgentConfig } from './agent-config.js';
-import type { Reporter } from './runner.js';
+import type { ServerConfig } from '../platform/config.js';
+import type { AgentConfig } from '../agents/config.js';
+import type { Reporter } from '../execution/runner.js';
 import { createApi } from './api.js';
-import { discoverAgents } from './discovery.js';
-import { RunStore } from './store.js';
-import { runAgent } from './runner.js';
-import { executeAgent } from './executor.js';
-import { ExecutorRegistry } from './executor-registry.js';
-import { createReporter } from './reporter-factory.js';
-import { shouldRun } from './scheduler.js';
-import { FileWatcher, extractWatchConfigs } from './file-watcher.js';
+import { discoverAgents } from '../agents/discovery.js';
+import { RunStore } from '../reporting/store.js';
+import { runAgent } from '../execution/runner.js';
+import { executeAgent } from '../plugins/claude-code.js';
+import { ExecutorRegistry } from '../execution/executor-registry.js';
+import { createReporter } from '../reporting/reporter-factory.js';
+import { shouldRun } from '../agents/scheduler.js';
+import { FileWatcher, extractWatchConfigs } from '../agents/file-watcher.js';
 import { randomUUID } from 'crypto';
 
 export type ServerInstance = {

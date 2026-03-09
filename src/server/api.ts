@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
-import type { AgentConfig } from './agent-config.js';
-import type { RunStore } from './store.js';
+import type { AgentConfig } from '../agents/config.js';
+import type { RunStore } from '../reporting/store.js';
 
 type ApiDependencies = {
   getAgents: () => Promise<AgentConfig[]>;

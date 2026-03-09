@@ -62,9 +62,43 @@ export class TelemetryReporter {
     await this.send({ state: 'working', message, metadata });
   }
 
-  async complete(result: StatusEvent['result']): Promise<void> {
+  async complete(executionResult: {
+    summary: string;
+    output: Record<string, unknown>;
+    usage: Record<string, unknown>;
+    turnCount: number;
+    toolsUsed: string[];
+    filesRead: string[];
+    filesWritten: string[];
+    commandsRun: string[];
+  }): Promise<void> {
     this.stop();
-    await this.send({ state: 'completed', result });
+    const accomplishments: string[] = [];
+    if (executionResult.filesWritten.length > 0) {
+      accomplishments.push(`Wrote ${executionResult.filesWritten.length} file(s): ${executionResult.filesWritten.join(', ')}`);
+    }
+    if (executionResult.commandsRun.length > 0) {
+      accomplishments.push(`Ran ${executionResult.commandsRun.length} command(s)`);
+    }
+    if (executionResult.filesRead.length > 0) {
+      accomplishments.push(`Read ${executionResult.filesRead.length} file(s)`);
+    }
+
+    await this.send({
+      state: 'completed',
+      result: {
+        summary: executionResult.summary,
+        accomplishments,
+        usage: executionResult.usage,
+        output: {
+          turn_count: executionResult.turnCount,
+          tools_used: executionResult.toolsUsed,
+          files_read: executionResult.filesRead,
+          files_written: executionResult.filesWritten,
+          commands_run: executionResult.commandsRun,
+        },
+      },
+    });
   }
 
   async fail(error: Error): Promise<void> {

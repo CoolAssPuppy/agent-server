@@ -40,17 +40,39 @@ describe('TelemetryReporter', () => {
     expect(body.agent).toBe('Test Agent');
   });
 
-  it('sends a completed event on successful finish', async () => {
+  it('sends a completed event with full execution data', async () => {
     const mockFetch = createMockFetch();
     const reporter = makeReporter({ fetch: mockFetch });
 
     await reporter.start();
-    await reporter.complete({ summary: 'Done', usage: { total_tokens: 100 } });
+    await reporter.complete({
+      summary: 'Created report',
+      output: {},
+      usage: { turns: 5, files_read: 3, files_written: 1, commands_run: 2 },
+      turnCount: 5,
+      toolsUsed: ['Read', 'Write', 'Bash'],
+      filesRead: ['/a.ts', '/b.ts', '/c.ts'],
+      filesWritten: ['/output.md'],
+      commandsRun: ['npm test', 'npm run build'],
+    });
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
     const body = JSON.parse(mockFetch.mock.calls[1][1].body) as StatusEvent;
     expect(body.state).toBe('completed');
-    expect(body.result?.summary).toBe('Done');
+    expect(body.result?.summary).toBe('Created report');
+    expect(body.result?.accomplishments).toEqual([
+      'Wrote 1 file(s): /output.md',
+      'Ran 2 command(s)',
+      'Read 3 file(s)',
+    ]);
+    expect(body.result?.usage).toEqual({ turns: 5, files_read: 3, files_written: 1, commands_run: 2 });
+    expect(body.result?.output).toEqual({
+      turn_count: 5,
+      tools_used: ['Read', 'Write', 'Bash'],
+      files_read: ['/a.ts', '/b.ts', '/c.ts'],
+      files_written: ['/output.md'],
+      commands_run: ['npm test', 'npm run build'],
+    });
   });
 
   it('sends a failed event on error', async () => {

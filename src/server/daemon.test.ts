@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
-vi.mock('./executor.js', () => ({
+vi.mock('../plugins/claude-code.js', () => ({
   executeAgent: vi.fn().mockResolvedValue({
     summary: 'Mock done',
     output: {},
@@ -17,7 +17,7 @@ vi.mock('./executor.js', () => ({
 }));
 
 import { runDueAgents, listAgents, runSingleAgent } from './daemon.js';
-import type { ServerConfig } from './config.js';
+import type { ServerConfig } from '../platform/config.js';
 
 function createTempDir(): string {
   const dir = join(tmpdir(), `daemon-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);

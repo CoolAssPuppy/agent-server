@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { rmSync } from 'fs';
 import { runAgent } from './runner.js';
-import { makeAgent, makeExecutionResult, createTempDir } from './test-factories.js';
+import { makeAgent, makeExecutionResult, createTempDir } from '../test-factories.js';
 
 const noop = async () => {};
 
@@ -79,7 +79,14 @@ describe('runAgent', () => {
 
     expect(start).toHaveBeenCalledOnce();
     expect(complete).toHaveBeenCalledOnce();
-    expect(complete.mock.calls[0][0].summary).toBe('All done');
+
+    const completionArg = complete.mock.calls[0][0];
+    expect(completionArg.summary).toBe('All done');
+    expect(completionArg.turnCount).toBe(3);
+    expect(completionArg.toolsUsed).toEqual(['Read']);
+    expect(completionArg.filesRead).toEqual([]);
+    expect(completionArg.filesWritten).toEqual([]);
+    expect(completionArg.commandsRun).toEqual([]);
   });
 
   it('reports failure when executor throws', async () => {

@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import type { AgentConfig } from './agent-config.js';
+import type { AgentConfig } from '../agents/config.js';
 import type { ExecutionResult } from './executor.js';
 import { acquireLock, releaseLock } from './lockfile.js';
 
@@ -13,7 +13,7 @@ export type RunResult = {
 export type Reporter = {
   start: () => Promise<void> | void;
   progress: (message: string, metadata?: Record<string, unknown>) => Promise<void> | void;
-  complete: (result: { summary: string; usage?: Record<string, unknown> }) => Promise<void> | void;
+  complete: (result: ExecutionResult) => Promise<void> | void;
   fail: (error: Error) => Promise<void> | void;
   stop: () => void;
 };
@@ -38,10 +38,7 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
   try {
     await reporter.start();
     const result = await execute(agent, reporter);
-    await reporter.complete({
-      summary: result.summary,
-      usage: result.usage,
-    });
+    await reporter.complete(result);
     reporter.stop();
     return { runId, status: 'completed', result };
   } catch (err) {

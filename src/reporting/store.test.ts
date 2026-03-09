@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { RunStore } from './store.js';
-import { makeStoredRun } from './test-factories.js';
+import { makeStoredRun } from '../test-factories.js';
 
 describe('RunStore', () => {
   let store: RunStore;

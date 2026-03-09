@@ -1,6 +1,6 @@
 import { watch, statSync, type FSWatcher } from 'fs';
 import { join, basename } from 'path';
-import type { AgentConfig } from './agent-config.js';
+import type { AgentConfig } from './config.js';
 
 export type FileWatchConfig = {
   path: string;

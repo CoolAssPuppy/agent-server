@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { ExecutorRegistry } from './executor-registry.js';
-import type { AgentConfig } from './agent-config.js';
+import type { AgentConfig } from '../agents/config.js';
 import type { Reporter } from './runner.js';
 import type { ExecutionResult } from './executor.js';
-import { makeAgent, makeExecutionResult } from './test-factories.js';
+import { makeAgent, makeExecutionResult } from '../test-factories.js';
 
 const noopReporter: Reporter = {
   start: () => {},

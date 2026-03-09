@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { extractWatchConfigs } from './file-watcher.js';
-import { makeAgent } from './test-factories.js';
+import { makeAgent } from '../test-factories.js';
 
 describe('extractWatchConfigs', () => {
   it('extracts watch configs from agents with file watches', () => {

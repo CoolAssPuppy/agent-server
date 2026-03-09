@@ -1,6 +1,26 @@
 import { z } from 'zod';
 import { homedir } from 'os';
 import { join } from 'path';
+import { existsSync, readFileSync } from 'fs';
+import { parse as parseDotenv } from 'dotenv';
+
+export function loadEnvFile(
+  dir: string,
+  existing: Record<string, string | undefined> = {},
+): Record<string, string | undefined> {
+  const envPath = join(dir, '.env');
+  if (!existsSync(envPath)) {
+    return { ...existing };
+  }
+  const fileVars = parseDotenv(readFileSync(envPath, 'utf-8'));
+  const merged = { ...existing };
+  for (const [key, value] of Object.entries(fileVars)) {
+    if (merged[key] === undefined) {
+      merged[key] = value;
+    }
+  }
+  return merged;
+}
 
 export const ServerConfigSchema = z.object({
   agentsDir: z.string().default(() => join(homedir(), '.agent-server', 'agents')),

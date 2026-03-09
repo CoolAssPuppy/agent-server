@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createApi } from './api.js';
-import { RunStore } from './store.js';
-import { makeAgent, makeStoredRun } from './test-factories.js';
+import { RunStore } from '../reporting/store.js';
+import { makeAgent, makeStoredRun } from '../test-factories.js';
 
 describe('API routes', () => {
   let store: RunStore;

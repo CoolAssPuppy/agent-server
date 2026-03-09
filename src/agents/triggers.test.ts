@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { evaluateTriggers } from './triggers.js';
-import { makeAgent } from './test-factories.js';
+import { makeAgent } from '../test-factories.js';
 
 describe('evaluateTriggers', () => {
   it('returns agents triggered by on_complete of source agent', () => {

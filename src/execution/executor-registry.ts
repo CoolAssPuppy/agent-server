@@ -1,4 +1,4 @@
-import type { AgentConfig } from './agent-config.js';
+import type { AgentConfig } from '../agents/config.js';
 import type { Reporter } from './runner.js';
 import type { ExecutionResult } from './executor.js';
 

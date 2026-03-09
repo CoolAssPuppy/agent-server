@@ -1,11 +1,11 @@
-import type { ServerConfig } from './config.js';
-import type { AgentConfig } from './agent-config.js';
-import { discoverAgents } from './discovery.js';
-import { shouldRun } from './scheduler.js';
-import { runAgent } from './runner.js';
-import { executeAgent } from './executor.js';
-import { ExecutorRegistry } from './executor-registry.js';
-import { createReporter } from './reporter-factory.js';
+import type { ServerConfig } from '../platform/config.js';
+import type { AgentConfig } from '../agents/config.js';
+import { discoverAgents } from '../agents/discovery.js';
+import { shouldRun } from '../agents/scheduler.js';
+import { runAgent } from '../execution/runner.js';
+import { executeAgent } from '../plugins/claude-code.js';
+import { ExecutorRegistry } from '../execution/executor-registry.js';
+import { createReporter } from '../reporting/reporter-factory.js';
 
 function createDefaultRegistry(): ExecutorRegistry {
   const registry = new ExecutorRegistry();
@@ -74,7 +74,17 @@ export async function runSingleAgent(
   if (result.status === 'skipped') {
     console.log('Skipped: agent is already running');
   } else if (result.status === 'completed') {
-    console.log(`Completed (run: ${result.runId})`);
+    console.log(`Completed (run: ${result.runId})\n`);
+    if (result.result) {
+      console.log(`Summary: ${result.result.summary}`);
+      console.log(`Turns: ${result.result.turnCount}`);
+      if (result.result.toolsUsed.length > 0) {
+        console.log(`Tools used: ${result.result.toolsUsed.join(', ')}`);
+      }
+      if (result.result.filesWritten.length > 0) {
+        console.log(`Files written: ${result.result.filesWritten.join(', ')}`);
+      }
+    }
   } else {
     console.error(`Failed: ${result.error}`);
     process.exitCode = 1;

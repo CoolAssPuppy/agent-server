@@ -1,9 +1,9 @@
 import { mkdirSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import type { AgentConfig } from './agent-config.js';
-import type { ExecutionResult } from './executor.js';
-import type { StoredRun } from './store.js';
+import type { AgentConfig } from './agents/config.js';
+import type { ExecutionResult } from './execution/executor.js';
+import type { StoredRun } from './reporting/store.js';
 
 export function makeAgent(overrides: Partial<AgentConfig> = {}): AgentConfig {
   return {

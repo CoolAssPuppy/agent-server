@@ -1,5 +1,5 @@
 import { CronExpressionParser } from 'cron-parser';
-import type { AgentConfig } from './agent-config.js';
+import type { AgentConfig } from './config.js';
 
 export function shouldRun(agent: AgentConfig, now: Date): boolean {
   if (!agent.enabled) return false;

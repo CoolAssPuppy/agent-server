@@ -3,11 +3,15 @@
 import { Command } from 'commander';
 import { homedir } from 'os';
 import { join } from 'path';
-import { loadConfig } from './config.js';
-import { listAgents, runSingleAgent } from './daemon.js';
-import { startServer } from './server.js';
-import { initAgentServer } from './init.js';
-import { installLaunchAgent, uninstallLaunchAgent } from './launchd.js';
+import { loadConfig, loadEnvFile } from './platform/config.js';
+import { listAgents, runSingleAgent } from './server/daemon.js';
+import { startServer } from './server/server.js';
+import { initAgentServer } from './platform/init.js';
+import { installLaunchAgent, uninstallLaunchAgent } from './platform/launchd.js';
+
+const baseDir = join(homedir(), '.agent-server');
+const fileEnv = loadEnvFile(baseDir, process.env);
+Object.assign(process.env, fileEnv);
 
 const program = new Command();
 
@@ -52,7 +56,6 @@ program
   .command('init')
   .description('Create config directory with a sample agent')
   .action(() => {
-    const baseDir = join(homedir(), '.agent-server');
     initAgentServer(baseDir);
   });
 

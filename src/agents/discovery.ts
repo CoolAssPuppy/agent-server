@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'fs/promises';
 import { join, extname } from 'path';
-import { type AgentConfig, parseAgentFile } from './agent-config.js';
+import { type AgentConfig, parseAgentFile } from './config.js';
 
 export const AGENT_EXTENSIONS = new Set(['.yaml', '.yml', '.md']);
 

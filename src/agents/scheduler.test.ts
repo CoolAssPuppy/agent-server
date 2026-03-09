@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { shouldRun, getNextRun } from './scheduler.js';
-import type { AgentConfig } from './agent-config.js';
+import type { AgentConfig } from './config.js';
 
 function makeAgent(overrides: Partial<AgentConfig> = {}): AgentConfig {
   return {

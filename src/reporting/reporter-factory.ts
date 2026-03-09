@@ -1,5 +1,5 @@
-import type { ServerConfig } from './config.js';
-import type { Reporter } from './runner.js';
+import type { ServerConfig } from '../platform/config.js';
+import type { Reporter } from '../execution/runner.js';
 import { TelemetryReporter } from './reporter.js';
 
 const noopReporter: Reporter = {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseAgentYaml, parseAgentFile, AgentConfigSchema } from './agent-config.js';
+import { parseAgentYaml, parseAgentFile, AgentConfigSchema } from './config.js';
 
 const VALID_YAML = `
 id: hello-world

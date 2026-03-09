@@ -1,4 +1,4 @@
-import type { AgentConfig, TriggerRef } from './agent-config.js';
+import type { AgentConfig, TriggerRef } from './config.js';
 
 type CompletionStatus = 'completed' | 'failed';
 
