@@ -1,4 +1,4 @@
-export { AgentConfigSchema, parseAgentYaml, type AgentConfig } from './agent-config.js';
+export { AgentConfigSchema, parseAgentYaml, parseAgentFile, type AgentConfig } from './agent-config.js';
 export { discoverAgents } from './discovery.js';
 export { shouldRun, getNextRun } from './scheduler.js';
 export { acquireLock, releaseLock, isLocked } from './lockfile.js';

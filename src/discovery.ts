@@ -1,17 +1,17 @@
 import { readdir, readFile } from 'fs/promises';
 import { join, extname } from 'path';
-import { type AgentConfig, parseAgentYaml } from './agent-config.js';
+import { type AgentConfig, parseAgentFile } from './agent-config.js';
 
-const YAML_EXTENSIONS = new Set(['.yaml', '.yml']);
+export const AGENT_EXTENSIONS = new Set(['.yaml', '.yml', '.md']);
 
-function isYamlFile(filename: string): boolean {
-  return YAML_EXTENSIONS.has(extname(filename));
+function isAgentFile(filename: string): boolean {
+  return AGENT_EXTENSIONS.has(extname(filename));
 }
 
 async function tryParseAgent(directory: string, file: string): Promise<AgentConfig | null> {
   try {
     const content = await readFile(join(directory, file), 'utf-8');
-    return parseAgentYaml(content);
+    return parseAgentFile(content);
   } catch {
     console.warn(`Skipping invalid agent definition: ${file}`);
     return null;
@@ -26,8 +26,8 @@ export async function discoverAgents(directory: string): Promise<AgentConfig[]> 
     return [];
   }
 
-  const yamlFiles = entries.filter(isYamlFile).sort();
-  const results = await Promise.all(yamlFiles.map((file) => tryParseAgent(directory, file)));
+  const agentFiles = entries.filter(isAgentFile).sort();
+  const results = await Promise.all(agentFiles.map((file) => tryParseAgent(directory, file)));
 
   return results
     .filter((agent): agent is AgentConfig => agent !== null)

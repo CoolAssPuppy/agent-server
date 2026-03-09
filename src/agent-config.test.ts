@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseAgentYaml, AgentConfigSchema } from './agent-config.js';
+import { parseAgentYaml, parseAgentFile, AgentConfigSchema } from './agent-config.js';
 
 const VALID_YAML = `
 id: hello-world
@@ -137,5 +137,106 @@ notifications:
 `;
     const config = parseAgentYaml(yaml);
     expect(config.notifications).toEqual({ on_complete: 'telegram' });
+  });
+});
+
+const FRONTMATTER_AGENT = `---
+id: daily-standup
+name: Daily Standup Summary
+schedule: "0 9 * * 1-5"
+timezone: America/Los_Angeles
+tools:
+  - Read
+  - Write
+max_turns: 15
+---
+
+# Daily standup
+
+Generate a daily standup summary for today.
+
+- Check Slack channels
+- Check Linear for issues
+- Check git commits
+`;
+
+const FRONTMATTER_MINIMAL = `---
+id: minimal-md
+name: Minimal Markdown Agent
+schedule: "0 0 * * *"
+---
+
+Do something simple.
+`;
+
+const FRONTMATTER_WITH_YAML_PROMPT = `---
+id: both-prompts
+name: Both Prompts
+schedule: "* * * * *"
+prompt: This prompt is in YAML.
+---
+
+This prompt is in the body.
+`;
+
+const FRONTMATTER_EMPTY_BODY = `---
+id: no-body
+name: No Body
+schedule: "* * * * *"
+---
+`;
+
+const FRONTMATTER_NO_CLOSE = `---
+id: broken
+name: Broken
+schedule: "* * * * *"
+`;
+
+describe('parseAgentFile', () => {
+  it('parses pure YAML when no frontmatter delimiters present', () => {
+    const config = parseAgentFile(VALID_YAML);
+    expect(config.id).toBe('hello-world');
+    expect(config.prompt).toContain('test agent');
+  });
+
+  it('parses frontmatter + markdown body into AgentConfig', () => {
+    const config = parseAgentFile(FRONTMATTER_AGENT);
+    expect(config.id).toBe('daily-standup');
+    expect(config.name).toBe('Daily Standup Summary');
+    expect(config.schedule).toBe('0 9 * * 1-5');
+    expect(config.timezone).toBe('America/Los_Angeles');
+    expect(config.tools).toEqual(['Read', 'Write']);
+    expect(config.max_turns).toBe(15);
+  });
+
+  it('uses markdown body as the prompt', () => {
+    const config = parseAgentFile(FRONTMATTER_AGENT);
+    expect(config.prompt).toContain('# Daily standup');
+    expect(config.prompt).toContain('Check Slack channels');
+  });
+
+  it('trims whitespace from the markdown body prompt', () => {
+    const config = parseAgentFile(FRONTMATTER_MINIMAL);
+    expect(config.prompt).toBe('Do something simple.');
+  });
+
+  it('uses body over YAML prompt when both exist', () => {
+    const config = parseAgentFile(FRONTMATTER_WITH_YAML_PROMPT);
+    expect(config.prompt).toBe('This prompt is in the body.');
+  });
+
+  it('throws when frontmatter has no body and no YAML prompt', () => {
+    expect(() => parseAgentFile(FRONTMATTER_EMPTY_BODY)).toThrow();
+  });
+
+  it('throws when frontmatter opening has no closing delimiter', () => {
+    expect(() => parseAgentFile(FRONTMATTER_NO_CLOSE)).toThrow();
+  });
+
+  it('applies schema defaults for frontmatter format', () => {
+    const config = parseAgentFile(FRONTMATTER_MINIMAL);
+    expect(config.max_turns).toBe(20);
+    expect(config.enabled).toBe(true);
+    expect(config.tools).toEqual([]);
   });
 });

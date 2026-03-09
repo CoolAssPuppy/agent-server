@@ -1,13 +1,13 @@
 # Agent Server
 
-Lightweight orchestration server that runs AI agents in the background using Claude Code as its execution engine. Agents are defined as YAML files with cron schedules. The server discovers agents, evaluates schedules, acquires locks, spawns Claude Code processes, streams events, and reports telemetry in A2A format.
+Lightweight orchestration server that runs AI agents in the background using Claude Code as its execution engine. Agents are defined as YAML or Markdown files with cron schedules. The server discovers agents, evaluates schedules, acquires locks, spawns Claude Code processes, streams events, and reports telemetry in A2A format.
 
 ## Architecture
 
 ```
 src/
-  agent-config.ts        -- Zod schema + YAML parser for agent definitions
-  discovery.ts           -- Reads YAML files from agents directory
+  agent-config.ts        -- Zod schema + YAML/frontmatter parser for agent definitions
+  discovery.ts           -- Reads agent files (.yaml, .yml, .md) from agents directory
   scheduler.ts           -- Cron expression evaluation (cron-parser v5)
   lockfile.ts            -- PID-based file locks with stale detection
   reporter.ts            -- A2A telemetry reporter with heartbeat
@@ -95,7 +95,13 @@ Agents can declare `watch` paths in their YAML config. The `FileWatcher` class m
 
 Hono app created via `createApi()` with dependency injection. Routes: `/agents`, `/agents/:id`, `/agents/:id/run`, `/runs`, `/runs/:id`, `/health`. The `startServer()` function combines HTTP + scheduler in one process.
 
-## Agent YAML format
+## Agent definition formats
+
+Two formats are supported. Discovery picks up `.yaml`, `.yml`, and `.md` files.
+
+### Pure YAML
+
+All fields including the prompt live in one YAML file:
 
 ```yaml
 id: my-agent
@@ -121,6 +127,31 @@ on_complete:             # optional agent chaining
 on_failure:
   - agent: alert-agent
 ```
+
+### Hybrid frontmatter + Markdown
+
+YAML frontmatter for config, Markdown body becomes the prompt. Use `.md` extension. The body replaces any `prompt` field in the frontmatter.
+
+```markdown
+---
+id: my-agent
+name: My Agent
+schedule: "*/5 * * * *"
+tools:
+  - Read
+  - Write
+  - Bash
+---
+
+# My agent prompt
+
+Do the thing. Use full Markdown formatting here.
+
+1. Step one
+2. Step two
+```
+
+Use `parseAgentFile()` (not `parseAgentYaml()`) to handle both formats automatically.
 
 ## Commands
 

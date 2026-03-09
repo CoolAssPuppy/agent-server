@@ -106,6 +106,47 @@ describe('discoverAgents', () => {
     expect(agents).toHaveLength(2);
   });
 
+  it('discovers .md files with frontmatter', async () => {
+    const mdAgent = `---
+id: standup
+name: Standup Agent
+schedule: "0 9 * * 1-5"
+---
+
+Generate a standup summary.
+`;
+    writeAgent(dir, 'standup.md', mdAgent);
+    const agents = await discoverAgents(dir);
+    expect(agents).toHaveLength(1);
+    expect(agents[0].id).toBe('standup');
+    expect(agents[0].prompt).toBe('Generate a standup summary.');
+  });
+
+  it('discovers .md and .yaml files together', async () => {
+    const mdAgent = `---
+id: alpha
+name: Alpha Agent
+schedule: "0 0 * * *"
+---
+
+Do alpha things.
+`;
+    writeAgent(dir, 'alpha.md', mdAgent);
+    writeAgent(dir, 'bravo.yaml', VALID_AGENT);
+    const agents = await discoverAgents(dir);
+    expect(agents).toHaveLength(2);
+    expect(agents[0].id).toBe('alpha');
+    expect(agents[1].id).toBe('hello');
+  });
+
+  it('skips .md files without valid frontmatter', async () => {
+    writeAgent(dir, 'readme.md', '# Just a readme\n\nNo agent here.');
+    writeAgent(dir, 'valid.yaml', VALID_AGENT);
+    const agents = await discoverAgents(dir);
+    expect(agents).toHaveLength(1);
+    expect(agents[0].id).toBe('hello');
+  });
+
   afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
   });
