@@ -270,7 +270,28 @@ Interaction requests support:
 
 ### Example: tool permissions
 
-Control exactly what an agent can and cannot do with the `permissions` block. When `permissions` is defined, only explicitly allowed tools can be used. Deny rules take precedence over allow rules. Patterns support `*` wildcards.
+There are three ways to control what tools an agent can use, from simple to fine-grained:
+
+**1. `tools`** -- SDK-level allowlist. When set, only these tools are available to the model. Empty means all tools.
+
+```yaml
+tools:
+  - Read
+  - Write
+  - Bash
+```
+
+**2. `disallowed_tools`** -- SDK-level denylist. These tools are removed from the model's context entirely.
+
+```yaml
+disallowed_tools:
+  - Bash
+  - Edit
+```
+
+**3. `permissions`** -- Fine-grained control with glob patterns. When defined, every tool call is checked against allow/deny rules before execution. This is the recommended approach for agents that use MCP servers, because it lets you control exactly which MCP operations are permitted.
+
+The `permissions` block works as an allowlist: only tools matching an `allow` pattern can run. Deny rules take precedence over allow rules. Any tool not explicitly allowed is blocked.
 
 ```yaml
 id: research-agent
@@ -297,15 +318,26 @@ max_turns: 20
 working_directory: "~"
 ```
 
-This agent can read from Linear and Slack via MCP, write markdown files to the filesystem, but cannot create, update, or delete anything through MCP servers. It also cannot use Bash or Edit since those are not in the allow list.
+This agent can read from Linear and Slack via MCP and write markdown files to the filesystem, but cannot create, update, or delete anything through MCP servers. It also cannot use Bash or Edit since those are not in the allow list.
 
-Pattern matching rules:
-- `Read` -- exact match, allows the Read tool
-- `mcp__claude_ai_Linear__list_*` -- allows any Linear tool starting with `list_`
-- `mcp__*__create_*` -- denies any MCP tool with `create_` in the action name, across all servers
-- `*` -- matches everything (use with caution)
+#### Pattern matching
 
-When `permissions` is not defined, the agent uses `bypassPermissions` mode and all tools are available.
+Patterns support `*` as a wildcard that matches any sequence of characters:
+
+| Pattern | Matches | Use case |
+|---|---|---|
+| `Read` | Exact match | Allow a specific built-in tool |
+| `mcp__claude_ai_Linear__list_*` | Any Linear tool starting with `list_` | Read-only access to a specific MCP server |
+| `mcp__*__create_*` | Any MCP tool with `create_` in the action | Deny writes across all MCP servers |
+| `*` | Everything | Use with caution |
+
+MCP tools follow the naming convention `mcp__<org>_<server>__<tool_name>`. To find the exact tool names available to your agents, check your Claude Code MCP server configuration or run an agent with verbose logging.
+
+#### When to use which
+
+- **No permissions needed**: Leave all three fields empty. The agent runs in `bypassPermissions` mode with access to everything.
+- **Simple restriction**: Use `tools` to whitelist a few built-in tools, or `disallowed_tools` to block specific ones.
+- **MCP access control**: Use `permissions` with glob patterns. This is the only way to control which MCP server operations an agent can call.
 
 ### Example: notifications
 
