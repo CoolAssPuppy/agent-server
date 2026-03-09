@@ -41,19 +41,24 @@ export class RunStore {
   }
 
   listByAgent(agentId: string): StoredRun[] {
-    return this.list().filter((r) => r.agentId === agentId);
+    return [...this.runs.values()]
+      .filter((r) => r.agentId === agentId)
+      .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
   }
 
   update(runId: string, updates: Partial<StoredRun>): void {
     const run = this.runs.get(runId);
     if (!run) return;
-    Object.assign(run, updates);
+    this.runs.set(runId, { ...run, ...updates });
   }
 
   addProgress(runId: string, message: string): void {
     const run = this.runs.get(runId);
     if (!run) return;
-    run.progressMessages.push(message);
+    this.runs.set(runId, {
+      ...run,
+      progressMessages: [...run.progressMessages, message],
+    });
   }
 
   private evictOldest(): void {

@@ -145,6 +145,7 @@ describe('extractToolMetadata', () => {
   it('returns empty metadata for non-assistant events', () => {
     const event: ClaudeStreamEvent = { type: 'system' };
     const meta = extractToolMetadata(event);
+    expect(meta.toolNames).toEqual([]);
     expect(meta.filesRead).toEqual([]);
     expect(meta.filesWritten).toEqual([]);
     expect(meta.commandsRun).toEqual([]);
@@ -162,6 +163,7 @@ describe('extractToolMetadata', () => {
       },
     };
     const meta = extractToolMetadata(event);
+    expect(meta.toolNames).toEqual(['Read', 'Write', 'Bash']);
     expect(meta.filesRead).toEqual(['/a.ts']);
     expect(meta.filesWritten).toEqual(['/b.ts']);
     expect(meta.commandsRun).toEqual(['ls']);

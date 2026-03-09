@@ -1,28 +1,12 @@
-import { describe, it, expect, vi } from 'vitest';
-import { evaluateTriggers, type TriggerConfig } from './triggers.js';
-import type { AgentConfig } from './agent-config.js';
-
-function makeAgent(overrides: Partial<AgentConfig> = {}): AgentConfig {
-  return {
-    id: 'test-agent',
-    name: 'Test Agent',
-    schedule: '* * * * *',
-    prompt: 'Do something.',
-    tools: [],
-    max_turns: 20,
-    enabled: true,
-    ...overrides,
-  };
-}
+import { describe, it, expect } from 'vitest';
+import { evaluateTriggers } from './triggers.js';
+import { makeAgent } from './test-factories.js';
 
 describe('evaluateTriggers', () => {
   it('returns agents triggered by on_complete of source agent', () => {
-    const agents: AgentConfig[] = [
+    const agents = [
       makeAgent({ id: 'source' }),
-      makeAgent({
-        id: 'downstream',
-        on_complete: [{ agent: 'source' }],
-      }),
+      makeAgent({ id: 'downstream', on_complete: [{ agent: 'source' }] }),
       makeAgent({ id: 'unrelated' }),
     ];
 
@@ -31,7 +15,7 @@ describe('evaluateTriggers', () => {
   });
 
   it('returns empty array when no triggers match', () => {
-    const agents: AgentConfig[] = [
+    const agents = [
       makeAgent({ id: 'source' }),
       makeAgent({ id: 'other' }),
     ];
@@ -41,11 +25,8 @@ describe('evaluateTriggers', () => {
   });
 
   it('does not trigger on failure by default', () => {
-    const agents: AgentConfig[] = [
-      makeAgent({
-        id: 'downstream',
-        on_complete: [{ agent: 'source' }],
-      }),
+    const agents = [
+      makeAgent({ id: 'downstream', on_complete: [{ agent: 'source' }] }),
     ];
 
     const triggered = evaluateTriggers(agents, 'source', 'failed');
@@ -53,11 +34,8 @@ describe('evaluateTriggers', () => {
   });
 
   it('triggers on failure when on_failure is specified', () => {
-    const agents: AgentConfig[] = [
-      makeAgent({
-        id: 'alerter',
-        on_failure: [{ agent: 'source' }],
-      }),
+    const agents = [
+      makeAgent({ id: 'alerter', on_failure: [{ agent: 'source' }] }),
     ];
 
     const triggered = evaluateTriggers(agents, 'source', 'failed');
@@ -65,11 +43,8 @@ describe('evaluateTriggers', () => {
   });
 
   it('supports multiple trigger sources', () => {
-    const agents: AgentConfig[] = [
-      makeAgent({
-        id: 'aggregator',
-        on_complete: [{ agent: 'source-a' }, { agent: 'source-b' }],
-      }),
+    const agents = [
+      makeAgent({ id: 'aggregator', on_complete: [{ agent: 'source-a' }, { agent: 'source-b' }] }),
     ];
 
     expect(evaluateTriggers(agents, 'source-a', 'completed').map((a) => a.id)).toEqual(['aggregator']);
@@ -78,12 +53,8 @@ describe('evaluateTriggers', () => {
   });
 
   it('does not trigger disabled agents', () => {
-    const agents: AgentConfig[] = [
-      makeAgent({
-        id: 'downstream',
-        enabled: false,
-        on_complete: [{ agent: 'source' }],
-      }),
+    const agents = [
+      makeAgent({ id: 'downstream', enabled: false, on_complete: [{ agent: 'source' }] }),
     ];
 
     const triggered = evaluateTriggers(agents, 'source', 'completed');

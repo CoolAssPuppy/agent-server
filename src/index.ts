@@ -10,6 +10,7 @@ export { runDueAgents, runSingleAgent, listAgents, startDaemon } from './daemon.
 export { RunStore, type StoredRun } from './store.js';
 export { createApi } from './api.js';
 export { startServer, type ServerInstance } from './server.js';
-export { evaluateTriggers, type TriggerConfig } from './triggers.js';
+export { evaluateTriggers } from './triggers.js';
+export { createReporter } from './reporter-factory.js';
 export { generatePlist, installLaunchAgent, uninstallLaunchAgent } from './launchd.js';
 export { initAgentServer } from './init.js';

@@ -79,6 +79,7 @@ export function summarizeTurn(event: ClaudeStreamEvent): string | null {
 }
 
 type ToolMetadata = {
+  toolNames: string[];
   filesRead: string[];
   filesWritten: string[];
   commandsRun: string[];
@@ -87,16 +88,19 @@ type ToolMetadata = {
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit']);
 
 export function extractToolMetadata(event: ClaudeStreamEvent): ToolMetadata {
+  const toolNames: string[] = [];
   const filesRead: string[] = [];
   const filesWritten: string[] = [];
   const commandsRun: string[] = [];
 
   if (event.type !== 'assistant' || !event.message?.content) {
-    return { filesRead, filesWritten, commandsRun };
+    return { toolNames, filesRead, filesWritten, commandsRun };
   }
 
   for (const block of event.message.content) {
     if (block.type !== 'tool_use' || !block.name) continue;
+
+    toolNames.push(block.name);
     const input = block.input ?? {};
     const filePath = typeof input.file_path === 'string' ? input.file_path : null;
 
@@ -109,7 +113,7 @@ export function extractToolMetadata(event: ClaudeStreamEvent): ToolMetadata {
     }
   }
 
-  return { filesRead, filesWritten, commandsRun };
+  return { toolNames, filesRead, filesWritten, commandsRun };
 }
 
 export async function executeAgent(
@@ -157,16 +161,13 @@ export async function executeAgent(
         const event = parseStreamEvent(line);
         if (!event) continue;
 
+        const meta = extractToolMetadata(event);
+
         if (event.type === 'assistant') {
           turnCount++;
-          for (const block of event.message?.content ?? []) {
-            if (block.type === 'tool_use' && block.name) {
-              toolsUsed.add(block.name);
-            }
-          }
         }
 
-        const meta = extractToolMetadata(event);
+        meta.toolNames.forEach((name) => toolsUsed.add(name));
         meta.filesRead.forEach((f) => allFilesRead.add(f));
         meta.filesWritten.forEach((f) => allFilesWritten.add(f));
         allCommandsRun.push(...meta.commandsRun);

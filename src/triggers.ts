@@ -1,7 +1,5 @@
 import type { AgentConfig, TriggerRef } from './agent-config.js';
 
-export type TriggerConfig = TriggerRef;
-
 type CompletionStatus = 'completed' | 'failed';
 
 function matchesTrigger(triggers: TriggerRef[] | undefined, sourceAgentId: string): boolean {

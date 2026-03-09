@@ -1,48 +1,11 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { mkdirSync, rmSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
-import { runAgent, type RunResult } from './runner.js';
-import type { AgentConfig } from './agent-config.js';
-import type { ExecutionResult } from './executor.js';
-
-function createTempDir(): string {
-  const dir = join(tmpdir(), `runner-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-  mkdirSync(dir, { recursive: true });
-  return dir;
-}
-
-function makeAgent(overrides: Partial<AgentConfig> = {}): AgentConfig {
-  return {
-    id: 'test-agent',
-    name: 'Test Agent',
-    schedule: '* * * * *',
-    prompt: 'Say hello.',
-    tools: [],
-    max_turns: 20,
-    enabled: true,
-    ...overrides,
-  };
-}
-
-function makeExecutionResult(overrides: Partial<ExecutionResult> = {}): ExecutionResult {
-  return {
-    summary: 'Done',
-    output: {},
-    usage: { turns: 3 },
-    turnCount: 3,
-    toolsUsed: ['Read'],
-    filesRead: [],
-    filesWritten: [],
-    commandsRun: [],
-    ...overrides,
-  };
-}
+import { rmSync } from 'fs';
+import { runAgent } from './runner.js';
+import { makeAgent, makeExecutionResult, createTempDir } from './test-factories.js';
 
 const noop = async () => {};
 
 describe('runAgent', () => {
-  let lockDir: string;
   const dirs: string[] = [];
 
   afterEach(() => {
@@ -51,7 +14,7 @@ describe('runAgent', () => {
   });
 
   it('generates a run ID and returns it', async () => {
-    lockDir = createTempDir();
+    const lockDir = createTempDir('runner');
     dirs.push(lockDir);
 
     const result = await runAgent({
@@ -68,12 +31,12 @@ describe('runAgent', () => {
     });
 
     expect(result.runId).toBeDefined();
-    expect(result.runId.length).toBeGreaterThan(0);
+    expect(result.runId!.length).toBeGreaterThan(0);
     expect(result.status).toBe('completed');
   });
 
   it('calls execute with the agent config', async () => {
-    lockDir = createTempDir();
+    const lockDir = createTempDir('runner');
     dirs.push(lockDir);
     const execute = vi.fn().mockResolvedValue(makeExecutionResult());
     const agent = makeAgent({ id: 'specific-agent' });
@@ -96,7 +59,7 @@ describe('runAgent', () => {
   });
 
   it('reports started and completed events', async () => {
-    lockDir = createTempDir();
+    const lockDir = createTempDir('runner');
     dirs.push(lockDir);
     const start = vi.fn();
     const complete = vi.fn();
@@ -120,7 +83,7 @@ describe('runAgent', () => {
   });
 
   it('reports failure when executor throws', async () => {
-    lockDir = createTempDir();
+    const lockDir = createTempDir('runner');
     dirs.push(lockDir);
     const fail = vi.fn();
     const stop = vi.fn();
@@ -145,7 +108,7 @@ describe('runAgent', () => {
   });
 
   it('releases lock after successful execution', async () => {
-    lockDir = createTempDir();
+    const lockDir = createTempDir('runner');
     dirs.push(lockDir);
 
     await runAgent({
@@ -166,7 +129,7 @@ describe('runAgent', () => {
   });
 
   it('releases lock after failed execution', async () => {
-    lockDir = createTempDir();
+    const lockDir = createTempDir('runner');
     dirs.push(lockDir);
 
     await runAgent({
@@ -187,7 +150,7 @@ describe('runAgent', () => {
   });
 
   it('returns skipped when agent is already locked', async () => {
-    lockDir = createTempDir();
+    const lockDir = createTempDir('runner');
     dirs.push(lockDir);
 
     const { acquireLock } = await import('./lockfile.js');

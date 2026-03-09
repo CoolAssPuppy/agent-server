@@ -1,31 +1,10 @@
 import type { ServerConfig } from './config.js';
 import type { AgentConfig } from './agent-config.js';
-import type { Reporter } from './runner.js';
 import { discoverAgents } from './discovery.js';
 import { shouldRun } from './scheduler.js';
 import { runAgent } from './runner.js';
 import { executeAgent } from './executor.js';
-import { TelemetryReporter } from './reporter.js';
-
-function createReporter(config: ServerConfig, runId: string, agentName: string): Reporter {
-  if (!config.panelUrl || !config.panelApiKey) {
-    return {
-      start: async () => {},
-      progress: async () => {},
-      complete: async () => {},
-      fail: async () => {},
-      stop: () => {},
-    };
-  }
-
-  return new TelemetryReporter({
-    runId,
-    agentName,
-    endpoint: `${config.panelUrl}/api/runs/${runId}/status`,
-    apiKey: config.panelApiKey,
-    heartbeatMs: config.heartbeatMs,
-  });
-}
+import { createReporter } from './reporter-factory.js';
 
 function runAgentWithConfig(config: ServerConfig, agent: AgentConfig) {
   return runAgent({

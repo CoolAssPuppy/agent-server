@@ -29,8 +29,10 @@
     "vitest": "^4.0.18"
   },
   "dependencies": {
+    "@hono/node-server": "^1.19.11",
     "commander": "^14.0.3",
     "cron-parser": "^5.5.0",
+    "hono": "^4.12.5",
     "yaml": "^2.8.2",
     "zod": "^4.3.6"
   }

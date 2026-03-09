@@ -1,51 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createApi } from './api.js';
-import { RunStore, type StoredRun } from './store.js';
-import type { AgentConfig } from './agent-config.js';
-
-function makeAgent(overrides: Partial<AgentConfig> = {}): AgentConfig {
-  return {
-    id: 'test-agent',
-    name: 'Test Agent',
-    description: 'A test agent',
-    schedule: '*/5 * * * *',
-    prompt: 'Do something.',
-    tools: ['Read', 'Bash'],
-    max_turns: 10,
-    enabled: true,
-    ...overrides,
-  };
-}
-
-function makeRun(overrides: Partial<StoredRun> = {}): StoredRun {
-  return {
-    runId: 'run-1',
-    agentId: 'test-agent',
-    agentName: 'Test Agent',
-    status: 'completed',
-    startedAt: new Date('2026-03-09T10:00:00Z'),
-    turnCount: 3,
-    toolsUsed: ['Read'],
-    filesRead: ['/tmp/a.ts'],
-    filesWritten: [],
-    commandsRun: [],
-    progressMessages: ['Step 1'],
-    ...overrides,
-  };
-}
+import { RunStore } from './store.js';
+import { makeAgent, makeStoredRun } from './test-factories.js';
 
 describe('API routes', () => {
   let store: RunStore;
-  let agents: AgentConfig[];
   let triggerRun: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     store = new RunStore();
-    agents = [makeAgent(), makeAgent({ id: 'other-agent', name: 'Other' })];
     triggerRun = vi.fn().mockResolvedValue('run-123');
   });
 
   function createApp() {
+    const agents = [makeAgent(), makeAgent({ id: 'other-agent', name: 'Other' })];
     return createApi({
       getAgents: async () => agents,
       store,
@@ -103,8 +71,8 @@ describe('API routes', () => {
 
   describe('GET /runs', () => {
     it('returns all runs', async () => {
-      store.add(makeRun({ runId: 'r1' }));
-      store.add(makeRun({ runId: 'r2' }));
+      store.add(makeStoredRun({ runId: 'r1' }));
+      store.add(makeStoredRun({ runId: 'r2' }));
 
       const app = createApp();
       const res = await app.request('/runs');
@@ -115,8 +83,8 @@ describe('API routes', () => {
     });
 
     it('filters runs by agent_id query param', async () => {
-      store.add(makeRun({ runId: 'r1', agentId: 'agent-a' }));
-      store.add(makeRun({ runId: 'r2', agentId: 'agent-b' }));
+      store.add(makeStoredRun({ runId: 'r1', agentId: 'agent-a' }));
+      store.add(makeStoredRun({ runId: 'r2', agentId: 'agent-b' }));
 
       const app = createApp();
       const res = await app.request('/runs?agent_id=agent-a');
@@ -130,7 +98,7 @@ describe('API routes', () => {
 
   describe('GET /runs/:id', () => {
     it('returns a specific run', async () => {
-      store.add(makeRun());
+      store.add(makeStoredRun({ progressMessages: ['Step 1'] }));
       const app = createApp();
       const res = await app.request('/runs/run-1');
       expect(res.status).toBe(200);
