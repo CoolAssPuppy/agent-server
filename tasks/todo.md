@@ -43,45 +43,54 @@
 - [x] Tests: full flow with mocked executor
 
 ### Step 1.8: CLI entry point
-- [x] `agent-server start` -- daemon mode
+- [x] `agent-server start` -- daemon mode with HTTP API
 - [x] `agent-server run <id>` -- run specific agent
 - [x] `agent-server list` -- list discovered agents
 - [x] `agent-server init` -- create config directory with sample agent
 
 ## Phase 2: Streaming telemetry
 
-### Step 2.1: Agent SDK integration
-- [ ] Replace CLI with Agent SDK for streaming
-- [ ] Turn-by-turn telemetry extraction
-- [ ] Meaningful message summaries per turn
+### Step 2.1: Enhanced progress reporting
+- [x] Track tools_used, files_written, turns_completed
+- [x] Send progress metadata with each working event
+- [x] extractToolMetadata function for rich stream parsing
+- [x] ExecutionResult includes filesRead, filesWritten, commandsRun
 
-### Step 2.2: Enhanced progress reporting
-- [ ] Track tools_used, files_written, turns_completed
-- [ ] Send progress metadata with each working event
+### Step 2.2: Agent SDK integration (future)
+- [ ] Replace CLI with Agent SDK when stable
+- [ ] Richer turn-by-turn telemetry via SDK events
 
 ## Phase 3: Local HTTP API
 
 ### Step 3.1: HTTP server
-- [ ] GET /agents -- list all agents
-- [ ] GET /agents/:id -- agent detail
-- [ ] POST /agents/:id/run -- trigger manual run
+- [x] GET /agents -- list all agents
+- [x] GET /agents/:id -- agent detail
+- [x] POST /agents/:id/run -- trigger manual run
+- [x] GET /runs -- recent runs (with agent_id filter)
+- [x] GET /runs/:id -- run detail with progress messages
+- [x] GET /health -- server health check
+- [x] In-memory RunStore with eviction
+
+### Step 3.2: Future API endpoints
 - [ ] POST /agents/:id/cancel -- cancel running agent
-- [ ] GET /runs -- recent runs
-- [ ] GET /runs/:id/logs -- logs for a run
+- [ ] WebSocket for live run streaming
 
 ## Phase 4: Agent chaining and events
 
 ### Step 4.1: Chaining
-- [ ] on_complete trigger config
-- [ ] Chain execution after successful run
+- [x] on_complete trigger config in agent YAML
+- [x] on_failure trigger config in agent YAML
+- [x] evaluateTriggers finds downstream agents to run
+- [ ] Wire triggers into server run completion flow
 
-### Step 4.2: File watch triggers
+### Step 4.2: File watch triggers (future)
 - [ ] fs.watch based trigger
 - [ ] Debounce and path matching
 
 ## Phase 5: Persistence
 
 ### Step 5.1: LaunchAgent
-- [ ] Generate macOS LaunchAgent plist
-- [ ] Install/uninstall commands
+- [x] Generate macOS LaunchAgent plist
+- [x] Install/uninstall CLI commands
+- [x] KeepAlive and RunAtLoad for auto-restart
 - [ ] Sleep/wake catch-up logic

@@ -13,10 +13,15 @@ src/
   reporter.ts        -- A2A telemetry reporter with heartbeat
   executor.ts        -- Spawns `claude --print --output-format stream-json`
   runner.ts          -- Orchestrates lock -> report -> execute -> release
-  daemon.ts          -- Timer loop, single-run, list commands
+  daemon.ts          -- Timer loop, single-run, list commands (legacy)
+  store.ts           -- In-memory run state store with eviction
+  api.ts             -- Hono HTTP API routes
+  server.ts          -- Combined HTTP server + agent scheduler
+  triggers.ts        -- Agent chaining (on_complete, on_failure)
+  launchd.ts         -- macOS LaunchAgent plist generation
   config.ts          -- ServerConfig from AGENT_SERVER_* env vars
   init.ts            -- Scaffolds ~/.agent-server/ with sample agent
-  cli.ts             -- Commander CLI: start, run, list, init
+  cli.ts             -- Commander CLI: start, run, list, init, install, uninstall
   index.ts           -- Barrel exports for library use
 ```
 
@@ -25,10 +30,10 @@ src/
 - TypeScript strict mode, ES2022, ESM
 - Zod for schema validation
 - cron-parser v5 (`CronExpressionParser.parse()`, NOT `parseExpression()`)
+- Hono for HTTP API
 - Commander for CLI
 - yaml for YAML parsing
 - vitest for testing
-- No runtime dependencies beyond these
 
 ## Key patterns
 
@@ -49,16 +54,24 @@ The old `parseExpression()` function does not exist in v5.
 
 ### Streaming JSON from Claude Code
 
-Claude Code with `--print --output-format stream-json` outputs one JSON object per line. Parse with `parseStreamEvent()`. Event types: `assistant` (has message.content blocks), `result` (final output).
+Claude Code with `--print --output-format stream-json` outputs one JSON object per line. Parse with `parseStreamEvent()`. Extract rich metadata with `extractToolMetadata()`. Event types: `assistant` (has message.content blocks), `result` (final output).
 
 ### File locking
 
 PID-based locks in the locks directory. Stale lock detection via `process.kill(pid, 0)`. Always release in a `finally` block.
 
+### Agent chaining
+
+Agents can define `on_complete` and `on_failure` arrays referencing other agent IDs. Use `evaluateTriggers()` to find downstream agents after a run completes.
+
+### HTTP API
+
+Hono app created via `createApi()` with dependency injection. Routes: `/agents`, `/agents/:id`, `/agents/:id/run`, `/runs`, `/runs/:id`, `/health`. The `startServer()` function combines HTTP + scheduler in one process.
+
 ## Commands
 
 ```bash
-npm test              # Run all 76 tests
+npm test              # Run all 112 tests
 npm run type-check    # TypeScript strict check
 npm run build         # Compile to dist/
 npm run dev           # Dev mode with tsx watch
@@ -68,9 +81,11 @@ npm run dev           # Dev mode with tsx watch
 
 ```bash
 agent-server init            # Create ~/.agent-server/ with sample agent
-agent-server start           # Start daemon (timer loop)
+agent-server start           # Start server with HTTP API on port 47821
 agent-server run <agentId>   # Run one agent immediately
 agent-server list            # List discovered agents
+agent-server install         # Install macOS LaunchAgent
+agent-server uninstall       # Remove macOS LaunchAgent
 ```
 
 ## Environment variables
@@ -84,14 +99,18 @@ agent-server list            # List discovered agents
 | AGENT_SERVER_PANEL_URL | (none) | Agent Panel URL for telemetry |
 | AGENT_SERVER_PANEL_API_KEY | (none) | API key for Agent Panel |
 | AGENT_SERVER_HEARTBEAT_MS | 30000 | Heartbeat interval |
+| AGENT_SERVER_PORT | 47821 | HTTP API port |
 
 ## Testing
 
-TDD is mandatory. 76 tests across 10 files. Tests are colocated with source files (`*.test.ts`). Use factory functions for test data, never `let`/`beforeEach` mutation.
+TDD is mandatory. 112 tests across 14 files. Tests are colocated with source files (`*.test.ts`). Use factory functions for test data, never `let`/`beforeEach` mutation.
 
-## Future phases
+## Future work
 
-- Phase 2: Agent SDK integration for richer streaming telemetry
-- Phase 3: Local HTTP API on localhost:47821
-- Phase 4: Agent chaining and event triggers
-- Phase 5: macOS persistence (LaunchAgent) and native Mac app
+- Agent SDK integration when `@anthropic-ai/claude-code` SDK is stable
+- WebSocket streaming for live run progress
+- Cancel running agents via API
+- File watch triggers (fs.watch with debounce)
+- Wire triggers into server run completion flow
+- Sleep/wake catch-up logic for LaunchAgent
+- Native Mac app (planned)
