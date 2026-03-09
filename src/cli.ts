@@ -7,6 +7,7 @@ import { loadConfig } from './config.js';
 import { listAgents, runSingleAgent } from './daemon.js';
 import { startServer } from './server.js';
 import { initAgentServer } from './init.js';
+import { installLaunchAgent, uninstallLaunchAgent } from './launchd.js';
 
 const program = new Command();
 
@@ -53,6 +54,34 @@ program
   .action(() => {
     const baseDir = join(homedir(), '.agent-server');
     initAgentServer(baseDir);
+  });
+
+program
+  .command('install')
+  .description('Install macOS LaunchAgent for auto-start on login')
+  .action(() => {
+    const cliPath = process.argv[1];
+    const config = loadConfig();
+    const plistPath = installLaunchAgent({
+      cliPath,
+      logsDir: config.logsDir,
+    });
+    console.log(`LaunchAgent installed: ${plistPath}`);
+    console.log('');
+    console.log('To activate now:');
+    console.log(`  launchctl load ${plistPath}`);
+    console.log('');
+    console.log('To deactivate:');
+    console.log(`  launchctl unload ${plistPath}`);
+  });
+
+program
+  .command('uninstall')
+  .description('Remove the macOS LaunchAgent')
+  .action(() => {
+    uninstallLaunchAgent();
+    console.log('LaunchAgent removed.');
+    console.log('Run `launchctl remove com.agent-server.daemon` to stop the running instance.');
   });
 
 program.parse();
