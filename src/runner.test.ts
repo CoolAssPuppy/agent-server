@@ -32,6 +32,9 @@ function makeExecutionResult(overrides: Partial<ExecutionResult> = {}): Executio
     usage: { turns: 3 },
     turnCount: 3,
     toolsUsed: ['Read'],
+    filesRead: [],
+    filesWritten: [],
+    commandsRun: [],
     ...overrides,
   };
 }

@@ -1,9 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   parseStreamEvent,
   summarizeTurn,
+  extractToolMetadata,
   type ClaudeStreamEvent,
-  type ExecutionResult,
 } from './executor.js';
 
 describe('parseStreamEvent', () => {
@@ -86,5 +86,84 @@ describe('summarizeTurn', () => {
     };
     const summary = summarizeTurn(event);
     expect(summary).toContain('First part.');
+  });
+});
+
+describe('extractToolMetadata', () => {
+  it('extracts file path from Read tool', () => {
+    const event: ClaudeStreamEvent = {
+      type: 'assistant',
+      message: {
+        content: [
+          { type: 'tool_use', name: 'Read', input: { file_path: '/tmp/test.ts' } },
+        ],
+      },
+    };
+    const meta = extractToolMetadata(event);
+    expect(meta.filesRead).toContain('/tmp/test.ts');
+  });
+
+  it('extracts file path from Write tool', () => {
+    const event: ClaudeStreamEvent = {
+      type: 'assistant',
+      message: {
+        content: [
+          { type: 'tool_use', name: 'Write', input: { file_path: '/tmp/out.ts' } },
+        ],
+      },
+    };
+    const meta = extractToolMetadata(event);
+    expect(meta.filesWritten).toContain('/tmp/out.ts');
+  });
+
+  it('extracts file path from Edit tool', () => {
+    const event: ClaudeStreamEvent = {
+      type: 'assistant',
+      message: {
+        content: [
+          { type: 'tool_use', name: 'Edit', input: { file_path: '/tmp/edit.ts' } },
+        ],
+      },
+    };
+    const meta = extractToolMetadata(event);
+    expect(meta.filesWritten).toContain('/tmp/edit.ts');
+  });
+
+  it('extracts command from Bash tool', () => {
+    const event: ClaudeStreamEvent = {
+      type: 'assistant',
+      message: {
+        content: [
+          { type: 'tool_use', name: 'Bash', input: { command: 'npm test' } },
+        ],
+      },
+    };
+    const meta = extractToolMetadata(event);
+    expect(meta.commandsRun).toContain('npm test');
+  });
+
+  it('returns empty metadata for non-assistant events', () => {
+    const event: ClaudeStreamEvent = { type: 'system' };
+    const meta = extractToolMetadata(event);
+    expect(meta.filesRead).toEqual([]);
+    expect(meta.filesWritten).toEqual([]);
+    expect(meta.commandsRun).toEqual([]);
+  });
+
+  it('handles multiple tool uses in one event', () => {
+    const event: ClaudeStreamEvent = {
+      type: 'assistant',
+      message: {
+        content: [
+          { type: 'tool_use', name: 'Read', input: { file_path: '/a.ts' } },
+          { type: 'tool_use', name: 'Write', input: { file_path: '/b.ts' } },
+          { type: 'tool_use', name: 'Bash', input: { command: 'ls' } },
+        ],
+      },
+    };
+    const meta = extractToolMetadata(event);
+    expect(meta.filesRead).toEqual(['/a.ts']);
+    expect(meta.filesWritten).toEqual(['/b.ts']);
+    expect(meta.commandsRun).toEqual(['ls']);
   });
 });

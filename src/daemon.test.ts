@@ -10,6 +10,9 @@ vi.mock('./executor.js', () => ({
     usage: { turns: 1 },
     turnCount: 1,
     toolsUsed: [],
+    filesRead: [],
+    filesWritten: [],
+    commandsRun: [],
   }),
 }));
 

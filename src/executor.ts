@@ -24,6 +24,9 @@ export type ExecutionResult = {
   usage: Record<string, unknown>;
   turnCount: number;
   toolsUsed: string[];
+  filesRead: string[];
+  filesWritten: string[];
+  commandsRun: string[];
 };
 
 export function parseStreamEvent(line: string): ClaudeStreamEvent | null {
@@ -75,6 +78,40 @@ export function summarizeTurn(event: ClaudeStreamEvent): string | null {
   return null;
 }
 
+type ToolMetadata = {
+  filesRead: string[];
+  filesWritten: string[];
+  commandsRun: string[];
+};
+
+const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit']);
+
+export function extractToolMetadata(event: ClaudeStreamEvent): ToolMetadata {
+  const filesRead: string[] = [];
+  const filesWritten: string[] = [];
+  const commandsRun: string[] = [];
+
+  if (event.type !== 'assistant' || !event.message?.content) {
+    return { filesRead, filesWritten, commandsRun };
+  }
+
+  for (const block of event.message.content) {
+    if (block.type !== 'tool_use' || !block.name) continue;
+    const input = block.input ?? {};
+    const filePath = typeof input.file_path === 'string' ? input.file_path : null;
+
+    if (block.name === 'Read' && filePath) {
+      filesRead.push(filePath);
+    } else if (WRITE_TOOLS.has(block.name) && filePath) {
+      filesWritten.push(filePath);
+    } else if (block.name === 'Bash' && typeof input.command === 'string') {
+      commandsRun.push(input.command);
+    }
+  }
+
+  return { filesRead, filesWritten, commandsRun };
+}
+
 export async function executeAgent(
   agent: AgentConfig,
   reporter: Reporter,
@@ -105,6 +142,9 @@ export async function executeAgent(
 
     let turnCount = 0;
     const toolsUsed = new Set<string>();
+    const allFilesRead = new Set<string>();
+    const allFilesWritten = new Set<string>();
+    const allCommandsRun: string[] = [];
     let lastSummary = '';
     let buffer = '';
 
@@ -126,12 +166,19 @@ export async function executeAgent(
           }
         }
 
+        const meta = extractToolMetadata(event);
+        meta.filesRead.forEach((f) => allFilesRead.add(f));
+        meta.filesWritten.forEach((f) => allFilesWritten.add(f));
+        allCommandsRun.push(...meta.commandsRun);
+
         const summary = summarizeTurn(event);
         if (summary) {
           lastSummary = summary;
           void reporter.progress(summary, {
             turns_completed: turnCount,
             tools_used: [...toolsUsed],
+            files_written: [...allFilesWritten],
+            commands_run: allCommandsRun.length,
           });
         }
       }
@@ -159,9 +206,17 @@ export async function executeAgent(
       resolve({
         summary: lastSummary || 'Agent completed',
         output: {},
-        usage: { turns: turnCount },
+        usage: {
+          turns: turnCount,
+          files_read: allFilesRead.size,
+          files_written: allFilesWritten.size,
+          commands_run: allCommandsRun.length,
+        },
         turnCount,
         toolsUsed: [...toolsUsed],
+        filesRead: [...allFilesRead],
+        filesWritten: [...allFilesWritten],
+        commandsRun: allCommandsRun,
       });
     });
 
