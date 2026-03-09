@@ -160,6 +160,60 @@ describe('AgentConfigSchema', () => {
     expect(result.notification?.on_failure).toBe(true);
   });
 
+  it('accepts config with disallowed_tools', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'safe-agent',
+      name: 'Safe Agent',
+      prompt: 'Read files only.',
+      disallowed_tools: ['Bash', 'Write', 'Edit'],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.disallowed_tools).toEqual(['Bash', 'Write', 'Edit']);
+    }
+  });
+
+  it('defaults disallowed_tools to empty array', () => {
+    const result = AgentConfigSchema.parse({
+      id: 'test',
+      name: 'Test',
+      prompt: 'Do something.',
+    });
+    expect(result.disallowed_tools).toEqual([]);
+  });
+
+  it('accepts config with permission_mode', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'careful-agent',
+      name: 'Careful Agent',
+      prompt: 'Do careful work.',
+      permission_mode: 'acceptEdits',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.permission_mode).toBe('acceptEdits');
+    }
+  });
+
+  it('rejects invalid permission_mode', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'bad-agent',
+      name: 'Bad Agent',
+      prompt: 'Do something.',
+      permission_mode: 'invalidMode',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('defaults permission_mode to undefined', () => {
+    const result = AgentConfigSchema.parse({
+      id: 'test',
+      name: 'Test',
+      prompt: 'Do something.',
+    });
+    expect(result.permission_mode).toBeUndefined();
+  });
+
   it('applies default timeout for interaction config', () => {
     const result = AgentConfigSchema.parse({
       id: 'interactive',

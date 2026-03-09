@@ -14,12 +14,17 @@ export async function executeAgent(
     ? expandHome(agent.working_directory)
     : process.env.HOME ?? process.cwd();
 
+  const permissionMode = agent.permission_mode ?? 'bypassPermissions';
+
   const options: Options = {
     maxTurns: agent.max_turns,
     cwd,
-    permissionMode: 'bypassPermissions',
-    allowDangerouslySkipPermissions: true,
+    permissionMode,
+    allowDangerouslySkipPermissions: permissionMode === 'bypassPermissions' ? true : undefined,
     allowedTools: agent.tools.length > 0 ? agent.tools : undefined,
+    disallowedTools: agent.disallowed_tools && agent.disallowed_tools.length > 0
+      ? agent.disallowed_tools
+      : undefined,
   };
 
   let turnCount = 0;

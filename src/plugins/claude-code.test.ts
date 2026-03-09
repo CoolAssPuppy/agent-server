@@ -198,6 +198,55 @@ describe('executeAgent with Agent SDK', () => {
     expect(callArgs.options.cwd).toMatch(/\/projects\/test$/);
   });
 
+  it('passes disallowed_tools to SDK options', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createResultSuccess({ result: 'Done', num_turns: 1 }),
+    ]));
+
+    const reporter = createMockReporter();
+    const agent = createAgentConfig({ disallowed_tools: ['Bash', 'Write'] });
+
+    await executeAgent(agent, reporter);
+
+    const callArgs = mockQuery.mock.calls[0][0];
+    expect(callArgs.options.disallowedTools).toEqual(['Bash', 'Write']);
+  });
+
+  it('does not pass disallowedTools when array is empty', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createResultSuccess({ result: 'Done', num_turns: 1 }),
+    ]));
+
+    const reporter = createMockReporter();
+    const agent = createAgentConfig({ disallowed_tools: [] });
+
+    await executeAgent(agent, reporter);
+
+    const callArgs = mockQuery.mock.calls[0][0];
+    expect(callArgs.options.disallowedTools).toBeUndefined();
+  });
+
+  it('uses custom permission_mode when specified', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createResultSuccess({ result: 'Done', num_turns: 1 }),
+    ]));
+
+    const reporter = createMockReporter();
+    const agent = createAgentConfig({ permission_mode: 'acceptEdits' });
+
+    await executeAgent(agent, reporter);
+
+    const callArgs = mockQuery.mock.calls[0][0];
+    expect(callArgs.options.permissionMode).toBe('acceptEdits');
+    expect(callArgs.options.allowDangerouslySkipPermissions).toBeUndefined();
+  });
+
   it('defaults cwd to HOME when no working_directory specified', async () => {
     const { executeAgent } = await import('./claude-code.js');
 

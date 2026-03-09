@@ -109,6 +109,8 @@ max_turns: 10
 | `max_turns` | no | `20` | Maximum agentic conversation turns |
 | `working_directory` | no | `$HOME` | Working directory for the Claude Code session. Supports `~`. |
 | `tools` | no | `[]` | Allowed tools list. Empty means all tools are available. |
+| `disallowed_tools` | no | `[]` | Tools to explicitly deny. Removed from the model's context entirely. |
+| `permission_mode` | no | `bypassPermissions` | SDK permission mode: `bypassPermissions`, `acceptEdits`, `dontAsk`, `default`, `plan` |
 | `enabled` | no | `true` | Whether the scheduler runs this agent |
 | `executor` | no | `claude-code` | Which executor plugin to use |
 | `on_complete` | no | | Agents to trigger on successful completion |
@@ -265,6 +267,37 @@ Interaction requests support:
 - **Both**: options and free text together
 - **Timeout**: defaults to 30 minutes, configurable per agent
 
+### Example: restricted permissions
+
+Control what an agent can and cannot do. Use `disallowed_tools` to block specific tools, or `permission_mode` to change how permissions are handled:
+
+```yaml
+id: read-only-reviewer
+name: Code Reviewer
+schedule: "0 9 * * 1-5"
+prompt: |
+  Review the latest changes in ~/projects/app and write
+  a summary to ~/reviews/review-{date}.md
+tools:
+  - Read
+  - Write
+  - Glob
+  - Grep
+disallowed_tools:
+  - Bash
+  - Edit
+permission_mode: acceptEdits   # default: bypassPermissions
+max_turns: 20
+working_directory: "~/projects/app"
+```
+
+Permission modes:
+- `bypassPermissions` (default) -- skips all permission checks. Best for headless, trusted agents.
+- `acceptEdits` -- auto-accepts file edits but prompts for other operations.
+- `dontAsk` -- denies anything not pre-approved. Strictest headless mode.
+- `default` -- standard interactive behavior (not useful for headless agents).
+- `plan` -- planning mode, no tool execution.
+
 ### Example: notifications
 
 Agents can send completion or failure notifications to a channel without requiring a reply:
@@ -390,8 +423,9 @@ Agent Server uses the Claude Agent SDK to run Claude Code as a library. Each age
 - The agent's prompt
 - `maxTurns` from the agent config (default 20)
 - `cwd` set to the agent's `working_directory` (default `$HOME`)
-- `permissionMode: 'bypassPermissions'` for headless execution
+- `permissionMode` from the agent config (default `bypassPermissions`)
 - `allowedTools` from the agent config (if specified)
+- `disallowedTools` from the agent config (if specified)
 
 The SDK process inherits the current environment, so Claude Code uses whatever MCP servers and permissions are configured in `~/.claude/settings.json`. For headless execution, MCP tool permissions must be pre-approved since there is no interactive prompt. Add them to your Claude Code settings:
 
@@ -607,7 +641,7 @@ src/
 
 ```bash
 npm install
-npm test              # 246 tests
+npm test              # 254 tests
 npm run type-check    # TypeScript strict mode
 npm run build         # Compile to dist/
 npm run dev           # Watch mode with tsx

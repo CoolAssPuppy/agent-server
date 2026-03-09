@@ -188,9 +188,12 @@ tools:
   - Read
   - Write
   - Bash
+disallowed_tools:        # optional, tools to explicitly deny
+  - Bash
 max_turns: 20
 enabled: true
 working_directory: "~/projects/my-project"
+permission_mode: bypassPermissions  # optional: bypassPermissions | acceptEdits | dontAsk | default | plan
 executor: claude-code    # optional, defaults to claude-code
 watch:                   # optional file triggers
   - path: "~/output"

@@ -12,6 +12,7 @@ export function makeAgent(overrides: Partial<AgentConfig> = {}): AgentConfig {
     schedule: '* * * * *',
     prompt: 'Do something.',
     tools: [],
+    disallowed_tools: [],
     max_turns: 20,
     enabled: true,
     ...overrides,
