@@ -484,7 +484,7 @@ The SDK process inherits the current environment, so Claude Code uses whatever M
 
 ### Telegram setup
 
-Interactive agents and notifications can be delivered via Telegram.
+The Telegram bot supports three modes: triggering agents via natural language, interactive agent conversations, and notifications.
 
 1. Create a bot via [@BotFather](https://t.me/BotFather) and copy the token
 2. Add the token to `~/.agent-server/.env`:
@@ -493,9 +493,12 @@ Interactive agents and notifications can be delivered via Telegram.
    ```
 3. Start the server with `agent-server start`. The bot connects via long-polling (no public IP needed).
 4. Send `/start` to the bot on Telegram. This registers your chat ID and persists it to `~/.agent-server/telegram.json`.
-5. Agents with `interaction.channel: telegram` or `notification.channel: telegram` will now send messages to your Telegram.
 
-Interactive agents show inline keyboard buttons for options. Notifications send plain text messages.
+**Triggering agents**: Send any message to the bot and it picks the right agent based on your message and the agents' descriptions. For example, "Check Bougainville in Lisbon tonight for 4" would match a restaurant-checker agent. The bot confirms which agent is running and sends the result when it finishes.
+
+**Interactive agents**: Agents with `interaction.channel: telegram` send structured questions with inline keyboard buttons. Tapping a button triggers a follow-up agent.
+
+**Notifications**: Agents with `notification.channel: telegram` send completion or failure messages.
 
 ### macOS auto-start
 
@@ -641,6 +644,7 @@ src/
     channel.ts                 Channel interface + ChannelReply type
     console.ts                 Console channel (readline, numbered options)
     telegram.ts                Telegram channel (grammy, long-polling, inline keyboards)
+    router.ts                  LLM-powered message routing (picks agent from user message)
     dispatcher.ts              Routes messages to registered channels
 
   execution/                 Running agents
@@ -682,7 +686,7 @@ src/
 
 ```bash
 npm install
-npm test              # 281 tests
+npm test              # 294 tests
 npm run type-check    # TypeScript strict mode
 npm run build         # Compile to dist/
 npm run dev           # Watch mode with tsx
@@ -694,6 +698,7 @@ Tests are colocated with source files (`*.test.ts`). The project uses TDD with f
 
 - TypeScript strict mode, ES2022, ESM
 - [Claude Agent SDK](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) for running Claude Code programmatically
+- [Anthropic SDK](https://www.npmjs.com/package/@anthropic-ai/sdk) for message routing (agent selection via Haiku)
 - [Zod](https://zod.dev/) for schema validation
 - [cron-parser](https://github.com/harrisiirak/cron-parser) v5 for schedule evaluation
 - [Hono](https://hono.dev/) for the HTTP API

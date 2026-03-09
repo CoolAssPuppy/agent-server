@@ -16,6 +16,7 @@ src/
     channel.ts           -- Channel interface + ChannelReply type
     console.ts           -- Console channel (readline, numbered options)
     telegram.ts          -- Telegram channel (grammY, long-polling, inline keyboards)
+    router.ts            -- LLM-powered message routing (picks agent from user message)
     dispatcher.ts        -- Maps channel names to Channel instances
   execution/
     executor.ts          -- Stream event parsing, tool metadata extraction, types
@@ -155,13 +156,19 @@ Channels implement the `Channel` interface from `channels/channel.ts`. Each chan
 - **Telegram**: Inline keyboards via grammY long-polling. No public IP needed. Set `AGENT_SERVER_TELEGRAM_BOT_TOKEN` to enable.
 - **Dispatcher**: `ChannelDispatcher` maps channel names to instances. Logs a warning if a channel isn't configured.
 
+### Telegram message routing
+
+Users can send any natural language message to the Telegram bot. The `routeMessage()` function in `channels/router.ts` sends the message + agent list to Claude Haiku, which picks the best-matching agent. The server then triggers a run with the user's message as context. Completion/failure notifications are sent back via the existing notification formatters.
+
+The `TelegramChannel` has `onMessage(callback)` for arbitrary text messages. When there's a pending interaction, text messages are routed to the interaction handler instead.
+
 ### Telegram setup
 
 1. Create a bot via @BotFather, get a token
 2. Add `AGENT_SERVER_TELEGRAM_BOT_TOKEN=<token>` to `~/.agent-server/.env`
 3. Start the server. The bot connects via long-polling.
 4. Message the bot `/start` to register your chat ID (stored in `~/.agent-server/telegram.json`)
-5. Agents with `interaction.channel: telegram` or `notification.channel: telegram` will send messages
+5. Send any message to trigger an agent, or agents with `interaction.channel: telegram` / `notification.channel: telegram` will send messages to you
 
 Callback data uses `index:interactionId` encoding to stay within Telegram's 64-byte limit. Parse with `parseCallbackData()`, encode with `encodeCallbackData()`.
 
