@@ -12,17 +12,28 @@ export class ChannelDispatcher {
     return this.channels.get(name);
   }
 
+  private resolveOrWarn(channelName: string, context: string): Channel | undefined {
+    const channel = this.channels.get(channelName);
+    if (!channel) {
+      console.warn(`Channel not configured: ${channelName} (${context} will not be delivered)`);
+    }
+    return channel;
+  }
+
   async dispatch(
     interactionId: string,
     channelName: string,
     request: InteractionRequest,
   ): Promise<void> {
-    const channel = this.channels.get(channelName);
-    if (!channel) {
-      console.warn(`Channel not configured: ${channelName} (interaction ${interactionId} will not be delivered)`);
-      return;
-    }
+    const channel = this.resolveOrWarn(channelName, `interaction ${interactionId}`);
+    if (!channel) return;
     await channel.send(interactionId, request);
+  }
+
+  async notify(channelName: string, message: string): Promise<void> {
+    const channel = this.resolveOrWarn(channelName, 'notification');
+    if (!channel) return;
+    await channel.notify(message);
   }
 
   async startAll(): Promise<void> {

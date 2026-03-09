@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   InteractionRequestSchema,
   InteractionConfigSchema,
+  NotificationConfigSchema,
   type InteractionRequest,
   type InteractionConfig,
+  type NotificationConfig,
 } from './schema.js';
 
 describe('InteractionRequestSchema', () => {
@@ -98,6 +100,37 @@ describe('InteractionConfigSchema', () => {
     const result = InteractionConfigSchema.safeParse({
       channel: 'telegram',
     });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('NotificationConfigSchema', () => {
+  it('validates a notification config with channel only', () => {
+    const config = NotificationConfigSchema.parse({
+      channel: 'telegram',
+    });
+    expect(config.channel).toBe('telegram');
+  });
+
+  it('defaults on_complete and on_failure to true', () => {
+    const config = NotificationConfigSchema.parse({
+      channel: 'telegram',
+    });
+    expect(config.on_complete).toBe(true);
+    expect(config.on_failure).toBe(true);
+  });
+
+  it('allows disabling completion notifications', () => {
+    const config = NotificationConfigSchema.parse({
+      channel: 'telegram',
+      on_complete: false,
+    });
+    expect(config.on_complete).toBe(false);
+    expect(config.on_failure).toBe(true);
+  });
+
+  it('rejects missing channel', () => {
+    const result = NotificationConfigSchema.safeParse({});
     expect(result.success).toBe(false);
   });
 });

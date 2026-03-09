@@ -3,15 +3,23 @@ import { ChannelDispatcher } from './dispatcher.js';
 import type { Channel, ChannelReply } from './channel.js';
 import type { InteractionRequest } from '../interaction/schema.js';
 
-function makeChannel(name: string): Channel & { sendCalls: Array<{ id: string; request: InteractionRequest }> } {
+function makeChannel(name: string): Channel & {
+  sendCalls: Array<{ id: string; request: InteractionRequest }>;
+  notifyCalls: string[];
+} {
   const sendCalls: Array<{ id: string; request: InteractionRequest }> = [];
+  const notifyCalls: string[] = [];
   return {
     name,
     sendCalls,
+    notifyCalls,
     start: vi.fn().mockResolvedValue(undefined),
     stop: vi.fn().mockResolvedValue(undefined),
     send: vi.fn(async (id: string, request: InteractionRequest) => {
       sendCalls.push({ id, request });
+    }),
+    notify: vi.fn(async (message: string) => {
+      notifyCalls.push(message);
     }),
     onReply: vi.fn(),
   };
@@ -57,6 +65,24 @@ describe('ChannelDispatcher', () => {
     };
 
     await dispatcher.dispatch('int-1', 'unknown', request);
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('unknown'));
+    spy.mockRestore();
+  });
+
+  it('sends notification to the correct channel', async () => {
+    const dispatcher = new ChannelDispatcher();
+    const channel = makeChannel('telegram');
+    dispatcher.register(channel);
+
+    await dispatcher.notify('telegram', 'Agent completed successfully');
+    expect(channel.notifyCalls).toEqual(['Agent completed successfully']);
+  });
+
+  it('logs warning when notifying unknown channel', async () => {
+    const dispatcher = new ChannelDispatcher();
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await dispatcher.notify('unknown', 'Hello');
     expect(spy).toHaveBeenCalledWith(expect.stringContaining('unknown'));
     spy.mockRestore();
   });

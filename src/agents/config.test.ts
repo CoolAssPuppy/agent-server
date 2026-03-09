@@ -128,6 +128,38 @@ describe('AgentConfigSchema', () => {
     }
   });
 
+  it('accepts config with notification block', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'reporter',
+      name: 'Reporter Agent',
+      schedule: '0 9 * * 1',
+      prompt: 'Generate weekly report.',
+      notification: {
+        channel: 'telegram',
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.notification?.channel).toBe('telegram');
+      expect(result.data.notification?.on_complete).toBe(true);
+      expect(result.data.notification?.on_failure).toBe(true);
+    }
+  });
+
+  it('allows notification with failure-only', () => {
+    const result = AgentConfigSchema.parse({
+      id: 'silent',
+      name: 'Silent Agent',
+      prompt: 'Do something quietly.',
+      notification: {
+        channel: 'telegram',
+        on_complete: false,
+      },
+    });
+    expect(result.notification?.on_complete).toBe(false);
+    expect(result.notification?.on_failure).toBe(true);
+  });
+
   it('applies default timeout for interaction config', () => {
     const result = AgentConfigSchema.parse({
       id: 'interactive',

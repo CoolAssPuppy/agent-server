@@ -115,11 +115,21 @@ export class TelegramChannel implements Channel {
     this.chatId = chatId;
   }
 
-  async send(interactionId: string, request: InteractionRequest): Promise<void> {
+  private hasChatId(): boolean {
     if (!this.chatId) {
       console.warn('Telegram: no chat ID configured. Send /start to the bot first.');
-      return;
+      return false;
     }
+    return true;
+  }
+
+  async notify(message: string): Promise<void> {
+    if (!this.hasChatId()) return;
+    await this.api.sendMessage(this.chatId as number, message);
+  }
+
+  async send(interactionId: string, request: InteractionRequest): Promise<void> {
+    if (!this.hasChatId()) return;
 
     const text = formatTelegramMessage(request);
     const keyboard = buildInlineKeyboard(interactionId, request);
@@ -131,7 +141,7 @@ export class TelegramChannel implements Channel {
 
     this.pendingInteractions.set(interactionId, request);
     this.lastPendingId = interactionId;
-    await this.api.sendMessage(this.chatId, text, Object.keys(options).length > 0 ? options : undefined);
+    await this.api.sendMessage(this.chatId as number, text, Object.keys(options).length > 0 ? options : undefined);
   }
 
   handleCallbackQuery(interactionId: string, optionIndex: number): void {

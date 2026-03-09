@@ -13,5 +13,6 @@ export interface Channel {
   start(): Promise<void>;
   stop(): Promise<void>;
   send(interactionId: string, request: InteractionRequest): Promise<void>;
+  notify(message: string): Promise<void>;
   onReply(callback: ReplyCallback): void;
 }

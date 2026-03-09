@@ -22,3 +22,11 @@ export const InteractionConfigSchema = z.object({
 });
 
 export type InteractionConfig = z.infer<typeof InteractionConfigSchema>;
+
+export const NotificationConfigSchema = z.object({
+  channel: z.string().min(1),
+  on_complete: z.boolean().default(true),
+  on_failure: z.boolean().default(true),
+});
+
+export type NotificationConfig = z.infer<typeof NotificationConfigSchema>;

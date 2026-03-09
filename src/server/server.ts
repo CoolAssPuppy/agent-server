@@ -16,6 +16,7 @@ import { ChannelDispatcher } from '../channels/dispatcher.js';
 import { InteractionStore } from '../interaction/store.js';
 import type { InteractionRequest } from '../interaction/schema.js';
 import { createTelegramChannel } from '../channels/telegram.js';
+import { formatCompletionNotification, formatFailureNotification } from '../interaction/notification.js';
 import { randomUUID } from 'crypto';
 
 export type ServerInstance = {
@@ -66,6 +67,23 @@ export function startServer(config: ServerConfig): ServerInstance {
     });
 
     await channelDispatcher.dispatch(interactionId, agent.interaction.channel, interaction);
+  }
+
+  function sendNotification(agent: AgentConfig, status: 'completed' | 'failed', detail?: string): void {
+    if (!agent.notification) return;
+
+    const shouldNotify = status === 'completed'
+      ? agent.notification.on_complete
+      : agent.notification.on_failure;
+
+    if (!shouldNotify) return;
+
+    const message = status === 'completed'
+      ? formatCompletionNotification(agent.name, detail)
+      : formatFailureNotification(agent.name, detail);
+
+    channelDispatcher.notify(agent.notification.channel, message)
+      .catch((err) => console.error(`[notification] Failed for ${agent.id}:`, err));
   }
 
   function triggerRunForAgent(agent: AgentConfig, promptSuffix?: string): string {
@@ -119,6 +137,7 @@ export function startServer(config: ServerConfig): ServerInstance {
         if (result.interaction && agent.interaction) {
           void handleInteractionResult(runId, agent, result.interaction);
         }
+        sendNotification(agent, 'completed', result.summary);
         return result;
       },
       createReporter: (rid, name) => createReporter(config, rid, name),
@@ -130,13 +149,16 @@ export function startServer(config: ServerConfig): ServerInstance {
           completedAt: new Date(),
           error: result.error,
         });
+        sendNotification(agent, 'failed', result.error);
       }
     }).catch((err) => {
+      const errorMsg = err instanceof Error ? err.message : String(err);
       store.update(runId, {
         status: 'failed',
         completedAt: new Date(),
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMsg,
       });
+      sendNotification(agent, 'failed', errorMsg);
     });
 
     return runId;
