@@ -24,7 +24,8 @@ src/
     lockfile.ts          -- PID-based file locks with stale detection
   interaction/
     parser.ts            -- Parses ```interaction blocks from agent output
-    schema.ts            -- InteractionRequest + InteractionConfig Zod schemas
+    schema.ts            -- InteractionRequest, InteractionConfig, NotificationConfig schemas
+    notification.ts      -- Notification message formatting
     store.ts             -- In-memory pending interaction store with expiry
   reporting/
     reporter.ts          -- A2A telemetry reporter with heartbeat
@@ -152,7 +153,7 @@ Channels implement the `Channel` interface from `channels/channel.ts`. Each chan
 2. Add `AGENT_SERVER_TELEGRAM_BOT_TOKEN=<token>` to `~/.agent-server/.env`
 3. Start the server. The bot connects via long-polling.
 4. Message the bot `/start` to register your chat ID (stored in `~/.agent-server/telegram.json`)
-5. Agents with `interaction.channel: telegram` will send inline keyboard messages
+5. Agents with `interaction.channel: telegram` or `notification.channel: telegram` will send messages
 
 Callback data uses `index:interactionId` encoding to stay within Telegram's 64-byte limit. Parse with `parseCallbackData()`, encode with `encodeCallbackData()`.
 
@@ -199,6 +200,10 @@ interaction:             # optional interactive agent config
   channel: telegram
   on_reply: downstream-agent
   timeout: 1h
+notification:            # optional completion/failure notifications
+  channel: telegram
+  on_complete: true      # default: true
+  on_failure: true       # default: true
 ```
 
 ### Hybrid frontmatter + Markdown
@@ -255,7 +260,7 @@ The CLI loads `~/.agent-server/.env` at startup. Shell env vars and Doppler (`do
 |---|---|---|
 | AGENT_SERVER_AGENTS_DIR | ~/.agent-server/agents | Directory containing agent definition files |
 | AGENT_SERVER_LOCK_DIR | ~/.agent-server/locks | Lock file directory |
-| AGENT_SERVER_LOG_DIR | ~/.agent-server/logs | Log directory |
+| AGENT_SERVER_LOGS_DIR | ~/.agent-server/logs | Log directory |
 | AGENT_SERVER_CHECK_INTERVAL_MS | 60000 | Daemon check interval |
 | AGENT_SERVER_PANEL_URL | (none) | Agent Panel URL for telemetry |
 | AGENT_SERVER_PANEL_API_KEY | (none) | API key for Agent Panel |
@@ -267,6 +272,12 @@ The CLI loads `~/.agent-server/.env` at startup. Shell env vars and Doppler (`do
 
 TDD is mandatory. Tests are colocated with source files (`*.test.ts`). Use factory functions for test data, never `let`/`beforeEach` mutation.
 
+### Notifications
+
+Agents can send completion/failure notifications to a channel without requiring a reply. Add a `notification` block to the agent config. The `Channel.notify()` method sends a one-way message (no inline keyboard, no reply handling).
+
+Notification messages are formatted by `formatCompletionNotification()` and `formatFailureNotification()` in `interaction/notification.ts`. The server calls `sendNotification()` after run completion, in `.then()` on failure, and in `.catch()` on unexpected errors.
+
 ## Future work
 
 - Agent SDK integration when `@anthropic-ai/claude-code` SDK is stable
@@ -274,6 +285,4 @@ TDD is mandatory. Tests are colocated with source files (`*.test.ts`). Use facto
 - Cancel running agents via API
 - Wire triggers into server run completion flow
 - Sleep/wake catch-up logic for LaunchAgent
-- Non-interactive Telegram notifications (agent completion alerts)
-- Multi-step interaction flows (agent -> user -> agent -> user chains)
 - Expired interaction cleanup in Telegram (edit message to show "Expired")

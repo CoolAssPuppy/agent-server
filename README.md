@@ -2,80 +2,23 @@
 
 A lightweight orchestration server that runs AI agents in the background using [Claude Code](https://docs.anthropic.com/en/docs/claude-code) as its execution engine.
 
-Define agents as Markdown or YAML files with cron schedules. Agent Server discovers them, runs them on schedule, prevents concurrent execution with file locks, and reports telemetry in [A2A](https://google.github.io/A2A/) format. Agents can request user input via Telegram and chain to other agents based on the reply.
+Define agents as Markdown or YAML files with cron schedules. Agent Server discovers them, runs them on schedule, prevents concurrent execution with file locks, and reports telemetry in [A2A](https://google.github.io/A2A/) format. Agents can request user input via Telegram, send completion notifications, chain to other agents, and trigger on file changes.
 
 ## How it works
 
 Agent Server is a scheduler and process manager for Claude Code. It does not call the Anthropic API directly. Instead, it spawns `claude --print --output-format stream-json` as a child process, pipes the agent's prompt via stdin, and streams structured JSON events from stdout.
 
-This means agents inherit everything Claude Code provides: MCP server integrations (Slack, Linear, Notion, GitHub, etc.), tool permissions, model selection, and context management. The agent server doesn't need to know about any of that. It just runs the prompt and records what happens.
+This means agents inherit everything Claude Code provides: MCP server integrations (Slack, Linear, Notion, GitHub, etc.), tool permissions, model selection, and context management. Agent Server just runs the prompt and records what happens.
 
 ```
 ~/.agent-server/
-  .env                    # Environment variables (panel URL, API keys)
+  .env                    # Environment variables (panel URL, API keys, Telegram token)
   agents/                 # Agent definition files (.yaml, .yml, .md)
     weekly-report.md
     daily-standup.yaml
   locks/                  # PID-based file locks (managed automatically)
-  logs/                   # Server logs
-```
-
-### Execution flow
-
-1. The server starts an HTTP API and a cron scheduler
-2. Every 60 seconds (configurable), it reads all agent files from the agents directory
-3. For each agent whose cron schedule matches the current minute:
-   - Acquires a PID-based file lock (skips if already running)
-   - Creates a telemetry reporter (or a noop reporter if no panel is configured)
-   - Spawns `claude --print` with the agent's prompt piped via stdin
-   - Parses the streaming JSON output, extracting tool usage, files read/written, and commands run
-   - Reports progress events to the telemetry endpoint on every turn
-   - Sends heartbeats every 30 seconds to signal liveness
-   - On completion, reports the full execution result with accomplishments and usage data
-   - Releases the lock
-
-### Claude Code integration
-
-The executor spawns Claude Code with these flags:
-
-```bash
-claude --print --output-format stream-json --max-turns 20 --verbose
-```
-
-The prompt is piped via stdin. If the agent specifies allowed tools, they're passed via `--allowedTools`. The process inherits the current environment, so Claude Code uses whatever MCP servers and permissions are configured in `~/.claude/settings.json`.
-
-For headless execution, MCP tool permissions must be pre-approved since there's no interactive prompt. Add them to your Claude Code settings:
-
-```json
-{
-  "permissions": {
-    "allow": [
-      "mcp__claude_ai_Linear__*",
-      "mcp__claude_ai_Slack__*",
-      "mcp__claude_ai_Notion__*"
-    ]
-  }
-}
-```
-
-### Executor plugin registry
-
-The default executor spawns Claude Code, but the system is pluggable. Agents can specify an `executor` field in their config to use a different backend:
-
-```yaml
-executor: codex  # defaults to 'claude-code' if omitted
-```
-
-Register custom executors programmatically:
-
-```typescript
-import { ExecutorRegistry, type ExecutorFn } from '@agent-server/core';
-
-const myExecutor: ExecutorFn = async (agent, reporter) => {
-  // call any model, API, or process
-};
-
-registry.register('my-executor', myExecutor);
+  logs/                   # Server and LaunchAgent logs
+  telegram.json           # Persisted Telegram chat ID (created automatically)
 ```
 
 ## Quick start
@@ -97,13 +40,15 @@ npx tsx src/cli.ts run hello-world
 npx tsx src/cli.ts start
 ```
 
-## Agent definition formats
+The `init` command creates `~/.agent-server/` with `agents/`, `locks/`, and `logs/` directories and a sample `hello-world.yaml` agent.
 
-Agents live in `~/.agent-server/agents/`. Two formats are supported.
+## Creating agents
+
+Agents live in `~/.agent-server/agents/`. Two formats are supported: Markdown with YAML frontmatter and pure YAML.
 
 ### Markdown with YAML frontmatter (recommended)
 
-YAML frontmatter for configuration, Markdown body for the prompt. This is the preferred format because it gives you full Markdown formatting in the prompt with syntax highlighting in any editor.
+YAML frontmatter for configuration, Markdown body for the prompt. This format gives you full Markdown formatting in the prompt with syntax highlighting in any editor.
 
 ```markdown
 ---
@@ -151,40 +96,144 @@ tools:
 max_turns: 10
 ```
 
-### Agent configuration fields
+### Configuration fields
 
 | Field | Required | Default | Description |
 |---|---|---|---|
-| `id` | yes | | Unique identifier |
+| `id` | yes | | Unique identifier (used in CLI and API) |
 | `name` | yes | | Display name |
 | `description` | no | | What this agent does |
 | `schedule` | no | | Cron expression (e.g., `0 9 * * 1-5`). Omit for on-demand agents. |
-| `timezone` | no | UTC | IANA timezone for schedule evaluation |
-| `prompt` | yes* | | The prompt sent to Claude Code (*provided by Markdown body in frontmatter format) |
-| `max_turns` | no | 20 | Maximum conversation turns |
-| `working_directory` | no | `$HOME` | Working directory for the Claude Code process |
-| `tools` | no | `[]` | Allowed tools (empty means all tools are allowed) |
+| `timezone` | no | | IANA timezone for schedule evaluation (e.g., `America/Los_Angeles`) |
+| `prompt` | yes* | | The prompt sent to Claude Code. *In frontmatter format, the Markdown body is the prompt. |
+| `max_turns` | no | `20` | Maximum agentic conversation turns |
+| `working_directory` | no | `$HOME` | Working directory for the Claude Code process. Supports `~`. |
+| `tools` | no | `[]` | Allowed tools list. Empty means all tools are allowed. |
 | `enabled` | no | `true` | Whether the scheduler runs this agent |
 | `executor` | no | `claude-code` | Which executor plugin to use |
 | `on_complete` | no | | Agents to trigger on successful completion |
 | `on_failure` | no | | Agents to trigger on failure |
 | `watch` | no | | File paths to watch for changes (triggers runs outside the cron schedule) |
-| `interaction` | no | | Interactive agent config (see below) |
+| `interaction` | no | | Interactive agent config (channel, on_reply, timeout) |
+| `notification` | no | | Notification config (channel, on_complete, on_failure) |
 
-### Interactive agents
+### Example: basic scheduled agent
 
-Agents can ask the user a question and continue based on the answer. The agent outputs a fenced `interaction` block in its response, and Agent Server routes it to the configured channel (Telegram or console).
+A daily standup summary that runs every weekday morning:
+
+```yaml
+id: daily-standup
+name: Daily Standup Summary
+schedule: "0 9 * * 1-5"
+timezone: America/Los_Angeles
+prompt: |
+  Generate a daily standup summary for today:
+
+  **What I did yesterday:**
+  - Check Slack channels for messages I sent or was mentioned in
+  - Check Linear for issues I completed or moved
+  - Check git commits from yesterday
+
+  **What I'm doing today:**
+  - Check Linear for issues assigned to me in progress or todo
+
+  **Blockers:**
+  - Flag any issues marked as blocked in Linear
+
+  Write the summary in first person, under 200 words.
+  Save to ~/standup/standup-{today's date}.md
+tools:
+  - Read
+  - Write
+  - Bash
+max_turns: 15
+working_directory: "~"
+```
+
+### Example: on-demand agent
+
+An agent without a schedule that runs only when triggered manually or via the API:
+
+```yaml
+id: dependency-audit
+name: Dependency Security Audit
+prompt: |
+  Run a security and freshness audit on this project's dependencies:
+  1. Run `npm audit` and capture the output
+  2. Run `npm outdated` and capture the output
+  3. Generate a report at ~/reports/dependency-audit-{date}.md
+tools:
+  - Read
+  - Write
+  - Bash
+max_turns: 10
+```
+
+Trigger it with:
+
+```bash
+npx tsx src/cli.ts run dependency-audit
+```
+
+### Example: agent chaining
+
+Agents can trigger other agents on completion or failure:
+
+```yaml
+id: research-collector
+name: Research Collector
+schedule: "0 7 * * 1-5"
+prompt: |
+  Research topics in ~/research/topics.md and save findings
+  to ~/Documents/notes/research-{topic}-{date}.md
+tools:
+  - Read
+  - Write
+  - Bash
+on_complete:
+  - agent: markdown-processor
+on_failure:
+  - agent: alert-agent
+```
+
+When `research-collector` finishes, it triggers `markdown-processor`. If it fails, it triggers `alert-agent`.
+
+### Example: file watch triggers
+
+Agents can watch file paths and run when changes are detected, independent of the cron schedule:
+
+```yaml
+id: notes-processor
+name: Notes Processor
+prompt: |
+  Process any new or changed markdown files in ~/notes.
+watch:
+  - path: "~/notes"
+    glob: "*.md"
+tools:
+  - Read
+  - Write
+```
+
+The watcher uses `fs.watch` with debouncing (500ms) to avoid triggering multiple times for rapid changes. The `glob` field is optional and supports `*` and `?` wildcards.
+
+### Example: interactive agent
+
+Agents can ask the user a question via Telegram or the console and continue based on the answer. The agent outputs a fenced `interaction` block in its response, and Agent Server routes it to the configured channel.
 
 ```yaml
 id: restaurant-checker
 name: Restaurant Availability Checker
 prompt: |
-  Check availability at Bougainville tonight for 4 people.
+  Check availability at the restaurant specified in the context.
   If you find slots, output an interaction block asking which to book.
 interaction:
   channel: telegram      # "telegram" or "console"
   on_reply: restaurant-booker
   timeout: 1h            # default: 30m
+tools:
+  - Bash
+max_turns: 40
 ```
 
 The agent's output includes a structured interaction request:
@@ -203,49 +252,198 @@ The agent's output includes a structured interaction request:
 ```
 ````
 
-When the user taps a button in Telegram (or types a number in the console), the selected option's `value` becomes the `--with` context for the `on_reply` agent:
+When the user taps a button in Telegram (or types a number in the console), the selected option's `value` becomes extra context for the `on_reply` agent:
 
 ```bash
-# Equivalent to what happens automatically:
-agent-server run restaurant-booker --with "Book Bougainville, 20:30, 4 guests"
+# This is what happens automatically:
+npx tsx src/cli.ts run restaurant-booker --with "Book Bougainville, 20:30, 4 guests"
 ```
 
-#### Telegram setup
+Interaction requests support:
+- **Options**: buttons in Telegram, numbered list in console
+- **Free text**: `"freeText": true` allows the user to type a response
+- **Both**: options and free text together
+- **Timeout**: defaults to 30 minutes, configurable per agent
 
-1. Create a bot via [@BotFather](https://t.me/BotFather) and get a token
-2. Add to `~/.agent-server/.env`:
+### Example: notifications
+
+Agents can send completion or failure notifications to a channel without requiring a reply:
+
+```yaml
+id: weekly-report
+name: Weekly Report Generator
+schedule: "0 5 * * 1"
+prompt: |
+  Generate the weekly priority report.
+notification:
+  channel: telegram
+  on_complete: true     # default: true
+  on_failure: true      # default: true
+```
+
+On completion, the agent sends a message like `Agent "Weekly Report Generator" completed successfully.` followed by the run summary. On failure, it sends the error message. Set `on_complete: false` to only get notified on failures.
+
+## Running agents
+
+### CLI
+
+```bash
+npx tsx src/cli.ts init                          # Create ~/.agent-server/ with sample agent
+npx tsx src/cli.ts start                         # Start server (HTTP API + scheduler)
+npx tsx src/cli.ts run <agentId>                 # Run an agent immediately
+npx tsx src/cli.ts run <agentId> --with "context" # Run with extra context appended to prompt
+npx tsx src/cli.ts list                          # List all discovered agents
+npx tsx src/cli.ts install                       # Install macOS LaunchAgent for auto-start
+npx tsx src/cli.ts uninstall                     # Remove macOS LaunchAgent
+```
+
+After building (`npm run build`), the CLI is also available as:
+
+```bash
+agent-server start
+agent-server run daily-standup
+agent-server list
+```
+
+### Server mode
+
+`agent-server start` runs both the HTTP API and the cron scheduler in a single process:
+
+1. Starts the HTTP API on port 47821 (configurable)
+2. Checks agent schedules every 60 seconds (configurable)
+3. For each agent whose cron expression matches the current minute:
+   - Acquires a PID-based file lock (skips if already running)
+   - Creates a telemetry reporter (or a noop reporter if no panel is configured)
+   - Spawns `claude --print` with the agent's prompt piped via stdin
+   - Parses the streaming JSON output, extracting tool usage, files read/written, and commands run
+   - Reports progress events to the telemetry endpoint on every turn
+   - Sends heartbeats every 30 seconds to signal liveness
+   - On completion, reports the result and sends any configured notifications
+   - Releases the lock
+4. Monitors file watch paths and triggers agents when changes are detected
+5. If a Telegram bot token is configured, connects via long-polling for interactive agents
+
+### HTTP API
+
+The server exposes a local API on port 47821 (configurable via `AGENT_SERVER_PORT`):
+
+```bash
+# List all agents
+curl http://localhost:47821/agents
+
+# Get a specific agent's config
+curl http://localhost:47821/agents/daily-standup
+
+# Trigger a run
+curl -X POST http://localhost:47821/agents/daily-standup/run
+
+# Trigger a run with extra context
+curl -X POST http://localhost:47821/agents/daily-standup/run \
+  -H 'Content-Type: application/json' \
+  -d '{"with": "Focus on the Linear project X"}'
+
+# List recent runs (in-memory, up to 200)
+curl http://localhost:47821/runs
+
+# Filter runs by agent
+curl http://localhost:47821/runs?agent_id=daily-standup
+
+# Get run details with progress messages
+curl http://localhost:47821/runs/{runId}
+
+# Health check
+curl http://localhost:47821/health
+```
+
+The trigger endpoint returns `202 Accepted` with `{ "runId": "...", "agentId": "..." }`. The run executes asynchronously. Poll `/runs/{runId}` for status.
+
+## Configuration
+
+### Environment variables
+
+The CLI loads `~/.agent-server/.env` at startup. Shell environment variables take precedence over the file.
+
+| Variable | Default | Description |
+|---|---|---|
+| `AGENT_SERVER_AGENTS_DIR` | `~/.agent-server/agents` | Directory containing agent definition files |
+| `AGENT_SERVER_LOCK_DIR` | `~/.agent-server/locks` | Lock file directory |
+| `AGENT_SERVER_LOGS_DIR` | `~/.agent-server/logs` | Log directory |
+| `AGENT_SERVER_CHECK_INTERVAL_MS` | `60000` | How often to check schedules (ms) |
+| `AGENT_SERVER_PANEL_URL` | | Telemetry endpoint base URL (for Agent Panel) |
+| `AGENT_SERVER_PANEL_API_KEY` | | API key for telemetry |
+| `AGENT_SERVER_HEARTBEAT_MS` | `30000` | Heartbeat interval during runs (ms) |
+| `AGENT_SERVER_PORT` | `47821` | HTTP API port |
+| `AGENT_SERVER_TELEGRAM_BOT_TOKEN` | | Telegram bot token for interactive agents and notifications |
+
+Example `~/.agent-server/.env`:
+
+```
+AGENT_SERVER_PANEL_URL=https://your-panel.vercel.app
+AGENT_SERVER_PANEL_API_KEY=ap_live_...
+AGENT_SERVER_TELEGRAM_BOT_TOKEN=7123456789:AAH...
+```
+
+### Claude Code setup
+
+Agent Server spawns Claude Code with:
+
+```bash
+claude --print --output-format stream-json --max-turns <max_turns> --verbose
+```
+
+The prompt is piped via stdin. If the agent specifies tools, they are passed via `--allowedTools`. The process inherits the current environment, so Claude Code uses whatever MCP servers and permissions are configured in `~/.claude/settings.json`.
+
+For headless execution, MCP tool permissions must be pre-approved since there is no interactive prompt. Add them to your Claude Code settings:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "mcp__claude_ai_Linear__*",
+      "mcp__claude_ai_Slack__*",
+      "mcp__claude_ai_Notion__*"
+    ]
+  }
+}
+```
+
+### Telegram setup
+
+Interactive agents and notifications can be delivered via Telegram.
+
+1. Create a bot via [@BotFather](https://t.me/BotFather) and copy the token
+2. Add the token to `~/.agent-server/.env`:
    ```
    AGENT_SERVER_TELEGRAM_BOT_TOKEN=7123456789:AAH...
    ```
-3. Start the server. The bot connects via long-polling (no public IP needed).
-4. Send `/start` to the bot on Telegram to register your chat ID
-5. Agents with `interaction.channel: telegram` now deliver inline keyboards to your Telegram
+3. Start the server with `agent-server start`. The bot connects via long-polling (no public IP needed).
+4. Send `/start` to the bot on Telegram. This registers your chat ID and persists it to `~/.agent-server/telegram.json`.
+5. Agents with `interaction.channel: telegram` or `notification.channel: telegram` will now send messages to your Telegram.
 
-### Agent chaining
+Interactive agents show inline keyboard buttons for options. Notifications send plain text messages.
 
-Agents can trigger other agents on completion or failure:
+### macOS auto-start
 
-```yaml
-id: research-collector
-on_complete:
-  - agent: markdown-processor
-on_failure:
-  - agent: alert-agent
+Install a LaunchAgent so Agent Server starts automatically on login:
+
+```bash
+agent-server install
+launchctl load ~/Library/LaunchAgents/com.agent-server.daemon.plist
+
+# To stop and remove:
+launchctl unload ~/Library/LaunchAgents/com.agent-server.daemon.plist
+agent-server uninstall
 ```
 
-### File watch triggers
+The LaunchAgent runs `agent-server start` with `KeepAlive: true` (restarts if it crashes) and logs to `~/.agent-server/logs/`.
 
-Agents can watch file paths and run when changes are detected, independent of the cron schedule:
-
-```yaml
-watch:
-  - path: "~/notes"
-    glob: "*.md"
-```
-
-## Telemetry
+## Monitoring with Agent Panel
 
 Agent Server reports status events via HTTP POST to a configurable panel endpoint. Events follow the [A2A protocol](https://google.github.io/A2A/) status format.
+
+Set `AGENT_SERVER_PANEL_URL` and `AGENT_SERVER_PANEL_API_KEY` to enable telemetry. If no panel URL is configured, a noop reporter is used and nothing is sent.
+
+Events are POSTed to `{AGENT_SERVER_PANEL_URL}/api/runs/{runId}/status` with an `Authorization: Bearer {apiKey}` header.
 
 ### Events emitted during a run
 
@@ -269,7 +467,7 @@ Agent Server reports status events via HTTP POST to a configurable panel endpoin
   "timestamp": "2026-03-10T05:00:15.456Z",
   "metadata": {
     "turns_completed": 3,
-    "tools_used": ["Read", "mcp__claude_ai_Linear__list_projects", "mcp__claude_ai_Slack__slack_search_public_and_private"],
+    "tools_used": ["Read", "mcp__claude_ai_Linear__list_projects"],
     "files_written": [],
     "commands_run": 0
   }
@@ -287,7 +485,7 @@ Agent Server reports status events via HTTP POST to a configurable panel endpoin
 }
 ```
 
-**Completion event** (sent when the agent finishes successfully):
+**Completion event** (sent when the agent finishes):
 
 ```json
 {
@@ -306,20 +504,6 @@ Agent Server reports status events via HTTP POST to a configurable panel endpoin
       "files_read": 12,
       "files_written": 1,
       "commands_run": 3
-    },
-    "output": {
-      "turn_count": 15,
-      "tools_used": [
-        "Read",
-        "Write",
-        "Bash",
-        "mcp__claude_ai_Linear__list_projects",
-        "mcp__claude_ai_Slack__slack_search_public_and_private",
-        "mcp__claude_ai_Notion__notion-create-pages"
-      ],
-      "files_read": ["/Users/you/.claude/settings.json", "..."],
-      "files_written": ["~/reports/weekly-2026-03-10.md"],
-      "commands_run": ["git log --since='7 days ago'", "..."]
     }
   }
 }
@@ -338,66 +522,33 @@ Agent Server reports status events via HTTP POST to a configurable panel endpoin
 }
 ```
 
-### Telemetry endpoint
+## Executor plugins
 
-Events are POSTed to `{AGENT_SERVER_PANEL_URL}/api/runs/{runId}/status` with an `Authorization: Bearer {apiKey}` header. If no panel URL is configured, a noop reporter is used and nothing is sent.
+The default executor spawns Claude Code, but the system is pluggable. Agents can specify an `executor` field in their config to use a different backend:
 
-## CLI
-
-```bash
-agent-server init            # Create ~/.agent-server/ with a sample agent
-agent-server start           # Start server with HTTP API + scheduler
-agent-server run <agentId>   # Run an agent immediately (ignores schedule)
-agent-server run <agentId> --with "extra context"  # Run with context appended to prompt
-agent-server list            # List all discovered agents
-agent-server install         # Install macOS LaunchAgent for auto-start
-agent-server uninstall       # Remove macOS LaunchAgent
+```yaml
+executor: codex  # defaults to 'claude-code' if omitted
 ```
 
-## HTTP API
+Register custom executors programmatically:
 
-The server exposes a local API on port 47821 (configurable):
+```typescript
+import { ExecutorRegistry, type ExecutorFn } from './execution/executor-registry.js';
 
-```bash
-curl http://localhost:47821/agents                        # List all agents
-curl http://localhost:47821/agents/daily-summary           # Get agent detail
-curl -X POST http://localhost:47821/agents/daily-summary/run  # Trigger a run
-curl -X POST http://localhost:47821/agents/daily-summary/run \
-  -H 'Content-Type: application/json' \
-  -d '{"with": "extra context"}'                              # Run with context
-curl http://localhost:47821/runs                           # List recent runs
-curl http://localhost:47821/runs?agent_id=daily-summary    # Filter by agent
-curl http://localhost:47821/runs/{runId}                   # Run detail with progress
-curl http://localhost:47821/health                         # Health check
-```
+const myExecutor: ExecutorFn = async (agent, reporter) => {
+  // call any model, API, or process
+  return {
+    summary: 'Done',
+    turnCount: 1,
+    toolsUsed: [],
+    filesRead: [],
+    filesWritten: [],
+    commandsRun: [],
+  };
+};
 
-## Configuration
-
-### Environment variables
-
-The CLI loads `~/.agent-server/.env` at startup. Shell environment variables and [Doppler](https://www.doppler.com/) (`doppler run -- agent-server start`) take precedence over the file.
-
-| Variable | Default | Description |
-|---|---|---|
-| `AGENT_SERVER_AGENTS_DIR` | `~/.agent-server/agents` | Agent definition directory |
-| `AGENT_SERVER_LOCK_DIR` | `~/.agent-server/locks` | Lock file directory |
-| `AGENT_SERVER_LOG_DIR` | `~/.agent-server/logs` | Log directory |
-| `AGENT_SERVER_CHECK_INTERVAL_MS` | `60000` | How often to check schedules (ms) |
-| `AGENT_SERVER_PANEL_URL` | | Telemetry endpoint base URL |
-| `AGENT_SERVER_PANEL_API_KEY` | | API key for telemetry |
-| `AGENT_SERVER_HEARTBEAT_MS` | `30000` | Heartbeat interval (ms) |
-| `AGENT_SERVER_PORT` | `47821` | HTTP API port |
-| `AGENT_SERVER_TELEGRAM_BOT_TOKEN` | | Telegram bot token for interactive agents |
-
-### macOS auto-start
-
-```bash
-agent-server install
-launchctl load ~/Library/LaunchAgents/com.agent-server.daemon.plist
-
-# To stop and remove:
-launchctl unload ~/Library/LaunchAgents/com.agent-server.daemon.plist
-agent-server uninstall
+const registry = new ExecutorRegistry();
+registry.register('my-executor', myExecutor);
 ```
 
 ## Architecture
@@ -414,8 +565,8 @@ src/
   channels/                  Messaging channel adapters
     channel.ts                 Channel interface + ChannelReply type
     console.ts                 Console channel (readline, numbered options)
-    telegram.ts                Telegram channel (grammY, long-polling, inline keyboards)
-    dispatcher.ts              Maps channel names to Channel instances
+    telegram.ts                Telegram channel (grammy, long-polling, inline keyboards)
+    dispatcher.ts              Routes messages to registered channels
 
   execution/                 Running agents
     executor.ts                Stream event parsing, tool metadata extraction, types
@@ -425,18 +576,19 @@ src/
 
   interaction/               Interactive agent support
     parser.ts                  Parses interaction blocks from agent output
-    schema.ts                  InteractionRequest + InteractionConfig Zod schemas
+    schema.ts                  InteractionRequest, InteractionConfig, NotificationConfig schemas
+    notification.ts            Notification message formatting
     store.ts                   In-memory pending interaction store with expiry
 
   reporting/                 Telemetry and state
     reporter.ts                A2A telemetry reporter with heartbeat
     reporter-factory.ts        Creates real or noop reporter based on config
-    store.ts                   In-memory run state store with eviction
+    store.ts                   In-memory run state store (max 200 runs)
 
   server/                    HTTP and daemon
     api.ts                     Hono HTTP API routes
-    server.ts                  Combined HTTP server + agent scheduler
-    daemon.ts                  Timer loop, single-run, list commands
+    server.ts                  Combined HTTP server + scheduler + Telegram
+    daemon.ts                  CLI-mode runner, list command
 
   platform/                  OS and environment
     config.ts                  ServerConfig from env vars + .env file
@@ -455,13 +607,13 @@ src/
 
 ```bash
 npm install
-npm test              # 222 tests
+npm test              # 236 tests
 npm run type-check    # TypeScript strict mode
 npm run build         # Compile to dist/
-npm run dev           # Watch mode
+npm run dev           # Watch mode with tsx
 ```
 
-Tests are colocated with source files (`*.test.ts`). TDD with factory functions for test data.
+Tests are colocated with source files (`*.test.ts`). The project uses TDD with factory functions for test data.
 
 ## Tech stack
 
@@ -470,7 +622,7 @@ Tests are colocated with source files (`*.test.ts`). TDD with factory functions 
 - [cron-parser](https://github.com/harrisiirak/cron-parser) v5 for schedule evaluation
 - [Hono](https://hono.dev/) for the HTTP API
 - [Commander](https://github.com/tj/commander.js) for the CLI
-- [grammY](https://grammy.dev/) for Telegram bot integration (long-polling)
+- [grammy](https://grammy.dev/) for Telegram bot integration (long-polling)
 - [dotenv](https://github.com/motdotla/dotenv) for `.env` file loading
 - [Vitest](https://vitest.dev/) for testing
 
