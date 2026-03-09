@@ -1,0 +1,37 @@
+{
+  "name": "@agent-server/core",
+  "version": "0.1.0",
+  "description": "Lightweight agent orchestration server that uses Claude Code as its execution engine",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "agent-server": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/cli.ts",
+    "start": "node dist/cli.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src/ --ext .ts",
+    "type-check": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^25.3.5",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  },
+  "dependencies": {
+    "commander": "^14.0.3",
+    "cron-parser": "^5.5.0",
+    "yaml": "^2.8.2",
+    "zod": "^4.3.6"
+  }
+}
