@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import { parse as parseYaml } from 'yaml';
 
+const TriggerRefSchema = z.object({
+  agent: z.string().min(1),
+});
+
+export type TriggerRef = z.infer<typeof TriggerRefSchema>;
+
 export const AgentConfigSchema = z
   .object({
     id: z.string().min(1),
@@ -13,6 +19,8 @@ export const AgentConfigSchema = z
     max_turns: z.number().int().positive().default(20),
     working_directory: z.string().optional(),
     enabled: z.boolean().default(true),
+    on_complete: z.array(TriggerRefSchema).optional(),
+    on_failure: z.array(TriggerRefSchema).optional(),
   })
   .passthrough();
 
