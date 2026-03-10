@@ -50,6 +50,9 @@ struct SettingsTabView: View {
                 Text("Made with \u{2764}\u{FE0F} in Lisbon, Portugal")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
+                Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0")")
+                    .font(.caption2)
+                    .foregroundStyle(.quaternary)
             }
             .frame(maxWidth: .infinity)
             .padding(.bottom, 12)

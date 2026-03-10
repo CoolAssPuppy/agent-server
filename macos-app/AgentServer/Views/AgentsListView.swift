@@ -2,6 +2,8 @@ import SwiftUI
 
 struct AgentsListView: View {
     @ObservedObject var monitor: StatusMonitor
+    @State private var selectedAgentId: String?
+    @State private var showNewAgentSheet = false
 
     private var agentsDir: URL {
         FileManager.default.homeDirectoryForCurrentUser
@@ -9,54 +11,86 @@ struct AgentsListView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            Group {
-                if !monitor.isServerReachable {
-                    ContentUnavailableView(
-                        "Server offline",
-                        systemImage: "bolt.horizontal.circle",
-                        description: Text("Start the agent server to see your agents.")
-                    )
-                } else if monitor.agents.isEmpty {
-                    ContentUnavailableView(
-                        "No agents",
-                        systemImage: "tray",
-                        description: Text("Add agent files to ~/.agent-server/agents/")
-                    )
-                } else {
-                    List(monitor.agents) { agent in
-                        AgentRow(agent: agent, isRunning: isRunning(agent), onRun: {
-                            monitor.triggerRun(agentId: agent.id)
-                        })
-                    }
-                }
+        NavigationSplitView {
+            sidebar
+        } detail: {
+            detail
+        }
+        .sheet(isPresented: $showNewAgentSheet) {
+            NewAgentSheet(isPresented: $showNewAgentSheet) { newId in
+                selectedAgentId = newId
+                monitor.poll()
             }
-            .frame(maxHeight: .infinity)
+        }
+    }
 
-            Divider()
-
+    @ViewBuilder
+    private var sidebar: some View {
+        List(monitor.agents, selection: $selectedAgentId) { agent in
+            AgentRow(agent: agent, isRunning: isRunning(agent))
+                .tag(agent.id)
+        }
+        .overlay {
+            if !monitor.isServerReachable {
+                ContentUnavailableView(
+                    "Server offline",
+                    systemImage: "bolt.horizontal.circle",
+                    description: Text("Start the agent server to see your agents.")
+                )
+            } else if monitor.agents.isEmpty {
+                ContentUnavailableView(
+                    "No agents",
+                    systemImage: "tray",
+                    description: Text("Create an agent to get started.")
+                )
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
             HStack {
                 Button {
                     NSWorkspace.shared.open(agentsDir)
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "folder")
-                        Text("~/.agent-server/agents")
+                        Text("Open folder")
                     }
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.borderless)
-                .help("Open agents directory in Finder")
+                .help("Open ~/.agent-server/agents in Finder")
 
                 Spacer()
 
-                Text("Add YAML or Markdown files to create agents")
+                Button {
+                    showNewAgentSheet = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                        Text("New agent")
+                    }
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.borderless)
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 12)
             .padding(.vertical, 8)
+            .background(.bar)
+        }
+        .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 400)
+    }
+
+    @ViewBuilder
+    private var detail: some View {
+        if let selectedAgentId {
+            AgentEditorView(agentId: selectedAgentId, monitor: monitor)
+                .id(selectedAgentId)
+        } else {
+            ContentUnavailableView(
+                "Select an agent",
+                systemImage: "doc.text",
+                description: Text("Choose an agent from the list to view or edit its definition.")
+            )
         }
     }
 
@@ -68,7 +102,6 @@ struct AgentsListView: View {
 private struct AgentRow: View {
     let agent: Agent
     let isRunning: Bool
-    let onRun: () -> Void
 
     private var kindColor: Color {
         let c = agent.kind.color
@@ -110,18 +143,16 @@ private struct AgentRow: View {
                         .lineLimit(1)
                 }
 
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
                     Text(agent.kind.label)
                         .font(.caption)
                         .foregroundStyle(kindColor)
 
                     if agent.isScheduled {
-                        Text("--")
-                            .font(.caption)
-                            .foregroundStyle(.quaternary)
-                        Text(agent.scheduleDisplay)
-                            .font(.caption)
+                        Image(systemName: "clock")
+                            .font(.system(size: 9))
                             .foregroundStyle(.tertiary)
+                            .help(agent.scheduleDisplay)
                     }
                 }
             }
@@ -129,26 +160,8 @@ private struct AgentRow: View {
             Spacer()
 
             if isRunning {
-                HStack(spacing: 6) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Running")
-                        .font(.caption)
-                        .foregroundStyle(kindColor)
-                }
-            } else {
-                Button {
-                    onRun()
-                } label: {
-                    Image(systemName: "play.fill")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.white)
-                        .frame(width: 28, height: 28)
-                        .background(agent.enabled ? kindColor : Color.gray)
-                        .clipShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .disabled(!agent.enabled)
+                ProgressView()
+                    .controlSize(.small)
             }
         }
         .padding(.vertical, 4)
