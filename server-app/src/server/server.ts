@@ -22,6 +22,7 @@ import { formatAgentListMessage, type NotificationData } from '../interaction/no
 import { routeMessage } from '../channels/router.js';
 import { randomUUID } from 'crypto';
 import { ProgressBroadcaster, type ProgressEvent } from './websocket.js';
+import { sanitizeProgressEvent, sanitizeText } from './security-utils.js';
 
 export type ServerInstance = {
   stop: () => void;
@@ -29,6 +30,11 @@ export type ServerInstance = {
 
 const TIMEOUT_PATTERN = /^(\d+)(m|h)$/;
 const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
+
+export function isLoopbackHost(host: string): boolean {
+  const normalized = host.trim().toLowerCase();
+  return normalized === '127.0.0.1' || normalized === '::1' || normalized === 'localhost';
+}
 
 function parseTimeout(timeout: string): number {
   const match = TIMEOUT_PATTERN.exec(timeout);
@@ -40,6 +46,10 @@ function parseTimeout(timeout: string): number {
 }
 
 export function startServer(config: ServerConfig): ServerInstance {
+  if (!config.apiKey && !isLoopbackHost(config.host)) {
+    throw new Error('Refusing to bind to a non-loopback host without AGENT_SERVER_API_KEY');
+  }
+
   const store = new RunStore();
   const interactionStore = new InteractionStore();
   const channelDispatcher = new ChannelDispatcher();
@@ -51,6 +61,7 @@ export function startServer(config: ServerConfig): ServerInstance {
 
   const activeControllers = new Map<string, AbortController>();
   const broadcaster = new ProgressBroadcaster();
+  let wsClientCount = 0;
 
   async function handleInteractionResult(
     runId: string,
@@ -117,6 +128,10 @@ export function startServer(config: ServerConfig): ServerInstance {
   type RunDoneCallback = (result: { status: 'completed' | 'failed'; summary?: string; error?: string }) => void;
 
   function triggerRunForAgent(agent: AgentConfig, promptSuffix?: string, onDone?: RunDoneCallback): string {
+    if (activeControllers.size >= config.maxConcurrentRuns) {
+      throw new Error('Too many active runs. Please retry later.');
+    }
+
     const runId = randomUUID();
     const abortController = new AbortController();
     activeControllers.set(runId, abortController);
@@ -136,12 +151,12 @@ export function startServer(config: ServerConfig): ServerInstance {
       progressMessages: [],
     });
 
-    broadcaster.emit({
+    broadcaster.emit(sanitizeProgressEvent({
       type: 'run_started',
       runId,
       agentId: agent.id,
       timestamp: now.toISOString(),
-    });
+    }));
 
     runAgent({
       agent,
@@ -157,14 +172,14 @@ export function startServer(config: ServerConfig): ServerInstance {
                 toolsUsed: Array.isArray(meta.tools_used) ? meta.tools_used as string[] : [],
               });
             }
-            broadcaster.emit({
+            broadcaster.emit(sanitizeProgressEvent({
               type: 'run_progress',
               runId,
               agentId: agent.id,
               message: msg,
               metadata: meta,
               timestamp: new Date().toISOString(),
-            });
+            }));
             return reporter.progress(msg, meta);
           },
           complete: (result) => reporter.complete(result),
@@ -186,13 +201,13 @@ export function startServer(config: ServerConfig): ServerInstance {
         if (result.interaction && agent.interaction) {
           void handleInteractionResult(runId, agent, result.interaction);
         }
-        broadcaster.emit({
+        broadcaster.emit(sanitizeProgressEvent({
           type: 'run_completed',
           runId,
           agentId: agent.id,
           summary: result.summary,
           timestamp: new Date().toISOString(),
-        });
+        }));
         sendNotification(agent, runId, {
           status: 'completed',
           summary: result.summary,
@@ -214,13 +229,13 @@ export function startServer(config: ServerConfig): ServerInstance {
           completedAt: new Date(),
           error: result.error,
         });
-        broadcaster.emit({
+        broadcaster.emit(sanitizeProgressEvent({
           type: 'run_failed',
           runId,
           agentId: agent.id,
           error: result.error,
           timestamp: new Date().toISOString(),
-        });
+        }));
         sendNotification(agent, runId, { status: 'failed', error: result.error });
         onDone?.({ status: 'failed', error: result.error });
         void fireDownstreamTriggers(agent.id, 'failed');
@@ -233,13 +248,13 @@ export function startServer(config: ServerConfig): ServerInstance {
         completedAt: new Date(),
         error: errorMsg,
       });
-      broadcaster.emit({
+      broadcaster.emit(sanitizeProgressEvent({
         type: 'run_failed',
         runId,
         agentId: agent.id,
         error: errorMsg,
         timestamp: new Date().toISOString(),
-      });
+      }));
       sendNotification(agent, runId, { status: 'failed', error: errorMsg });
       onDone?.({ status: 'failed', error: errorMsg });
       void fireDownstreamTriggers(agent.id, 'failed');
@@ -323,8 +338,14 @@ export function startServer(config: ServerConfig): ServerInstance {
 
     return {
       onOpen(_event, ws) {
+        if (wsClientCount >= config.maxWebSocketClients) {
+          ws.close(1013, 'Server busy');
+          return;
+        }
+
+        wsClientCount += 1;
         listener = (progressEvent: ProgressEvent) => {
-          ws.send(JSON.stringify(progressEvent));
+          ws.send(JSON.stringify(sanitizeProgressEvent(progressEvent)));
         };
         broadcaster.subscribe(listener);
       },
@@ -333,13 +354,17 @@ export function startServer(config: ServerConfig): ServerInstance {
           broadcaster.unsubscribe(listener);
           listener = undefined;
         }
+        if (wsClientCount > 0) wsClientCount -= 1;
+      },
+      onError(err) {
+        console.error('[ws] connection error:', sanitizeText(String(err), 300));
       },
     };
   }));
 
-  const httpServer = serve({ fetch: app.fetch, port });
+  const httpServer = serve({ fetch: app.fetch, port, hostname: config.host });
   injectWebSocket(httpServer);
-  console.log(`Agent Server API listening on http://localhost:${port}`);
+  console.log(`Agent Server API listening on http://${config.host}:${port}`);
 
   void runDueAgents();
   const interval = setInterval(() => {

@@ -80,6 +80,17 @@ describe('buildInlineKeyboard', () => {
   });
 });
 
+describe('encodeCallbackData / parseCallbackData security guards', () => {
+
+  it('rejects negative callback option indexes', () => {
+    expect(parseCallbackData('-1:abc')).toBeUndefined();
+  });
+
+  it('rejects excessive callback option indexes', () => {
+    expect(parseCallbackData('999:abc')).toBeUndefined();
+  });
+});
+
 describe('TelegramChannel', () => {
   function makeChannel(): {
     channel: TelegramChannel;

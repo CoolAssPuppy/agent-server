@@ -31,9 +31,12 @@ export const ServerConfigSchema = z.object({
   checkIntervalMs: z.number().int().positive().default(60_000),
   heartbeatMs: z.number().int().positive().default(30_000),
   port: z.number().int().positive().default(47821),
+  host: z.string().default('127.0.0.1'),
   telegramBotToken: z.string().optional(),
-  apiKey: z.string().min(1).optional(),
+  apiKey: z.string().min(16).optional(),
   catchUp: z.boolean().default(false),
+  maxConcurrentRuns: z.number().int().positive().default(8),
+  maxWebSocketClients: z.number().int().positive().default(100),
 });
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
@@ -54,8 +57,15 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     port: env.AGENT_SERVER_PORT
       ? Number(env.AGENT_SERVER_PORT)
       : undefined,
+    host: env.AGENT_SERVER_HOST || undefined,
     telegramBotToken: env.AGENT_SERVER_TELEGRAM_BOT_TOKEN || undefined,
     apiKey: env.AGENT_SERVER_API_KEY || undefined,
     catchUp: env.AGENT_SERVER_CATCH_UP === 'true',
+    maxConcurrentRuns: env.AGENT_SERVER_MAX_CONCURRENT_RUNS
+      ? Number(env.AGENT_SERVER_MAX_CONCURRENT_RUNS)
+      : undefined,
+    maxWebSocketClients: env.AGENT_SERVER_MAX_WS_CLIENTS
+      ? Number(env.AGENT_SERVER_MAX_WS_CLIENTS)
+      : undefined,
   });
 }

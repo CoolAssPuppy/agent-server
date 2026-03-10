@@ -3,6 +3,14 @@ import { timingSafeEqual } from 'crypto';
 import { z } from 'zod';
 import type { AgentConfig } from '../agents/config.js';
 import type { RunStore } from '../reporting/store.js';
+import {
+  AuthFailureTracker,
+  InMemoryRateLimiter,
+  getClientIp,
+  sanitizePromptSuffix,
+  sanitizeStoredRun,
+  sanitizeText,
+} from './security-utils.js';
 
 type ApiDependencies = {
   getAgents: () => Promise<AgentConfig[]>;
@@ -12,6 +20,7 @@ type ApiDependencies = {
   apiKey?: string;
 };
 
+const MAX_BODY_BYTES = 8_192;
 const TriggerRunBodySchema = z.object({
   with: z.string().trim().max(4_000).optional(),
 });
@@ -39,21 +48,75 @@ function extractApiKeyHeader(request: Request): string | undefined {
   return token;
 }
 
+function setSecurityHeaders(headers: Headers): void {
+  headers.set('X-Content-Type-Options', 'nosniff');
+  headers.set('X-Frame-Options', 'DENY');
+  headers.set('Referrer-Policy', 'no-referrer');
+  headers.set('Cache-Control', 'no-store');
+}
+
+function parseContentLength(request: Request): number | undefined {
+  const value = request.headers.get('content-length');
+  if (!value) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
 export function createApi(deps: ApiDependencies): Hono {
   const app = new Hono();
 
+  const generalLimiter = new InMemoryRateLimiter(180, 60_000);
+  const triggerLimiter = new InMemoryRateLimiter(20, 60_000);
+  const authFailures = new AuthFailureTracker(10, 10 * 60_000);
+
   app.use(async (c, next) => {
+    const ip = getClientIp(c.req.raw);
+
+    const throttle = generalLimiter.consume(ip);
+    if (!throttle.allowed) {
+      c.header('Retry-After', String(throttle.retryAfterSeconds ?? 60));
+      const response = c.json({ error: 'Too many requests' }, 429);
+      setSecurityHeaders(response.headers);
+      return response;
+    }
+
+    const blocked = authFailures.isBlocked(ip);
+    if (!blocked.allowed) {
+      c.header('Retry-After', String(blocked.retryAfterSeconds ?? 60));
+      const response = c.json({ error: 'Too many failed auth attempts' }, 429);
+      setSecurityHeaders(response.headers);
+      return response;
+    }
+
+    const contentLength = parseContentLength(c.req.raw);
+    if (contentLength !== undefined && contentLength > MAX_BODY_BYTES) {
+      const response = c.json({ error: 'Request body too large' }, 413);
+      setSecurityHeaders(response.headers);
+      return response;
+    }
+
     if (!deps.apiKey || c.req.path === '/health') {
       await next();
-      return;
+      if (c.res) setSecurityHeaders(c.res.headers);
+      return c.res;
     }
 
     const requestKey = extractApiKeyHeader(c.req.raw);
     if (!isAuthorized(requestKey, deps.apiKey)) {
-      return c.json({ error: 'Unauthorized' }, 401);
+      const failure = authFailures.registerFailure(ip);
+      console.warn(`[api] Unauthorized request from ${sanitizeText(ip, 64)} to ${sanitizeText(c.req.path, 80)}`);
+      if (!failure.allowed) {
+        c.header('Retry-After', String(failure.retryAfterSeconds ?? 60));
+      }
+      const response = c.json({ error: 'Unauthorized' }, 401);
+      setSecurityHeaders(response.headers);
+      return response;
     }
 
+    authFailures.registerSuccess(ip);
     await next();
+    if (c.res) setSecurityHeaders(c.res.headers);
+    return c.res;
   });
 
   app.get('/health', (c) => {
@@ -73,6 +136,13 @@ export function createApi(deps: ApiDependencies): Hono {
   });
 
   app.post('/agents/:id/run', async (c) => {
+    const ip = getClientIp(c.req.raw);
+    const triggerThrottle = triggerLimiter.consume(`${ip}:run`);
+    if (!triggerThrottle.allowed) {
+      c.header('Retry-After', String(triggerThrottle.retryAfterSeconds ?? 60));
+      return c.json({ error: 'Too many run trigger requests' }, 429);
+    }
+
     const agentId = c.req.param('id');
     const agents = await deps.getAgents();
     const agent = agents.find((a) => a.id === agentId);
@@ -82,32 +152,45 @@ export function createApi(deps: ApiDependencies): Hono {
     const rawBody = await c.req.text();
 
     if (rawBody.trim().length > 0) {
+      const contentType = c.req.header('content-type')?.toLowerCase() ?? '';
+      if (!contentType.includes('application/json')) {
+        return c.json({ error: 'Expected Content-Type: application/json' }, 415);
+      }
+
       try {
         const body = JSON.parse(rawBody) as unknown;
         const parsed = TriggerRunBodySchema.safeParse(body);
         if (!parsed.success) {
           return c.json({ error: 'Invalid request body. Expected optional string field "with" (max 4000 chars).' }, 400);
         }
-        promptSuffix = parsed.data.with;
+        promptSuffix = parsed.data.with ? sanitizePromptSuffix(parsed.data.with) : undefined;
       } catch {
         return c.json({ error: 'Invalid JSON body' }, 400);
       }
     }
 
-    const runId = await deps.triggerRun(agentId, promptSuffix);
-    return c.json({ runId, agentId }, 202);
+    try {
+      const runId = await deps.triggerRun(agentId, promptSuffix);
+      return c.json({ runId, agentId }, 202);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('Too many active runs')) {
+        return c.json({ error: message }, 429);
+      }
+      return c.json({ error: 'Failed to trigger run' }, 500);
+    }
   });
 
   app.get('/runs', (c) => {
     const agentId = c.req.query('agent_id');
     const runs = agentId ? deps.store.listByAgent(agentId) : deps.store.list();
-    return c.json(runs);
+    return c.json(runs.map(sanitizeStoredRun));
   });
 
   app.get('/runs/:id', (c) => {
     const run = deps.store.get(c.req.param('id'));
     if (!run) return c.json({ error: 'Run not found' }, 404);
-    return c.json(run);
+    return c.json(sanitizeStoredRun(run));
   });
 
   app.post('/runs/:id/cancel', (c) => {
