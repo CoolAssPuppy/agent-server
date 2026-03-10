@@ -2,7 +2,11 @@ import type { AgentConfig } from '../agents/config.js';
 import type { Reporter } from './runner.js';
 import type { ExecutionResult } from './executor.js';
 
-export type ExecutorFn = (agent: AgentConfig, reporter: Reporter) => Promise<ExecutionResult>;
+export type ExecutorFnOptions = {
+  abortController?: AbortController;
+};
+
+export type ExecutorFn = (agent: AgentConfig, reporter: Reporter, options?: ExecutorFnOptions) => Promise<ExecutionResult>;
 
 export class ExecutorRegistry {
   private readonly executors = new Map<string, ExecutorFn>();

@@ -270,6 +270,70 @@ describe('TelegramChannel onMessage', () => {
   });
 });
 
+describe('TelegramChannel expireInteraction', () => {
+  function makeChannel(): {
+    channel: TelegramChannel;
+    mockApi: {
+      sendMessage: ReturnType<typeof vi.fn>;
+      answerCallbackQuery: ReturnType<typeof vi.fn>;
+      editMessageText: ReturnType<typeof vi.fn>;
+      editMessageReplyMarkup: ReturnType<typeof vi.fn>;
+    };
+  } {
+    const mockApi = {
+      sendMessage: vi.fn().mockResolvedValue({ message_id: 42 }),
+      answerCallbackQuery: vi.fn().mockResolvedValue(true),
+      editMessageText: vi.fn().mockResolvedValue(true),
+      editMessageReplyMarkup: vi.fn().mockResolvedValue(true),
+    };
+    const channel = new TelegramChannel({ api: mockApi, chatId: 12345 });
+    return { channel, mockApi };
+  }
+
+  it('edits expired interaction message to show expiry text', async () => {
+    const { channel, mockApi } = makeChannel();
+    await channel.send('int-1', optionsRequest);
+
+    await channel.expireInteraction('int-1');
+
+    expect(mockApi.editMessageText).toHaveBeenCalledWith(
+      12345, 42, undefined, 'This request has expired.',
+    );
+  });
+
+  it('removes the inline keyboard from expired messages', async () => {
+    const { channel, mockApi } = makeChannel();
+    await channel.send('int-1', optionsRequest);
+
+    await channel.expireInteraction('int-1');
+
+    expect(mockApi.editMessageReplyMarkup).toHaveBeenCalledWith(
+      12345, 42, undefined, {},
+    );
+  });
+
+  it('does nothing when interaction ID is unknown', async () => {
+    const { channel, mockApi } = makeChannel();
+
+    await channel.expireInteraction('nonexistent');
+
+    expect(mockApi.editMessageText).not.toHaveBeenCalled();
+    expect(mockApi.editMessageReplyMarkup).not.toHaveBeenCalled();
+  });
+
+  it('cleans up stored message after expiry', async () => {
+    const { channel, mockApi } = makeChannel();
+    await channel.send('int-1', optionsRequest);
+
+    await channel.expireInteraction('int-1');
+    mockApi.editMessageText.mockClear();
+    mockApi.editMessageReplyMarkup.mockClear();
+
+    await channel.expireInteraction('int-1');
+    expect(mockApi.editMessageText).not.toHaveBeenCalled();
+  });
+});
+
 describe('encodeCallbackData / parseCallbackData', () => {
   it('round-trips interaction ID and option index', () => {
     const encoded = encodeCallbackData('abc-123', 2);

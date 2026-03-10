@@ -17,6 +17,12 @@ targets:
     platform: macOS
     sources:
       - AgentServer
+    resources:
+      - path: ../server-app/dist
+        buildPhase: resources
+        type: folder
+      - path: ../server-app/package.json
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.strategicnerds.agent-server

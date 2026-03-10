@@ -45,7 +45,8 @@ server-app/src/
     store.ts             -- In-memory run state store with eviction
   server/
     api.ts               -- Hono HTTP API routes
-    server.ts            -- Combined HTTP server + agent scheduler + Telegram
+    server.ts            -- Combined HTTP server + agent scheduler + Telegram + WebSocket
+    websocket.ts         -- ProgressBroadcaster for real-time WebSocket events
     daemon.ts            -- Timer loop, single-run, list commands
   platform/
     config.ts            -- ServerConfig from AGENT_SERVER_* env vars
@@ -67,6 +68,7 @@ sample-agents/           -- Example agent YAML configs
 - Zod for schema validation
 - cron-parser v5 (`CronExpressionParser.parse()`, NOT `parseExpression()`)
 - Hono for HTTP API
+- @hono/node-ws for WebSocket streaming
 - Commander for CLI
 - grammY for Telegram bot (long-polling, inline keyboards)
 - yaml for YAML parsing
@@ -120,7 +122,7 @@ PID-based locks in the locks directory. Stale lock detection via `process.kill(p
 
 ### Agent chaining
 
-Agents can define `on_complete` and `on_failure` arrays referencing other agent IDs. Use `evaluateTriggers()` to find downstream agents after a run completes.
+Agents can define `on_complete` and `on_failure` arrays referencing other agent IDs. Use `evaluateTriggers()` to find downstream agents after a run completes. The server automatically fires triggers after run completion or failure via `fireDownstreamTriggers()` in `server.ts`.
 
 ### File watch triggers
 
@@ -160,11 +162,11 @@ When an agent defines a `permissions` block, `buildCanUseTool()` in `execution/p
 
 ### Channel adapter pattern
 
-Channels implement the `Channel` interface from `channels/channel.ts`. Each channel handles sending interaction requests and receiving replies for its platform.
+Channels implement the `Channel` interface from `channels/channel.ts`. Each channel handles sending interaction requests and receiving replies for its platform. The interface includes an optional `expireInteraction(id)` method for cleaning up expired messages.
 
 - **Console**: Numbered options + readline. Used in `agent-server run` CLI mode.
-- **Telegram**: Inline keyboards via grammY long-polling. No public IP needed. Set `AGENT_SERVER_TELEGRAM_BOT_TOKEN` to enable.
-- **Dispatcher**: `ChannelDispatcher` maps channel names to instances. Logs a warning if a channel isn't configured.
+- **Telegram**: Inline keyboards via grammY long-polling. No public IP needed. Set `AGENT_SERVER_TELEGRAM_BOT_TOKEN` to enable. Expired interactions are cleaned up by editing the Telegram message to show "This request has expired." and removing the inline keyboard.
+- **Dispatcher**: `ChannelDispatcher` maps channel names to instances. Calls `expireInteractions()` to clean up expired interactions across channels.
 
 ### Telegram message routing
 
@@ -192,7 +194,19 @@ Callback data uses `index:interactionId` encoding to stay within Telegram's 64-b
 
 ### HTTP API
 
-Hono app created via `createApi()` with dependency injection. Routes: `/agents`, `/agents/:id`, `/agents/:id/run`, `/runs`, `/runs/:id`, `/health`. The `startServer()` function combines HTTP + scheduler + Telegram in one process.
+Hono app created via `createApi()` with dependency injection. Routes: `/agents`, `/agents/:id`, `/agents/:id/run`, `/runs`, `/runs/:id`, `/runs/:id/cancel`, `/health`, `/ws`. The `startServer()` function combines HTTP + scheduler + Telegram + WebSocket in one process.
+
+### Cancelling runs
+
+`POST /runs/:id/cancel` aborts a running agent. The server stores an `AbortController` per run, passes it to the Claude Agent SDK via `Options.abortController`, and calls `.abort()` on cancel. The run status is set to `'failed'` with error `'Cancelled by user'`. Returns 409 if the run is not in `'running'` state.
+
+### WebSocket streaming
+
+Connect to `ws://localhost:47821/ws` for real-time run progress. Events are JSON with type `run_started`, `run_progress`, `run_completed`, or `run_failed`. The `ProgressBroadcaster` class in `server/websocket.ts` manages subscriptions. The macOS app uses `URLSessionWebSocketTask` to connect, falling back to HTTP polling if the connection fails.
+
+### Sleep/wake catch-up
+
+When `AGENT_SERVER_CATCH_UP=true`, the server detects sleep gaps (when `now - lastCheckedAt > 2 * checkIntervalMs`) and triggers agents that missed their cron window during sleep. Uses `hasMissedRun()` from `scheduler.ts` to check if any cron occurrence fell between `lastCheckedAt` and `now`.
 
 ## Agent definition formats
 
@@ -309,6 +323,7 @@ The CLI loads `~/.agent-server/.env` at startup. Shell env vars and Doppler (`do
 | AGENT_SERVER_HEARTBEAT_MS | 30000 | Heartbeat interval |
 | AGENT_SERVER_PORT | 47821 | HTTP API port |
 | AGENT_SERVER_TELEGRAM_BOT_TOKEN | (none) | Telegram bot token for interactive agents |
+| AGENT_SERVER_CATCH_UP | false | Resume missed scheduled agents after sleep/wake |
 
 ## Testing
 
@@ -353,10 +368,15 @@ macos-app/
 ### Key patterns
 
 - **NSStatusBar + NSMenu**: Menu bar icon with dropdown showing active runs and scheduled agent count. Icon switches from template (idle) to tinted (active runs).
-- **StatusMonitor**: Polls `/health`, `/agents`, `/runs` every 5 seconds. Uses `@Published` properties for reactive UI updates.
-- **Window management**: Settings window uses `NSApp.setActivationPolicy(.accessory)` / `.regular` switching from mail-notifier pattern.
+- **StatusMonitor**: Connects to `ws://localhost:47821/ws` for real-time run events. Falls back to HTTP polling every 5 seconds if WebSocket disconnects. Reconnects automatically after 5 seconds. Uses `@Published` properties for reactive UI updates.
+- **AgentServerClient**: HTTP client with `cancelRun(id:)` for aborting running agents via `POST /runs/:id/cancel`.
+- **ServerProcessManager**: Discovers the server in three locations: bundled Resources, bundle-adjacent directory, or dev path. Auto-installs npm dependencies on first launch if `node_modules/` is missing.
+- **MarkdownEditor**: NSTextView-based editor with syntax highlighting. Uses in-place `textStorage.beginEditing()`/`endEditing()` updates to avoid cursor jumping and scroll position resets during typing.
+- **Window management**: Settings window uses `NSApp.setActivationPolicy(.accessory)` / `.regular` switching.
+- **Settings**: Launch at login toggle (SMAppService), catch-up toggle for `AGENT_SERVER_CATCH_UP`, server status indicator, env editor.
 - **No sandbox**: App needs filesystem access for `~/.agent-server/.env` and network access for localhost API.
 - **Target**: macOS 14.0+, Swift 5.9+, no third-party dependencies.
+- **Bundled server**: `project.yml` includes `server-app/dist/` and `package.json` as folder resources for standalone distribution.
 
 ### Build
 
@@ -368,9 +388,14 @@ xcodebuild -project AgentServer.xcodeproj -scheme AgentServer build
 
 ## Future work
 
-- **WebSocket streaming for live run progress**: Replace HTTP polling with a WebSocket endpoint so the macOS app and Agent Panel can show real-time turn-by-turn progress as agents run, instead of polling `/runs/:id` on a timer.
-- **Cancel running agents via API**: Add a `DELETE /runs/:id` or `POST /runs/:id/cancel` endpoint that sends SIGTERM to the running Agent SDK process and releases the lock, so users can stop a runaway agent without killing the server.
-- **Wire triggers into server run completion flow**: The `evaluateTriggers()` function exists but the server daemon does not yet call it after a run completes. Hook it into the post-run flow in `server.ts` so `on_complete` and `on_failure` agent chains actually fire in server mode (they work in CLI `run` mode).
-- **Sleep/wake catch-up logic for LaunchAgent**: When macOS sleeps and wakes, scheduled agents whose cron windows were missed during sleep are silently skipped. Detect wake events and evaluate whether any agents should have run during the sleep window, then trigger them.
-- **Expired interaction cleanup in Telegram**: When an interaction times out, the inline keyboard buttons in Telegram still appear clickable. Edit the original message to replace the buttons with an "Expired" label so users do not tap stale options.
-- **Bundle server with macOS app**: Currently the macOS app expects the Node.js server to be pre-installed on disk. For standalone distribution, bundle `server-app/dist/` inside the app's Resources and update `ServerProcessManager` to find `cli.js` within `Bundle.main.resourcePath`.
+- **Run history and log persistence**: Runs are stored in-memory and lost on restart. Persist run history to SQLite or flat files so past runs survive server restarts and can be queried/exported.
+- **Agent metrics dashboard**: Expose success/failure rates, average run duration, and token usage per agent via API endpoints for the macOS app or Agent Panel to visualize.
+- **Conditional triggers**: Extend `on_complete` triggers with conditions (e.g., only fire if the output contains a certain keyword, or if the run used fewer than N turns).
+- **Retry with backoff**: Allow agents to specify retry behavior on failure (max retries, backoff strategy) instead of requiring a separate `on_failure` chain.
+- **macOS notifications**: Send native macOS notifications (via `UNUserNotificationCenter`) when agents complete or fail, in addition to Telegram.
+- **Agent template library**: Ship a curated set of agent templates (daily summary, PR reviewer, inbox triager) that users can install via `agent-server init --template <name>`.
+
+## Future work - Permanently Parked (not going to do)
+
+- **Agent versioning and rollback**: Track agent config changes over time. Allow reverting to a previous version of an agent definition if a new prompt or config causes failures.
+- **Multi-user Telegram support**: Currently the bot stores a single chat ID. Support multiple Telegram users with per-user routing and permissions.

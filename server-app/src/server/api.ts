@@ -6,6 +6,7 @@ type ApiDependencies = {
   getAgents: () => Promise<AgentConfig[]>;
   store: RunStore;
   triggerRun: (agentId: string, promptSuffix?: string) => Promise<string>;
+  cancelRun?: (runId: string) => boolean;
 };
 
 export function createApi(deps: ApiDependencies): Hono {
@@ -55,6 +56,18 @@ export function createApi(deps: ApiDependencies): Hono {
     const run = deps.store.get(c.req.param('id'));
     if (!run) return c.json({ error: 'Run not found' }, 404);
     return c.json(run);
+  });
+
+  app.post('/runs/:id/cancel', (c) => {
+    const runId = c.req.param('id');
+    const run = deps.store.get(runId);
+    if (!run) return c.json({ error: 'Run not found' }, 404);
+    if (run.status !== 'running') return c.json({ error: 'Run is not running' }, 409);
+
+    const cancelled = deps.cancelRun?.(runId) ?? false;
+    if (!cancelled) return c.json({ error: 'Run not found' }, 404);
+
+    return c.json({ status: 'cancelled', runId });
   });
 
   return app;

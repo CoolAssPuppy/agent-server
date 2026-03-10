@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shouldRun, getNextRun } from './scheduler.js';
+import { shouldRun, getNextRun, hasMissedRun } from './scheduler.js';
 import type { AgentConfig } from './config.js';
 
 function makeAgent(overrides: Partial<AgentConfig> = {}): AgentConfig {
@@ -73,6 +73,50 @@ describe('shouldRun', () => {
     const agent = makeAgent({ schedule: '0 0 31 2 *' });
     const now = new Date('2026-03-09T10:00:00Z');
     expect(shouldRun(agent, now)).toBe(false);
+  });
+});
+
+describe('hasMissedRun', () => {
+  it('returns true when a cron occurrence falls within the gap', () => {
+    const agent = makeAgent({ schedule: '0 10 * * *' });
+    const since = new Date('2026-03-09T08:00:00Z');
+    const now = new Date('2026-03-09T12:00:00Z');
+    expect(hasMissedRun(agent, since, now)).toBe(true);
+  });
+
+  it('returns false when no cron occurrence falls within the gap', () => {
+    const agent = makeAgent({ schedule: '0 10 * * *' });
+    const since = new Date('2026-03-09T10:01:00Z');
+    const now = new Date('2026-03-09T11:00:00Z');
+    expect(hasMissedRun(agent, since, now)).toBe(false);
+  });
+
+  it('returns false for agents without a schedule', () => {
+    const agent = makeAgent({ schedule: undefined });
+    const since = new Date('2026-03-09T08:00:00Z');
+    const now = new Date('2026-03-09T12:00:00Z');
+    expect(hasMissedRun(agent, since, now)).toBe(false);
+  });
+
+  it('returns false for disabled agents', () => {
+    const agent = makeAgent({ schedule: '0 10 * * *', enabled: false });
+    const since = new Date('2026-03-09T08:00:00Z');
+    const now = new Date('2026-03-09T12:00:00Z');
+    expect(hasMissedRun(agent, since, now)).toBe(false);
+  });
+
+  it('detects multiple missed occurrences in a long gap', () => {
+    const agent = makeAgent({ schedule: '*/30 * * * *' });
+    const since = new Date('2026-03-09T08:00:00Z');
+    const now = new Date('2026-03-09T10:00:00Z');
+    expect(hasMissedRun(agent, since, now)).toBe(true);
+  });
+
+  it('respects timezone setting', () => {
+    const agent = makeAgent({ schedule: '0 8 * * *', timezone: 'America/New_York' });
+    const since = new Date('2026-03-09T11:00:00Z');
+    const now = new Date('2026-03-09T14:00:00Z');
+    expect(hasMissedRun(agent, since, now)).toBe(true);
   });
 });
 

@@ -3,12 +3,21 @@ import SwiftUI
 struct SettingsTabView: View {
     @ObservedObject var monitor: StatusMonitor
     @ObservedObject private var launchManager = LaunchAtLoginManager.shared
+    @State private var catchUpEnabled: Bool = {
+        let env = EnvFile.load()
+        return env.entries.first(where: { $0.key == "AGENT_SERVER_CATCH_UP" })?.value == "true"
+    }()
 
     var body: some View {
         VStack(spacing: 0) {
             Form {
                 Section("General") {
                     Toggle("Launch at login", isOn: $launchManager.isEnabled)
+
+                    Toggle("Resume missed schedules after sleep", isOn: $catchUpEnabled)
+                        .onChange(of: catchUpEnabled) { _, newValue in
+                            updateCatchUpSetting(newValue)
+                        }
 
                     HStack {
                         Text("Server status")
@@ -57,5 +66,15 @@ struct SettingsTabView: View {
             .frame(maxWidth: .infinity)
             .padding(.bottom, 12)
         }
+    }
+
+    private func updateCatchUpSetting(_ enabled: Bool) {
+        var env = EnvFile.load()
+        if let index = env.entries.firstIndex(where: { $0.key == "AGENT_SERVER_CATCH_UP" }) {
+            env.entries[index] = EnvEntry(key: "AGENT_SERVER_CATCH_UP", value: enabled ? "true" : "false", isComment: false)
+        } else {
+            env.entries.append(EnvEntry(key: "AGENT_SERVER_CATCH_UP", value: enabled ? "true" : "false", isComment: false))
+        }
+        try? env.save()
     }
 }

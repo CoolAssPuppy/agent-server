@@ -36,6 +36,15 @@ export class ChannelDispatcher {
     await channel.notify(message);
   }
 
+  async expireInteractions(expired: Array<{ id: string; channel: string }>): Promise<void> {
+    for (const { id, channel: channelName } of expired) {
+      const channel = this.channels.get(channelName);
+      if (channel?.expireInteraction) {
+        await channel.expireInteraction(id);
+      }
+    }
+  }
+
   async startAll(): Promise<void> {
     for (const channel of this.channels.values()) {
       await channel.start();

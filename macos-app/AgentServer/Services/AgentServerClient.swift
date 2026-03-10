@@ -33,6 +33,13 @@ actor AgentServerClient {
         try await get("/runs/\(id)")
     }
 
+    func cancelRun(id: String) async throws {
+        var request = URLRequest(url: baseURL.appendingPathComponent("/runs/\(id)/cancel"))
+        request.httpMethod = "POST"
+        let (_, response) = try await session.data(for: request)
+        try validateResponse(response)
+    }
+
     func triggerRun(agentId: String, with context: String? = nil) async throws -> TriggerResponse {
         var request = URLRequest(url: baseURL.appendingPathComponent("/agents/\(agentId)/run"))
         request.httpMethod = "POST"

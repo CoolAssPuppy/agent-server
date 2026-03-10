@@ -15,4 +15,5 @@ export interface Channel {
   send(interactionId: string, request: InteractionRequest): Promise<void>;
   notify(message: string): Promise<void>;
   onReply(callback: ReplyCallback): void;
+  expireInteraction?(interactionId: string): Promise<void>;
 }

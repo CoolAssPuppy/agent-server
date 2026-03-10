@@ -63,9 +63,13 @@ struct MarkdownEditor: NSViewRepresentable {
 
         if textView.string != text {
             let selectedRanges = textView.selectedRanges
+            let scrollOrigin = scrollView.contentView.bounds.origin
+
             let attributed = EditorHighlighter.highlight(text)
             textView.textStorage?.setAttributedString(attributed)
+
             textView.selectedRanges = selectedRanges
+            scrollView.contentView.setBoundsOrigin(scrollOrigin)
         }
     }
 
@@ -98,9 +102,23 @@ struct MarkdownEditor: NSViewRepresentable {
             parent.text = newText
 
             let selectedRanges = textView.selectedRanges
-            let attributed = EditorHighlighter.highlight(newText)
-            textView.textStorage?.setAttributedString(attributed)
+            let scrollOrigin = textView.enclosingScrollView?.contentView.bounds.origin
+
+            guard let textStorage = textView.textStorage else { return }
+            let fullRange = NSRange(location: 0, length: textStorage.length)
+
+            textStorage.beginEditing()
+            textStorage.setAttributes(
+                [.font: EditorTheme.shared.baseFont, .foregroundColor: EditorTheme.shared.foregroundColor],
+                range: fullRange
+            )
+            EditorHighlighter.applyHighlighting(to: textStorage, text: newText)
+            textStorage.endEditing()
+
             textView.selectedRanges = selectedRanges
+            if let scrollOrigin, let scrollView = textView.enclosingScrollView {
+                scrollView.contentView.setBoundsOrigin(scrollOrigin)
+            }
         }
     }
 }
@@ -227,15 +245,7 @@ private extension NSColor {
 enum EditorHighlighter {
     private static var theme: EditorTheme { EditorTheme.shared }
 
-    static func highlight(_ text: String) -> NSAttributedString {
-        let result = NSMutableAttributedString(
-            string: text,
-            attributes: [
-                .font: theme.baseFont,
-                .foregroundColor: theme.foregroundColor,
-            ]
-        )
-
+    static func applyHighlighting(to str: NSMutableAttributedString, text: String) {
         let lines = text.components(separatedBy: "\n")
         var offset = 0
         var inFrontmatter = false
@@ -250,52 +260,64 @@ enum EditorHighlighter {
                 if !frontmatterStarted {
                     inFrontmatter = true
                     frontmatterStarted = true
-                    applyFrontmatterDelimiter(result, range: lineRange)
+                    applyFrontmatterDelimiter(str, range: lineRange)
                 } else if inFrontmatter {
                     inFrontmatter = false
-                    applyFrontmatterDelimiter(result, range: lineRange)
+                    applyFrontmatterDelimiter(str, range: lineRange)
                 }
                 offset += line.count + 1
                 continue
             }
 
             if inFrontmatter {
-                applyFrontmatter(result, line: line, range: lineRange)
+                applyFrontmatter(str, line: line, range: lineRange)
                 offset += line.count + 1
                 continue
             }
 
             if trimmed.hasPrefix("```") {
                 inCodeBlock.toggle()
-                applyCodeFence(result, range: lineRange)
+                applyCodeFence(str, range: lineRange)
                 offset += line.count + 1
                 continue
             }
 
             if inCodeBlock {
-                applyCodeBlock(result, range: lineRange)
+                applyCodeBlock(str, range: lineRange)
                 offset += line.count + 1
                 continue
             }
 
             if trimmed.hasPrefix("### ") {
-                applyHeading(result, range: lineRange, font: theme.h3Font)
+                applyHeading(str, range: lineRange, font: theme.h3Font)
             } else if trimmed.hasPrefix("## ") {
-                applyHeading(result, range: lineRange, font: theme.h2Font)
+                applyHeading(str, range: lineRange, font: theme.h2Font)
             } else if trimmed.hasPrefix("# ") {
-                applyHeading(result, range: lineRange, font: theme.h1Font)
+                applyHeading(str, range: lineRange, font: theme.h1Font)
             } else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
-                applyBullet(result, line: line, range: lineRange)
+                applyBullet(str, line: line, range: lineRange)
             } else if let _ = trimmed.range(of: #"^\d+\. "#, options: .regularExpression) {
-                applyNumberedList(result, line: line, range: lineRange)
+                applyNumberedList(str, line: line, range: lineRange)
             } else if trimmed.hasPrefix("#") && !trimmed.hasPrefix("# ") {
-                applyComment(result, range: lineRange)
+                applyComment(str, range: lineRange)
             }
 
-            applyInlineStyles(result, line: line, offset: offset)
+            applyInlineStyles(str, line: line, offset: offset)
 
             offset += line.count + 1
         }
+    }
+
+    static func highlight(_ text: String) -> NSAttributedString {
+        let result = NSMutableAttributedString(
+            string: text,
+            attributes: [
+                .font: theme.baseFont,
+                .foregroundColor: theme.foregroundColor,
+            ]
+        )
+
+        applyHighlighting(to: result, text: text)
 
         return result
     }

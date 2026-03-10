@@ -403,19 +403,21 @@ agent-server list
 
 `agent-server start` runs both the HTTP API and the cron scheduler in a single process:
 
-1. Starts the HTTP API on port 47821 (configurable)
+1. Starts the HTTP API and WebSocket server on port 47821 (configurable)
 2. Checks agent schedules every 60 seconds (configurable)
 3. For each agent whose cron expression matches the current minute:
    - Acquires a PID-based file lock (skips if already running)
    - Creates a telemetry reporter (or a noop reporter if no panel is configured)
    - Calls the Agent SDK's `query()` with the agent's prompt and configuration
    - Iterates over the SDK message stream, extracting tool usage, files read/written, and commands run
-   - Reports progress events to the telemetry endpoint on every turn
+   - Broadcasts progress events via WebSocket and reports to the telemetry endpoint on every turn
    - Sends heartbeats every 30 seconds to signal liveness
-   - On completion, reports the result and sends any configured notifications
+   - On completion, reports the result, sends notifications, and fires downstream triggers (`on_complete`/`on_failure`)
    - Releases the lock
 4. Monitors file watch paths and triggers agents when changes are detected
 5. If a Telegram bot token is configured, connects via long-polling for interactive agents
+6. Detects sleep/wake gaps and triggers missed agents (when `AGENT_SERVER_CATCH_UP=true`)
+7. Sweeps expired interactions every 60 seconds and cleans up stale Telegram messages
 
 ### HTTP API
 
@@ -445,11 +447,35 @@ curl http://localhost:47821/runs?agent_id=daily-standup
 # Get run details with progress messages
 curl http://localhost:47821/runs/{runId}
 
+# Cancel a running agent
+curl -X POST http://localhost:47821/runs/{runId}/cancel
+
 # Health check
 curl http://localhost:47821/health
+
+# WebSocket for real-time run progress
+wscat -c ws://localhost:47821/ws
 ```
 
-The trigger endpoint returns `202 Accepted` with `{ "runId": "...", "agentId": "..." }`. The run executes asynchronously. Poll `/runs/{runId}` for status.
+The trigger endpoint returns `202 Accepted` with `{ "runId": "...", "agentId": "..." }`. The run executes asynchronously. Poll `/runs/{runId}` for status, or connect to the WebSocket for real-time events.
+
+### Cancelling runs
+
+`POST /runs/:id/cancel` aborts a running agent by calling `AbortController.abort()` on the underlying SDK process. Returns `200` with `{ "status": "cancelled", "runId": "..." }` on success, `409` if the run is not in `running` state.
+
+### WebSocket streaming
+
+Connect to `ws://localhost:47821/ws` for real-time run events. Events are JSON objects with type `run_started`, `run_progress`, `run_completed`, or `run_failed`:
+
+```json
+{
+  "type": "run_progress",
+  "runId": "abc-123",
+  "agentId": "daily-standup",
+  "timestamp": "2026-03-10T09:00:15.456Z",
+  "message": "Using tool: mcp__claude_ai_Linear__list_issues"
+}
+```
 
 ## Configuration
 
@@ -468,6 +494,7 @@ The CLI loads `~/.agent-server/.env` at startup. Shell environment variables tak
 | `AGENT_SERVER_HEARTBEAT_MS` | `30000` | Heartbeat interval during runs (ms) |
 | `AGENT_SERVER_PORT` | `47821` | HTTP API port |
 | `AGENT_SERVER_TELEGRAM_BOT_TOKEN` | | Telegram bot token for interactive agents and notifications |
+| `AGENT_SERVER_CATCH_UP` | `false` | Resume missed scheduled agents after sleep/wake |
 | `ANTHROPIC_API_KEY` | | Anthropic API key. Required for Telegram message routing (agent selection via Haiku). |
 
 Example `~/.agent-server/.env`:
@@ -544,12 +571,14 @@ A native Swift app that lives in the menu bar for monitoring and controlling age
 ### Features
 
 - **Menu bar monitoring**: Icon shows server status at a glance. Turns yellow when agents are actively running. Dropdown shows active runs and scheduled agent count.
+- **Real-time updates**: Connects to the server via WebSocket (`ws://localhost:47821/ws`) for instant run progress. Falls back to HTTP polling if WebSocket disconnects.
 - **Agent list**: All discovered agents with kind-based icons and colors (scheduled, interactive, watcher, chained, on-demand). Disabled agents show a "Disabled" pill.
 - **Agent editor**: View and edit agent definition files with Markdown and YAML syntax highlighting. Save with Cmd+S. Enable/disable agents with a toggle.
 - **Create agents**: Create new agents from Markdown or YAML templates directly from the app.
+- **Run and cancel agents**: Trigger any agent from the agent list with a single click. Cancel running agents via the API.
 - **Environment editor**: Edit `~/.agent-server/.env` with a key-value editor. Contextual icons for each variable type.
-- **Server settings**: View server status, agent count, launch-at-login toggle, and app version.
-- **Run agents**: Trigger any agent from the agent list with a single click.
+- **Server settings**: View server status, agent count, launch-at-login toggle, sleep/wake catch-up toggle, and app version.
+- **Bundled server**: The app bundles `server-app/dist/` in its Resources for standalone distribution. Auto-installs npm dependencies on first launch.
 
 ### Build
 
@@ -578,7 +607,7 @@ macos-app/
       AgentFile.swift                 Agent file CRUD + templates
     Services/
       AgentServerClient.swift         HTTP client for localhost:47821
-      StatusMonitor.swift             Timer-based polling, @Published state
+      StatusMonitor.swift             WebSocket + HTTP polling, @Published state
       ServerProcessManager.swift      Auto-start/stop the Node.js server
       LaunchAtLoginManager.swift      SMAppService wrapper
     Views/
@@ -586,7 +615,7 @@ macos-app/
       AgentsListView.swift            NavigationSplitView with agent list + editor
       AgentEditorView.swift           File editor with toolbar and enable toggle
       MarkdownEditor.swift            NSTextView with syntax highlighting
-      SettingsTabView.swift           Server status, launch at login, env editor
+      SettingsTabView.swift           Server status, launch at login, catch-up toggle, env editor
       EnvEditorView.swift             Key-value editor with contextual icons
     Assets.xcassets/                  App icon + menu bar icons
   project.yml                        xcodegen spec
@@ -746,9 +775,10 @@ server-app/src/
     reporter-factory.ts        Creates real or noop reporter based on config
     store.ts                   In-memory run state store (max 200 runs)
 
-  server/                    HTTP and daemon
+  server/                    HTTP, WebSocket, and daemon
     api.ts                     Hono HTTP API routes
-    server.ts                  Combined HTTP server + scheduler + Telegram
+    server.ts                  Combined HTTP server + scheduler + Telegram + WebSocket
+    websocket.ts               ProgressBroadcaster for real-time run events
     daemon.ts                  CLI-mode runner, list command
 
   platform/                  OS and environment
@@ -771,7 +801,7 @@ All development commands run from `server-app/`:
 ```bash
 cd server-app
 npm install
-npm test              # 305 tests
+npm test              # 331 tests
 npm run type-check    # TypeScript strict mode
 npm run build         # Compile to dist/
 npm run dev           # Watch mode with tsx
@@ -789,6 +819,7 @@ Tests are colocated with source files (`*.test.ts`). The project uses TDD with f
 - [Zod](https://zod.dev/) for schema validation
 - [cron-parser](https://github.com/harrisiirak/cron-parser) v5 for schedule evaluation
 - [Hono](https://hono.dev/) for the HTTP API
+- [@hono/node-ws](https://github.com/honojs/middleware/tree/main/packages/node-ws) for WebSocket streaming
 - [Commander](https://github.com/tj/commander.js) for the CLI
 - [grammy](https://grammy.dev/) for Telegram bot integration (long-polling)
 - [dotenv](https://github.com/motdotla/dotenv) for `.env` file loading

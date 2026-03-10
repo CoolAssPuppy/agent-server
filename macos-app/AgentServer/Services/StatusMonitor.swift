@@ -10,9 +10,20 @@ final class StatusMonitor: ObservableObject {
     private let client = AgentServerClient()
     private var timer: Timer?
     private let pollInterval: TimeInterval = 5
+    private var webSocketTask: URLSessionWebSocketTask?
+    private var isWebSocketConnected = false
+
+    private weak var serverProcess: ServerProcessManager?
+    private var consecutiveFailures = 0
+    private static let restartThreshold = 3
+
+    func setServerProcess(_ manager: ServerProcessManager) {
+        self.serverProcess = manager
+    }
 
     func start() {
         poll()
+        connectWebSocket()
         timer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.poll()
@@ -23,6 +34,7 @@ final class StatusMonitor: ObservableObject {
     func stop() {
         timer?.invalidate()
         timer = nil
+        disconnectWebSocket()
     }
 
     func poll() {
@@ -33,13 +45,27 @@ final class StatusMonitor: ObservableObject {
                 let fetchedRuns = try await client.runs()
 
                 self.isServerReachable = true
+                self.consecutiveFailures = 0
                 self.agents = fetchedAgents
                 self.activeRuns = fetchedRuns.filter { $0.isActive }
             } catch {
                 self.isServerReachable = false
                 self.agents = []
                 self.activeRuns = []
+                self.consecutiveFailures += 1
+
+                if self.consecutiveFailures == Self.restartThreshold {
+                    self.restartServer()
+                }
             }
+        }
+    }
+
+    private func restartServer() {
+        guard let serverProcess else { return }
+        print("[StatusMonitor] Server unreachable after \(Self.restartThreshold) checks, restarting...")
+        Task {
+            await serverProcess.startIfNeeded()
         }
     }
 
@@ -53,4 +79,86 @@ final class StatusMonitor: ObservableObject {
             }
         }
     }
+
+    func cancelRun(id: String) {
+        Task {
+            do {
+                try await client.cancelRun(id: id)
+                poll()
+            } catch {
+                // Cancel failed silently; next poll will show current state
+            }
+        }
+    }
+
+    // MARK: - WebSocket
+
+    private func connectWebSocket() {
+        guard let url = URL(string: "ws://localhost:47821/ws") else { return }
+        let session = URLSession(configuration: .default)
+        webSocketTask = session.webSocketTask(with: url)
+        webSocketTask?.resume()
+        isWebSocketConnected = true
+        receiveWebSocketMessage()
+    }
+
+    private func disconnectWebSocket() {
+        webSocketTask?.cancel(with: .goingAway, reason: nil)
+        webSocketTask = nil
+        isWebSocketConnected = false
+    }
+
+    private func receiveWebSocketMessage() {
+        webSocketTask?.receive { [weak self] result in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+
+                switch result {
+                case .success(let message):
+                    self.handleWebSocketMessage(message)
+                    self.receiveWebSocketMessage()
+                case .failure:
+                    self.isWebSocketConnected = false
+                    self.scheduleWebSocketReconnect()
+                }
+            }
+        }
+    }
+
+    private func handleWebSocketMessage(_ message: URLSessionWebSocketTask.Message) {
+        switch message {
+        case .string(let text):
+            guard let data = text.data(using: .utf8),
+                  let event = try? JSONDecoder().decode(ProgressEvent.self, from: data) else { return }
+
+            if event.type == "run_started" || event.type == "run_completed" || event.type == "run_failed" {
+                poll()
+            }
+        case .data:
+            break
+        @unknown default:
+            break
+        }
+    }
+
+    private func scheduleWebSocketReconnect() {
+        Task {
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            await MainActor.run {
+                if self.isServerReachable && !self.isWebSocketConnected {
+                    self.connectWebSocket()
+                }
+            }
+        }
+    }
+}
+
+struct ProgressEvent: Decodable {
+    let type: String
+    let runId: String
+    let agentId: String
+    let timestamp: String
+    let message: String?
+    let error: String?
+    let summary: String?
 }

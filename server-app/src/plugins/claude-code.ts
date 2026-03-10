@@ -7,9 +7,14 @@ import { expandHome } from '../agents/file-watcher.js';
 import { parseInteractionBlock } from '../interaction/parser.js';
 import { buildCanUseTool } from '../execution/permissions.js';
 
+type ExecuteAgentExtra = {
+  abortController?: AbortController;
+};
+
 export async function executeAgent(
   agent: AgentConfig,
   reporter: Reporter,
+  extra?: ExecuteAgentExtra,
 ): Promise<ExecutionResult> {
   const cwd = agent.working_directory
     ? expandHome(agent.working_directory)
@@ -27,6 +32,7 @@ export async function executeAgent(
       ? agent.disallowed_tools
       : undefined,
     canUseTool: agent.permissions ? buildCanUseTool(agent.permissions) : undefined,
+    abortController: extra?.abortController,
   };
 
   let turnCount = 0;

@@ -48,22 +48,28 @@ export function parseRoutingResponse(response: string, agents: AgentConfig[]): P
   return { type: 'route', agent };
 }
 
-const defaultCreateMessage: CreateMessageFn = (() => {
-  const client = new Anthropic();
-  return async (params) => {
-    const response = await client.messages.create({
-      model: params.model,
-      max_tokens: params.max_tokens,
-      messages: params.messages as Array<{ role: 'user' | 'assistant'; content: string }>,
-    });
-    return {
-      content: response.content.map((block) => ({
-        type: block.type,
-        ...('text' in block ? { text: block.text } : {}),
-      })),
-    };
+let cachedClient: Anthropic | null = null;
+
+function getClient(): Anthropic {
+  if (!cachedClient) {
+    cachedClient = new Anthropic();
+  }
+  return cachedClient;
+}
+
+const defaultCreateMessage: CreateMessageFn = async (params) => {
+  const response = await getClient().messages.create({
+    model: params.model,
+    max_tokens: params.max_tokens,
+    messages: params.messages as Array<{ role: 'user' | 'assistant'; content: string }>,
+  });
+  return {
+    content: response.content.map((block) => ({
+      type: block.type,
+      ...('text' in block ? { text: block.text } : {}),
+    })),
   };
-})();
+};
 
 export async function routeMessage(
   message: string,

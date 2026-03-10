@@ -16,6 +16,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupStatusItem()
         subscribeToUpdates()
 
+        monitor.setServerProcess(serverProcess)
+
         Task {
             await serverProcess.startIfNeeded()
             monitor.start()

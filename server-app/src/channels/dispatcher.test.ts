@@ -87,6 +87,33 @@ describe('ChannelDispatcher', () => {
     spy.mockRestore();
   });
 
+  it('expires interactions on the correct channel', async () => {
+    const dispatcher = new ChannelDispatcher();
+    const channel = makeChannel('telegram');
+    channel.expireInteraction = vi.fn().mockResolvedValue(undefined);
+    dispatcher.register(channel);
+
+    await dispatcher.expireInteractions([
+      { id: 'int-1', channel: 'telegram' },
+      { id: 'int-2', channel: 'telegram' },
+    ]);
+
+    expect(channel.expireInteraction).toHaveBeenCalledTimes(2);
+    expect(channel.expireInteraction).toHaveBeenCalledWith('int-1');
+    expect(channel.expireInteraction).toHaveBeenCalledWith('int-2');
+  });
+
+  it('skips channels without expireInteraction support', async () => {
+    const dispatcher = new ChannelDispatcher();
+    const channel = makeChannel('console');
+    dispatcher.register(channel);
+
+    await dispatcher.expireInteractions([
+      { id: 'int-1', channel: 'console' },
+    ]);
+    // Should not throw
+  });
+
   it('starts and stops all registered channels', async () => {
     const dispatcher = new ChannelDispatcher();
     const ch1 = makeChannel('console');

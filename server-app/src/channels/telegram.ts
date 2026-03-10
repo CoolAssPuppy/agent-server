@@ -7,6 +7,8 @@ import type { Channel, ChannelReply, ReplyCallback } from './channel.js';
 type TelegramApi = {
   sendMessage: (chatId: number, text: string, options?: Record<string, unknown>) => Promise<{ message_id: number }>;
   answerCallbackQuery: (queryId: string) => Promise<boolean>;
+  editMessageText?: (chatId: number, messageId: number, inlineMessageId: string | undefined, text: string) => Promise<unknown>;
+  editMessageReplyMarkup?: (chatId: number, messageId: number, inlineMessageId: string | undefined, replyMarkup: Record<string, unknown>) => Promise<unknown>;
 };
 
 type TelegramChannelOptions = {
@@ -84,6 +86,7 @@ export class TelegramChannel implements Channel {
   private callbacks: ReplyCallback[] = [];
   private messageCallbacks: MessageCallback[] = [];
   private pendingInteractions = new Map<string, InteractionRequest>();
+  private sentMessages = new Map<string, { messageId: number; chatId: number }>();
   private lastPendingId: string | undefined;
   private bot: Bot | undefined;
 
@@ -156,7 +159,8 @@ export class TelegramChannel implements Channel {
 
     this.pendingInteractions.set(interactionId, request);
     this.lastPendingId = interactionId;
-    await this.api.sendMessage(this.chatId as number, text, Object.keys(options).length > 0 ? options : undefined);
+    const result = await this.api.sendMessage(this.chatId as number, text, Object.keys(options).length > 0 ? options : undefined);
+    this.sentMessages.set(interactionId, { messageId: result.message_id, chatId: this.chatId as number });
   }
 
   handleCallbackQuery(interactionId: string, optionIndex: number): void {
@@ -181,6 +185,21 @@ export class TelegramChannel implements Channel {
     const reply: ChannelReply = { interactionId, freeText: text };
     for (const cb of this.callbacks) {
       cb(reply);
+    }
+  }
+
+  async expireInteraction(interactionId: string): Promise<void> {
+    const sentMessage = this.sentMessages.get(interactionId);
+    if (!sentMessage) return;
+
+    this.sentMessages.delete(interactionId);
+    this.pendingInteractions.delete(interactionId);
+
+    if (this.api.editMessageText) {
+      await this.api.editMessageText(sentMessage.chatId, sentMessage.messageId, undefined, 'This request has expired.');
+    }
+    if (this.api.editMessageReplyMarkup) {
+      await this.api.editMessageReplyMarkup(sentMessage.chatId, sentMessage.messageId, undefined, {});
     }
   }
 
@@ -219,6 +238,8 @@ export async function createTelegramChannel(
     api: {
       sendMessage: (cId, text, opts) => bot.api.sendMessage(cId, text, opts),
       answerCallbackQuery: (qId) => bot.api.answerCallbackQuery(qId),
+      editMessageText: (cId, msgId, _inlineId, text) => bot.api.editMessageText(cId, msgId, text),
+      editMessageReplyMarkup: (cId, msgId) => bot.api.editMessageReplyMarkup(cId, msgId),
     },
     chatId,
     bot,

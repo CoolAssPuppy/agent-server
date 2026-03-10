@@ -19,6 +19,23 @@ export function shouldRun(agent: AgentConfig, now: Date): boolean {
   }
 }
 
+export function hasMissedRun(agent: AgentConfig, since: Date, now: Date): boolean {
+  if (!agent.enabled) return false;
+  if (!agent.schedule) return false;
+
+  try {
+    const expr = CronExpressionParser.parse(agent.schedule, {
+      currentDate: since,
+      tz: agent.timezone,
+    });
+
+    const next = expr.next().toDate();
+    return next <= now;
+  } catch {
+    return false;
+  }
+}
+
 export function getNextRun(agent: AgentConfig, now: Date): Date | undefined {
   if (!agent.schedule) return undefined;
 

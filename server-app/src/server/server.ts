@@ -1,4 +1,5 @@
 import { serve } from '@hono/node-server';
+import { createNodeWebSocket } from '@hono/node-ws';
 import { join } from 'path';
 import type { ServerConfig } from '../platform/config.js';
 import type { AgentConfig } from '../agents/config.js';
@@ -10,7 +11,8 @@ import { runAgent } from '../execution/runner.js';
 import { executeAgent } from '../plugins/claude-code.js';
 import { ExecutorRegistry } from '../execution/executor-registry.js';
 import { createReporter } from '../reporting/reporter-factory.js';
-import { shouldRun } from '../agents/scheduler.js';
+import { shouldRun, hasMissedRun } from '../agents/scheduler.js';
+import { evaluateTriggers } from '../agents/triggers.js';
 import { FileWatcher, extractWatchConfigs } from '../agents/file-watcher.js';
 import { ChannelDispatcher } from '../channels/dispatcher.js';
 import { InteractionStore } from '../interaction/store.js';
@@ -19,6 +21,7 @@ import { createTelegramChannel } from '../channels/telegram.js';
 import { formatCompletionNotification, formatFailureNotification, formatAgentListMessage } from '../interaction/notification.js';
 import { routeMessage } from '../channels/router.js';
 import { randomUUID } from 'crypto';
+import { ProgressBroadcaster, type ProgressEvent } from './websocket.js';
 
 export type ServerInstance = {
   stop: () => void;
@@ -45,6 +48,9 @@ export function startServer(config: ServerConfig): ServerInstance {
   const executorRegistry = new ExecutorRegistry();
   executorRegistry.register('claude-code', executeAgent);
   executorRegistry.setDefault('claude-code');
+
+  const activeControllers = new Map<string, AbortController>();
+  const broadcaster = new ProgressBroadcaster();
 
   async function handleInteractionResult(
     runId: string,
@@ -87,22 +93,46 @@ export function startServer(config: ServerConfig): ServerInstance {
       .catch((err) => console.error(`[notification] Failed for ${agent.id}:`, err));
   }
 
+  async function fireDownstreamTriggers(sourceAgentId: string, status: 'completed' | 'failed'): Promise<void> {
+    try {
+      const agents = await discoverAgents(config.agentsDir);
+      const downstream = evaluateTriggers(agents, sourceAgentId, status);
+      for (const agent of downstream) {
+        console.log(`[triggers] ${status} ${sourceAgentId} -> triggering ${agent.id}`);
+        triggerRunForAgent(agent);
+      }
+    } catch (err) {
+      console.error(`[triggers] Failed to evaluate triggers for ${sourceAgentId}:`, err);
+    }
+  }
+
   type RunDoneCallback = (result: { status: 'completed' | 'failed'; summary?: string; error?: string }) => void;
 
   function triggerRunForAgent(agent: AgentConfig, promptSuffix?: string, onDone?: RunDoneCallback): string {
     const runId = randomUUID();
+    const abortController = new AbortController();
+    activeControllers.set(runId, abortController);
+
+    const now = new Date();
     store.add({
       runId,
       agentId: agent.id,
       agentName: agent.name,
       status: 'running',
-      startedAt: new Date(),
+      startedAt: now,
       turnCount: 0,
       toolsUsed: [],
       filesRead: [],
       filesWritten: [],
       commandsRun: [],
       progressMessages: [],
+    });
+
+    broadcaster.emit({
+      type: 'run_started',
+      runId,
+      agentId: agent.id,
+      timestamp: now.toISOString(),
     });
 
     runAgent({
@@ -119,6 +149,14 @@ export function startServer(config: ServerConfig): ServerInstance {
                 toolsUsed: Array.isArray(meta.tools_used) ? meta.tools_used as string[] : [],
               });
             }
+            broadcaster.emit({
+              type: 'run_progress',
+              runId,
+              agentId: agent.id,
+              message: msg,
+              metadata: meta,
+              timestamp: new Date().toISOString(),
+            });
             return reporter.progress(msg, meta);
           },
           complete: (result) => reporter.complete(result),
@@ -126,7 +164,7 @@ export function startServer(config: ServerConfig): ServerInstance {
           stop: () => reporter.stop(),
         };
         const executor = executorRegistry.resolve(a);
-        const result = await executor(a, wrappedReporter);
+        const result = await executor(a, wrappedReporter, { abortController });
         store.update(runId, {
           status: 'completed',
           completedAt: new Date(),
@@ -140,31 +178,57 @@ export function startServer(config: ServerConfig): ServerInstance {
         if (result.interaction && agent.interaction) {
           void handleInteractionResult(runId, agent, result.interaction);
         }
+        broadcaster.emit({
+          type: 'run_completed',
+          runId,
+          agentId: agent.id,
+          summary: result.summary,
+          timestamp: new Date().toISOString(),
+        });
         sendNotification(agent, 'completed', result.summary);
         onDone?.({ status: 'completed', summary: result.summary });
+        void fireDownstreamTriggers(agent.id, 'completed');
         return result;
       },
       createReporter: (rid, name) => createReporter(config, rid, name),
       promptSuffix,
     }).then((result) => {
+      activeControllers.delete(runId);
       if (result.status === 'failed') {
         store.update(runId, {
           status: 'failed',
           completedAt: new Date(),
           error: result.error,
         });
+        broadcaster.emit({
+          type: 'run_failed',
+          runId,
+          agentId: agent.id,
+          error: result.error,
+          timestamp: new Date().toISOString(),
+        });
         sendNotification(agent, 'failed', result.error);
         onDone?.({ status: 'failed', error: result.error });
+        void fireDownstreamTriggers(agent.id, 'failed');
       }
     }).catch((err) => {
+      activeControllers.delete(runId);
       const errorMsg = err instanceof Error ? err.message : String(err);
       store.update(runId, {
         status: 'failed',
         completedAt: new Date(),
         error: errorMsg,
       });
+      broadcaster.emit({
+        type: 'run_failed',
+        runId,
+        agentId: agent.id,
+        error: errorMsg,
+        timestamp: new Date().toISOString(),
+      });
       sendNotification(agent, 'failed', errorMsg);
       onDone?.({ status: 'failed', error: errorMsg });
+      void fireDownstreamTriggers(agent.id, 'failed');
     });
 
     return runId;
@@ -177,9 +241,45 @@ export function startServer(config: ServerConfig): ServerInstance {
     return triggerRunForAgent(agent, promptSuffix);
   }
 
+  function cancelRun(runId: string): boolean {
+    const controller = activeControllers.get(runId);
+    if (!controller) return false;
+
+    controller.abort();
+    activeControllers.delete(runId);
+    store.update(runId, {
+      status: 'failed',
+      completedAt: new Date(),
+      error: 'Cancelled by user',
+    });
+    return true;
+  }
+
+  let lastCheckedAt = new Date();
+  const SLEEP_GAP_MULTIPLIER = 2;
+
   async function runDueAgents(): Promise<void> {
     const agents = await discoverAgents(config.agentsDir);
     const now = new Date();
+
+    if (config.catchUp) {
+      const gap = now.getTime() - lastCheckedAt.getTime();
+      if (gap > SLEEP_GAP_MULTIPLIER * config.checkIntervalMs) {
+        console.log(`[catch-up] Detected sleep gap of ${Math.round(gap / 1000)}s, checking for missed agents`);
+        const missedAgents = agents.filter((agent) => hasMissedRun(agent, lastCheckedAt, now));
+        for (const agent of missedAgents) {
+          try {
+            console.log(`[catch-up] Triggering missed agent: ${agent.id}`);
+            triggerRunForAgent(agent);
+          } catch (err) {
+            console.error(`[catch-up] ${agent.id}: error - ${err}`);
+          }
+        }
+      }
+    }
+
+    lastCheckedAt = now;
+
     const dueAgents = agents.filter((agent) => shouldRun(agent, now));
     if (dueAgents.length === 0) return;
 
@@ -198,9 +298,32 @@ export function startServer(config: ServerConfig): ServerInstance {
     getAgents: () => discoverAgents(config.agentsDir),
     store,
     triggerRun,
+    cancelRun,
   });
 
+  const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
+
+  app.get('/ws', upgradeWebSocket(() => {
+    let listener: ((event: ProgressEvent) => void) | undefined;
+
+    return {
+      onOpen(_event, ws) {
+        listener = (progressEvent: ProgressEvent) => {
+          ws.send(JSON.stringify(progressEvent));
+        };
+        broadcaster.subscribe(listener);
+      },
+      onClose() {
+        if (listener) {
+          broadcaster.unsubscribe(listener);
+          listener = undefined;
+        }
+      },
+    };
+  }));
+
   const httpServer = serve({ fetch: app.fetch, port });
+  injectWebSocket(httpServer);
   console.log(`Agent Server API listening on http://localhost:${port}`);
 
   void runDueAgents();
@@ -293,9 +416,17 @@ export function startServer(config: ServerConfig): ServerInstance {
   const telegramPromise = setupTelegram();
 
   const expiryInterval = setInterval(() => {
-    const expired = interactionStore.expireStale();
-    if (expired.length > 0) {
-      console.log(`[interactions] Expired ${expired.length} stale interaction(s)`);
+    const expiredIds = interactionStore.expireStale();
+    if (expiredIds.length > 0) {
+      console.log(`[interactions] Expired ${expiredIds.length} stale interaction(s)`);
+      const expiredWithChannels = expiredIds
+        .map((id) => {
+          const interaction = interactionStore.get(id);
+          return interaction ? { id, channel: interaction.channel } : null;
+        })
+        .filter((item): item is { id: string; channel: string } => item !== null);
+
+      void channelDispatcher.expireInteractions(expiredWithChannels);
     }
   }, 60_000);
 

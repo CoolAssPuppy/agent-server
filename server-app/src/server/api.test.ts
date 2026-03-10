@@ -18,6 +18,7 @@ describe('API routes', () => {
       getAgents: async () => agents,
       store,
       triggerRun,
+      cancelRun: vi.fn().mockReturnValue(false),
     });
   }
 
@@ -123,6 +124,53 @@ describe('API routes', () => {
       const app = createApp();
       const res = await app.request('/runs/nonexistent');
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe('POST /runs/:id/cancel', () => {
+    it('cancels a running run', async () => {
+      store.add(makeStoredRun({ runId: 'r1', status: 'running' }));
+      const cancelRun = vi.fn().mockReturnValue(true);
+      const app = createApi({
+        getAgents: async () => [makeAgent()],
+        store,
+        triggerRun,
+        cancelRun,
+      });
+
+      const res = await app.request('/runs/r1/cancel', { method: 'POST' });
+      expect(res.status).toBe(200);
+
+      const body = await res.json();
+      expect(body.status).toBe('cancelled');
+      expect(cancelRun).toHaveBeenCalledWith('r1');
+    });
+
+    it('returns 404 for unknown run', async () => {
+      const cancelRun = vi.fn().mockReturnValue(false);
+      const app = createApi({
+        getAgents: async () => [makeAgent()],
+        store,
+        triggerRun,
+        cancelRun,
+      });
+
+      const res = await app.request('/runs/nonexistent/cancel', { method: 'POST' });
+      expect(res.status).toBe(404);
+    });
+
+    it('returns 409 when run is not running', async () => {
+      store.add(makeStoredRun({ runId: 'r1', status: 'completed' }));
+      const cancelRun = vi.fn().mockReturnValue(false);
+      const app = createApi({
+        getAgents: async () => [makeAgent()],
+        store,
+        triggerRun,
+        cancelRun,
+      });
+
+      const res = await app.request('/runs/r1/cancel', { method: 'POST' });
+      expect(res.status).toBe(409);
     });
   });
 

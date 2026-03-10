@@ -9,12 +9,19 @@ final class ServerProcessManager {
 
     private var serverDirectory: String? {
         let candidates = [
+            bundledResourcePath,
             bundleAdjacentPath,
             "\(FileManager.default.homeDirectoryForCurrentUser.path)/Developer/saas-apps/agent-server/server-app",
         ]
         return candidates.compactMap { $0 }.first {
             FileManager.default.fileExists(atPath: "\($0)/dist/cli.js")
         }
+    }
+
+    private var bundledResourcePath: String? {
+        guard let resourcePath = Bundle.main.resourcePath else { return nil }
+        let candidate = (resourcePath as NSString).appendingPathComponent("server-app")
+        return FileManager.default.fileExists(atPath: "\(candidate)/dist/cli.js") ? candidate : nil
     }
 
     private var bundleAdjacentPath: String? {
@@ -64,12 +71,40 @@ final class ServerProcessManager {
         }
     }
 
+    private func ensureDependencies(in dir: String) {
+        let nodeModulesPath = "\(dir)/node_modules"
+        if FileManager.default.fileExists(atPath: nodeModulesPath) { return }
+
+        let packageJsonPath = "\(dir)/package.json"
+        guard FileManager.default.fileExists(atPath: packageJsonPath) else { return }
+
+        print("[ServerProcessManager] Installing dependencies...")
+        let install = Process()
+        install.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        install.arguments = ["npm", "install", "--production"]
+        install.currentDirectoryURL = URL(fileURLWithPath: dir)
+        install.environment = ProcessInfo.processInfo.environment
+
+        do {
+            try install.run()
+            install.waitUntilExit()
+            if install.terminationStatus == 0 {
+                print("[ServerProcessManager] Dependencies installed")
+            } else {
+                print("[ServerProcessManager] npm install failed with status \(install.terminationStatus)")
+            }
+        } catch {
+            print("[ServerProcessManager] Failed to install dependencies: \(error)")
+        }
+    }
+
     private func launchServer() {
         guard let dir = serverDirectory else {
             print("[ServerProcessManager] Could not find agent-server directory with dist/cli.js")
             return
         }
 
+        ensureDependencies(in: dir)
         let cliPath = "\(dir)/dist/cli.js"
 
         let process = Process()
@@ -92,6 +127,9 @@ final class ServerProcessManager {
             "/bin",
             environment["PATH"] ?? "",
         ].joined(separator: ":")
+
+        // Strip env vars that prevent the Agent SDK from spawning Claude Code
+        environment.removeValue(forKey: "CLAUDECODE")
 
         process.environment = environment
 

@@ -1,7 +1,7 @@
 export { AgentConfigSchema, PermissionsSchema, parseAgentYaml, parseAgentFile, type AgentConfig, type Permissions } from './agents/config.js';
 export { matchesPattern, isToolAllowed, buildCanUseTool } from './execution/permissions.js';
 export { discoverAgents } from './agents/discovery.js';
-export { shouldRun, getNextRun } from './agents/scheduler.js';
+export { shouldRun, getNextRun, hasMissedRun } from './agents/scheduler.js';
 export { acquireLock, releaseLock, isLocked } from './execution/lockfile.js';
 export { TelemetryReporter, type StatusEvent, type StatusState } from './reporting/reporter.js';
 export { parseStreamEvent, summarizeTurn, extractToolMetadata, type ExecutionResult, type ClaudeStreamEvent } from './execution/executor.js';
