@@ -15,6 +15,7 @@ describe('loadConfig', () => {
     expect(config.port).toBe(47821);
     expect(config.panelUrl).toBeUndefined();
     expect(config.panelApiKey).toBeUndefined();
+    expect(config.apiKey).toBeUndefined();
   });
 
   it('reads from environment variables', () => {
@@ -23,6 +24,7 @@ describe('loadConfig', () => {
       AGENT_SERVER_LOCK_DIR: '/tmp/locks',
       AGENT_SERVER_PANEL_URL: 'https://panel.example.com',
       AGENT_SERVER_PANEL_API_KEY: 'ap_live_test',
+      AGENT_SERVER_API_KEY: 'local-secret',
       AGENT_SERVER_CHECK_INTERVAL_MS: '5000',
       AGENT_SERVER_PORT: '8080',
     });
@@ -30,6 +32,7 @@ describe('loadConfig', () => {
     expect(config.lockDir).toBe('/tmp/locks');
     expect(config.panelUrl).toBe('https://panel.example.com');
     expect(config.panelApiKey).toBe('ap_live_test');
+    expect(config.apiKey).toBe('local-secret');
     expect(config.checkIntervalMs).toBe(5000);
     expect(config.port).toBe(8080);
   });

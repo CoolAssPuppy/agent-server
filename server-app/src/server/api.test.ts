@@ -22,6 +22,17 @@ describe('API routes', () => {
     });
   }
 
+  function createSecuredApp(apiKey = 'secret-key') {
+    const agents = [makeAgent(), makeAgent({ id: 'other-agent', name: 'Other' })];
+    return createApi({
+      getAgents: async () => agents,
+      store,
+      triggerRun,
+      cancelRun: vi.fn().mockReturnValue(false),
+      apiKey,
+    });
+  }
+
   describe('GET /agents', () => {
     it('returns all agents', async () => {
       const app = createApp();
@@ -72,6 +83,28 @@ describe('API routes', () => {
       });
       expect(res.status).toBe(202);
       expect(triggerRun).toHaveBeenCalledWith('test-agent', 'Bougainville tonight for 4');
+    });
+
+    it('rejects invalid request body', async () => {
+      const app = createApp();
+      const res = await app.request('/agents/test-agent/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ with: 123 }),
+      });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects invalid JSON request body', async () => {
+      const app = createApp();
+      const res = await app.request('/agents/test-agent/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{bad',
+      });
+
+      expect(res.status).toBe(400);
     });
 
     it('returns 404 for unknown agent', async () => {
@@ -182,6 +215,40 @@ describe('API routes', () => {
 
       const body = await res.json();
       expect(body.status).toBe('ok');
+    });
+  });
+
+  describe('API key authentication', () => {
+    it('rejects unauthorized requests when api key is configured', async () => {
+      const app = createSecuredApp();
+      const res = await app.request('/agents');
+
+      expect(res.status).toBe(401);
+    });
+
+    it('accepts x-agent-server-key header', async () => {
+      const app = createSecuredApp();
+      const res = await app.request('/agents', {
+        headers: { 'x-agent-server-key': 'secret-key' },
+      });
+
+      expect(res.status).toBe(200);
+    });
+
+    it('accepts bearer auth header', async () => {
+      const app = createSecuredApp();
+      const res = await app.request('/agents', {
+        headers: { Authorization: 'Bearer secret-key' },
+      });
+
+      expect(res.status).toBe(200);
+    });
+
+    it('keeps health endpoint public', async () => {
+      const app = createSecuredApp();
+      const res = await app.request('/health');
+
+      expect(res.status).toBe(200);
     });
   });
 });

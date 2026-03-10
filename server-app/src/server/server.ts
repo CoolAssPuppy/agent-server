@@ -313,6 +313,7 @@ export function startServer(config: ServerConfig): ServerInstance {
     store,
     triggerRun,
     cancelRun,
+    apiKey: config.apiKey,
   });
 
   const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });

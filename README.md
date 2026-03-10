@@ -459,6 +459,11 @@ wscat -c ws://localhost:47821/ws
 
 The trigger endpoint returns `202 Accepted` with `{ "runId": "...", "agentId": "..." }`. The run executes asynchronously. Poll `/runs/{runId}` for status, or connect to the WebSocket for real-time events.
 
+If you set `AGENT_SERVER_API_KEY`, all API endpoints except `/health` require authentication via one of these headers:
+
+- `x-agent-server-key: <your-key>`
+- `Authorization: Bearer <your-key>`
+
 ### Cancelling runs
 
 `POST /runs/:id/cancel` aborts a running agent by calling `AbortController.abort()` on the underlying SDK process. Returns `200` with `{ "status": "cancelled", "runId": "..." }` on success, `409` if the run is not in `running` state.
@@ -491,6 +496,7 @@ The CLI loads `~/.agent-server/.env` at startup. Shell environment variables tak
 | `AGENT_SERVER_CHECK_INTERVAL_MS` | `60000` | How often to check schedules (ms) |
 | `AGENT_SERVER_PANEL_URL` | | Telemetry endpoint base URL (for Agent Panel) |
 | `AGENT_SERVER_PANEL_API_KEY` | | API key for telemetry |
+| `AGENT_SERVER_API_KEY` | | Optional API key for protecting local HTTP endpoints (except `/health`) |
 | `AGENT_SERVER_HEARTBEAT_MS` | `30000` | Heartbeat interval during runs (ms) |
 | `AGENT_SERVER_PORT` | `47821` | HTTP API port |
 | `AGENT_SERVER_TELEGRAM_BOT_TOKEN` | | Telegram bot token for interactive agents and notifications |
