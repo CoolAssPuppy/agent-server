@@ -7,6 +7,117 @@ function escapeHtml(text: string): string {
     .replace(/>/g, '&gt;');
 }
 
+export function markdownToTelegramHtml(md: string): string {
+  const lines = md.split('\n');
+  const output: string[] = [];
+  let inCodeBlock = false;
+  let codeBlockLines: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith('```')) {
+      if (inCodeBlock) {
+        output.push(`<pre>${escapeHtml(codeBlockLines.join('\n'))}</pre>`);
+        codeBlockLines = [];
+        inCodeBlock = false;
+      } else {
+        inCodeBlock = true;
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      codeBlockLines.push(line);
+      continue;
+    }
+
+    if (trimmed === '') {
+      output.push('');
+      continue;
+    }
+
+    // Headings -> bold
+    const headingMatch = trimmed.match(/^#{1,6}\s+(.+)$/);
+    if (headingMatch) {
+      output.push(`<b>${inlineToHtml(headingMatch[1])}</b>`);
+      continue;
+    }
+
+    // Horizontal rules
+    if (/^[-*_]{3,}$/.test(trimmed)) {
+      output.push('\u2500\u2500\u2500');
+      continue;
+    }
+
+    // Bullet lists
+    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      const content = trimmed.slice(2);
+      output.push(`  \u2022 ${inlineToHtml(content)}`);
+      continue;
+    }
+
+    // Numbered lists
+    const numMatch = trimmed.match(/^(\d+)\.\s+(.+)$/);
+    if (numMatch) {
+      output.push(`  ${numMatch[1]}. ${inlineToHtml(numMatch[2])}`);
+      continue;
+    }
+
+    // Blockquotes
+    if (trimmed.startsWith('> ')) {
+      const content = trimmed.slice(2);
+      output.push(`\u2502 <i>${inlineToHtml(content)}</i>`);
+      continue;
+    }
+
+    // Table rows -> monospaced
+    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+      if (trimmed.includes('---')) continue; // skip separator rows
+      const cells = trimmed.slice(1, -1).split('|').map(c => c.trim());
+      output.push(`<code>${escapeHtml(cells.join(' | '))}</code>`);
+      continue;
+    }
+
+    // Regular paragraph
+    output.push(inlineToHtml(trimmed));
+  }
+
+  // Close unclosed code block
+  if (inCodeBlock && codeBlockLines.length > 0) {
+    output.push(`<pre>${escapeHtml(codeBlockLines.join('\n'))}</pre>`);
+  }
+
+  return collapseBlankLines(output.join('\n'));
+}
+
+function inlineToHtml(text: string): string {
+  let result = escapeHtml(text);
+
+  // Bold: **text** or __text__
+  result = result.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  result = result.replace(/__(.+?)__/g, '<b>$1</b>');
+
+  // Italic: *text* or _text_ (but not inside words with underscores)
+  result = result.replace(/(?<!\w)\*([^*]+?)\*(?!\w)/g, '<i>$1</i>');
+  result = result.replace(/(?<!\w)_([^_]+?)_(?!\w)/g, '<i>$1</i>');
+
+  // Inline code: `text`
+  result = result.replace(/`([^`]+?)`/g, '<code>$1</code>');
+
+  // Strikethrough: ~~text~~
+  result = result.replace(/~~(.+?)~~/g, '<s>$1</s>');
+
+  // Links: [text](url)
+  result = result.replace(/\[([^\]]+?)\]\(([^)]+?)\)/g, '<a href="$2">$1</a>');
+
+  return result;
+}
+
+function collapseBlankLines(text: string): string {
+  return text.replace(/\n{3,}/g, '\n\n');
+}
+
 function formatDuration(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
   if (totalSeconds < 60) return `${totalSeconds}s`;
@@ -62,7 +173,7 @@ export function formatTelegramNotification(data: NotificationData): string {
     }
 
     if (data.summary) {
-      lines.push(escapeHtml(data.summary));
+      lines.push(markdownToTelegramHtml(data.summary));
     }
 
     if (data.filesWritten && data.filesWritten.length > 0 && data.filesWritten.length <= 5) {
