@@ -368,8 +368,9 @@ xcodebuild -project AgentServer.xcodeproj -scheme AgentServer build
 
 ## Future work
 
-- WebSocket streaming for live run progress
-- Cancel running agents via API
-- Wire triggers into server run completion flow
-- Sleep/wake catch-up logic for LaunchAgent
-- Expired interaction cleanup in Telegram (edit message to show "Expired")
+- **WebSocket streaming for live run progress**: Replace HTTP polling with a WebSocket endpoint so the macOS app and Agent Panel can show real-time turn-by-turn progress as agents run, instead of polling `/runs/:id` on a timer.
+- **Cancel running agents via API**: Add a `DELETE /runs/:id` or `POST /runs/:id/cancel` endpoint that sends SIGTERM to the running Agent SDK process and releases the lock, so users can stop a runaway agent without killing the server.
+- **Wire triggers into server run completion flow**: The `evaluateTriggers()` function exists but the server daemon does not yet call it after a run completes. Hook it into the post-run flow in `server.ts` so `on_complete` and `on_failure` agent chains actually fire in server mode (they work in CLI `run` mode).
+- **Sleep/wake catch-up logic for LaunchAgent**: When macOS sleeps and wakes, scheduled agents whose cron windows were missed during sleep are silently skipped. Detect wake events and evaluate whether any agents should have run during the sleep window, then trigger them.
+- **Expired interaction cleanup in Telegram**: When an interaction times out, the inline keyboard buttons in Telegram still appear clickable. Edit the original message to replace the buttons with an "Expired" label so users do not tap stale options.
+- **Bundle server with macOS app**: Currently the macOS app expects the Node.js server to be pre-installed on disk. For standalone distribution, bundle `server-app/dist/` inside the app's Resources and update `ServerProcessManager` to find `cli.js` within `Bundle.main.resourcePath`.
