@@ -8,7 +8,7 @@ struct SettingsView: View {
         TabView(selection: $selectedTab) {
             AgentsListView(monitor: monitor)
                 .tabItem {
-                    Label("Agents", systemImage: "cpu")
+                    Label("Agents", systemImage: "person.2")
                 }
                 .tag(0)
 

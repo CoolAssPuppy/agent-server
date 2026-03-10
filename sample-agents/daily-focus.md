@@ -126,15 +126,17 @@ Database URL: `https://www.notion.so/supabase/c3e5004b775f835cbedc0199b4069167`
 ```
 # Daily Focus - [Month Day, Year]
 
-1. [Most important item] - [brief context, 1 line]
-2. [Second item] - [brief context]
-3. [Third item] - [brief context]
+1. [Most important item] - [brief context, 1 line] - [Linear Initiative link if applicable]
+2. [Second item] - [brief context] - [Linear Initiative link if applicable]
+3. [Third item] - [brief context] - [Linear Initiative link if applicable]
 ...
 
 ## Heads up
 - [Any upcoming deadlines in the next 48 hours]
 - [Any items that are blocked and need escalation]
 ```
+
+Where a focus item relates to a Linear Initiative, link to that Initiative. If the item maps to a Project or Issue that belongs to an Initiative, link to the Initiative, not the individual Issue.
 
 Rules:
 - Maximum 10 focus items

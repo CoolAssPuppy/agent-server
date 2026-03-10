@@ -11,9 +11,13 @@ struct EnvEditorView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if envFile.entries.isEmpty {
-                Text("No .env file found at ~/.agent-server/.env")
-                    .foregroundStyle(.secondary)
-                    .font(.callout)
+                HStack(spacing: 8) {
+                    Image(systemName: "doc.badge.plus")
+                        .foregroundStyle(.secondary)
+                    Text("No .env file found at ~/.agent-server/.env")
+                        .foregroundStyle(.secondary)
+                        .font(.callout)
+                }
             } else {
                 ForEach($envFile.entries) { $entry in
                     if !entry.isComment {
@@ -33,9 +37,13 @@ struct EnvEditorView: View {
                 Spacer()
 
                 if let saveError {
-                    Text(saveError)
-                        .foregroundStyle(.red)
-                        .font(.caption)
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.red)
+                        Text(saveError)
+                            .foregroundStyle(.red)
+                            .font(.caption)
+                    }
                 }
 
                 Button("Save") {
@@ -51,25 +59,32 @@ struct EnvEditorView: View {
     @ViewBuilder
     private func envRow(entry: Binding<EnvEntry>) -> some View {
         HStack(spacing: 8) {
-            Text(entry.wrappedValue.key)
-                .font(.system(.body, design: .monospaced))
-                .frame(width: labelWidth, alignment: .leading)
-                .lineLimit(1)
-                .truncationMode(.middle)
+            HStack(spacing: 6) {
+                Image(systemName: iconForKey(entry.wrappedValue.key))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 14)
+
+                Text(entry.wrappedValue.key)
+                    .font(.system(.body, design: .monospaced))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .frame(width: labelWidth, alignment: .leading)
 
             if entry.wrappedValue.isURL {
-                TextField("Value", text: entry.value)
+                TextField("", text: entry.value)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: fieldWidth)
                     .textSelection(.enabled)
                     .onChange(of: entry.wrappedValue.value) { hasChanges = true }
             } else if entry.wrappedValue.isSensitive {
-                SecureField("Value", text: entry.value)
+                SecureField("", text: entry.value)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: fieldWidth)
                     .onChange(of: entry.wrappedValue.value) { hasChanges = true }
             } else {
-                TextField("Value", text: entry.value)
+                TextField("", text: entry.value)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: fieldWidth)
                     .onChange(of: entry.wrappedValue.value) { hasChanges = true }
@@ -82,6 +97,29 @@ struct EnvEditorView: View {
             }
             .buttonStyle(.borderless)
         }
+    }
+
+    private func iconForKey(_ key: String) -> String {
+        let k = key.uppercased()
+        if k.contains("TOKEN") || k.contains("API_KEY") || k.contains("SECRET") {
+            return "key.fill"
+        }
+        if k.contains("URL") || k.contains("HOST") || k.contains("ENDPOINT") {
+            return "link"
+        }
+        if k.contains("PORT") {
+            return "network"
+        }
+        if k.contains("DIR") || k.contains("PATH") {
+            return "folder.fill"
+        }
+        if k.contains("INTERVAL") || k.contains("TIMEOUT") || k.contains("HEARTBEAT") {
+            return "clock"
+        }
+        if k.contains("TELEGRAM") {
+            return "paperplane.fill"
+        }
+        return "gearshape"
     }
 
     private func addEntry() {

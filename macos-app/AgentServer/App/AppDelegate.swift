@@ -43,25 +43,11 @@ private extension AppDelegate {
     }
 
     func makeMenuBarIcon(active: Bool) -> NSImage? {
-        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
-        guard let symbol = NSImage(systemSymbolName: "cpu", accessibilityDescription: "Agent Server") else {
-            return nil
-        }
-        let sized = symbol.withSymbolConfiguration(config) ?? symbol
-
-        if active {
-            let tinted = NSImage(size: sized.size, flipped: false) { rect in
-                NSColor(red: 0.988, green: 0.871, blue: 0.035, alpha: 1.0).set()
-                sized.draw(in: rect)
-                rect.fill(using: .sourceAtop)
-                return true
-            }
-            tinted.isTemplate = false
-            return tinted
-        }
-
-        sized.isTemplate = true
-        return sized
+        let name = active ? "MenuBarIconActive" : "MenuBarIcon"
+        guard let image = NSImage(named: name) else { return nil }
+        image.size = NSSize(width: 22, height: 22)
+        image.isTemplate = !active
+        return image
     }
 
     func subscribeToUpdates() {

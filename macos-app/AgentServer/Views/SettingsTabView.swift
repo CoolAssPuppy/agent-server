@@ -14,11 +14,23 @@ struct SettingsTabView: View {
                         Text("Server status")
                         Spacer()
                         HStack(spacing: 6) {
-                            Circle()
-                                .fill(monitor.isServerReachable ? Color.green : Color.red)
-                                .frame(width: 8, height: 8)
+                            Image(systemName: monitor.isServerReachable
+                                  ? "checkmark.circle.fill"
+                                  : "xmark.circle.fill")
+                                .foregroundStyle(monitor.isServerReachable ? .green : .red)
+                                .font(.body)
                             Text(monitor.isServerReachable ? "Running" : "Offline")
                                 .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    if monitor.isServerReachable {
+                        HStack {
+                            Text("Agents loaded")
+                            Spacer()
+                            Text("\(monitor.agents.count)")
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
                         }
                     }
                 }

@@ -70,9 +70,24 @@ private struct AgentRow: View {
     let isRunning: Bool
     let onRun: () -> Void
 
+    private var kindColor: Color {
+        let c = agent.kind.color
+        return Color(red: c.r, green: c.g, blue: c.b)
+    }
+
     var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(kindColor.opacity(0.15))
+                    .frame(width: 36, height: 36)
+
+                Image(systemName: agent.kind.icon)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(kindColor)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text(agent.name)
                         .font(.headline)
@@ -80,6 +95,7 @@ private struct AgentRow: View {
                     if !agent.enabled {
                         Text("Disabled")
                             .font(.caption2)
+                            .foregroundStyle(.secondary)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(.quaternary)
@@ -94,22 +110,44 @@ private struct AgentRow: View {
                         .lineLimit(1)
                 }
 
-                Text(agent.scheduleDisplay)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                HStack(spacing: 4) {
+                    Text(agent.kind.label)
+                        .font(.caption)
+                        .foregroundStyle(kindColor)
+
+                    if agent.isScheduled {
+                        Text("--")
+                            .font(.caption)
+                            .foregroundStyle(.quaternary)
+                        Text(agent.scheduleDisplay)
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
             }
 
             Spacer()
 
             if isRunning {
-                ProgressView()
-                    .controlSize(.small)
-            } else {
-                Button("Run") {
-                    onRun()
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Running")
+                        .font(.caption)
+                        .foregroundStyle(kindColor)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+            } else {
+                Button {
+                    onRun()
+                } label: {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white)
+                        .frame(width: 28, height: 28)
+                        .background(agent.enabled ? kindColor : Color.gray)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
                 .disabled(!agent.enabled)
             }
         }
