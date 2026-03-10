@@ -10,16 +10,35 @@ struct AgentDetailView: View {
     @ObservedObject var monitor: StatusMonitor
     @State private var selectedTab: AgentDetailTab = .definition
 
+    private var agent: Agent? {
+        monitor.agents.first { $0.id == agentId }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            tabPicker
+            headerBar
             Divider()
             tabContent
         }
     }
 
-    private var tabPicker: some View {
-        HStack {
+    private var headerBar: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(agent?.name ?? agentId)
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                    .lineLimit(1)
+
+                if let description = agent?.description, !description.isEmpty {
+                    Text(description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+
             Picker("", selection: $selectedTab) {
                 ForEach(AgentDetailTab.allCases, id: \.self) { tab in
                     Text(tab.rawValue).tag(tab)
@@ -27,8 +46,6 @@ struct AgentDetailView: View {
             }
             .pickerStyle(.segmented)
             .frame(width: 220)
-
-            Spacer()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

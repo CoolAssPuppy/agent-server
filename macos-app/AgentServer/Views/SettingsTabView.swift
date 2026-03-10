@@ -14,7 +14,7 @@ struct SettingsTabView: View {
                 Section("General") {
                     Toggle("Launch at login", isOn: $launchManager.isEnabled)
 
-                    Toggle("Resume missed schedules after sleep", isOn: $catchUpEnabled)
+                    Toggle("Resume scheduled Agents after wake", isOn: $catchUpEnabled)
                         .onChange(of: catchUpEnabled) { _, newValue in
                             updateCatchUpSetting(newValue)
                         }
