@@ -132,7 +132,7 @@ export class TelemetryReporter {
     };
 
     try {
-      await this.config.fetch(this.config.endpoint, {
+      const response = await this.config.fetch(this.config.endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -140,8 +140,12 @@ export class TelemetryReporter {
         },
         body: JSON.stringify(body),
       });
-    } catch {
-      // Telemetry failure should not crash the agent
+      if (!response.ok) {
+        console.error(`[telemetry] POST ${this.config.endpoint} returned ${response.status}: ${response.statusText}`);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[telemetry] Failed to send ${event.state} event for "${this.config.agentName}": ${message}`);
     }
   }
 }

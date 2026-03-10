@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AgentsListView: View {
     @ObservedObject var monitor: StatusMonitor
+    var onOpenSettings: (() -> Void)?
     @State private var selectedAgentId: String?
     @State private var showNewAgentSheet = false
 
@@ -30,6 +31,7 @@ struct AgentsListView: View {
             AgentRow(agent: agent, isRunning: isRunning(agent))
                 .tag(agent.id)
         }
+        .listStyle(.sidebar)
         .overlay {
             if !monitor.isServerReachable {
                 ContentUnavailableView(
@@ -44,6 +46,28 @@ struct AgentsListView: View {
                     description: Text("Create an agent to get started.")
                 )
             }
+        }
+        .safeAreaInset(edge: .top) {
+            HStack {
+                Text("Agents")
+                    .font(.title)
+                    .fontWeight(.bold)
+                Spacer()
+                if let onOpenSettings {
+                    Button {
+                        onOpenSettings()
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 16))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Settings")
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 10)
+            .padding(.bottom, 4)
         }
         .safeAreaInset(edge: .bottom) {
             HStack {
@@ -83,7 +107,7 @@ struct AgentsListView: View {
     @ViewBuilder
     private var detail: some View {
         if let selectedAgentId {
-            AgentEditorView(agentId: selectedAgentId, monitor: monitor)
+            AgentDetailView(agentId: selectedAgentId, monitor: monitor)
                 .id(selectedAgentId)
         } else {
             ContentUnavailableView(
@@ -98,6 +122,8 @@ struct AgentsListView: View {
         monitor.activeRuns.contains { $0.agentId == agent.id }
     }
 }
+
+// MARK: - Agent row
 
 private struct AgentRow: View {
     let agent: Agent
@@ -167,18 +193,20 @@ private struct AgentRow: View {
     }
 }
 
-private struct PulsingDot: View {
+// MARK: - Pulsing dot
+
+struct PulsingDot: View {
     let color: Color
     @State private var isPulsing = false
 
     var body: some View {
         Circle()
             .fill(color)
-            .frame(width: 10, height: 10)
-            .shadow(color: color.opacity(isPulsing ? 0.8 : 0.3), radius: isPulsing ? 6 : 2)
-            .scaleEffect(isPulsing ? 1.15 : 1.0)
+            .frame(width: 8, height: 8)
+            .shadow(color: color.opacity(isPulsing ? 0.7 : 0.2), radius: isPulsing ? 5 : 1)
+            .opacity(isPulsing ? 1.0 : 0.6)
             .animation(
-                .easeInOut(duration: 1.0).repeatForever(autoreverses: true),
+                .easeInOut(duration: 1.2).repeatForever(autoreverses: true),
                 value: isPulsing
             )
             .onAppear { isPulsing = true }

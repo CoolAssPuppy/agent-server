@@ -1,0 +1,88 @@
+import Foundation
+
+actor PanelClient {
+    private let baseURL: URL
+    private let apiKey: String
+    private let session: URLSession
+    private let decoder: JSONDecoder
+
+    init?(panelURL: String, apiKey: String) {
+        guard !panelURL.isEmpty, !apiKey.isEmpty,
+              let url = URL(string: panelURL) else {
+            return nil
+        }
+        self.baseURL = url
+        self.apiKey = apiKey
+
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 15
+        self.session = URLSession(configuration: config)
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let dateString = try container.decode(String.self)
+
+            let iso = ISO8601DateFormatter()
+            iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = iso.date(from: dateString) { return date }
+
+            iso.formatOptions = [.withInternetDateTime]
+            if let date = iso.date(from: dateString) { return date }
+
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Cannot decode date: \(dateString)"
+            )
+        }
+        self.decoder = decoder
+    }
+
+    static func fromEnv() -> PanelClient? {
+        let env = EnvFile.load()
+        let url = env.entries.first { $0.key == "AGENT_SERVER_PANEL_URL" }?.value ?? ""
+        let key = env.entries.first { $0.key == "AGENT_SERVER_PANEL_API_KEY" }?.value ?? ""
+        return PanelClient(panelURL: url, apiKey: key)
+    }
+
+    func fetchLogs(runId: String) async throws -> [PanelLog] {
+        let url = baseURL.appendingPathComponent("/api/runs/\(runId)/logs")
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response)
+
+        let parsed = try decoder.decode(PanelLogsResponse.self, from: data)
+        return parsed.logs
+    }
+
+    func fetchRuns(agent: String? = nil, limit: Int = 50) async throws -> [PanelRun] {
+        var components = URLComponents(url: baseURL.appendingPathComponent("/api/runs"), resolvingAgainstBaseURL: false)!
+        var queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "limit", value: String(limit)),
+        ]
+        if let agent {
+            queryItems.append(URLQueryItem(name: "agent", value: agent))
+        }
+        components.queryItems = queryItems
+
+        var request = URLRequest(url: components.url!)
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response)
+
+        let parsed = try decoder.decode(PanelRunsResponse.self, from: data)
+        return parsed.runs
+    }
+
+    private func validateResponse(_ response: URLResponse) throws {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw ClientError.invalidResponse
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw ClientError.httpError(statusCode: httpResponse.statusCode)
+        }
+    }
+}

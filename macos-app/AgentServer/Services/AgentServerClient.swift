@@ -29,6 +29,15 @@ actor AgentServerClient {
         try await get("/runs")
     }
 
+    func runsForAgent(id: String) async throws -> [Run] {
+        let url = baseURL.appendingPathComponent("/runs")
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+        components.queryItems = [URLQueryItem(name: "agent_id", value: id)]
+        let (data, response) = try await session.data(from: components.url!)
+        try validateResponse(response)
+        return try decoder.decode([Run].self, from: data)
+    }
+
     func run(id: String) async throws -> Run {
         try await get("/runs/\(id)")
     }

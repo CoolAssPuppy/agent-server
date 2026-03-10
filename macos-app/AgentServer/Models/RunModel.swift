@@ -13,7 +13,17 @@ struct Run: Codable, Identifiable {
     let error: String?
     let turnCount: Int
     let toolsUsed: [String]
+    let filesRead: [String]
+    let filesWritten: [String]
+    let commandsRun: [String]
     let progressMessages: [String]
+
+    let trigger: String?
+    let model: String?
+    let inputTokens: Int?
+    let outputTokens: Int?
+    let estimatedCostUsd: Double?
+    let durationMs: Int?
 
     var isActive: Bool {
         status == .running
@@ -22,6 +32,19 @@ struct Run: Codable, Identifiable {
     var elapsed: TimeInterval? {
         guard status == .running else { return nil }
         return Date().timeIntervalSince(startedAt)
+    }
+
+    var duration: TimeInterval? {
+        if let durationMs {
+            return TimeInterval(durationMs) / 1000.0
+        }
+        guard let completedAt else { return elapsed }
+        return completedAt.timeIntervalSince(startedAt)
+    }
+
+    var totalTokens: Int? {
+        guard let inputTokens, let outputTokens else { return nil }
+        return inputTokens + outputTokens
     }
 }
 

@@ -2,22 +2,46 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var monitor: StatusMonitor
-    @State private var selectedTab = 0
+    @State private var showSettings = false
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            AgentsListView(monitor: monitor)
-                .tabItem {
-                    Label("Agents", systemImage: "person.2")
+        AgentsListView(monitor: monitor, onOpenSettings: { showSettings = true })
+            .sheet(isPresented: $showSettings) {
+                SettingsSheet(monitor: monitor, isPresented: $showSettings)
+            }
+            .frame(minWidth: 900, minHeight: 550)
+    }
+}
+
+private struct SettingsSheet: View {
+    @ObservedObject var monitor: StatusMonitor
+    @Binding var isPresented: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Settings")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                Spacer()
+                Button {
+                    isPresented = false
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
                 }
-                .tag(0)
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+            .padding(.bottom, 12)
+
+            Divider()
 
             SettingsTabView(monitor: monitor)
-                .tabItem {
-                    Label("Settings", systemImage: "gear")
-                }
-                .tag(1)
+                .padding(.horizontal, 8)
         }
-        .frame(minWidth: 800, minHeight: 500)
+        .frame(width: 540, height: 520)
     }
 }
