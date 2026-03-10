@@ -54,7 +54,14 @@ export class FileWatcher {
   }
 
   private watchPath(config: FileWatchConfig): void {
-    const isDirectory = statSync(config.path).isDirectory();
+    let isDirectory = false;
+    try {
+      isDirectory = statSync(config.path).isDirectory();
+    } catch {
+      console.warn(`[file-watch] Skipping unreadable watch path: ${config.path}`);
+      return;
+    }
+
     const globPattern = config.glob && isDirectory ? compileGlob(config.glob) : null;
 
     const fsWatcher = watch(config.path, { recursive: false }, (_event, filename) => {
@@ -65,6 +72,10 @@ export class FileWatcher {
       if (globPattern && !globPattern.test(basename(fullPath))) return;
 
       this.debouncedNotify(config.agentId, fullPath);
+    });
+
+    fsWatcher.on('error', (err) => {
+      console.error(`[file-watch] Watcher error for ${config.path}: ${err}`);
     });
 
     this.watchers.push(fsWatcher);

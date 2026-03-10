@@ -5,6 +5,7 @@ import type { InteractionRequest } from '../interaction/schema.js';
 import type { NotificationData } from '../interaction/notification.js';
 import type { Channel, ChannelReply, ReplyCallback } from './channel.js';
 import { formatTelegramNotification } from './telegram-formatter.js';
+import { sanitizeText } from '../server/security-utils.js';
 
 type TelegramApi = {
   sendMessage: (chatId: number, text: string, options?: Record<string, unknown>) => Promise<{ message_id: number }>;
@@ -20,6 +21,7 @@ type TelegramChannelOptions = {
 };
 
 const CALLBACK_SEPARATOR = ':';
+const MAX_TELEGRAM_TEXT_LENGTH = 2_000;
 
 export function encodeCallbackData(interactionId: string, optionIndex: number): string {
   return `${optionIndex}${CALLBACK_SEPARATOR}${interactionId}`;
@@ -33,7 +35,7 @@ export function parseCallbackData(data: string): { interactionId: string; option
   const interactionId = data.slice(sepIndex + 1);
   const optionIndex = parseInt(indexStr, 10);
 
-  if (isNaN(optionIndex) || !interactionId) return undefined;
+  if (Number.isNaN(optionIndex) || optionIndex < 0 || optionIndex > 100 || !interactionId) return undefined;
 
   return { interactionId, optionIndex };
 }
@@ -56,7 +58,7 @@ export function formatTelegramMessage(request: InteractionRequest): string {
     lines.push('(or type a reply)');
   }
 
-  return lines.join('\n');
+  return sanitizeText(lines.join('\n'), MAX_TELEGRAM_TEXT_LENGTH);
 }
 
 export function buildInlineKeyboard(
@@ -70,7 +72,7 @@ export function buildInlineKeyboard(
   for (let i = 0; i < request.options.length; i++) {
     const opt = request.options[i];
     const callbackData = encodeCallbackData(interactionId, i);
-    keyboard.text(opt.label, callbackData);
+    keyboard.text(sanitizeText(opt.label, 64), callbackData);
     if (i < request.options.length - 1) {
       keyboard.row();
     }
@@ -126,13 +128,20 @@ export class TelegramChannel implements Channel {
   handleIncomingMessage(text: string): void {
     if (this.pendingInteractions.size > 0) return;
 
+    const safeText = sanitizeText(text, MAX_TELEGRAM_TEXT_LENGTH);
+    if (!safeText) return;
+
     for (const cb of this.messageCallbacks) {
-      cb(text);
+      cb(safeText);
     }
   }
 
   setChatId(chatId: number): void {
     this.chatId = chatId;
+  }
+
+  getChatId(): number | undefined {
+    return this.chatId;
   }
 
   private hasChatId(): boolean {
@@ -146,12 +155,12 @@ export class TelegramChannel implements Channel {
   async notify(data: NotificationData): Promise<void> {
     if (!this.hasChatId()) return;
     const html = formatTelegramNotification(data);
-    await this.api.sendMessage(this.chatId as number, html, { parse_mode: 'HTML' });
+    await this.api.sendMessage(this.chatId as number, sanitizeText(html, MAX_TELEGRAM_TEXT_LENGTH), { parse_mode: 'HTML' });
   }
 
   async notifyText(message: string): Promise<void> {
     if (!this.hasChatId()) return;
-    await this.api.sendMessage(this.chatId as number, message);
+    await this.api.sendMessage(this.chatId as number, sanitizeText(message, MAX_TELEGRAM_TEXT_LENGTH));
   }
 
   async send(interactionId: string, request: InteractionRequest): Promise<void> {
@@ -179,7 +188,7 @@ export class TelegramChannel implements Channel {
     if (!option) return;
 
     this.pendingInteractions.delete(interactionId);
-    const reply: ChannelReply = { interactionId, selectedValue: option.value };
+    const reply: ChannelReply = { interactionId, selectedValue: sanitizeText(option.value, 500) };
     for (const cb of this.callbacks) {
       cb(reply);
     }
@@ -190,7 +199,7 @@ export class TelegramChannel implements Channel {
     if (!request) return;
 
     this.pendingInteractions.delete(interactionId);
-    const reply: ChannelReply = { interactionId, freeText: text };
+    const reply: ChannelReply = { interactionId, freeText: sanitizeText(text, 500) };
     for (const cb of this.callbacks) {
       cb(reply);
     }
@@ -219,7 +228,10 @@ export class TelegramChannel implements Channel {
 async function loadChatId(path: string): Promise<number | undefined> {
   try {
     const content = await readFile(path, 'utf-8');
-    const data = JSON.parse(content) as { chatId?: number };
+    const data = JSON.parse(content) as { chatId?: unknown };
+    if (typeof data.chatId !== 'number' || !Number.isSafeInteger(data.chatId) || data.chatId <= 0) {
+      return undefined;
+    }
     return data.chatId;
   } catch {
     return undefined;
@@ -228,7 +240,7 @@ async function loadChatId(path: string): Promise<number | undefined> {
 
 async function saveChatId(path: string, chatId: number): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, JSON.stringify({ chatId }), 'utf-8');
+  await writeFile(path, JSON.stringify({ chatId }), { encoding: 'utf-8', mode: 0o600 });
 }
 
 type CreateTelegramChannelOptions = {
@@ -255,12 +267,24 @@ export async function createTelegramChannel(
 
   bot.command('start', async (ctx) => {
     const newChatId = ctx.chat.id;
+    const existingChatId = channel.getChatId();
+    if (existingChatId && existingChatId !== newChatId) {
+      await ctx.reply('This bot is already linked to a different chat.');
+      return;
+    }
+
     channel.setChatId(newChatId);
     await saveChatId(options.chatIdPath, newChatId);
     await ctx.reply('Agent Server connected. You will receive interaction requests here.');
   });
 
   bot.on('callback_query:data', async (ctx) => {
+    const currentChatId = channel.getChatId();
+    if (!currentChatId || ctx.chat?.id !== currentChatId) {
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
     const data = ctx.callbackQuery.data;
     const parsed = parseCallbackData(data);
     if (!parsed) {
@@ -273,6 +297,11 @@ export async function createTelegramChannel(
   });
 
   bot.on('message:text', (ctx) => {
+    const currentChatId = channel.getChatId();
+    if (!currentChatId || ctx.chat.id !== currentChatId) {
+      return;
+    }
+
     const lastId = channel.getLastPendingInteractionId();
     if (lastId) {
       channel.handleTextReply(lastId, ctx.message.text);

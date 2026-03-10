@@ -147,6 +147,19 @@ Do alpha things.
     expect(agents[0].id).toBe('hello');
   });
 
+
+  it('skips duplicate agent IDs', async () => {
+    writeAgent(dir, 'a.yaml', VALID_AGENT);
+    writeAgent(dir, 'b.yaml', `
+id: hello
+name: Duplicate
+prompt: Duplicate
+`);
+
+    const agents = await discoverAgents(dir);
+    expect(agents).toHaveLength(1);
+    expect(agents[0].id).toBe('hello');
+  });
   afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
   });

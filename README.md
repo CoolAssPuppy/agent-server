@@ -421,7 +421,7 @@ agent-server list
 
 ### HTTP API
 
-The server exposes a local API on port 47821 (configurable via `AGENT_SERVER_PORT`):
+The server exposes a local API on `127.0.0.1:47821` by default (configurable via `AGENT_SERVER_HOST` and `AGENT_SERVER_PORT`):
 
 ```bash
 # List all agents
@@ -464,6 +464,14 @@ If you set `AGENT_SERVER_API_KEY`, all API endpoints except `/health` require au
 - `x-agent-server-key: <your-key>`
 - `Authorization: Bearer <your-key>`
 
+For safety, the server now refuses to bind to non-loopback hosts unless `AGENT_SERVER_API_KEY` is set.
+
+The server also applies a secure-enough-soon control set by default:
+- API rate limiting
+- temporary auth-failure lockouts
+- security response headers
+- run/event output redaction for common secret patterns
+
 ### Cancelling runs
 
 `POST /runs/:id/cancel` aborts a running agent by calling `AbortController.abort()` on the underlying SDK process. Returns `200` with `{ "status": "cancelled", "runId": "..." }` on success, `409` if the run is not in `running` state.
@@ -496,11 +504,16 @@ The CLI loads `~/.agent-server/.env` at startup. Shell environment variables tak
 | `AGENT_SERVER_CHECK_INTERVAL_MS` | `60000` | How often to check schedules (ms) |
 | `AGENT_SERVER_PANEL_URL` | | Telemetry endpoint base URL (for Agent Panel) |
 | `AGENT_SERVER_PANEL_API_KEY` | | API key for telemetry |
-| `AGENT_SERVER_API_KEY` | | Optional API key for protecting local HTTP endpoints (except `/health`) |
+| `AGENT_SERVER_API_KEY` | | API key (minimum 16 chars). Required when binding to non-loopback hosts. |
 | `AGENT_SERVER_HEARTBEAT_MS` | `30000` | Heartbeat interval during runs (ms) |
 | `AGENT_SERVER_PORT` | `47821` | HTTP API port |
+| `AGENT_SERVER_HOST` | `127.0.0.1` | HTTP bind host |
 | `AGENT_SERVER_TELEGRAM_BOT_TOKEN` | | Telegram bot token for interactive agents and notifications |
 | `AGENT_SERVER_CATCH_UP` | `false` | Resume missed scheduled agents after sleep/wake |
+| `AGENT_SERVER_MAX_CONCURRENT_RUNS` | `8` | Maximum concurrent running agents before new triggers are rejected |
+| `AGENT_SERVER_MAX_WS_CLIENTS` | `100` | Maximum simultaneous WebSocket clients |
+| `AGENT_SERVER_PROMPT_INJECTION_GUARD` | `true` | Wrap untrusted user context in guarded delimiters and policy instructions before execution |
+| `AGENT_SERVER_PROMPT_INJECTION_STRICT` | `false` | Reject suspicious user context (pattern-based) before execution |
 | `ANTHROPIC_API_KEY` | | Anthropic API key. Required for Telegram message routing (agent selection via Haiku). |
 
 Example `~/.agent-server/.env`:
@@ -536,6 +549,16 @@ The SDK process inherits the current environment, so Claude Code uses whatever M
   }
 }
 ```
+
+
+### Prompt-injection safeguards
+
+For Telegram/API-triggered context, Agent Server can wrap user-provided content in an explicit untrusted block and add policy text instructing the model to treat it as data, not instructions.
+
+- `AGENT_SERVER_PROMPT_INJECTION_GUARD=true` (default) enables this behavior.
+- `AGENT_SERVER_PROMPT_INJECTION_STRICT=true` rejects suspicious user context before execution (for high-security setups).
+
+Strict mode is opt-in because it may block legitimate automation prompts that contain security-like language.
 
 ### Telegram setup
 

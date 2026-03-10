@@ -218,6 +218,28 @@ describe('API routes', () => {
     });
   });
 
+
+  describe('security middleware', () => {
+    it('sets security headers', async () => {
+      const app = createApp();
+      const res = await app.request('/health');
+
+      expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+      expect(res.headers.get('x-frame-options')).toBe('DENY');
+      expect(res.headers.get('cache-control')).toBe('no-store');
+    });
+
+    it('requires json content type for non-empty trigger body', async () => {
+      const app = createApp();
+      const res = await app.request('/agents/test-agent/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: '{"with":"hello"}',
+      });
+
+      expect(res.status).toBe(415);
+    });
+  });
   describe('API key authentication', () => {
     it('rejects unauthorized requests when api key is configured', async () => {
       const app = createSecuredApp();

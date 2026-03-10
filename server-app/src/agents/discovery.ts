@@ -29,7 +29,18 @@ export async function discoverAgents(directory: string): Promise<AgentConfig[]> 
   const agentFiles = entries.filter(isAgentFile).sort();
   const results = await Promise.all(agentFiles.map((file) => tryParseAgent(directory, file)));
 
-  return results
-    .filter((agent): agent is AgentConfig => agent !== null)
+  const unique = new Map<string, AgentConfig>();
+  for (const agent of results) {
+    if (!agent) continue;
+
+    if (unique.has(agent.id)) {
+      console.warn(`Skipping duplicate agent id: ${agent.id}`);
+      continue;
+    }
+
+    unique.set(agent.id, agent);
+  }
+
+  return [...unique.values()]
     .sort((a, b) => a.id.localeCompare(b.id));
 }
