@@ -1,8 +1,23 @@
 # Agent Server
 
-A lightweight orchestration server that runs AI agents in the background using [Claude Code](https://docs.anthropic.com/en/docs/claude-code) as its execution engine.
+A lightweight orchestration server that runs AI agents in the background using [Claude Code](https://docs.anthropic.com/en/docs/claude-code) as its execution engine. Includes a native macOS menu bar app for monitoring and managing agents.
 
 Define agents as Markdown or YAML files with cron schedules. Agent Server discovers them, runs them on schedule, prevents concurrent execution with file locks, and reports telemetry in [A2A](https://google.github.io/A2A/) format. Agents can request user input via Telegram, send completion notifications, chain to other agents, and trigger on file changes.
+
+## Repository structure
+
+```
+agent-server/
+  server-app/              # Node.js server, CLI, and agent runtime
+    src/                   # TypeScript source
+    dist/                  # Compiled output
+    sample-agents/         # Example agent configs
+    package.json
+  macos-app/               # Native macOS menu bar app (Swift)
+    AgentServer/
+    project.yml            # xcodegen spec
+  specs/                   # Product specs and App Store metadata
+```
 
 ## How it works
 
@@ -24,6 +39,7 @@ This means agents inherit everything Claude Code provides: MCP server integratio
 ## Quick start
 
 ```bash
+cd server-app
 npm install
 npm run build
 
@@ -44,7 +60,7 @@ The `init` command creates `~/.agent-server/` with `agents/`, `locks/`, and `log
 
 ## Creating agents
 
-Agents live in `~/.agent-server/agents/`. Two formats are supported: Markdown with YAML frontmatter and pure YAML.
+Agents live in `~/.agent-server/agents/`. Two formats are supported: Markdown with YAML frontmatter and pure YAML. You can create and edit agents from the macOS app or with any text editor.
 
 ### Markdown with YAML frontmatter (recommended)
 
@@ -175,6 +191,7 @@ max_turns: 10
 Trigger it with:
 
 ```bash
+cd server-app
 npx tsx src/cli.ts run dependency-audit
 ```
 
@@ -259,7 +276,7 @@ When the user taps a button in Telegram (or types a number in the console), the 
 
 ```bash
 # This is what happens automatically:
-npx tsx src/cli.ts run restaurant-booker --with "Book Bougainville, 20:30, 4 guests"
+agent-server run restaurant-booker --with "Book Bougainville, 20:30, 4 guests"
 ```
 
 Interaction requests support:
@@ -361,7 +378,10 @@ On completion, the agent sends a message like `Agent "Weekly Report Generator" c
 
 ### CLI
 
+All CLI commands run from the `server-app/` directory:
+
 ```bash
+cd server-app
 npx tsx src/cli.ts init                          # Create ~/.agent-server/ with sample agent
 npx tsx src/cli.ts start                         # Start server (HTTP API + scheduler)
 npx tsx src/cli.ts run <agentId>                 # Run an agent immediately
@@ -517,6 +537,65 @@ agent-server uninstall
 
 The LaunchAgent runs `agent-server start` with `KeepAlive: true` (restarts if it crashes) and logs to `~/.agent-server/logs/`.
 
+## macOS menu bar app
+
+A native Swift app that lives in the menu bar for monitoring and controlling agents. No third-party dependencies.
+
+### Features
+
+- **Menu bar monitoring**: Icon shows server status at a glance. Turns yellow when agents are actively running. Dropdown shows active runs and scheduled agent count.
+- **Agent list**: All discovered agents with kind-based icons and colors (scheduled, interactive, watcher, chained, on-demand). Disabled agents show a "Disabled" pill.
+- **Agent editor**: View and edit agent definition files with Markdown and YAML syntax highlighting. Save with Cmd+S. Enable/disable agents with a toggle.
+- **Create agents**: Create new agents from Markdown or YAML templates directly from the app.
+- **Environment editor**: Edit `~/.agent-server/.env` with a key-value editor. Contextual icons for each variable type.
+- **Server settings**: View server status, agent count, launch-at-login toggle, and app version.
+- **Run agents**: Trigger any agent from the agent list with a single click.
+
+### Build
+
+Requires Xcode 15+ and [xcodegen](https://github.com/yonaskolb/XcodeGen):
+
+```bash
+cd macos-app
+xcodegen generate
+xcodebuild -project AgentServer.xcodeproj -scheme AgentServer build
+```
+
+Or open `AgentServer.xcodeproj` in Xcode after running `xcodegen generate`.
+
+### Architecture
+
+```
+macos-app/
+  AgentServer/
+    App/
+      AgentServerApp.swift            @main entry point
+      AppDelegate.swift               NSStatusBar, NSMenu, window management
+    Models/
+      AgentModel.swift                Agent type, AgentKind enum with icons/colors
+      RunModel.swift                  Run, HealthResponse, TriggerResponse types
+      EnvFile.swift                   ~/.agent-server/.env reader/writer
+      AgentFile.swift                 Agent file CRUD + templates
+    Services/
+      AgentServerClient.swift         HTTP client for localhost:47821
+      StatusMonitor.swift             Timer-based polling, @Published state
+      ServerProcessManager.swift      Auto-start/stop the Node.js server
+      LaunchAtLoginManager.swift      SMAppService wrapper
+    Views/
+      SettingsView.swift              Tab container (Agents, Settings)
+      AgentsListView.swift            NavigationSplitView with agent list + editor
+      AgentEditorView.swift           File editor with toolbar and enable toggle
+      MarkdownEditor.swift            NSTextView with syntax highlighting
+      SettingsTabView.swift           Server status, launch at login, env editor
+      EnvEditorView.swift             Key-value editor with contextual icons
+    Assets.xcassets/                  App icon + menu bar icons
+  project.yml                        xcodegen spec
+```
+
+The app communicates with the server entirely through the HTTP API on `localhost:47821`. If no server is running, `ServerProcessManager` starts the Node.js server automatically and stops it on quit.
+
+Target: macOS 14.0+, Swift 5.9+.
+
 ## Monitoring with Agent Panel
 
 Agent Server reports status events via HTTP POST to a configurable panel endpoint. Events follow the [A2A protocol](https://google.github.io/A2A/) status format.
@@ -631,10 +710,10 @@ const registry = new ExecutorRegistry();
 registry.register('my-executor', myExecutor);
 ```
 
-## Architecture
+## Server architecture
 
 ```
-src/
+server-app/src/
   agents/                    Agent definitions and scheduling
     config.ts                  Zod schema + YAML/frontmatter parser
     discovery.ts               Reads agent files (.yaml, .yml, .md)
@@ -687,9 +766,12 @@ src/
 
 ## Development
 
+All development commands run from `server-app/`:
+
 ```bash
+cd server-app
 npm install
-npm test              # 294 tests
+npm test              # 305 tests
 npm run type-check    # TypeScript strict mode
 npm run build         # Compile to dist/
 npm run dev           # Watch mode with tsx
@@ -698,6 +780,8 @@ npm run dev           # Watch mode with tsx
 Tests are colocated with source files (`*.test.ts`). The project uses TDD with factory functions for test data.
 
 ## Tech stack
+
+### Server
 
 - TypeScript strict mode, ES2022, ESM
 - [Claude Agent SDK](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) for running Claude Code programmatically
@@ -709,6 +793,12 @@ Tests are colocated with source files (`*.test.ts`). The project uses TDD with f
 - [grammy](https://grammy.dev/) for Telegram bot integration (long-polling)
 - [dotenv](https://github.com/motdotla/dotenv) for `.env` file loading
 - [Vitest](https://vitest.dev/) for testing
+
+### macOS app
+
+- Swift 5.9+, macOS 14.0+
+- SwiftUI + AppKit (NSStatusBar, NSTextView)
+- No third-party dependencies
 
 ## Requirements
 

@@ -2,10 +2,20 @@
 
 Lightweight orchestration server that runs AI agents in the background using Claude Code as its execution engine. Agents are defined as YAML or Markdown files with cron schedules. The server discovers agents, evaluates schedules, acquires locks, runs Claude Code via the Agent SDK, streams events, and reports telemetry in A2A format.
 
-## Architecture
+## Repository structure
 
 ```
-src/
+server-app/          -- Node.js server, CLI, and agent runtime
+macos-app/           -- Native macOS menu bar app
+specs/               -- Documentation and App Store metadata
+```
+
+## Architecture
+
+Server code lives in `server-app/`. All `src/`, `dist/`, `package.json`, `tsconfig.json`, `vitest.config.ts`, and `sample-agents/` are under `server-app/`.
+
+```
+server-app/src/
   agents/
     config.ts            -- Zod schema + YAML/frontmatter parser for agent definitions
     discovery.ts         -- Reads agent files (.yaml, .yml, .md) from agents directory
@@ -262,7 +272,10 @@ Use `parseAgentFile()` (not `parseAgentYaml()`) to handle both formats automatic
 
 ## Commands
 
+All server commands run from `server-app/`:
+
 ```bash
+cd server-app
 npm test              # Run all tests
 npm run type-check    # TypeScript strict check
 npm run build         # Compile to dist/

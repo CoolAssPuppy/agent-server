@@ -19,3 +19,9 @@ mcp.json
 .mcp.json
 
 coverage/
+
+# macOS app build artifacts
+macos-app/AgentServer.xcodeproj/
+macos-app/DerivedData/
+*.xcuserstate
+xcuserdata/

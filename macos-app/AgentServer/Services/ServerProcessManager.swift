@@ -10,7 +10,7 @@ final class ServerProcessManager {
     private var serverDirectory: String? {
         let candidates = [
             bundleAdjacentPath,
-            "\(FileManager.default.homeDirectoryForCurrentUser.path)/Developer/saas-apps/agent-server",
+            "\(FileManager.default.homeDirectoryForCurrentUser.path)/Developer/saas-apps/agent-server/server-app",
         ]
         return candidates.compactMap { $0 }.first {
             FileManager.default.fileExists(atPath: "\($0)/dist/cli.js")
