@@ -32,6 +32,7 @@ export const ServerConfigSchema = z.object({
   heartbeatMs: z.number().int().positive().default(30_000),
   port: z.number().int().positive().default(47821),
   telegramBotToken: z.string().optional(),
+  apiKey: z.string().min(1).optional(),
   catchUp: z.boolean().default(false),
 });
 
@@ -54,6 +55,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       ? Number(env.AGENT_SERVER_PORT)
       : undefined,
     telegramBotToken: env.AGENT_SERVER_TELEGRAM_BOT_TOKEN || undefined,
+    apiKey: env.AGENT_SERVER_API_KEY || undefined,
     catchUp: env.AGENT_SERVER_CATCH_UP === 'true',
   });
 }
