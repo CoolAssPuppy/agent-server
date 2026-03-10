@@ -20,20 +20,18 @@ struct AgentRunsView: View {
         runs.contains { $0.isActive }
     }
 
-    private var showInspector: Binding<Bool> {
-        Binding(
-            get: { selectedRunId != nil },
-            set: { if !$0 { selectedRunId = nil } }
-        )
-    }
-
     var body: some View {
-        runList
-            .inspector(isPresented: showInspector) {
+        HStack(spacing: 0) {
+            runList
+                .frame(width: 230)
+
+            if selectedRunId != nil {
+                Divider()
                 runDetail
-                    .inspectorColumnWidth(min: 380, ideal: 440, max: 600)
+                    .frame(maxWidth: .infinity)
             }
-            .task { await fetchRuns() }
+        }
+        .task { await fetchRuns() }
             .onChange(of: monitor.activeRuns.count) { _, _ in
                 Task { await fetchRuns() }
             }

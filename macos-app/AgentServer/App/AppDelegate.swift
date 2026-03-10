@@ -158,7 +158,7 @@ extension AppDelegate {
             }
 
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 900, height: 600),
+                contentRect: NSRect(x: 0, y: 0, width: 980, height: 600),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable],
                 backing: .buffered,
                 defer: false

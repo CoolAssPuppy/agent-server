@@ -9,7 +9,7 @@ struct SettingsView: View {
             .sheet(isPresented: $showSettings) {
                 SettingsSheet(monitor: monitor, isPresented: $showSettings)
             }
-            .frame(minWidth: 900, minHeight: 550)
+            .frame(minWidth: 980, minHeight: 550)
     }
 }
 
