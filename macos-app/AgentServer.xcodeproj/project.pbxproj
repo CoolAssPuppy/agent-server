@@ -24,6 +24,7 @@
 		C982B2D86AD2BE30FB8DAC66 /* RunModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAE9947D3E921908B8C043B8 /* RunModel.swift */; };
 		C9E2E13C6B848A341745C6BB /* AgentsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5408352E637AF41D2211E4CC /* AgentsListView.swift */; };
 		D2837235002AFAAA229A8257 /* ServerProcessManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA7DF74260188E7ABD701D6 /* ServerProcessManager.swift */; };
+		D42B7EBEF97546289CB6A551 /* MarkdownContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90FD11ED8E05AE334B24E838 /* MarkdownContentView.swift */; };
 		D90AEFBD023564128F4ED4DF /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2BC95C8DAB6DCFFF47D6082 /* SettingsView.swift */; };
 		E75B0A24760A6DC1AB27F358 /* AgentEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D862852E3835F69170B608A /* AgentEditorView.swift */; };
 		E883FEF25E1CA4ADE2A5E648 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66EAB07DB79E15BAC20F17E /* AppDelegate.swift */; };
@@ -44,6 +45,7 @@
 		6DF962BADEAC09F5A5F46093 /* StatusMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusMonitor.swift; sourceTree = "<group>"; };
 		76D1FBFD51A44407DC395C7F /* AgentServerClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentServerClient.swift; sourceTree = "<group>"; };
 		8ADE39E580F94F63F2070A8B /* AgentFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentFile.swift; sourceTree = "<group>"; };
+		90FD11ED8E05AE334B24E838 /* MarkdownContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownContentView.swift; sourceTree = "<group>"; };
 		A1539357FAE628189796A64F /* EnvFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvFile.swift; sourceTree = "<group>"; };
 		B514CCB37C240E8BC2D16DAE /* MarkdownEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownEditor.swift; sourceTree = "<group>"; };
 		B66EAB07DB79E15BAC20F17E /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -121,6 +123,7 @@
 				643CBD2E294E942C10398144 /* AgentRunsView.swift */,
 				5408352E637AF41D2211E4CC /* AgentsListView.swift */,
 				DE2D05889A0359D1B96434A4 /* EnvEditorView.swift */,
+				90FD11ED8E05AE334B24E838 /* MarkdownContentView.swift */,
 				B514CCB37C240E8BC2D16DAE /* MarkdownEditor.swift */,
 				55DE0475DCC49D002DA3AECF /* SettingsTabView.swift */,
 				C2BC95C8DAB6DCFFF47D6082 /* SettingsView.swift */,
@@ -213,6 +216,7 @@
 				87780D46FC7AA630FC93521B /* EnvEditorView.swift in Sources */,
 				EE292187B9B2FC34A554F88C /* EnvFile.swift in Sources */,
 				666BECD19A8137F064869C82 /* LaunchAtLoginManager.swift in Sources */,
+				D42B7EBEF97546289CB6A551 /* MarkdownContentView.swift in Sources */,
 				1E5DAD909924982752591F2E /* MarkdownEditor.swift in Sources */,
 				2CDA922300E92E5825F5EEB1 /* PanelClient.swift in Sources */,
 				7A01C939E76AF850AAD3EC4E /* PanelRun.swift in Sources */,

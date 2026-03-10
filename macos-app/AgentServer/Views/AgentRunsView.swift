@@ -525,19 +525,7 @@ struct RunDetailView: View {
     private func summarySection(_ summary: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             SectionHeader(title: "Summary", icon: "text.alignleft")
-            if let attributed = try? AttributedString(markdown: summary, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
-                Text(attributed)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .lineSpacing(3)
-            } else {
-                Text(summary)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .lineSpacing(3)
-            }
+            MarkdownContentView(source: summary)
         }
         .padding(16)
     }
