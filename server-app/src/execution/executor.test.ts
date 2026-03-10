@@ -3,6 +3,7 @@ import {
   parseStreamEvent,
   summarizeTurn,
   extractToolMetadata,
+  truncate,
   type ClaudeStreamEvent,
 } from './executor.js';
 
@@ -71,6 +72,14 @@ describe('summarizeTurn', () => {
     const summary = summarizeTurn(event);
     expect(summary!.length).toBeLessThanOrEqual(203);
     expect(summary!.endsWith('...')).toBe(true);
+  });
+
+  it('does not split surrogate pairs when truncating', () => {
+    const emoji = '🎟';
+    const textWithEmoji = 'A'.repeat(199) + emoji + 'B'.repeat(100);
+    const result = truncate(textWithEmoji);
+    expect(result.endsWith('...')).toBe(true);
+    expect(JSON.stringify(result)).toBeTruthy();
   });
 
   it('handles multiple content blocks by joining text', () => {

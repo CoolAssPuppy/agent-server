@@ -45,7 +45,12 @@ export function parseStreamEvent(line: string): ClaudeStreamEvent | null {
 
 export function truncate(text: string): string {
   if (text.length <= MAX_SUMMARY_LENGTH) return text;
-  return text.slice(0, MAX_SUMMARY_LENGTH) + '...';
+  let end = MAX_SUMMARY_LENGTH;
+  const code = text.charCodeAt(end - 1);
+  if (code >= 0xd800 && code <= 0xdbff) {
+    end--;
+  }
+  return text.slice(0, end) + '...';
 }
 
 export function extractTextParts(event: ClaudeStreamEvent): string[] {
