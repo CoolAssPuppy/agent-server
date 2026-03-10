@@ -176,15 +176,16 @@ describe('TelegramChannel', () => {
     expect(replies).toHaveLength(1);
   });
 
-  it('sends notification as a plain message', async () => {
+  it('sends notification as HTML-formatted message', async () => {
     const { channel, mockApi } = makeChannel();
-    await channel.notify('Agent completed: wrote 3 files');
+    await channel.notify({ agentName: 'Weekly Report', status: 'completed', summary: 'Created report' });
 
     expect(mockApi.sendMessage).toHaveBeenCalledOnce();
     const [chatId, text, options] = mockApi.sendMessage.mock.calls[0];
     expect(chatId).toBe(12345);
-    expect(text).toBe('Agent completed: wrote 3 files');
-    expect(options).toBeUndefined();
+    expect(text).toContain('<b>Weekly Report</b>');
+    expect(text).toContain('completed');
+    expect(options).toEqual({ parse_mode: 'HTML' });
   });
 
   it('skips notification when no chat ID is configured', async () => {
@@ -195,7 +196,7 @@ describe('TelegramChannel', () => {
     const channel = new TelegramChannel({ api: mockApi });
     const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    await channel.notify('Hello');
+    await channel.notify({ agentName: 'Test', status: 'completed' });
     expect(mockApi.sendMessage).not.toHaveBeenCalled();
     expect(spy).toHaveBeenCalledWith(expect.stringContaining('chat ID'));
     spy.mockRestore();

@@ -18,7 +18,7 @@ import { ChannelDispatcher } from '../channels/dispatcher.js';
 import { InteractionStore } from '../interaction/store.js';
 import type { InteractionRequest } from '../interaction/schema.js';
 import { createTelegramChannel } from '../channels/telegram.js';
-import { formatCompletionNotification, formatFailureNotification, formatAgentListMessage } from '../interaction/notification.js';
+import { formatAgentListMessage, type NotificationData } from '../interaction/notification.js';
 import { routeMessage } from '../channels/router.js';
 import { randomUUID } from 'crypto';
 import { ProgressBroadcaster, type ProgressEvent } from './websocket.js';
@@ -76,20 +76,28 @@ export function startServer(config: ServerConfig): ServerInstance {
     await channelDispatcher.dispatch(interactionId, agent.interaction.channel, interaction);
   }
 
-  function sendNotification(agent: AgentConfig, status: 'completed' | 'failed', detail?: string): void {
+  function sendNotification(agent: AgentConfig, runId: string, data: Omit<NotificationData, 'agentName'>): void {
     if (!agent.notification) return;
 
-    const shouldNotify = status === 'completed'
+    const shouldNotify = data.status === 'completed'
       ? agent.notification.on_complete
       : agent.notification.on_failure;
 
     if (!shouldNotify) return;
 
-    const message = status === 'completed'
-      ? formatCompletionNotification(agent.name, detail)
-      : formatFailureNotification(agent.name, detail);
+    const storedRun = store.get(runId);
+    const notificationData: NotificationData = {
+      agentName: agent.name,
+      ...data,
+      turnCount: data.turnCount ?? storedRun?.turnCount,
+      toolsUsed: data.toolsUsed ?? storedRun?.toolsUsed,
+      filesWritten: data.filesWritten ?? storedRun?.filesWritten,
+      durationMs: storedRun?.startedAt
+        ? Date.now() - storedRun.startedAt.getTime()
+        : undefined,
+    };
 
-    channelDispatcher.notify(agent.notification.channel, message)
+    channelDispatcher.notify(agent.notification.channel, notificationData)
       .catch((err) => console.error(`[notification] Failed for ${agent.id}:`, err));
   }
 
@@ -185,7 +193,13 @@ export function startServer(config: ServerConfig): ServerInstance {
           summary: result.summary,
           timestamp: new Date().toISOString(),
         });
-        sendNotification(agent, 'completed', result.summary);
+        sendNotification(agent, runId, {
+          status: 'completed',
+          summary: result.summary,
+          turnCount: result.turnCount,
+          toolsUsed: result.toolsUsed,
+          filesWritten: result.filesWritten,
+        });
         onDone?.({ status: 'completed', summary: result.summary });
         void fireDownstreamTriggers(agent.id, 'completed');
         return result;
@@ -207,7 +221,7 @@ export function startServer(config: ServerConfig): ServerInstance {
           error: result.error,
           timestamp: new Date().toISOString(),
         });
-        sendNotification(agent, 'failed', result.error);
+        sendNotification(agent, runId, { status: 'failed', error: result.error });
         onDone?.({ status: 'failed', error: result.error });
         void fireDownstreamTriggers(agent.id, 'failed');
       }
@@ -226,7 +240,7 @@ export function startServer(config: ServerConfig): ServerInstance {
         error: errorMsg,
         timestamp: new Date().toISOString(),
       });
-      sendNotification(agent, 'failed', errorMsg);
+      sendNotification(agent, runId, { status: 'failed', error: errorMsg });
       onDone?.({ status: 'failed', error: errorMsg });
       void fireDownstreamTriggers(agent.id, 'failed');
     });
@@ -382,28 +396,28 @@ export function startServer(config: ServerConfig): ServerInstance {
           const result = await routeMessage(text, agents);
 
           if (result.type === 'list') {
-            await telegramChannel.notify(formatAgentListMessage(agents));
+            await telegramChannel.notifyText(formatAgentListMessage(agents));
             return;
           }
 
           if (result.type === 'none') {
-            await telegramChannel.notify('No matching agent found for your message.');
+            await telegramChannel.notifyText('No matching agent found for your message.');
             return;
           }
 
           const { agent } = result;
-          await telegramChannel.notify(`Running ${agent.name}...`);
+          await telegramChannel.notifyText(`Running ${agent.name}...`);
 
           triggerRunForAgent(agent, result.context, (done) => {
-            const message = done.status === 'completed'
-              ? formatCompletionNotification(agent.name, done.summary)
-              : formatFailureNotification(agent.name, done.error);
-            void telegramChannel.notify(message);
+            const data: NotificationData = done.status === 'completed'
+              ? { agentName: agent.name, status: 'completed', summary: done.summary }
+              : { agentName: agent.name, status: 'failed', error: done.error };
+            void telegramChannel.notify(data);
           });
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           console.error(`[telegram] Message routing failed: ${msg}`);
-          void telegramChannel.notify(`Error: ${msg}`);
+          void telegramChannel.notifyText(`Error: ${msg}`);
         }
       })();
     });

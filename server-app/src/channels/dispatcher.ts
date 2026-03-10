@@ -1,5 +1,6 @@
 import type { Channel } from './channel.js';
 import type { InteractionRequest } from '../interaction/schema.js';
+import type { NotificationData } from '../interaction/notification.js';
 
 export class ChannelDispatcher {
   private channels = new Map<string, Channel>();
@@ -30,10 +31,10 @@ export class ChannelDispatcher {
     await channel.send(interactionId, request);
   }
 
-  async notify(channelName: string, message: string): Promise<void> {
+  async notify(channelName: string, data: NotificationData): Promise<void> {
     const channel = this.resolveOrWarn(channelName, 'notification');
     if (!channel) return;
-    await channel.notify(message);
+    await channel.notify(data);
   }
 
   async expireInteractions(expired: Array<{ id: string; channel: string }>): Promise<void> {

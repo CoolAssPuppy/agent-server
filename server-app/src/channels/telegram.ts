@@ -2,7 +2,9 @@ import { readFile, writeFile, mkdir } from 'fs/promises';
 import { dirname } from 'path';
 import { Bot, InlineKeyboard } from 'grammy';
 import type { InteractionRequest } from '../interaction/schema.js';
+import type { NotificationData } from '../interaction/notification.js';
 import type { Channel, ChannelReply, ReplyCallback } from './channel.js';
+import { formatTelegramNotification } from './telegram-formatter.js';
 
 type TelegramApi = {
   sendMessage: (chatId: number, text: string, options?: Record<string, unknown>) => Promise<{ message_id: number }>;
@@ -141,7 +143,13 @@ export class TelegramChannel implements Channel {
     return true;
   }
 
-  async notify(message: string): Promise<void> {
+  async notify(data: NotificationData): Promise<void> {
+    if (!this.hasChatId()) return;
+    const html = formatTelegramNotification(data);
+    await this.api.sendMessage(this.chatId as number, html, { parse_mode: 'HTML' });
+  }
+
+  async notifyText(message: string): Promise<void> {
     if (!this.hasChatId()) return;
     await this.api.sendMessage(this.chatId as number, message);
   }

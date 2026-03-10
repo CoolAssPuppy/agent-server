@@ -1,5 +1,7 @@
 import { createInterface } from 'readline';
 import type { InteractionRequest } from '../interaction/schema.js';
+import type { NotificationData } from '../interaction/notification.js';
+import { formatPlainNotification } from '../interaction/notification.js';
 import type { Channel, ChannelReply, ReplyCallback } from './channel.js';
 
 export function formatInteraction(request: InteractionRequest): string {
@@ -51,7 +53,8 @@ export class ConsoleChannel implements Channel {
     this.callbacks.push(callback);
   }
 
-  async notify(message: string): Promise<void> {
+  async notify(data: NotificationData): Promise<void> {
+    const message = formatPlainNotification(data);
     console.log(`\n[notification] ${message}\n`);
   }
 

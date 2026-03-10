@@ -2,13 +2,14 @@ import { describe, it, expect, vi } from 'vitest';
 import { ChannelDispatcher } from './dispatcher.js';
 import type { Channel, ChannelReply } from './channel.js';
 import type { InteractionRequest } from '../interaction/schema.js';
+import type { NotificationData } from '../interaction/notification.js';
 
 function makeChannel(name: string): Channel & {
   sendCalls: Array<{ id: string; request: InteractionRequest }>;
-  notifyCalls: string[];
+  notifyCalls: NotificationData[];
 } {
   const sendCalls: Array<{ id: string; request: InteractionRequest }> = [];
-  const notifyCalls: string[] = [];
+  const notifyCalls: NotificationData[] = [];
   return {
     name,
     sendCalls,
@@ -18,8 +19,8 @@ function makeChannel(name: string): Channel & {
     send: vi.fn(async (id: string, request: InteractionRequest) => {
       sendCalls.push({ id, request });
     }),
-    notify: vi.fn(async (message: string) => {
-      notifyCalls.push(message);
+    notify: vi.fn(async (data: NotificationData) => {
+      notifyCalls.push(data);
     }),
     onReply: vi.fn(),
   };
@@ -74,8 +75,9 @@ describe('ChannelDispatcher', () => {
     const channel = makeChannel('telegram');
     dispatcher.register(channel);
 
-    await dispatcher.notify('telegram', 'Agent completed successfully');
-    expect(channel.notifyCalls).toEqual(['Agent completed successfully']);
+    const data: NotificationData = { agentName: 'Test', status: 'completed', summary: 'Done' };
+    await dispatcher.notify('telegram', data);
+    expect(channel.notifyCalls).toEqual([data]);
   });
 
   it('logs warning when notifying unknown channel', async () => {

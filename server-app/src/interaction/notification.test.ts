@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatCompletionNotification, formatFailureNotification, formatAgentListMessage } from './notification.js';
+import { formatCompletionNotification, formatFailureNotification, formatAgentListMessage, formatPlainNotification } from './notification.js';
 import { makeAgent } from '../test-factories.js';
 
 describe('formatCompletionNotification', () => {
@@ -68,5 +68,29 @@ describe('formatFailureNotification', () => {
     const message = formatFailureNotification('Daily Standup');
     expect(message).toContain('Daily Standup');
     expect(message).toContain('failed');
+  });
+});
+
+describe('formatPlainNotification', () => {
+  it('delegates to completion formatter for completed status', () => {
+    const message = formatPlainNotification({
+      agentName: 'Weekly Report',
+      status: 'completed',
+      summary: 'Created 3 reports',
+    });
+    expect(message).toContain('Weekly Report');
+    expect(message).toContain('completed');
+    expect(message).toContain('Created 3 reports');
+  });
+
+  it('delegates to failure formatter for failed status', () => {
+    const message = formatPlainNotification({
+      agentName: 'Daily Standup',
+      status: 'failed',
+      error: 'Timed out',
+    });
+    expect(message).toContain('Daily Standup');
+    expect(message).toContain('failed');
+    expect(message).toContain('Timed out');
   });
 });
