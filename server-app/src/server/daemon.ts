@@ -33,7 +33,7 @@ function runAgentWithConfig(config: ServerConfig, agent: AgentConfig, options: R
 }
 
 export async function runDueAgents(config: ServerConfig): Promise<void> {
-  const agents = await discoverAgents(config.agentsDir);
+  const agents = await discoverAgents(config.agentsDir, { defaultMaxTurns: config.defaultMaxTurns });
   const now = new Date();
 
   const dueAgents = agents.filter((agent) => shouldRun(agent, now));
@@ -66,7 +66,7 @@ export async function runSingleAgent(
   agentId: string,
   options: RunOptions = {},
 ): Promise<void> {
-  const agents = await discoverAgents(config.agentsDir);
+  const agents = await discoverAgents(config.agentsDir, { defaultMaxTurns: config.defaultMaxTurns });
   const agent = agents.find((a) => a.id === agentId);
 
   if (!agent) {
@@ -151,7 +151,7 @@ async function handleInteraction(
 }
 
 export async function listAgents(config: ServerConfig): Promise<void> {
-  const agents = await discoverAgents(config.agentsDir);
+  const agents = await discoverAgents(config.agentsDir, { defaultMaxTurns: config.defaultMaxTurns });
 
   if (agents.length === 0) {
     console.log('No agents found.');

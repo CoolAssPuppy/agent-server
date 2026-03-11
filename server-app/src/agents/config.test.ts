@@ -320,6 +320,16 @@ describe('parseAgentYaml', () => {
     expect(config.tools).toEqual([]);
   });
 
+  it('applies a custom default max_turns when omitted', () => {
+    const config = parseAgentYaml(MINIMAL_YAML, { defaultMaxTurns: 50 });
+    expect(config.max_turns).toBe(50);
+  });
+
+  it('does not override explicit max_turns when a custom default is provided', () => {
+    const config = parseAgentYaml(FULL_YAML, { defaultMaxTurns: 50 });
+    expect(config.max_turns).toBe(30);
+  });
+
   it('throws on invalid YAML syntax', () => {
     expect(() => parseAgentYaml('{')).toThrow();
   });
@@ -440,6 +450,11 @@ describe('parseAgentFile', () => {
     expect(config.max_turns).toBe(20);
     expect(config.enabled).toBe(true);
     expect(config.tools).toEqual([]);
+  });
+
+  it('applies custom default max_turns for frontmatter agents when omitted', () => {
+    const config = parseAgentFile(FRONTMATTER_MINIMAL, { defaultMaxTurns: 50 });
+    expect(config.max_turns).toBe(50);
   });
 
   it('parses on-demand agent without schedule', () => {

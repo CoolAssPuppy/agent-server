@@ -48,9 +48,27 @@ export const AgentConfigSchema = z
 
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
 
-export function parseAgentYaml(yaml: string): AgentConfig {
+
+const DEFAULT_MAX_TURNS = 20;
+
+type ParseAgentOptions = {
+  defaultMaxTurns?: number;
+};
+
+function applyDefaultMaxTurns(raw: unknown, options: ParseAgentOptions = {}): unknown {
+  const configuredDefault = options.defaultMaxTurns ?? DEFAULT_MAX_TURNS;
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return raw;
+  }
+  const record = { ...(raw as Record<string, unknown>) };
+  if (record.max_turns === undefined) {
+    record.max_turns = configuredDefault;
+  }
+  return record;
+}
+export function parseAgentYaml(yaml: string, options: ParseAgentOptions = {}): AgentConfig {
   const raw = parseYaml(yaml);
-  return AgentConfigSchema.parse(raw);
+  return AgentConfigSchema.parse(applyDefaultMaxTurns(raw, options));
 }
 
 const FRONTMATTER_OPEN = /^---\r?\n/;
@@ -71,9 +89,9 @@ function splitFrontmatter(content: string): { yaml: string; body: string } {
   return { yaml, body };
 }
 
-export function parseAgentFile(content: string): AgentConfig {
+export function parseAgentFile(content: string, options: ParseAgentOptions = {}): AgentConfig {
   if (!hasFrontmatter(content)) {
-    return parseAgentYaml(content);
+    return parseAgentYaml(content, options);
   }
 
   const { yaml, body } = splitFrontmatter(content);
@@ -87,5 +105,5 @@ export function parseAgentFile(content: string): AgentConfig {
     ? { ...(raw as Record<string, unknown>), prompt: body }
     : raw;
 
-  return AgentConfigSchema.parse(config);
+  return AgentConfigSchema.parse(applyDefaultMaxTurns(config, options));
 }

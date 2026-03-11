@@ -19,6 +19,7 @@ describe('loadConfig', () => {
     expect(config.apiKey).toBeUndefined();
     expect(config.maxConcurrentRuns).toBe(8);
     expect(config.maxWebSocketClients).toBe(100);
+    expect(config.defaultMaxTurns).toBe(20);
   });
 
   it('reads from environment variables', () => {
@@ -33,6 +34,7 @@ describe('loadConfig', () => {
       AGENT_SERVER_HOST: '0.0.0.0',
       AGENT_SERVER_MAX_CONCURRENT_RUNS: '3',
       AGENT_SERVER_MAX_WS_CLIENTS: '25',
+      AGENT_SERVER_DEFAULT_MAX_TURNS: '50',
     });
     expect(config.agentsDir).toBe('/tmp/agents');
     expect(config.lockDir).toBe('/tmp/locks');
@@ -44,6 +46,7 @@ describe('loadConfig', () => {
     expect(config.host).toBe('0.0.0.0');
     expect(config.maxConcurrentRuns).toBe(3);
     expect(config.maxWebSocketClients).toBe(25);
+    expect(config.defaultMaxTurns).toBe(50);
   });
 
   it('rejects short API keys', () => {

@@ -122,7 +122,7 @@ max_turns: 10
 | `schedule` | no | | Cron expression (e.g., `0 9 * * 1-5`). Omit for on-demand agents. |
 | `timezone` | no | | IANA timezone for schedule evaluation (e.g., `America/Los_Angeles`) |
 | `prompt` | yes* | | The prompt sent to Claude Code. *In frontmatter format, the Markdown body is the prompt. |
-| `max_turns` | no | `20` | Maximum agentic conversation turns |
+| `max_turns` | no | `AGENT_SERVER_DEFAULT_MAX_TURNS` (default `20`) | Maximum agentic conversation turns |
 | `working_directory` | no | `$HOME` | Working directory for the Claude Code session. Supports `~`. |
 | `tools` | no | `[]` | Allowed tools list (SDK-level). Empty means all tools are available. |
 | `disallowed_tools` | no | `[]` | Tools to explicitly deny (SDK-level). Removed from the model's context entirely. |
@@ -135,6 +135,28 @@ max_turns: 10
 | `watch` | no | | File paths to watch for changes (triggers runs outside the cron schedule) |
 | `interaction` | no | | Interactive agent config (channel, on_reply, timeout) |
 | `notification` | no | | Notification config (channel, on_complete, on_failure) |
+
+### Limit runaway agent loops
+
+Yes—set `max_turns` on each agent to hard-cap the number of SDK turns for a run.
+
+```yaml
+id: bounded-agent
+name: Bounded Agent
+prompt: |
+  Complete the task and return the best final answer when you run out of turns.
+max_turns: 50
+```
+
+When the cap is reached, the run stops and returns the model's current result instead of continuing indefinitely.
+
+If you want this to apply to agents that omit `max_turns`, set a server-wide default:
+
+```bash
+AGENT_SERVER_DEFAULT_MAX_TURNS=50
+```
+
+Agent-level `max_turns` still takes precedence when explicitly set in an agent definition.
 
 ### Example: basic scheduled agent
 
@@ -512,6 +534,7 @@ The CLI loads `~/.agent-server/.env` at startup. Shell environment variables tak
 | `AGENT_SERVER_CATCH_UP` | `false` | Resume missed scheduled agents after sleep/wake |
 | `AGENT_SERVER_MAX_CONCURRENT_RUNS` | `8` | Maximum concurrent running agents before new triggers are rejected |
 | `AGENT_SERVER_MAX_WS_CLIENTS` | `100` | Maximum simultaneous WebSocket clients |
+| `AGENT_SERVER_DEFAULT_MAX_TURNS` | `20` | Default `max_turns` used when an agent omits `max_turns` |
 | `AGENT_SERVER_PROMPT_INJECTION_GUARD` | `true` | Wrap untrusted user context in guarded delimiters and policy instructions before execution |
 | `AGENT_SERVER_PROMPT_INJECTION_STRICT` | `false` | Reject suspicious user context (pattern-based) before execution |
 | `ANTHROPIC_API_KEY` | | Anthropic API key. Required for Telegram message routing (agent selection via Haiku). |
@@ -530,7 +553,7 @@ AGENT_SERVER_TELEGRAM_BOT_TOKEN=7123456789:AAH...
 Agent Server uses the Claude Agent SDK to run Claude Code as a library. Each agent run calls `query()` with:
 
 - The agent's prompt
-- `maxTurns` from the agent config (default 20)
+- `maxTurns` from the agent config (falls back to `AGENT_SERVER_DEFAULT_MAX_TURNS`, default 20)
 - `cwd` set to the agent's `working_directory` (default `$HOME`)
 - `permissionMode` from the agent config (default `bypassPermissions`)
 - `allowedTools` from the agent config (if specified)

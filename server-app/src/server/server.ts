@@ -124,7 +124,7 @@ export function startServer(config: ServerConfig): ServerInstance {
 
   async function fireDownstreamTriggers(sourceAgentId: string, status: 'completed' | 'failed'): Promise<void> {
     try {
-      const agents = await discoverAgents(config.agentsDir);
+      const agents = await discoverAgents(config.agentsDir, { defaultMaxTurns: config.defaultMaxTurns });
       const downstream = evaluateTriggers(agents, sourceAgentId, status);
       for (const agent of downstream) {
         console.log(`[triggers] ${status} ${sourceAgentId} -> triggering ${agent.id}`);
@@ -274,7 +274,7 @@ export function startServer(config: ServerConfig): ServerInstance {
   }
 
   async function triggerRun(agentId: string, promptSuffix?: string): Promise<string> {
-    const agents = await discoverAgents(config.agentsDir);
+    const agents = await discoverAgents(config.agentsDir, { defaultMaxTurns: config.defaultMaxTurns });
     const agent = agents.find((a) => a.id === agentId);
     if (!agent) throw new Error(`Agent not found: ${agentId}`);
     return triggerRunForAgent(agent, promptSuffix);
@@ -298,7 +298,7 @@ export function startServer(config: ServerConfig): ServerInstance {
   const SLEEP_GAP_MULTIPLIER = 2;
 
   async function runDueAgents(): Promise<void> {
-    const agents = await discoverAgents(config.agentsDir);
+    const agents = await discoverAgents(config.agentsDir, { defaultMaxTurns: config.defaultMaxTurns });
     const now = new Date();
 
     if (config.catchUp) {
@@ -334,7 +334,7 @@ export function startServer(config: ServerConfig): ServerInstance {
   }
 
   const app = createApi({
-    getAgents: () => discoverAgents(config.agentsDir),
+    getAgents: () => discoverAgents(config.agentsDir, { defaultMaxTurns: config.defaultMaxTurns }),
     store,
     triggerRun,
     cancelRun,
@@ -382,7 +382,7 @@ export function startServer(config: ServerConfig): ServerInstance {
   }, config.checkIntervalMs);
 
   async function setupFileWatchers(): Promise<FileWatcher | null> {
-    const agents = await discoverAgents(config.agentsDir);
+    const agents = await discoverAgents(config.agentsDir, { defaultMaxTurns: config.defaultMaxTurns });
     const watchConfigs = extractWatchConfigs(agents);
     if (watchConfigs.length === 0) return null;
 
@@ -428,7 +428,7 @@ export function startServer(config: ServerConfig): ServerInstance {
     telegramChannel.onMessage((text) => {
       void (async () => {
         try {
-          const agents = await discoverAgents(config.agentsDir);
+          const agents = await discoverAgents(config.agentsDir, { defaultMaxTurns: config.defaultMaxTurns });
           const result = await routeMessage(text, agents);
 
           if (result.type === 'list') {
