@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseAgentYaml, parseAgentFile, AgentConfigSchema } from './config.js';
+import { parseAgentYaml, parseAgentFile, AgentConfigSchema, resolveEnvVars } from './config.js';
 
 const VALID_YAML = `
 id: hello-world
@@ -320,16 +320,6 @@ describe('parseAgentYaml', () => {
     expect(config.tools).toEqual([]);
   });
 
-  it('applies a custom default max_turns when omitted', () => {
-    const config = parseAgentYaml(MINIMAL_YAML, { defaultMaxTurns: 50 });
-    expect(config.max_turns).toBe(50);
-  });
-
-  it('does not override explicit max_turns when a custom default is provided', () => {
-    const config = parseAgentYaml(FULL_YAML, { defaultMaxTurns: 50 });
-    expect(config.max_turns).toBe(30);
-  });
-
   it('throws on invalid YAML syntax', () => {
     expect(() => parseAgentYaml('{')).toThrow();
   });
@@ -404,6 +394,160 @@ name: Broken
 schedule: "* * * * *"
 `;
 
+describe('mcp_servers config', () => {
+  it('accepts config with stdio mcp server', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'mcp-agent',
+      name: 'MCP Agent',
+      prompt: 'Do something.',
+      mcp_servers: {
+        'notion-personal': {
+          command: 'npx',
+          args: ['-y', '@notionhq/notion-mcp-server'],
+          env: { NOTION_API_KEY: 'test-key' },
+        },
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      const server = result.data.mcp_servers?.['notion-personal'];
+      expect(server).toBeDefined();
+      expect(server?.command).toBe('npx');
+      expect(server?.args).toEqual(['-y', '@notionhq/notion-mcp-server']);
+      expect(server?.env).toEqual({ NOTION_API_KEY: 'test-key' });
+    }
+  });
+
+  it('accepts config with sse mcp server', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'mcp-agent',
+      name: 'MCP Agent',
+      prompt: 'Do something.',
+      mcp_servers: {
+        'remote-server': {
+          type: 'sse',
+          url: 'https://example.com/mcp',
+          headers: { Authorization: 'Bearer token' },
+        },
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      const server = result.data.mcp_servers?.['remote-server'];
+      expect(server?.type).toBe('sse');
+      expect(server?.url).toBe('https://example.com/mcp');
+    }
+  });
+
+  it('accepts config with http mcp server', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'mcp-agent',
+      name: 'MCP Agent',
+      prompt: 'Do something.',
+      mcp_servers: {
+        'http-server': {
+          type: 'http',
+          url: 'https://example.com/mcp',
+        },
+      },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts config with multiple mcp servers', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'mcp-agent',
+      name: 'MCP Agent',
+      prompt: 'Do something.',
+      mcp_servers: {
+        'notion-personal': {
+          command: 'npx',
+          args: ['-y', '@notionhq/notion-mcp-server'],
+        },
+        'notion-work': {
+          command: 'npx',
+          args: ['-y', '@notionhq/notion-mcp-server'],
+          env: { NOTION_API_KEY: 'other-key' },
+        },
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(Object.keys(result.data.mcp_servers ?? {})).toHaveLength(2);
+    }
+  });
+
+  it('defaults mcp_servers to undefined when not specified', () => {
+    const result = AgentConfigSchema.parse({
+      id: 'test',
+      name: 'Test',
+      prompt: 'Do something.',
+    });
+    expect(result.mcp_servers).toBeUndefined();
+  });
+
+  it('rejects stdio server without command', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'bad',
+      name: 'Bad',
+      prompt: 'Do something.',
+      mcp_servers: {
+        broken: { args: ['foo'] },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects sse server without url', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'bad',
+      name: 'Bad',
+      prompt: 'Do something.',
+      mcp_servers: {
+        broken: { type: 'sse' },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('resolveEnvVars', () => {
+  it('replaces ${VAR} with process.env values', () => {
+    const env = { API_KEY: '${TEST_VAR}' };
+    const resolved = resolveEnvVars(env, { TEST_VAR: 'secret123' });
+    expect(resolved).toEqual({ API_KEY: 'secret123' });
+  });
+
+  it('leaves literal strings unchanged', () => {
+    const env = { API_KEY: 'literal-value' };
+    const resolved = resolveEnvVars(env, {});
+    expect(resolved).toEqual({ API_KEY: 'literal-value' });
+  });
+
+  it('replaces multiple vars in different keys', () => {
+    const env = { KEY_A: '${VAR_A}', KEY_B: '${VAR_B}' };
+    const resolved = resolveEnvVars(env, { VAR_A: 'aaa', VAR_B: 'bbb' });
+    expect(resolved).toEqual({ KEY_A: 'aaa', KEY_B: 'bbb' });
+  });
+
+  it('replaces undefined env vars with empty string', () => {
+    const env = { API_KEY: '${MISSING_VAR}' };
+    const resolved = resolveEnvVars(env, {});
+    expect(resolved).toEqual({ API_KEY: '' });
+  });
+
+  it('handles mixed literal and variable values', () => {
+    const env = { PREFIX: '${HOST}:8080' };
+    const resolved = resolveEnvVars(env, { HOST: 'localhost' });
+    expect(resolved).toEqual({ PREFIX: 'localhost:8080' });
+  });
+
+  it('returns empty object for empty input', () => {
+    const resolved = resolveEnvVars({}, {});
+    expect(resolved).toEqual({});
+  });
+});
+
 describe('parseAgentFile', () => {
   it('parses pure YAML when no frontmatter delimiters present', () => {
     const config = parseAgentFile(VALID_YAML);
@@ -450,11 +594,6 @@ describe('parseAgentFile', () => {
     expect(config.max_turns).toBe(20);
     expect(config.enabled).toBe(true);
     expect(config.tools).toEqual([]);
-  });
-
-  it('applies custom default max_turns for frontmatter agents when omitted', () => {
-    const config = parseAgentFile(FRONTMATTER_MINIMAL, { defaultMaxTurns: 50 });
-    expect(config.max_turns).toBe(50);
   });
 
   it('parses on-demand agent without schedule', () => {

@@ -116,6 +116,28 @@ The executor in `plugins/claude-code.ts` uses `query()` from `@anthropic-ai/clau
 
 The legacy `parseStreamEvent()` and `extractToolMetadata()` functions in `execution/executor.ts` still exist for CLI stream parsing compatibility but are not used by the SDK executor.
 
+### MCP servers
+
+Agents can bring their own MCP servers via the `mcp_servers` field. These are passed to the Agent SDK's `Options.mcpServers` and run alongside any account-level MCP servers (from claude.ai). Three transport types are supported: stdio, sse, and http.
+
+Environment variables in `env` and `headers` fields support `${VAR}` substitution, resolved from `process.env` at runtime (which includes `~/.agent-server/.env` values loaded at startup).
+
+```yaml
+mcp_servers:
+  notion-personal:
+    command: npx
+    args: ["-y", "@notionhq/notion-mcp-server"]
+    env:
+      NOTION_TOKEN: "${NOTION_PERSONAL_API_KEY}"
+  remote-service:
+    type: sse
+    url: https://example.com/mcp
+    headers:
+      Authorization: "Bearer ${SERVICE_TOKEN}"
+```
+
+The `resolveEnvVars()` function in `agents/config.ts` handles the substitution. Undefined variables resolve to empty string.
+
 ### File locking
 
 PID-based locks in the locks directory. Stale lock detection via `process.kill(pid, 0)`. Always release in a `finally` block.
@@ -242,6 +264,12 @@ permissions:             # optional, glob-based tool permissions (allowlist mode
   deny:
     - "mcp__*__create_*"
 executor: claude-code    # optional, defaults to claude-code
+mcp_servers:             # optional, additional MCP servers for this agent
+  my-server:
+    command: npx
+    args: ["-y", "some-mcp-server"]
+    env:
+      API_KEY: "${MY_API_KEY}"
 watch:                   # optional file triggers
   - path: "~/output"
     glob: "*.md"

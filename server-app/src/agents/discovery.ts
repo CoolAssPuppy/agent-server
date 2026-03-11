@@ -8,21 +8,17 @@ function isAgentFile(filename: string): boolean {
   return AGENT_EXTENSIONS.has(extname(filename));
 }
 
-type DiscoverAgentOptions = {
-  defaultMaxTurns?: number;
-};
-
-async function tryParseAgent(directory: string, file: string, options: DiscoverAgentOptions = {}): Promise<AgentConfig | null> {
+async function tryParseAgent(directory: string, file: string): Promise<AgentConfig | null> {
   try {
     const content = await readFile(join(directory, file), 'utf-8');
-    return parseAgentFile(content, { defaultMaxTurns: options.defaultMaxTurns });
+    return parseAgentFile(content);
   } catch {
     console.warn(`Skipping invalid agent definition: ${file}`);
     return null;
   }
 }
 
-export async function discoverAgents(directory: string, options: DiscoverAgentOptions = {}): Promise<AgentConfig[]> {
+export async function discoverAgents(directory: string): Promise<AgentConfig[]> {
   let entries: string[];
   try {
     entries = await readdir(directory);
@@ -32,7 +28,7 @@ export async function discoverAgents(directory: string, options: DiscoverAgentOp
 
   const agentFiles = entries.filter(isAgentFile).sort();
   const results = await Promise.all(
-    agentFiles.map((file) => tryParseAgent(directory, file, options))
+    agentFiles.map((file) => tryParseAgent(directory, file))
   );
 
   const unique = new Map<string, AgentConfig>();

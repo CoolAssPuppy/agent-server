@@ -1,6 +1,7 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { Options } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentConfig } from '../agents/config.js';
+import { resolveEnvVars } from '../agents/config.js';
 import type { Reporter } from '../execution/runner.js';
 import { truncate, WRITE_TOOLS, type ExecutionResult } from '../execution/executor.js';
 import { expandHome } from '../agents/file-watcher.js';
@@ -33,6 +34,7 @@ export async function executeAgent(
       : undefined,
     canUseTool: agent.permissions ? buildCanUseTool(agent.permissions) : undefined,
     abortController: extra?.abortController,
+    mcpServers: buildMcpServers(agent),
   };
 
   let turnCount = 0;
@@ -154,4 +156,26 @@ function buildResult(params: {
     commandsRun: params.allCommandsRun,
     interaction,
   };
+}
+
+function buildMcpServers(agent: AgentConfig): Options['mcpServers'] {
+  if (!agent.mcp_servers) return undefined;
+
+  const servers: NonNullable<Options['mcpServers']> = {};
+
+  for (const [name, config] of Object.entries(agent.mcp_servers)) {
+    if ('command' in config) {
+      servers[name] = {
+        ...config,
+        env: config.env ? resolveEnvVars(config.env) : undefined,
+      };
+    } else if ('url' in config) {
+      servers[name] = {
+        ...config,
+        headers: config.headers ? resolveEnvVars(config.headers) : undefined,
+      };
+    }
+  }
+
+  return Object.keys(servers).length > 0 ? servers : undefined;
 }

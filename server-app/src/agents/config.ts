@@ -22,6 +22,46 @@ export const PermissionsSchema = z.object({
 
 export type Permissions = z.infer<typeof PermissionsSchema>;
 
+const McpStdioServerSchema = z.object({
+  type: z.literal('stdio').optional(),
+  command: z.string().min(1),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
+});
+
+const McpSseServerSchema = z.object({
+  type: z.literal('sse'),
+  url: z.string().url(),
+  headers: z.record(z.string(), z.string()).optional(),
+});
+
+const McpHttpServerSchema = z.object({
+  type: z.literal('http'),
+  url: z.string().url(),
+  headers: z.record(z.string(), z.string()).optional(),
+});
+
+const McpServerConfigSchema = z.union([
+  McpSseServerSchema,
+  McpHttpServerSchema,
+  McpStdioServerSchema,
+]);
+
+export type McpServerConfig = z.infer<typeof McpServerConfigSchema>;
+
+const ENV_VAR_PATTERN = /\$\{([^}]+)}/g;
+
+export function resolveEnvVars(
+  env: Record<string, string>,
+  source: Record<string, string | undefined> = process.env as Record<string, string | undefined>,
+): Record<string, string> {
+  const resolved: Record<string, string> = {};
+  for (const [key, value] of Object.entries(env)) {
+    resolved[key] = value.replace(ENV_VAR_PATTERN, (_match, varName: string) => source[varName] ?? '');
+  }
+  return resolved;
+}
+
 export const AgentConfigSchema = z
   .object({
     id: z.string().trim().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/),
@@ -41,6 +81,7 @@ export const AgentConfigSchema = z
     watch: z.array(FileWatchSchema).optional(),
     executor: z.string().trim().min(1).max(64).optional(),
     permissions: PermissionsSchema.optional(),
+    mcp_servers: z.record(z.string().min(1), McpServerConfigSchema).optional(),
     interaction: InteractionConfigSchema.optional(),
     notification: NotificationConfigSchema.optional(),
   })
@@ -48,27 +89,9 @@ export const AgentConfigSchema = z
 
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
 
-
-const DEFAULT_MAX_TURNS = 20;
-
-type ParseAgentOptions = {
-  defaultMaxTurns?: number;
-};
-
-function applyDefaultMaxTurns(raw: unknown, options: ParseAgentOptions = {}): unknown {
-  const configuredDefault = options.defaultMaxTurns ?? DEFAULT_MAX_TURNS;
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    return raw;
-  }
-  const record = { ...(raw as Record<string, unknown>) };
-  if (record.max_turns === undefined) {
-    record.max_turns = configuredDefault;
-  }
-  return record;
-}
-export function parseAgentYaml(yaml: string, options: ParseAgentOptions = {}): AgentConfig {
+export function parseAgentYaml(yaml: string): AgentConfig {
   const raw = parseYaml(yaml);
-  return AgentConfigSchema.parse(applyDefaultMaxTurns(raw, options));
+  return AgentConfigSchema.parse(raw);
 }
 
 const FRONTMATTER_OPEN = /^---\r?\n/;
@@ -89,9 +112,9 @@ function splitFrontmatter(content: string): { yaml: string; body: string } {
   return { yaml, body };
 }
 
-export function parseAgentFile(content: string, options: ParseAgentOptions = {}): AgentConfig {
+export function parseAgentFile(content: string): AgentConfig {
   if (!hasFrontmatter(content)) {
-    return parseAgentYaml(content, options);
+    return parseAgentYaml(content);
   }
 
   const { yaml, body } = splitFrontmatter(content);
@@ -105,5 +128,5 @@ export function parseAgentFile(content: string, options: ParseAgentOptions = {})
     ? { ...(raw as Record<string, unknown>), prompt: body }
     : raw;
 
-  return AgentConfigSchema.parse(applyDefaultMaxTurns(config, options));
+  return AgentConfigSchema.parse(config);
 }

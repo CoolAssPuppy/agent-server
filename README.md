@@ -134,6 +134,7 @@ max_turns: 10
 | `on_failure` | no | | Agents to trigger on failure |
 | `watch` | no | | File paths to watch for changes (triggers runs outside the cron schedule) |
 | `interaction` | no | | Interactive agent config (channel, on_reply, timeout) |
+| `mcp_servers` | no | | Additional MCP servers for this agent (see [MCP servers](#mcp-servers)) |
 | `notification` | no | | Notification config (channel, on_complete, on_failure) |
 
 ### Limit runaway agent loops
@@ -396,6 +397,71 @@ notification:
 
 On completion, the agent sends a message like `Agent "Weekly Report Generator" completed successfully.` followed by the run summary. On failure, it sends the error message. Set `on_complete: false` to only get notified on failures.
 
+### MCP servers
+
+Agents can bring their own MCP servers beyond what's configured in your claude.ai account or Claude Code settings. This is useful when you need multiple instances of the same MCP server (e.g., personal and work Notion) or servers that aren't available through claude.ai.
+
+Agent-level MCP servers coexist with account-level servers. Your claude.ai MCP servers (Slack, Linear, work Notion, etc.) remain available as `mcp__claude_ai_*` tools. Agent-level servers appear under the name you give them (e.g., `mcp__notion-personal__*`).
+
+Three transport types are supported: stdio (local process), SSE, and HTTP.
+
+#### Example: personal Notion alongside work Notion
+
+Your work Notion is already connected via claude.ai. To also access a personal Notion workspace, add an `mcp_servers` block with a separate integration token:
+
+```yaml
+id: daily-focus
+name: Daily Focus List
+schedule: "0 5 * * 2-6"
+mcp_servers:
+  notion-personal:
+    command: npx
+    args: ["-y", "@notionhq/notion-mcp-server"]
+    env:
+      NOTION_TOKEN: "${NOTION_PERSONAL_API_KEY}"
+permissions:
+  allow:
+    - "mcp__claude_ai_Notion__notion-search"      # work Notion (from claude.ai)
+    - "mcp__notion-personal__notion-search"        # personal Notion (from mcp_servers)
+    - "mcp__notion-personal__notion-create-pages"
+```
+
+The agent now has read access to work Notion and read/write access to personal Notion, each authenticated separately.
+
+#### Environment variable substitution
+
+Values in `env` and `headers` fields support `${VAR}` substitution, resolved from `process.env` at runtime. This includes variables from `~/.agent-server/.env` and from secret managers like Doppler (`doppler run -- agent-server start`).
+
+```yaml
+mcp_servers:
+  my-server:
+    command: node
+    args: ["./my-server.js"]
+    env:
+      API_KEY: "${MY_API_KEY}"           # resolved from process.env
+      DB_URL: "${DATABASE_URL}"          # from .env or Doppler
+```
+
+Undefined variables resolve to an empty string.
+
+#### SSE and HTTP transports
+
+For remote MCP servers:
+
+```yaml
+mcp_servers:
+  remote-tools:
+    type: sse
+    url: https://mcp.example.com/sse
+    headers:
+      Authorization: "Bearer ${REMOTE_TOKEN}"
+  another-service:
+    type: http
+    url: https://api.example.com/mcp
+```
+
+Headers also support `${VAR}` substitution.
+
 ## Running agents
 
 ### CLI
@@ -559,7 +625,9 @@ Agent Server uses the Claude Agent SDK to run Claude Code as a library. Each age
 - `allowedTools` from the agent config (if specified)
 - `disallowedTools` from the agent config (if specified)
 
-The SDK process inherits the current environment, so Claude Code uses whatever MCP servers and permissions are configured in `~/.claude/settings.json`. For headless execution, MCP tool permissions must be pre-approved since there is no interactive prompt. Add them to your Claude Code settings:
+The SDK process inherits the current environment, so Claude Code uses whatever MCP servers and permissions are configured in `~/.claude/settings.json`. Agents can also declare additional MCP servers via the `mcp_servers` config field, which are passed to the SDK alongside account-level servers (see [MCP servers](#mcp-servers)).
+
+For headless execution, MCP tool permissions must be pre-approved since there is no interactive prompt. Add them to your Claude Code settings:
 
 ```json
 {
