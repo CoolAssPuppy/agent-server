@@ -32,6 +32,11 @@ struct SettingsTabView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    .contextMenu {
+                        Button("Restart server") {
+                            monitor.requestServerRestart()
+                        }
+                    }
 
                     if monitor.isServerReachable {
                         HStack {

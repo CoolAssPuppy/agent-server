@@ -8,7 +8,13 @@ enum AgentDetailTab: String, CaseIterable {
 struct AgentDetailView: View {
     let agentId: String
     @ObservedObject var monitor: StatusMonitor
-    @State private var selectedTab: AgentDetailTab = .definition
+    @State private var selectedTab: AgentDetailTab
+
+    init(agentId: String, monitor: StatusMonitor, initialTab: AgentDetailTab = .definition) {
+        self.agentId = agentId
+        self.monitor = monitor
+        _selectedTab = State(initialValue: initialTab)
+    }
 
     private var agent: Agent? {
         monitor.agents.first { $0.id == agentId }

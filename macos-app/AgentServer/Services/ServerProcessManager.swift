@@ -57,6 +57,16 @@ final class ServerProcessManager {
         didStartServer = false
     }
 
+    func restart() async {
+        if let process = serverProcess, process.isRunning {
+            process.terminate()
+            process.waitUntilExit()
+            serverProcess = nil
+            didStartServer = false
+        }
+        launchServer()
+    }
+
     private func isServerRunning() async -> Bool {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 2

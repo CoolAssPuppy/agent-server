@@ -5,6 +5,7 @@ struct AgentsListView: View {
     var onOpenSettings: (() -> Void)?
     @State private var selectedAgentId: String?
     @State private var showNewAgentSheet = false
+    @State private var deepLinkToRuns = false
 
     private var agentsDir: URL {
         FileManager.default.homeDirectoryForCurrentUser
@@ -22,6 +23,12 @@ struct AgentsListView: View {
                 selectedAgentId = newId
                 monitor.poll()
             }
+        }
+        .onChange(of: monitor.deepLinkAgentId) { _, newId in
+            guard let newId else { return }
+            deepLinkToRuns = true
+            selectedAgentId = newId
+            monitor.deepLinkAgentId = nil
         }
     }
 
@@ -107,8 +114,13 @@ struct AgentsListView: View {
     @ViewBuilder
     private var detail: some View {
         if let selectedAgentId {
-            AgentDetailView(agentId: selectedAgentId, monitor: monitor)
-                .id(selectedAgentId)
+            AgentDetailView(
+                agentId: selectedAgentId,
+                monitor: monitor,
+                initialTab: deepLinkToRuns ? .runs : .definition
+            )
+            .id("\(selectedAgentId)-\(deepLinkToRuns)")
+            .onAppear { deepLinkToRuns = false }
         } else {
             ContentUnavailableView(
                 "Select an agent",
@@ -169,16 +181,18 @@ private struct AgentRow: View {
                         .lineLimit(1)
                 }
 
-                HStack(spacing: 5) {
-                    Text(agent.kind.label)
-                        .font(.caption)
-                        .foregroundStyle(kindColor)
+                if agent.enabled {
+                    HStack(spacing: 5) {
+                        Text(agent.kind.label)
+                            .font(.caption)
+                            .foregroundStyle(kindColor)
 
-                    if agent.isScheduled {
-                        Image(systemName: "clock")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.tertiary)
-                            .help(agent.scheduleDisplay)
+                        if agent.isScheduled {
+                            Image(systemName: "clock")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.tertiary)
+                                .help(agent.scheduleDisplay)
+                        }
                     }
                 }
             }

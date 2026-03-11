@@ -6,6 +6,7 @@ final class StatusMonitor: ObservableObject {
     @Published private(set) var agents: [Agent] = []
     @Published private(set) var activeRuns: [Run] = []
     @Published private(set) var isServerReachable = false
+    @Published var deepLinkAgentId: String?
 
     private let client = AgentServerClient()
     private var timer: Timer?
@@ -55,17 +56,26 @@ final class StatusMonitor: ObservableObject {
                 self.consecutiveFailures += 1
 
                 if self.consecutiveFailures == Self.restartThreshold {
-                    self.restartServer()
+                    self.autoRestartServer()
                 }
             }
         }
     }
 
-    private func restartServer() {
+    private func autoRestartServer() {
         guard let serverProcess else { return }
         print("[StatusMonitor] Server unreachable after \(Self.restartThreshold) checks, restarting...")
         Task {
             await serverProcess.startIfNeeded()
+        }
+    }
+
+    func requestServerRestart() {
+        guard let serverProcess else { return }
+        Task {
+            await serverProcess.restart()
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            poll()
         }
     }
 

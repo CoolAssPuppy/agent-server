@@ -95,7 +95,9 @@ private extension AppDelegate {
             } else {
                 for run in activeRuns {
                     let title = "\(run.agentName) (\(run.turnCount) turns)"
-                    let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+                    let item = NSMenuItem(title: title, action: #selector(openRunningAgent(_:)), keyEquivalent: "")
+                    item.target = self
+                    item.representedObject = run.agentId
                     item.image = circleImage(color: .systemGreen)
                     menu.addItem(item)
                 }
@@ -103,7 +105,7 @@ private extension AppDelegate {
 
             menu.addItem(.separator())
 
-            let scheduledCount = monitor.agents.filter { $0.schedule != nil }.count
+            let scheduledCount = monitor.agents.filter { $0.schedule != nil && $0.enabled }.count
             let summaryTitle = "\(scheduledCount) agent\(scheduledCount == 1 ? "" : "s") scheduled"
             let summaryItem = NSMenuItem(title: summaryTitle, action: nil, keyEquivalent: "")
             summaryItem.isEnabled = false
@@ -172,6 +174,12 @@ extension AppDelegate {
 
             settingsWindow = window
         }
+    }
+
+    @objc func openRunningAgent(_ sender: NSMenuItem) {
+        guard let agentId = sender.representedObject as? String else { return }
+        monitor.deepLinkAgentId = agentId
+        showSettings()
     }
 
     @objc func quitApp() {
