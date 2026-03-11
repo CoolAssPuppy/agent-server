@@ -37,6 +37,7 @@ export const ServerConfigSchema = z.object({
   catchUp: z.boolean().default(false),
   maxConcurrentRuns: z.number().int().positive().default(8),
   maxWebSocketClients: z.number().int().positive().default(100),
+  defaultMaxTurns: z.number().int().positive().default(20),
 });
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
@@ -66,6 +67,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       : undefined,
     maxWebSocketClients: env.AGENT_SERVER_MAX_WS_CLIENTS
       ? Number(env.AGENT_SERVER_MAX_WS_CLIENTS)
+      : undefined,
+    defaultMaxTurns: env.AGENT_SERVER_DEFAULT_MAX_TURNS
+      ? Number(env.AGENT_SERVER_DEFAULT_MAX_TURNS)
       : undefined,
   });
 }

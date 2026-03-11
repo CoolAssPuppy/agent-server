@@ -67,6 +67,14 @@ describe('discoverAgents', () => {
     expect(agents[0].name).toBe('Hello World');
   });
 
+
+  it('applies default max_turns override when agent omits it', async () => {
+    writeAgent(dir, 'hello.yaml', VALID_AGENT);
+    const agents = await discoverAgents(dir, { defaultMaxTurns: 50 });
+    expect(agents).toHaveLength(1);
+    expect(agents[0].max_turns).toBe(50);
+  });
+
   it('discovers multiple agents sorted by id', async () => {
     writeAgent(dir, 'reviewer.yaml', SECOND_AGENT);
     writeAgent(dir, 'hello.yaml', VALID_AGENT);
