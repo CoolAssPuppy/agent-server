@@ -70,7 +70,7 @@ export function createApi(deps: ApiDependencies): Hono {
   const authFailures = new AuthFailureTracker(10, 10 * 60_000);
 
   app.use(async (c, next) => {
-    const ip = getClientIp(c.req.raw);
+    const ip = getClientIp(c.req.raw, { trustProxyHeaders: false });
 
     const throttle = generalLimiter.consume(ip);
     if (!throttle.allowed) {
@@ -136,7 +136,7 @@ export function createApi(deps: ApiDependencies): Hono {
   });
 
   app.post('/agents/:id/run', async (c) => {
-    const ip = getClientIp(c.req.raw);
+    const ip = getClientIp(c.req.raw, { trustProxyHeaders: false });
     const triggerThrottle = triggerLimiter.consume(`${ip}:run`);
     if (!triggerThrottle.allowed) {
       c.header('Retry-After', String(triggerThrottle.retryAfterSeconds ?? 60));
