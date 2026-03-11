@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AuthFailureTracker, InMemoryRateLimiter, sanitizeStoredRun, sanitizeText } from './security-utils.js';
+import { AuthFailureTracker, InMemoryRateLimiter, getClientIp, sanitizeStoredRun, sanitizeText } from './security-utils.js';
 import { makeStoredRun } from '../test-factories.js';
 
 describe('security-utils', () => {
@@ -25,6 +25,28 @@ describe('security-utils', () => {
     expect(limiter.consume('ip').allowed).toBe(true);
     expect(limiter.consume('ip').allowed).toBe(true);
     expect(limiter.consume('ip').allowed).toBe(false);
+  });
+
+
+  it('does not trust proxy headers by default when extracting client IP', () => {
+    const request = new Request('http://localhost/test', {
+      headers: {
+        'x-forwarded-for': '203.0.113.5',
+        'x-real-ip': '198.51.100.8',
+      },
+    });
+
+    expect(getClientIp(request)).toBe('unknown');
+  });
+
+  it('can trust proxy headers when explicitly enabled', () => {
+    const request = new Request('http://localhost/test', {
+      headers: {
+        'x-forwarded-for': '203.0.113.5, 198.51.100.8',
+      },
+    });
+
+    expect(getClientIp(request, { trustProxyHeaders: true })).toBe('203.0.113.5');
   });
 
   it('blocks after repeated auth failures', () => {

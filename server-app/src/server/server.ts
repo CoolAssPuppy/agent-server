@@ -45,10 +45,20 @@ function parseTimeout(timeout: string): number {
   return unit === 'h' ? value * 60 * 60 * 1000 : value * 60 * 1000;
 }
 
-export function startServer(config: ServerConfig): ServerInstance {
-  if (!config.apiKey && !isLoopbackHost(config.host)) {
+export function validateNetworkExposure(host: string, apiKey?: string): void {
+  const trimmedApiKey = apiKey?.trim();
+
+  if (!trimmedApiKey && !isLoopbackHost(host)) {
     throw new Error('Refusing to bind to a non-loopback host without AGENT_SERVER_API_KEY');
   }
+
+  if (trimmedApiKey && trimmedApiKey.length < 16) {
+    throw new Error('AGENT_SERVER_API_KEY must be at least 16 characters long');
+  }
+}
+
+export function startServer(config: ServerConfig): ServerInstance {
+  validateNetworkExposure(config.host, config.apiKey);
 
   const store = new RunStore();
   const interactionStore = new InteractionStore();
