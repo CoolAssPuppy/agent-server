@@ -176,9 +176,9 @@ export class TelegramChannel implements Channel {
       options.reply_markup = keyboard;
     }
 
+    const result = await this.api.sendMessage(this.chatId as number, text, Object.keys(options).length > 0 ? options : undefined);
     this.pendingInteractions.set(interactionId, request);
     this.lastPendingId = interactionId;
-    const result = await this.api.sendMessage(this.chatId as number, text, Object.keys(options).length > 0 ? options : undefined);
     this.sentMessages.set(interactionId, { messageId: result.message_id, chatId: this.chatId as number });
   }
 
@@ -190,6 +190,7 @@ export class TelegramChannel implements Channel {
     if (!option) return;
 
     this.pendingInteractions.delete(interactionId);
+    this.clearLastPendingIfMatches(interactionId);
     const reply: ChannelReply = { interactionId, selectedValue: sanitizeText(option.value, 500) };
     for (const cb of this.callbacks) {
       cb(reply);
@@ -201,6 +202,7 @@ export class TelegramChannel implements Channel {
     if (!request) return;
 
     this.pendingInteractions.delete(interactionId);
+    this.clearLastPendingIfMatches(interactionId);
     const reply: ChannelReply = { interactionId, freeText: sanitizeText(text, 500) };
     for (const cb of this.callbacks) {
       cb(reply);
@@ -209,10 +211,11 @@ export class TelegramChannel implements Channel {
 
   async expireInteraction(interactionId: string): Promise<void> {
     const sentMessage = this.sentMessages.get(interactionId);
+    this.pendingInteractions.delete(interactionId);
+    this.clearLastPendingIfMatches(interactionId);
     if (!sentMessage) return;
 
     this.sentMessages.delete(interactionId);
-    this.pendingInteractions.delete(interactionId);
 
     if (this.api.editMessageText) {
       await this.api.editMessageText(sentMessage.chatId, sentMessage.messageId, undefined, 'This request has expired.');
@@ -224,6 +227,16 @@ export class TelegramChannel implements Channel {
 
   getLastPendingInteractionId(): string | undefined {
     return this.lastPendingId;
+  }
+
+  hasPendingInteraction(interactionId: string): boolean {
+    return this.pendingInteractions.has(interactionId);
+  }
+
+  private clearLastPendingIfMatches(interactionId: string): void {
+    if (this.lastPendingId === interactionId) {
+      this.lastPendingId = undefined;
+    }
   }
 }
 
@@ -305,7 +318,7 @@ export async function createTelegramChannel(
     }
 
     const lastId = channel.getLastPendingInteractionId();
-    if (lastId) {
+    if (lastId && channel.hasPendingInteraction(lastId)) {
       channel.handleTextReply(lastId, ctx.message.text);
       return;
     }

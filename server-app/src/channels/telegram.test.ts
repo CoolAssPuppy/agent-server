@@ -128,6 +128,18 @@ describe('TelegramChannel', () => {
     expect(options).toBeUndefined();
   });
 
+  it('does not keep pending interaction state when send fails', async () => {
+    const mockApi = {
+      sendMessage: vi.fn().mockRejectedValue(new Error('telegram unavailable')),
+      answerCallbackQuery: vi.fn().mockResolvedValue(true),
+    };
+    const channel = new TelegramChannel({ api: mockApi, chatId: 12345 });
+
+    await expect(channel.send('int-1', optionsRequest)).rejects.toThrow('telegram unavailable');
+    expect(channel.getLastPendingInteractionId()).toBeUndefined();
+    expect(channel.hasPendingInteraction('int-1')).toBe(false);
+  });
+
   it('tracks pending interactions for callback resolution', async () => {
     const { channel } = makeChannel();
     const replies: ChannelReply[] = [];
@@ -269,6 +281,24 @@ describe('TelegramChannel onMessage', () => {
     expect(messages).toHaveLength(0);
   });
 
+  it('clears last pending interaction after handling a text reply', async () => {
+    const { channel } = makeChannel();
+
+    await channel.send('int-1', {
+      message: 'Pick a slot',
+      options: [{ label: '19:00', value: 'Book 19:00' }],
+      freeText: true,
+    });
+
+    expect(channel.getLastPendingInteractionId()).toBe('int-1');
+    expect(channel.hasPendingInteraction('int-1')).toBe(true);
+
+    channel.handleTextReply('int-1', 'Another neighborhood');
+
+    expect(channel.getLastPendingInteractionId()).toBeUndefined();
+    expect(channel.hasPendingInteraction('int-1')).toBe(false);
+  });
+
   it('supports multiple message callbacks', () => {
     const { channel } = makeChannel();
     const first: string[] = [];
@@ -331,6 +361,17 @@ describe('TelegramChannel expireInteraction', () => {
 
     expect(mockApi.editMessageText).not.toHaveBeenCalled();
     expect(mockApi.editMessageReplyMarkup).not.toHaveBeenCalled();
+  });
+
+  it('cleans pending state even when sent message metadata is missing', async () => {
+    const { channel } = makeChannel();
+    await channel.send('int-1', optionsRequest);
+
+    channel.handleTextReply('int-1', 'done');
+    expect(channel.hasPendingInteraction('int-1')).toBe(false);
+
+    await channel.expireInteraction('int-1');
+    expect(channel.getLastPendingInteractionId()).toBeUndefined();
   });
 
   it('cleans up stored message after expiry', async () => {

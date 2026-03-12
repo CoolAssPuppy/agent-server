@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { evaluateTriggers } from '../agents/triggers.js';
 import { makeAgent } from '../test-factories.js';
 import type { AgentConfig } from '../agents/config.js';
+import { shouldSendTelegramRunNotification } from './server.js';
 
 describe('fireDownstreamTriggers', () => {
   async function fireDownstreamTriggers(
@@ -92,5 +93,43 @@ describe('fireDownstreamTriggers', () => {
     expect(trigger).toHaveBeenCalledTimes(2);
     expect(trigger).toHaveBeenCalledWith(d1);
     expect(trigger).toHaveBeenCalledWith(d2);
+  });
+});
+
+describe('shouldSendTelegramRunNotification', () => {
+  it('returns false when completion notification is already configured for telegram', () => {
+    const agent = makeAgent({
+      notification: {
+        channel: 'telegram',
+        on_complete: true,
+        on_failure: false,
+      },
+    });
+
+    expect(shouldSendTelegramRunNotification(agent, 'completed')).toBe(false);
+  });
+
+  it('returns true when failure notification is not configured for telegram', () => {
+    const agent = makeAgent({
+      notification: {
+        channel: 'telegram',
+        on_complete: true,
+        on_failure: false,
+      },
+    });
+
+    expect(shouldSendTelegramRunNotification(agent, 'failed')).toBe(true);
+  });
+
+  it('returns true when notification channel is not telegram', () => {
+    const agent = makeAgent({
+      notification: {
+        channel: 'console',
+        on_complete: true,
+        on_failure: true,
+      },
+    });
+
+    expect(shouldSendTelegramRunNotification(agent, 'completed')).toBe(true);
   });
 });
