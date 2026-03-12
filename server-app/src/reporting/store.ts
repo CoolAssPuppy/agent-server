@@ -13,6 +13,7 @@ export type StoredRun = {
   filesWritten: string[];
   commandsRun: string[];
   progressMessages: string[];
+  conversationId?: string;
 };
 
 const DEFAULT_MAX_RUNS = 200;

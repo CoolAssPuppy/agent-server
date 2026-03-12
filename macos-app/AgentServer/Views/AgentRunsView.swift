@@ -187,6 +187,12 @@ private struct RunRow: View {
                 }
 
                 HStack(spacing: 8) {
+                    if run.conversationId != nil {
+                        Image(systemName: "bubble.left.and.bubble.right")
+                            .font(.caption)
+                            .foregroundStyle(.purple)
+                    }
+
                     if run.turnCount > 0 {
                         Label("\(run.turnCount) turns", systemImage: "arrow.trianglehead.2.counterclockwise")
                             .font(.caption)
@@ -284,6 +290,11 @@ struct RunDetailView: View {
 
                 if let summary = run.summary, !summary.isEmpty {
                     summarySection(summary)
+                    Divider()
+                }
+
+                if run.conversationId != nil {
+                    conversationSection
                     Divider()
                 }
 
@@ -526,6 +537,28 @@ struct RunDetailView: View {
         VStack(alignment: .leading, spacing: 6) {
             SectionHeader(title: "Summary", icon: "text.alignleft")
             MarkdownContentView(source: summary)
+        }
+        .padding(16)
+    }
+
+    // MARK: - Conversation
+
+    private var conversationSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SectionHeader(title: "Conversation", icon: "bubble.left.and.bubble.right")
+            HStack(spacing: 6) {
+                Image(systemName: "bubble.left.and.bubble.right")
+                    .font(.caption)
+                    .foregroundStyle(.purple)
+                Text("Part of a conversation")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let convId = run.conversationId {
+                    Text(convId.prefix(8))
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                }
+            }
         }
         .padding(16)
     }

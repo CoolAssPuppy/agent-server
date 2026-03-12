@@ -27,7 +27,7 @@ function runAgentWithConfig(config: ServerConfig, agent: AgentConfig, options: R
     agent,
     lockDir: config.lockDir,
     execute: (a, reporter) => registry.resolve(a)(a, reporter),
-    createReporter: (runId, agentName) => createReporter(config, runId, agentName),
+    createReporter: (runId, agentName, convId) => createReporter(config, runId, agentName, { conversationId: convId }),
     promptSuffix: options.promptSuffix,
   });
 }

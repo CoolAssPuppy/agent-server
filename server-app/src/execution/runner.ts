@@ -24,19 +24,20 @@ type RunAgentOptions = {
   agent: AgentConfig;
   lockDir: string;
   execute: (agent: AgentConfig, reporter: Reporter) => Promise<ExecutionResult>;
-  createReporter: (runId: string, agentName: string) => Reporter;
+  createReporter: (runId: string, agentName: string, conversationId?: string) => Reporter;
   promptSuffix?: string;
+  conversationId?: string;
 };
 
 export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
-  const { agent, lockDir, execute, createReporter, promptSuffix } = options;
+  const { agent, lockDir, execute, createReporter, promptSuffix, conversationId } = options;
 
   if (!acquireLock(lockDir, agent.id)) {
     return { status: 'skipped' };
   }
 
   const runId = randomUUID();
-  const reporter = createReporter(runId, agent.name);
+  const reporter = createReporter(runId, agent.name, conversationId);
 
   const safePromptSuffix = promptSuffix ? sanitizePromptSuffix(promptSuffix) : undefined;
   const guardPromptInput = process.env.AGENT_SERVER_PROMPT_INJECTION_GUARD !== 'false';

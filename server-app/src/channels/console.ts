@@ -53,9 +53,10 @@ export class ConsoleChannel implements Channel {
     this.callbacks.push(callback);
   }
 
-  async notify(data: NotificationData): Promise<void> {
+  async notify(data: NotificationData): Promise<number | undefined> {
     const message = formatPlainNotification(data);
     console.log(`\n[notification] ${message}\n`);
+    return undefined;
   }
 
   async send(interactionId: string, request: InteractionRequest): Promise<void> {

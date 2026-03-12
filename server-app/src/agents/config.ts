@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { parse as parseYaml } from 'yaml';
 import { InteractionConfigSchema, NotificationConfigSchema } from '../interaction/schema.js';
+import { ConversationConfigSchema } from '../conversation/schema.js';
 
 const TriggerRefSchema = z.object({
   agent: z.string().min(1),
@@ -84,6 +85,7 @@ export const AgentConfigSchema = z
     mcp_servers: z.record(z.string().min(1), McpServerConfigSchema).optional(),
     interaction: InteractionConfigSchema.optional(),
     notification: NotificationConfigSchema.optional(),
+    conversation: ConversationConfigSchema.optional(),
   })
   .passthrough();
 

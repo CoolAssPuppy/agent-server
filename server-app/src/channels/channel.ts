@@ -14,7 +14,7 @@ export interface Channel {
   start(): Promise<void>;
   stop(): Promise<void>;
   send(interactionId: string, request: InteractionRequest): Promise<void>;
-  notify(data: NotificationData): Promise<void>;
+  notify(data: NotificationData): Promise<number | undefined>;
   onReply(callback: ReplyCallback): void;
   expireInteraction?(interactionId: string): Promise<void>;
 }

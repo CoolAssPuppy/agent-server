@@ -4,6 +4,7 @@ import { tmpdir } from 'os';
 import type { AgentConfig } from './agents/config.js';
 import type { ExecutionResult } from './execution/executor.js';
 import type { StoredRun } from './reporting/store.js';
+import type { Conversation, ConversationMessage } from './conversation/schema.js';
 
 export function makeAgent(overrides: Partial<AgentConfig> = {}): AgentConfig {
   return {
@@ -46,6 +47,28 @@ export function makeStoredRun(overrides: Partial<StoredRun> = {}): StoredRun {
     filesWritten: [],
     commandsRun: [],
     progressMessages: [],
+    ...overrides,
+  };
+}
+
+export function makeConversationMessage(overrides: Partial<ConversationMessage> = {}): ConversationMessage {
+  return {
+    role: 'user',
+    content: 'Hello',
+    createdAt: new Date('2026-03-12T10:00:00Z'),
+    ...overrides,
+  };
+}
+
+export function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
+  return {
+    id: 'conv-1',
+    chatId: 123,
+    agentId: 'test-agent',
+    messages: [],
+    createdAt: new Date('2026-03-12T10:00:00Z'),
+    expiresAt: new Date('2026-03-12T10:30:00Z'),
+    status: 'active',
     ...overrides,
   };
 }

@@ -31,10 +31,10 @@ export class ChannelDispatcher {
     await channel.send(interactionId, request);
   }
 
-  async notify(channelName: string, data: NotificationData): Promise<void> {
+  async notify(channelName: string, data: NotificationData): Promise<number | undefined> {
     const channel = this.resolveOrWarn(channelName, 'notification');
-    if (!channel) return;
-    await channel.notify(data);
+    if (!channel) return undefined;
+    return channel.notify(data);
   }
 
   async expireInteractions(expired: Array<{ id: string; channel: string }>): Promise<void> {

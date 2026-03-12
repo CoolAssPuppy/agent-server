@@ -18,6 +18,8 @@ import { evaluateTriggers } from '../agents/triggers.js';
 import { FileWatcher, extractWatchConfigs } from '../agents/file-watcher.js';
 import { ChannelDispatcher } from '../channels/dispatcher.js';
 import { InteractionStore } from '../interaction/store.js';
+import { ConversationStore } from '../conversation/store.js';
+import { formatConversationHistory } from '../conversation/history-formatter.js';
 import type { InteractionRequest } from '../interaction/schema.js';
 import { createTelegramChannel } from '../channels/telegram.js';
 import { formatAgentListMessage, type NotificationData } from '../interaction/notification.js';
@@ -70,6 +72,7 @@ export function startServer(config: ServerConfig): ServerInstance {
 
   const store = new RunStore();
   const interactionStore = new InteractionStore();
+  const conversationStore = new ConversationStore();
   const channelDispatcher = new ChannelDispatcher();
   const port = config.port;
 
@@ -145,7 +148,17 @@ export function startServer(config: ServerConfig): ServerInstance {
 
   type RunDoneCallback = (result: { status: 'completed' | 'failed'; summary?: string; error?: string }) => void;
 
-  function triggerRunForAgent(agent: AgentConfig, promptSuffix?: string, onDone?: RunDoneCallback): string {
+  type TriggerRunOptions = {
+    promptSuffix?: string;
+    onDone?: RunDoneCallback;
+    conversationId?: string;
+  };
+
+  function triggerRunForAgent(agent: AgentConfig, optionsOrSuffix?: string | TriggerRunOptions, onDoneArg?: RunDoneCallback): string {
+    const opts: TriggerRunOptions = typeof optionsOrSuffix === 'string'
+      ? { promptSuffix: optionsOrSuffix, onDone: onDoneArg }
+      : optionsOrSuffix ?? {};
+    const { promptSuffix, onDone, conversationId } = opts;
     if (activeControllers.size >= config.maxConcurrentRuns) {
       throw new Error('Too many active runs. Please retry later.');
     }
@@ -167,6 +180,7 @@ export function startServer(config: ServerConfig): ServerInstance {
       filesWritten: [],
       commandsRun: [],
       progressMessages: [],
+      conversationId,
     });
 
     broadcaster.emit(sanitizeProgressEvent({
@@ -237,7 +251,7 @@ export function startServer(config: ServerConfig): ServerInstance {
         void fireDownstreamTriggers(agent.id, 'completed');
         return result;
       },
-      createReporter: (rid, name) => createReporter(config, rid, name, { serverId }),
+      createReporter: (rid, name, convId) => createReporter(config, rid, name, { serverId, conversationId: convId ?? conversationId }),
       promptSuffix,
     }).then((result) => {
       activeControllers.delete(runId);
@@ -454,6 +468,41 @@ export function startServer(config: ServerConfig): ServerInstance {
     telegramChannel.onMessage((text) => {
       void (async () => {
         try {
+          const chatId = telegramChannel.getChatId();
+          if (!chatId) return;
+
+          const activeConv = conversationStore.findActiveByChat(chatId);
+          if (activeConv) {
+            const agents = await discoverAgents(config.agentsDir);
+            const agent = agents.find((a) => a.id === activeConv.agentId);
+            if (!agent) {
+              conversationStore.expire(activeConv.id);
+              await telegramChannel.notifyText('Conversation expired (agent not found).');
+              return;
+            }
+
+            conversationStore.addMessage(activeConv.id, 'user', text);
+            const history = formatConversationHistory(activeConv.messages.concat([{ role: 'user', content: text, createdAt: new Date() }]));
+            const contextSuffix = `${history}\n\nUser's latest message: ${text}`;
+
+            await telegramChannel.notifyText(`Running ${agent.name}...`);
+
+            triggerRunForAgent(agent, {
+              promptSuffix: contextSuffix,
+              conversationId: activeConv.id,
+              onDone: (done) => {
+                if (done.status === 'completed' && done.summary) {
+                  conversationStore.addMessage(activeConv.id, 'assistant', done.summary);
+                }
+                const data: NotificationData = done.status === 'completed'
+                  ? { agentName: agent.name, status: 'completed', summary: done.summary }
+                  : { agentName: agent.name, status: 'failed', error: done.error };
+                void telegramChannel.notify(data);
+              },
+            });
+            return;
+          }
+
           const agents = await discoverAgents(config.agentsDir);
           const result = await routeMessage(text, agents);
 
@@ -468,13 +517,30 @@ export function startServer(config: ServerConfig): ServerInstance {
           }
 
           const { agent } = result;
+          const isConversational = agent.conversation?.enabled === true;
+          let convId: string | undefined;
+
+          if (isConversational) {
+            const ttlMs = parseTimeout(agent.conversation?.ttl ?? '30m');
+            const conv = conversationStore.create(chatId, agent.id, ttlMs);
+            convId = conv.id;
+            conversationStore.addMessage(conv.id, 'user', text);
+          }
+
           await telegramChannel.notifyText(`Running ${agent.name}...`);
 
-          triggerRunForAgent(agent, result.context, (done) => {
-            const data: NotificationData = done.status === 'completed'
-              ? { agentName: agent.name, status: 'completed', summary: done.summary }
-              : { agentName: agent.name, status: 'failed', error: done.error };
-            void telegramChannel.notify(data);
+          triggerRunForAgent(agent, {
+            promptSuffix: result.context,
+            conversationId: convId,
+            onDone: (done) => {
+              if (convId && done.status === 'completed' && done.summary) {
+                conversationStore.addMessage(convId, 'assistant', done.summary);
+              }
+              const data: NotificationData = done.status === 'completed'
+                ? { agentName: agent.name, status: 'completed', summary: done.summary }
+                : { agentName: agent.name, status: 'failed', error: done.error };
+              void telegramChannel.notify(data);
+            },
           });
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -492,6 +558,11 @@ export function startServer(config: ServerConfig): ServerInstance {
   const telegramPromise = setupTelegram();
 
   const expiryInterval = setInterval(() => {
+    const expiredConvs = conversationStore.expireStale();
+    if (expiredConvs.length > 0) {
+      console.log(`[conversations] Expired ${expiredConvs.length} stale conversation(s)`);
+    }
+
     const expiredIds = interactionStore.expireStale();
     if (expiredIds.length > 0) {
       console.log(`[interactions] Expired ${expiredIds.length} stale interaction(s)`);

@@ -34,6 +34,10 @@ server-app/src/
     permissions.ts       -- Glob-based tool permission matching (canUseTool)
     runner.ts            -- Orchestrates lock -> report -> execute -> release
     lockfile.ts          -- PID-based file locks with stale detection
+  conversation/
+    schema.ts            -- Conversation schemas (message, config, conversation type)
+    store.ts             -- In-memory conversation store with TTL and FIFO eviction
+    history-formatter.ts -- Formats conversation history into prompt context
   interaction/
     parser.ts            -- Parses ```interaction blocks from agent output
     schema.ts            -- InteractionRequest, InteractionConfig, NotificationConfig schemas
@@ -171,6 +175,33 @@ Agents can define `on_complete` and `on_failure` arrays referencing other agent 
 
 Agents can declare `watch` paths in their YAML config. The `FileWatcher` class monitors these paths with `fs.watch`, applies glob filtering for directories, and debounces rapid changes. The `expandHome()` utility (in `agents/file-watcher.ts`) handles `~` expansion and is shared with `plugins/claude-code.ts`.
 
+### Conversational agents
+
+Agents can maintain conversation history across multiple runs by enabling the `conversation` config:
+
+```yaml
+conversation:
+  enabled: true
+  ttl: 1h    # how long the conversation stays active (default: 30m)
+```
+
+**How it works:**
+
+1. User sends a message via Telegram. The server checks `ConversationStore.findActiveByChat(chatId)` before routing.
+2. If an active conversation exists for this chat, the message goes directly to that agent (skips the Haiku router).
+3. If no active conversation, the router picks an agent. If that agent has `conversation.enabled: true`, a new conversation is created.
+4. The user's message is stored in the conversation. `formatConversationHistory()` formats all prior messages into a `<conversation_history>` XML block appended as prompt context.
+5. After the run completes, the assistant's summary is added to the conversation.
+6. The `conversationId` flows through the reporter metadata to the panel, where it's stored on `task_runs.conversation_id`.
+
+**ConversationStore** (in `conversation/store.ts`): In-memory Map storage, max 100 conversations with FIFO eviction, max 50 messages per conversation, 4000-char content truncation. Stale conversations are expired in the 60-second sweep alongside interaction expiry.
+
+**History formatter** (in `conversation/history-formatter.ts`): Wraps messages in `<conversation_history>`, labels with `[User]`/`[Assistant]`, summarizes assistant messages over 2000 chars, caps total output at 20,000 chars (trims oldest messages first).
+
+**conversationId flow**: Server generates UUID -> `ReporterConfig.conversationId` -> metadata `conversation_id` on every telemetry event -> panel API extracts and stores on `task_runs` -> UI groups runs by conversation_id.
+
+**Panel UI**: Web shows `ConversationThread` component on run detail pages. iOS shows `ConversationThreadView` (native SwiftUI). macOS app shows a conversation bubble icon in the runs list.
+
 ### Interactive agents
 
 Agents can request user input by outputting a fenced `interaction` block in their response. The executor parses this and routes it through the channel system.
@@ -300,6 +331,9 @@ on_complete:             # optional agent chaining
   - agent: downstream-agent
 on_failure:
   - agent: alert-agent
+conversation:            # optional conversational memory
+  enabled: true
+  ttl: 1h               # default: 30m
 interaction:             # optional interactive agent config
   channel: telegram
   on_reply: downstream-agent

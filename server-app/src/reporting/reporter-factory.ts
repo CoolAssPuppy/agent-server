@@ -12,6 +12,7 @@ const noopReporter: Reporter = {
 
 type CreateReporterOptions = {
   serverId?: string;
+  conversationId?: string;
 };
 
 export function createReporter(
@@ -31,5 +32,6 @@ export function createReporter(
     apiKey: config.panelApiKey,
     heartbeatMs: config.heartbeatMs,
     serverId: options.serverId,
+    conversationId: options.conversationId,
   });
 }

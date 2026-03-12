@@ -310,6 +310,58 @@ describe('runAgent', () => {
     expect(result.result?.interaction).toEqual(interaction);
   });
 
+  it('passes conversationId to createReporter', async () => {
+    const lockDir = createTempDir('runner');
+    dirs.push(lockDir);
+    const createReporter = vi.fn().mockReturnValue({
+      start: noop,
+      progress: noop,
+      complete: noop,
+      fail: noop,
+      stop: () => {},
+    });
+
+    await runAgent({
+      agent: makeAgent(),
+      lockDir,
+      execute: async () => makeExecutionResult(),
+      createReporter,
+      conversationId: 'conv-abc-123',
+    });
+
+    expect(createReporter).toHaveBeenCalledOnce();
+    expect(createReporter).toHaveBeenCalledWith(
+      expect.any(String),
+      'Test Agent',
+      'conv-abc-123',
+    );
+  });
+
+  it('passes undefined conversationId when not provided', async () => {
+    const lockDir = createTempDir('runner');
+    dirs.push(lockDir);
+    const createReporter = vi.fn().mockReturnValue({
+      start: noop,
+      progress: noop,
+      complete: noop,
+      fail: noop,
+      stop: () => {},
+    });
+
+    await runAgent({
+      agent: makeAgent(),
+      lockDir,
+      execute: async () => makeExecutionResult(),
+      createReporter,
+    });
+
+    expect(createReporter).toHaveBeenCalledWith(
+      expect.any(String),
+      'Test Agent',
+      undefined,
+    );
+  });
+
   it('returns skipped when agent is already locked', async () => {
     const lockDir = createTempDir('runner');
     dirs.push(lockDir);

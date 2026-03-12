@@ -152,15 +152,17 @@ export class TelegramChannel implements Channel {
     return true;
   }
 
-  async notify(data: NotificationData): Promise<void> {
-    if (!this.hasChatId()) return;
+  async notify(data: NotificationData): Promise<number | undefined> {
+    if (!this.hasChatId()) return undefined;
     const html = formatTelegramNotification(data);
-    await this.api.sendMessage(this.chatId as number, sanitizeText(html, MAX_TELEGRAM_TEXT_LENGTH), { parse_mode: 'HTML' });
+    const result = await this.api.sendMessage(this.chatId as number, sanitizeText(html, MAX_TELEGRAM_TEXT_LENGTH), { parse_mode: 'HTML' });
+    return result.message_id;
   }
 
-  async notifyText(message: string): Promise<void> {
-    if (!this.hasChatId()) return;
-    await this.api.sendMessage(this.chatId as number, sanitizeText(message, MAX_TELEGRAM_TEXT_LENGTH));
+  async notifyText(message: string): Promise<number | undefined> {
+    if (!this.hasChatId()) return undefined;
+    const result = await this.api.sendMessage(this.chatId as number, sanitizeText(message, MAX_TELEGRAM_TEXT_LENGTH));
+    return result.message_id;
   }
 
   async send(interactionId: string, request: InteractionRequest): Promise<void> {

@@ -146,6 +146,46 @@ describe('TelemetryReporter', () => {
     expect(body.metadata?.worker_id).toBe('myhost-1234');
   });
 
+  it('includes conversation_id in metadata when conversationId is set', async () => {
+    const mockFetch = createMockFetch();
+    const reporter = new TelemetryReporter({
+      runId: 'run-123',
+      agentName: 'Test Agent',
+      endpoint: 'https://panel.example.com/api/runs/run-123/status',
+      apiKey: 'ap_live_test',
+      fetch: mockFetch,
+      heartbeatMs: 0,
+      conversationId: 'conv-abc-123',
+    });
+
+    await reporter.start();
+    reporter.stop();
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body) as StatusEvent;
+    expect(body.metadata?.conversation_id).toBe('conv-abc-123');
+  });
+
+  it('includes both worker_id and conversation_id in metadata when both are set', async () => {
+    const mockFetch = createMockFetch();
+    const reporter = new TelemetryReporter({
+      runId: 'run-123',
+      agentName: 'Test Agent',
+      endpoint: 'https://panel.example.com/api/runs/run-123/status',
+      apiKey: 'ap_live_test',
+      fetch: mockFetch,
+      heartbeatMs: 0,
+      serverId: 'myhost-1234',
+      conversationId: 'conv-abc-123',
+    });
+
+    await reporter.start();
+    reporter.stop();
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body) as StatusEvent;
+    expect(body.metadata?.worker_id).toBe('myhost-1234');
+    expect(body.metadata?.conversation_id).toBe('conv-abc-123');
+  });
+
   it('does not throw when fetch fails', async () => {
     const failingFetch = vi.fn().mockRejectedValue(new Error('Network error'));
     const reporter = makeReporter({ fetch: failingFetch });

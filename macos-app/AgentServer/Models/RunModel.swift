@@ -24,6 +24,7 @@ struct Run: Codable, Identifiable {
     let outputTokens: Int?
     let estimatedCostUsd: Double?
     let durationMs: Int?
+    let conversationId: String?
 
     var isActive: Bool {
         status == .running

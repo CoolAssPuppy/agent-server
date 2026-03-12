@@ -16,6 +16,7 @@ struct PanelRun: Decodable, Identifiable {
     let durationMs: Int?
     let errorMessage: String?
     let result: PanelRunResult?
+    let conversationId: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -27,6 +28,7 @@ struct PanelRun: Decodable, Identifiable {
         case endedAt = "ended_at"
         case durationMs = "duration_ms"
         case errorMessage = "error_message"
+        case conversationId = "conversation_id"
     }
 
     func toRun(agentId: String) -> Run {
@@ -59,7 +61,8 @@ struct PanelRun: Decodable, Identifiable {
             inputTokens: usage?.inputTokens,
             outputTokens: usage?.outputTokens,
             estimatedCostUsd: usage?.estimatedCostUsd,
-            durationMs: durationMs
+            durationMs: durationMs,
+            conversationId: conversationId
         )
     }
 }
