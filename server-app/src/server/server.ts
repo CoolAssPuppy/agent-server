@@ -63,6 +63,22 @@ export function validateNetworkExposure(host: string, apiKey?: string): void {
 
 const STALE_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 
+export function shouldSendTelegramRunNotification(
+  agent: AgentConfig,
+  status: 'completed' | 'failed',
+): boolean {
+  const notification = agent.notification;
+  if (!notification || notification.channel !== 'telegram') {
+    return true;
+  }
+
+  if (status === 'completed') {
+    return notification.on_complete !== true;
+  }
+
+  return notification.on_failure !== true;
+}
+
 export function startServer(config: ServerConfig): ServerInstance {
   validateNetworkExposure(config.host, config.apiKey);
 
@@ -497,7 +513,9 @@ export function startServer(config: ServerConfig): ServerInstance {
                 const data: NotificationData = done.status === 'completed'
                   ? { agentName: agent.name, status: 'completed', summary: done.summary }
                   : { agentName: agent.name, status: 'failed', error: done.error };
-                void telegramChannel.notify(data);
+                if (shouldSendTelegramRunNotification(agent, done.status)) {
+                  void telegramChannel.notify(data);
+                }
               },
             });
             return;
@@ -539,7 +557,9 @@ export function startServer(config: ServerConfig): ServerInstance {
               const data: NotificationData = done.status === 'completed'
                 ? { agentName: agent.name, status: 'completed', summary: done.summary }
                 : { agentName: agent.name, status: 'failed', error: done.error };
-              void telegramChannel.notify(data);
+              if (shouldSendTelegramRunNotification(agent, done.status)) {
+                void telegramChannel.notify(data);
+              }
             },
           });
         } catch (err) {
