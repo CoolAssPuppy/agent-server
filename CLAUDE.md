@@ -40,8 +40,9 @@ server-app/src/
     notification.ts      -- Notification message formatting
     store.ts             -- In-memory pending interaction store with expiry
   reporting/
-    reporter.ts          -- A2A telemetry reporter with heartbeat
+    reporter.ts          -- A2A telemetry reporter with heartbeat and worker_id
     reporter-factory.ts  -- Creates noop or telemetry reporter based on config
+    panel-client.ts      -- HTTP client for panel cleanup/stale-runs endpoints
     store.ts             -- In-memory run state store with eviction
   server/
     api.ts               -- Hono HTTP API routes
@@ -98,6 +99,26 @@ executor: codex  # defaults to 'claude-code' if omitted
 ### Reporter interface
 
 The `Reporter` type in `execution/runner.ts` is the interface all reporters implement. The `TelemetryReporter` class implements it for real HTTP reporting. The daemon creates a noop reporter when no panel URL is configured. Never cast to `TelemetryReporter` in daemon or runner code.
+
+The reporter includes `worker_id` (hostname-pid) in metadata on every event, allowing the panel to track which server instance owns each run.
+
+### Panel client and ghost run cleanup
+
+`PanelClient` in `reporting/panel-client.ts` provides two methods for cleaning up orphaned ("ghost") runs in the panel:
+
+- `failOrphanedRuns(serverId?)` -- calls `POST {panelUrl}/api/runs/cleanup` to mark all `working` runs for a given worker as failed
+- `markStaleRuns()` -- calls `POST {panelUrl}/api/cron/stale-runs` to trigger the panel's stale run detection
+
+Use `createPanelClient(config)` to get a `PanelClient` or `null` (when panel is not configured).
+
+**Defense in depth**: Ghost runs are handled by five layers:
+1. **Startup reconciliation**: Server calls `failOrphanedRuns(serverId)` on boot
+2. **Vercel cron**: Panel's `/api/cron/stale-runs` runs every minute
+3. **pg_cron**: Supabase `mark_stale_runs()` runs every 30s (if available)
+4. **Periodic sweep**: Server calls `markStaleRuns()` every 5 minutes
+5. **Manual**: `agent-server cleanup` CLI or macOS app "Clean up" action
+
+The local server exposes `POST /cleanup` for the macOS app to trigger cleanup without needing panel credentials directly.
 
 ### cron-parser v5 API
 
@@ -216,7 +237,9 @@ Callback data uses `index:interactionId` encoding to stay within Telegram's 64-b
 
 ### HTTP API
 
-Hono app created via `createApi()` with dependency injection. Routes: `/agents`, `/agents/:id`, `/agents/:id/run`, `/runs`, `/runs/:id`, `/runs/:id/cancel`, `/health`, `/ws`. The `startServer()` function combines HTTP + scheduler + Telegram + WebSocket in one process.
+Hono app created via `createApi()` with dependency injection. Routes: `/agents`, `/agents/:id`, `/agents/:id/run`, `/runs`, `/runs/:id`, `/runs/:id/cancel`, `/cleanup`, `/health`, `/ws`. The `startServer()` function combines HTTP + scheduler + Telegram + WebSocket in one process.
+
+The `/health` endpoint returns `{ status, timestamp, started_at }` where `started_at` is the server boot time (ISO string). The macOS app uses `started_at` to detect server restarts and identify orphaned runs. The `/cleanup` endpoint calls the panel to fail orphaned runs owned by this server instance.
 
 ### Cancelling runs
 
@@ -332,6 +355,7 @@ agent-server start           # Start server with HTTP API on port 47821
 agent-server run <agentId>   # Run one agent immediately
 agent-server run <agentId> --with "context"  # Run with extra context appended to prompt
 agent-server list            # List discovered agents
+agent-server cleanup         # Mark orphaned panel runs as failed
 agent-server install         # Install macOS LaunchAgent
 agent-server uninstall       # Remove macOS LaunchAgent
 ```
@@ -396,7 +420,7 @@ macos-app/
 ### Key patterns
 
 - **NSStatusBar + NSMenu**: Menu bar icon with dropdown showing active runs and scheduled agent count. Icon switches from template (idle) to tinted (active runs).
-- **StatusMonitor**: Connects to `ws://localhost:47821/ws` for real-time run events. Falls back to HTTP polling every 5 seconds if WebSocket disconnects. Reconnects automatically after 5 seconds. Uses `@Published` properties for reactive UI updates.
+- **StatusMonitor**: Connects to `ws://localhost:47821/ws` for real-time run events. Falls back to HTTP polling every 5 seconds if WebSocket disconnects. Reconnects automatically after 5 seconds. Uses `@Published` properties for reactive UI updates. Detects server restarts by comparing `/health` `started_at` values between polls. When a restart is detected, marks previously-active runs as stale and exposes `staleRunCount` for the menu and sidebar banner.
 - **AgentServerClient**: HTTP client with `cancelRun(id:)` for aborting running agents via `POST /runs/:id/cancel`.
 - **ServerProcessManager**: Discovers the server in three locations: bundled Resources, bundle-adjacent directory, or dev path. Auto-installs npm dependencies on first launch if `node_modules/` is missing.
 - **MarkdownEditor**: NSTextView-based editor with syntax highlighting. Uses in-place `textStorage.beginEditing()`/`endEditing()` updates to avoid cursor jumping and scroll position resets during typing.

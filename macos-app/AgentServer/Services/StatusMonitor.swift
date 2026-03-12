@@ -6,6 +6,7 @@ final class StatusMonitor: ObservableObject {
     @Published private(set) var agents: [Agent] = []
     @Published private(set) var activeRuns: [Run] = []
     @Published private(set) var isServerReachable = false
+    @Published private(set) var staleRunCount: Int = 0
     @Published var deepLinkAgentId: String?
 
     private let client = AgentServerClient()
@@ -17,6 +18,8 @@ final class StatusMonitor: ObservableObject {
     private weak var serverProcess: ServerProcessManager?
     private var consecutiveFailures = 0
     private static let restartThreshold = 3
+    private var previousServerStartedAt: String?
+    private var previousActiveRunIds: Set<String> = []
 
     func setServerProcess(_ manager: ServerProcessManager) {
         self.serverProcess = manager
@@ -41,14 +44,27 @@ final class StatusMonitor: ObservableObject {
     func poll() {
         Task {
             do {
-                let _ = try await client.health()
+                let health = try await client.health()
                 let fetchedAgents = try await client.agents()
                 let fetchedRuns = try await client.runs()
 
                 self.isServerReachable = true
                 self.consecutiveFailures = 0
                 self.agents = fetchedAgents
-                self.activeRuns = fetchedRuns.filter { $0.isActive }
+
+                let currentActiveRuns = fetchedRuns.filter { $0.isActive }
+
+                if let serverStartedAt = health.startedAt {
+                    if let previous = self.previousServerStartedAt,
+                       previous != serverStartedAt,
+                       !self.previousActiveRunIds.isEmpty {
+                        self.staleRunCount = self.previousActiveRunIds.count
+                    }
+                    self.previousServerStartedAt = serverStartedAt
+                }
+
+                self.previousActiveRunIds = Set(currentActiveRuns.map { $0.runId })
+                self.activeRuns = currentActiveRuns
             } catch {
                 self.isServerReachable = false
                 self.agents = []
@@ -86,6 +102,21 @@ final class StatusMonitor: ObservableObject {
                 poll()
             } catch {
                 // Run trigger failed silently; next poll will show current state
+            }
+        }
+    }
+
+    func cleanupStaleRuns() {
+        Task {
+            do {
+                let result = try await client.cleanupStaleRuns()
+                self.staleRunCount = 0
+                if result.cleaned > 0 {
+                    print("[StatusMonitor] Cleaned up \(result.cleaned) stale run(s)")
+                }
+                poll()
+            } catch {
+                print("[StatusMonitor] Cleanup failed: \(error)")
             }
         }
     }

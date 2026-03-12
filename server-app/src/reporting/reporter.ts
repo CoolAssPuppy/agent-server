@@ -34,14 +34,16 @@ type ReporterConfig = {
   apiKey: string;
   fetch?: typeof globalThis.fetch;
   heartbeatMs?: number;
+  serverId?: string;
 };
 
 const DEFAULT_HEARTBEAT_MS = 30_000;
 
 export class TelemetryReporter {
-  private readonly config: Required<Omit<ReporterConfig, 'fetch' | 'heartbeatMs'>> & {
+  private readonly config: Required<Omit<ReporterConfig, 'fetch' | 'heartbeatMs' | 'serverId'>> & {
     fetch: typeof globalThis.fetch;
     heartbeatMs: number;
+    serverId?: string;
   };
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -125,10 +127,15 @@ export class TelemetryReporter {
   }
 
   private async send(event: Omit<StatusEvent, 'agent' | 'timestamp'>): Promise<void> {
+    const workerMetadata = this.config.serverId
+      ? { worker_id: this.config.serverId }
+      : {};
+
     const body: StatusEvent = {
       agent: this.config.agentName,
       timestamp: new Date().toISOString(),
       ...event,
+      metadata: { ...workerMetadata, ...event.metadata },
     };
 
     try {

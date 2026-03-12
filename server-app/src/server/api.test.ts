@@ -216,8 +216,52 @@ describe('API routes', () => {
       const body = await res.json();
       expect(body.status).toBe('ok');
     });
+
+    it('returns started_at timestamp when provided', async () => {
+      const startedAt = '2026-03-12T10:00:00.000Z';
+      const agents = [makeAgent()];
+      const app = createApi({
+        getAgents: async () => agents,
+        store,
+        triggerRun,
+        startedAt,
+      });
+
+      const res = await app.request('/health');
+      expect(res.status).toBe(200);
+
+      const body = await res.json();
+      expect(body.started_at).toBe(startedAt);
+    });
   });
 
+
+  describe('POST /cleanup', () => {
+    it('calls cleanupFn and returns result', async () => {
+      const cleanupFn = vi.fn().mockResolvedValue(3);
+      const agents = [makeAgent()];
+      const app = createApi({
+        getAgents: async () => agents,
+        store,
+        triggerRun,
+        cleanupFn,
+      });
+
+      const res = await app.request('/cleanup', { method: 'POST' });
+      expect(res.status).toBe(200);
+
+      const body = await res.json();
+      expect(body.ok).toBe(true);
+      expect(body.cleaned).toBe(3);
+      expect(cleanupFn).toHaveBeenCalledOnce();
+    });
+
+    it('returns 501 when no cleanup function is configured', async () => {
+      const app = createApp();
+      const res = await app.request('/cleanup', { method: 'POST' });
+      expect(res.status).toBe(501);
+    });
+  });
 
   describe('security middleware', () => {
     it('sets security headers', async () => {

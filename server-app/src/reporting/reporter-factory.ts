@@ -10,7 +10,16 @@ const noopReporter: Reporter = {
   stop: () => {},
 };
 
-export function createReporter(config: ServerConfig, runId: string, agentName: string): Reporter {
+type CreateReporterOptions = {
+  serverId?: string;
+};
+
+export function createReporter(
+  config: ServerConfig,
+  runId: string,
+  agentName: string,
+  options: CreateReporterOptions = {},
+): Reporter {
   if (!config.panelUrl || !config.panelApiKey) {
     return noopReporter;
   }
@@ -21,5 +30,6 @@ export function createReporter(config: ServerConfig, runId: string, agentName: s
     endpoint: `${config.panelUrl}/api/runs/${runId}/status`,
     apiKey: config.panelApiKey,
     heartbeatMs: config.heartbeatMs,
+    serverId: options.serverId,
   });
 }

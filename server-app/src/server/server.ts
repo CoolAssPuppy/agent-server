@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server';
 import { createNodeWebSocket } from '@hono/node-ws';
+import { hostname } from 'os';
 import { join } from 'path';
 import type { ServerConfig } from '../platform/config.js';
 import type { AgentConfig } from '../agents/config.js';
@@ -11,6 +12,7 @@ import { runAgent } from '../execution/runner.js';
 import { executeAgent } from '../plugins/claude-code.js';
 import { ExecutorRegistry } from '../execution/executor-registry.js';
 import { createReporter } from '../reporting/reporter-factory.js';
+import { createPanelClient } from '../reporting/panel-client.js';
 import { shouldRun, hasMissedRun } from '../agents/scheduler.js';
 import { evaluateTriggers } from '../agents/triggers.js';
 import { FileWatcher, extractWatchConfigs } from '../agents/file-watcher.js';
@@ -57,8 +59,14 @@ export function validateNetworkExposure(host: string, apiKey?: string): void {
   }
 }
 
+const STALE_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+
 export function startServer(config: ServerConfig): ServerInstance {
   validateNetworkExposure(config.host, config.apiKey);
+
+  const startedAt = new Date().toISOString();
+  const serverId = `${hostname()}-${process.pid}`;
+  const panelClient = createPanelClient(config);
 
   const store = new RunStore();
   const interactionStore = new InteractionStore();
@@ -229,7 +237,7 @@ export function startServer(config: ServerConfig): ServerInstance {
         void fireDownstreamTriggers(agent.id, 'completed');
         return result;
       },
-      createReporter: (rid, name) => createReporter(config, rid, name),
+      createReporter: (rid, name) => createReporter(config, rid, name, { serverId }),
       promptSuffix,
     }).then((result) => {
       activeControllers.delete(runId);
@@ -338,7 +346,11 @@ export function startServer(config: ServerConfig): ServerInstance {
     store,
     triggerRun,
     cancelRun,
+    cleanupFn: panelClient
+      ? () => panelClient.failOrphanedRuns(serverId)
+      : undefined,
     apiKey: config.apiKey,
+    startedAt,
   });
 
   const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
@@ -376,10 +388,24 @@ export function startServer(config: ServerConfig): ServerInstance {
   injectWebSocket(httpServer);
   console.log(`Agent Server API listening on http://${config.host}:${port}`);
 
+  if (panelClient) {
+    void panelClient.failOrphanedRuns(serverId).then((cleaned) => {
+      if (cleaned > 0) {
+        console.log(`[startup] Cleaned up ${cleaned} orphaned run(s) from previous server instance`);
+      }
+    });
+  }
+
   void runDueAgents();
   const interval = setInterval(() => {
     void runDueAgents();
   }, config.checkIntervalMs);
+
+  const staleSweepInterval = panelClient
+    ? setInterval(() => {
+        void panelClient.markStaleRuns();
+      }, STALE_SWEEP_INTERVAL_MS)
+    : null;
 
   async function setupFileWatchers(): Promise<FileWatcher | null> {
     const agents = await discoverAgents(config.agentsDir);
@@ -484,6 +510,7 @@ export function startServer(config: ServerConfig): ServerInstance {
     stop: () => {
       clearInterval(interval);
       clearInterval(expiryInterval);
+      if (staleSweepInterval) clearInterval(staleSweepInterval);
       httpServer.close();
       void fileWatcherPromise.then((w) => w?.stop());
       void telegramPromise.then(() => channelDispatcher.stopAll());

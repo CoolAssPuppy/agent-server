@@ -17,7 +17,9 @@ type ApiDependencies = {
   store: RunStore;
   triggerRun: (agentId: string, promptSuffix?: string) => Promise<string>;
   cancelRun?: (runId: string) => boolean;
+  cleanupFn?: () => Promise<number>;
   apiKey?: string;
+  startedAt?: string;
 };
 
 const MAX_BODY_BYTES = 8_192;
@@ -120,7 +122,11 @@ export function createApi(deps: ApiDependencies): Hono {
   });
 
   app.get('/health', (c) => {
-    return c.json({ status: 'ok', timestamp: new Date().toISOString() });
+    return c.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      ...(deps.startedAt ? { started_at: deps.startedAt } : {}),
+    });
   });
 
   app.get('/agents', async (c) => {
@@ -191,6 +197,20 @@ export function createApi(deps: ApiDependencies): Hono {
     const run = deps.store.get(c.req.param('id'));
     if (!run) return c.json({ error: 'Run not found' }, 404);
     return c.json(sanitizeStoredRun(run));
+  });
+
+  app.post('/cleanup', async (c) => {
+    if (!deps.cleanupFn) {
+      return c.json({ error: 'Cleanup not configured (no panel URL)' }, 501);
+    }
+
+    try {
+      const cleaned = await deps.cleanupFn();
+      return c.json({ ok: true, cleaned });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return c.json({ error: `Cleanup failed: ${message}` }, 500);
+    }
   });
 
   app.post('/runs/:id/cancel', (c) => {

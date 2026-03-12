@@ -16,6 +16,7 @@ export { evaluateTriggers } from './agents/triggers.js';
 export { FileWatcher, extractWatchConfigs, expandHome, type FileWatchConfig } from './agents/file-watcher.js';
 export { ExecutorRegistry, type ExecutorFn } from './execution/executor-registry.js';
 export { createReporter } from './reporting/reporter-factory.js';
+export { PanelClient, createPanelClient } from './reporting/panel-client.js';
 export { generatePlist, installLaunchAgent, uninstallLaunchAgent } from './platform/launchd.js';
 export { routeMessage, buildRoutingPrompt, parseRoutingResponse, type RouteResult } from './channels/router.js';
 export { initAgentServer } from './platform/init.js';

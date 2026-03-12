@@ -127,6 +127,25 @@ describe('TelemetryReporter', () => {
     expect(() => new Date(body.timestamp!)).not.toThrow();
   });
 
+  it('includes worker_id in metadata when serverId is set', async () => {
+    const mockFetch = createMockFetch();
+    const reporter = new TelemetryReporter({
+      runId: 'run-123',
+      agentName: 'Test Agent',
+      endpoint: 'https://panel.example.com/api/runs/run-123/status',
+      apiKey: 'ap_live_test',
+      fetch: mockFetch,
+      heartbeatMs: 0,
+      serverId: 'myhost-1234',
+    });
+
+    await reporter.start();
+    reporter.stop();
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body) as StatusEvent;
+    expect(body.metadata?.worker_id).toBe('myhost-1234');
+  });
+
   it('does not throw when fetch fails', async () => {
     const failingFetch = vi.fn().mockRejectedValue(new Error('Network error'));
     const reporter = makeReporter({ fetch: failingFetch });

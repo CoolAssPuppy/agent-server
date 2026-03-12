@@ -55,26 +55,34 @@ struct AgentsListView: View {
             }
         }
         .safeAreaInset(edge: .top) {
-            HStack {
-                Text("Agents")
-                    .font(.title)
-                    .fontWeight(.bold)
-                Spacer()
-                if let onOpenSettings {
-                    Button {
-                        onOpenSettings()
-                    } label: {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 16))
-                            .foregroundStyle(.secondary)
+            VStack(spacing: 0) {
+                HStack {
+                    Text("Agents")
+                        .font(.title)
+                        .fontWeight(.bold)
+                    Spacer()
+                    if let onOpenSettings {
+                        Button {
+                            onOpenSettings()
+                        } label: {
+                            Image(systemName: "gearshape")
+                                .font(.system(size: 16))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Settings")
                     }
-                    .buttonStyle(.plain)
-                    .help("Settings")
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
+                .padding(.bottom, 4)
+
+                if monitor.staleRunCount > 0 {
+                    StaleRunsBanner(count: monitor.staleRunCount) {
+                        monitor.cleanupStaleRuns()
+                    }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 10)
-            .padding(.bottom, 4)
         }
         .safeAreaInset(edge: .bottom) {
             HStack {
@@ -204,6 +212,36 @@ private struct AgentRow: View {
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Stale runs banner
+
+private struct StaleRunsBanner: View {
+    let count: Int
+    let onCleanup: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.yellow)
+                .font(.system(size: 12))
+
+            Text("\(count) stale run\(count == 1 ? "" : "s") detected")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Button("Clean up") {
+                onCleanup()
+            }
+            .font(.caption)
+            .buttonStyle(.borderless)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+        .background(.yellow.opacity(0.1))
     }
 }
 

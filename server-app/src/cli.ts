@@ -8,6 +8,7 @@ import { listAgents, runSingleAgent } from './server/daemon.js';
 import { startServer } from './server/server.js';
 import { initAgentServer } from './platform/init.js';
 import { installLaunchAgent, uninstallLaunchAgent } from './platform/launchd.js';
+import { createPanelClient } from './reporting/panel-client.js';
 
 const baseDir = join(homedir(), '.agent-server');
 const fileEnv = loadEnvFile(baseDir, process.env);
@@ -58,6 +59,22 @@ program
   .description('Create config directory with a sample agent')
   .action(() => {
     initAgentServer(baseDir);
+  });
+
+program
+  .command('cleanup')
+  .description('Mark orphaned panel runs as failed')
+  .action(async () => {
+    const config = loadConfig();
+    const panelClient = createPanelClient(config);
+
+    if (!panelClient) {
+      console.error('No panel URL configured. Set AGENT_SERVER_PANEL_URL and AGENT_SERVER_PANEL_API_KEY.');
+      process.exit(1);
+    }
+
+    const cleaned = await panelClient.failOrphanedRuns();
+    console.log(`Cleaned up ${cleaned} orphaned run(s).`);
   });
 
 program

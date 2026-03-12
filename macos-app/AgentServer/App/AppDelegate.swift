@@ -103,6 +103,20 @@ private extension AppDelegate {
                 }
             }
 
+            if monitor.staleRunCount > 0 {
+                menu.addItem(.separator())
+
+                let staleTitle = "\(monitor.staleRunCount) stale run\(monitor.staleRunCount == 1 ? "" : "s")"
+                let staleItem = NSMenuItem(title: staleTitle, action: nil, keyEquivalent: "")
+                staleItem.isEnabled = false
+                staleItem.image = circleImage(color: .systemYellow)
+                menu.addItem(staleItem)
+
+                let cleanupItem = NSMenuItem(title: "Clean up stale runs", action: #selector(cleanupStaleRuns), keyEquivalent: "")
+                cleanupItem.target = self
+                menu.addItem(cleanupItem)
+            }
+
             menu.addItem(.separator())
 
             let scheduledCount = monitor.agents.filter { $0.schedule != nil && $0.enabled }.count
@@ -180,6 +194,10 @@ extension AppDelegate {
         guard let agentId = sender.representedObject as? String else { return }
         monitor.deepLinkAgentId = agentId
         showSettings()
+    }
+
+    @objc func cleanupStaleRuns() {
+        monitor.cleanupStaleRuns()
     }
 
     @objc func quitApp() {

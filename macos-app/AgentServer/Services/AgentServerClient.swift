@@ -49,6 +49,14 @@ actor AgentServerClient {
         try validateResponse(response)
     }
 
+    func cleanupStaleRuns() async throws -> CleanupResponse {
+        var request = URLRequest(url: baseURL.appendingPathComponent("/cleanup"))
+        request.httpMethod = "POST"
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response)
+        return try decoder.decode(CleanupResponse.self, from: data)
+    }
+
     func triggerRun(agentId: String, with context: String? = nil) async throws -> TriggerResponse {
         var request = URLRequest(url: baseURL.appendingPathComponent("/agents/\(agentId)/run"))
         request.httpMethod = "POST"

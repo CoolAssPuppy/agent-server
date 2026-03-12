@@ -1,0 +1,18 @@
+{
+  "name": "agent-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lightweight orchestration server for AI agents",
+  "scripts": {
+    "dev": "npm run dev --prefix server-app",
+    "build": "npm run build --prefix server-app",
+    "start": "npm run start --prefix server-app",
+    "test": "npm test --prefix server-app",
+    "lint": "npm run lint --prefix server-app",
+    "type-check": "npm run type-check --prefix server-app"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}
