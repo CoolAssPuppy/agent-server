@@ -14,6 +14,9 @@ const baseDir = join(homedir(), '.agent-server');
 const fileEnv = loadEnvFile(baseDir, process.env);
 Object.assign(process.env, fileEnv);
 
+const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+delete process.env.ANTHROPIC_API_KEY;
+
 const program = new Command();
 
 program
@@ -26,7 +29,7 @@ program
   .description('Start the server with HTTP API and agent scheduler')
   .action(() => {
     const config = loadConfig();
-    const server = startServer(config);
+    const server = startServer(config, { anthropicApiKey });
 
     const shutdown = () => {
       server.stop();

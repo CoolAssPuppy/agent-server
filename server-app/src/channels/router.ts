@@ -50,32 +50,43 @@ export function parseRoutingResponse(response: string, agents: AgentConfig[]): P
 
 let cachedClient: Anthropic | null = null;
 
-function getClient(): Anthropic {
+function getClient(apiKey?: string): Anthropic {
   if (!cachedClient) {
-    cachedClient = new Anthropic();
+    cachedClient = apiKey ? new Anthropic({ apiKey }) : new Anthropic();
   }
   return cachedClient;
 }
 
-const defaultCreateMessage: CreateMessageFn = async (params) => {
-  const response = await getClient().messages.create({
-    model: params.model,
-    max_tokens: params.max_tokens,
-    messages: params.messages as Array<{ role: 'user' | 'assistant'; content: string }>,
-  });
-  return {
-    content: response.content.map((block) => ({
-      type: block.type,
-      ...('text' in block ? { text: block.text } : {}),
-    })),
+function createDefaultCreateMessage(apiKey?: string): CreateMessageFn {
+  return async (params) => {
+    const response = await getClient(apiKey).messages.create({
+      model: params.model,
+      max_tokens: params.max_tokens,
+      messages: params.messages as Array<{ role: 'user' | 'assistant'; content: string }>,
+    });
+    return {
+      content: response.content.map((block) => ({
+        type: block.type,
+        ...('text' in block ? { text: block.text } : {}),
+      })),
+    };
   };
+}
+
+type RouteMessageOptions = {
+  create?: CreateMessageFn;
+  apiKey?: string;
 };
 
 export async function routeMessage(
   message: string,
   agents: AgentConfig[],
-  create: CreateMessageFn = defaultCreateMessage,
+  createOrOptions?: CreateMessageFn | RouteMessageOptions,
 ): Promise<RouteResult> {
+  const opts: RouteMessageOptions = typeof createOrOptions === 'function'
+    ? { create: createOrOptions }
+    : createOrOptions ?? {};
+  const create = opts.create ?? createDefaultCreateMessage(opts.apiKey);
   const prompt = buildRoutingPrompt(message, agents);
 
   const response = await create({

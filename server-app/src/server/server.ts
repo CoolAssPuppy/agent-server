@@ -79,7 +79,11 @@ export function shouldSendTelegramRunNotification(
   return notification.on_failure !== true;
 }
 
-export function startServer(config: ServerConfig): ServerInstance {
+type StartServerOptions = {
+  anthropicApiKey?: string;
+};
+
+export function startServer(config: ServerConfig, options?: StartServerOptions): ServerInstance {
   validateNetworkExposure(config.host, config.apiKey);
 
   const startedAt = new Date().toISOString();
@@ -522,7 +526,7 @@ export function startServer(config: ServerConfig): ServerInstance {
           }
 
           const agents = await discoverAgents(config.agentsDir);
-          const result = await routeMessage(text, agents);
+          const result = await routeMessage(text, agents, { apiKey: options?.anthropicApiKey });
 
           if (result.type === 'list') {
             await telegramChannel.notifyText(formatAgentListMessage(agents));
