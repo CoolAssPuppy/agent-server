@@ -81,6 +81,7 @@ export class TelemetryReporter {
     filesWritten: string[];
     commandsRun: string[];
   }): Promise<void> {
+    console.log(`[telemetry] Sending completion for "${this.config.agentName}" to ${this.config.endpoint}`);
     this.stop();
     const accomplishments: string[] = [];
     if (executionResult.filesWritten.length > 0) {
@@ -161,7 +162,10 @@ export class TelemetryReporter {
           },
           body: JSON.stringify(body),
         });
-        if (response.ok) return;
+        if (response.ok) {
+          console.log(`[telemetry] Successfully sent ${event.state} event for "${this.config.agentName}"`);
+          return;
+        }
 
         console.error(`[telemetry] POST ${this.config.endpoint} returned ${response.status}: ${response.statusText}`);
       } catch (err) {

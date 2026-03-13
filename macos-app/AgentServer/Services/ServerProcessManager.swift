@@ -143,9 +143,8 @@ final class ServerProcessManager {
 
         process.environment = environment
 
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
 
         do {
             try process.run()
