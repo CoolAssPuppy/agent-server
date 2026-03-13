@@ -125,7 +125,8 @@ struct AgentRunsView: View {
         do {
             let fetched: [Run]
             if let panelRuns = try await fetchFromPanel() {
-                fetched = panelRuns
+                let localRuns = (try? await fetchFromLocalServer()) ?? []
+                fetched = mergeRuns(panel: panelRuns, local: localRuns)
             } else {
                 fetched = try await fetchFromLocalServer()
             }
@@ -139,6 +140,21 @@ struct AgentRunsView: View {
         } catch {
             isLoading = false
             loadError = "Could not load runs"
+        }
+    }
+
+    /// Panel data has full history but no live progress for in-progress runs.
+    /// Local server data has live progress (turns, tools) but limited history.
+    /// Merge by preferring local data for running runs (it has progress),
+    /// and panel data for everything else (it has the full result).
+    private func mergeRuns(panel: [Run], local: [Run]) -> [Run] {
+        let localById = Dictionary(local.map { ($0.runId, $0) }, uniquingKeysWith: { _, last in last })
+
+        return panel.map { panelRun in
+            guard panelRun.isActive, let localRun = localById[panelRun.runId] else {
+                return panelRun
+            }
+            return localRun
         }
     }
 
@@ -400,6 +416,8 @@ struct RunDetailView: View {
 
             Spacer()
 
+            CopyRunButton(run: run, logs: logs, timelineEntries: timelineEntries)
+
             if run.status == .running {
                 Button(role: .destructive) {
                     onCancel()
@@ -526,6 +544,7 @@ struct RunDetailView: View {
                 .foregroundStyle(.red)
                 .textSelection(.enabled)
             Spacer()
+            CopyTextButton(text: error, label: "Copy error")
         }
         .padding(12)
         .background(.red.opacity(0.08))
@@ -535,7 +554,11 @@ struct RunDetailView: View {
 
     private func summarySection(_ summary: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            SectionHeader(title: "Summary", icon: "text.alignleft")
+            HStack {
+                SectionHeader(title: "Summary", icon: "text.alignleft")
+                Spacer()
+                CopyTextButton(text: summary, label: "Copy summary")
+            }
             MarkdownContentView(source: summary)
         }
         .padding(16)
@@ -565,9 +588,20 @@ struct RunDetailView: View {
 
     // MARK: - Activity timeline
 
+    private var timelineText: String {
+        if !timelineEntries.isEmpty {
+            return timelineEntries.map { "[\($0.level)] \($0.message)" }.joined(separator: "\n")
+        }
+        return run.progressMessages.joined(separator: "\n")
+    }
+
     private var activityTimeline: some View {
         VStack(alignment: .leading, spacing: 6) {
-            SectionHeader(title: "Activity", icon: "list.bullet")
+            HStack {
+                SectionHeader(title: "Activity", icon: "list.bullet")
+                Spacer()
+                CopyTextButton(text: timelineText, label: "Copy activity")
+            }
 
             if !timelineEntries.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
@@ -1023,4 +1057,104 @@ private func abbreviatePath(_ path: String) -> String {
         return "~" + path.dropFirst(home.count)
     }
     return path
+}
+
+// MARK: - Copy components
+
+private struct CopyTextButton: View {
+    let text: String
+    let label: String
+    @State private var copied = false
+
+    var body: some View {
+        Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            copied = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copied = false }
+        } label: {
+            Label(copied ? "Copied" : label, systemImage: copied ? "checkmark" : "doc.on.doc")
+                .font(.caption2)
+                .foregroundStyle(copied ? .green : .secondary)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct CopyRunButton: View {
+    let run: Run
+    let logs: [PanelLog]
+    let timelineEntries: [PanelLog]
+    @State private var copied = false
+
+    private var clipboardText: String {
+        var sections: [String] = []
+
+        sections.append("Agent: \(run.agentName)")
+        sections.append("Run ID: \(run.runId)")
+        sections.append("Status: \(run.status.rawValue)")
+        if let model = run.model { sections.append("Model: \(model)") }
+        if let trigger = run.trigger { sections.append("Trigger: \(trigger)") }
+        sections.append("Started: \(run.startedAt)")
+        if let completed = run.completedAt { sections.append("Completed: \(completed)") }
+        if let duration = run.duration { sections.append("Duration: \(formatDuration(duration))") }
+        sections.append("Turns: \(run.turnCount)")
+
+        if let tokens = run.totalTokens { sections.append("Tokens: \(tokens)") }
+        if let cost = run.estimatedCostUsd { sections.append("Cost: \(formatCost(cost))") }
+
+        if let error = run.error {
+            sections.append("\n--- Error ---")
+            sections.append(error)
+        }
+
+        if let summary = run.summary, !summary.isEmpty {
+            sections.append("\n--- Summary ---")
+            sections.append(summary)
+        }
+
+        if !run.toolsUsed.isEmpty {
+            sections.append("\n--- Tools (\(run.toolsUsed.count)) ---")
+            sections.append(contentsOf: run.toolsUsed.map { "  \(formatToolName($0))" })
+        }
+
+        if !run.filesWritten.isEmpty {
+            sections.append("\n--- Files written ---")
+            sections.append(contentsOf: run.filesWritten.map { "  \($0)" })
+        }
+
+        if !run.filesRead.isEmpty {
+            sections.append("\n--- Files read ---")
+            sections.append(contentsOf: run.filesRead.map { "  \($0)" })
+        }
+
+        if !run.commandsRun.isEmpty {
+            sections.append("\n--- Commands ---")
+            sections.append(contentsOf: run.commandsRun.map { "  $ \($0)" })
+        }
+
+        if !timelineEntries.isEmpty {
+            sections.append("\n--- Activity (\(timelineEntries.count) events) ---")
+            sections.append(contentsOf: timelineEntries.map { "[\($0.level)] \($0.message)" })
+        } else if !run.progressMessages.isEmpty {
+            sections.append("\n--- Activity (\(run.progressMessages.count) events) ---")
+            sections.append(contentsOf: run.progressMessages)
+        }
+
+        return sections.joined(separator: "\n")
+    }
+
+    var body: some View {
+        Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(clipboardText, forType: .string)
+            copied = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copied = false }
+        } label: {
+            Label(copied ? "Copied" : "Copy all", systemImage: copied ? "checkmark" : "doc.on.doc")
+                .font(.caption)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+    }
 }

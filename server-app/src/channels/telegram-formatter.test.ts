@@ -137,12 +137,40 @@ describe('formatTelegramNotification', () => {
       expect(result).toContain('<code>Notion</code>');
     });
 
-    it('shows turn count when provided', () => {
+    it('places stats in a compact italic footer after the summary', () => {
+      const result = formatTelegramNotification(makeNotification({
+        summary: 'Done.',
+        turnCount: 12,
+        durationMs: 95000,
+        toolsUsed: ['Read', 'Write', 'Bash'],
+      }));
+      const lines = result.split('\n');
+      const summaryIndex = lines.findIndex((l) => l.includes('Done.'));
+      const footerIndex = lines.findIndex((l) => l.includes('<i>'));
+      expect(footerIndex).toBeGreaterThan(summaryIndex);
+      expect(lines[footerIndex]).toContain('12 turns');
+      expect(lines[footerIndex]).toContain('1m 35s');
+      expect(lines[footerIndex]).toContain('3 tools');
+    });
+
+    it('does not use emoji in stats footer', () => {
+      const result = formatTelegramNotification(makeNotification({
+        turnCount: 12,
+        durationMs: 95000,
+        toolsUsed: ['Read', 'Write'],
+        filesWritten: ['/a.ts'],
+      }));
+      const lines = result.split('\n');
+      const footerLine = lines.find((l) => l.includes('<i>')) ?? '';
+      expect(footerLine).not.toMatch(/[\u{1F504}\u23F1\u{1F4DD}\u{1F6E0}]/u);
+    });
+
+    it('shows turn count in footer', () => {
       const result = formatTelegramNotification(makeNotification({ turnCount: 12 }));
       expect(result).toContain('12 turns');
     });
 
-    it('shows duration when provided', () => {
+    it('shows duration in footer', () => {
       const result = formatTelegramNotification(makeNotification({ durationMs: 95000 }));
       expect(result).toContain('1m 35s');
     });
@@ -152,7 +180,7 @@ describe('formatTelegramNotification', () => {
       expect(result).toContain('1h 2m');
     });
 
-    it('shows file count when files were written', () => {
+    it('shows file count in footer when files were written', () => {
       const result = formatTelegramNotification(makeNotification({
         filesWritten: ['/home/user/report.md', '/home/user/data.json'],
       }));
@@ -166,26 +194,19 @@ describe('formatTelegramNotification', () => {
       expect(result).toContain('1 file written');
     });
 
-    it('shows tool count when tools were used', () => {
+    it('shows tool count in footer', () => {
       const result = formatTelegramNotification(makeNotification({
         toolsUsed: ['Read', 'Write', 'Bash'],
       }));
-      expect(result).toContain('3 tools used');
+      expect(result).toContain('3 tools');
     });
 
-    it('lists file paths when five or fewer files were written', () => {
+    it('does not list individual file paths', () => {
       const result = formatTelegramNotification(makeNotification({
         filesWritten: ['/home/user/report.md'],
       }));
-      expect(result).toContain('<b>Files written:</b>');
-      expect(result).toContain('<code>');
-    });
-
-    it('omits file listing when more than five files were written', () => {
-      const files = Array.from({ length: 6 }, (_, i) => `/home/user/file-${i}.ts`);
-      const result = formatTelegramNotification(makeNotification({ filesWritten: files }));
-      expect(result).toContain('6 files written');
       expect(result).not.toContain('<b>Files written:</b>');
+      expect(result).not.toContain('report.md');
     });
 
     it('escapes HTML special characters in agent name', () => {
@@ -194,6 +215,11 @@ describe('formatTelegramNotification', () => {
       }));
       expect(result).toContain('&lt;script&gt;');
       expect(result).not.toContain('<script>');
+    });
+
+    it('omits footer when no stats are available', () => {
+      const result = formatTelegramNotification(makeNotification());
+      expect(result).not.toContain('<i>');
     });
   });
 

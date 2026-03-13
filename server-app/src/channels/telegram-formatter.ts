@@ -129,14 +129,6 @@ function formatDuration(ms: number): string {
   return `${hours}h ${remaining}m`;
 }
 
-function abbreviatePath(path: string): string {
-  const homeDir = process.env.HOME ?? process.env.USERPROFILE ?? '';
-  if (homeDir && path.startsWith(homeDir)) {
-    return '~' + path.slice(homeDir.length);
-  }
-  return path;
-}
-
 export function formatTelegramNotification(data: NotificationData): string {
   const lines: string[] = [];
 
@@ -149,39 +141,14 @@ export function formatTelegramNotification(data: NotificationData): string {
   lines.push('');
 
   if (data.status === 'completed') {
-    const stats: string[] = [];
-
-    if (data.turnCount && data.turnCount > 0) {
-      stats.push(`\u{1F504} ${data.turnCount} turns`);
-    }
-
-    if (data.durationMs && data.durationMs > 0) {
-      stats.push(`\u23F1 ${formatDuration(data.durationMs)}`);
-    }
-
-    if (data.filesWritten && data.filesWritten.length > 0) {
-      stats.push(`\u{1F4DD} ${data.filesWritten.length} file${data.filesWritten.length === 1 ? '' : 's'} written`);
-    }
-
-    if (data.toolsUsed && data.toolsUsed.length > 0) {
-      stats.push(`\u{1F6E0} ${data.toolsUsed.length} tool${data.toolsUsed.length === 1 ? '' : 's'} used`);
-    }
-
-    if (stats.length > 0) {
-      lines.push(stats.join('  \u00B7  '));
-      lines.push('');
-    }
-
     if (data.summary) {
       lines.push(markdownToTelegramHtml(data.summary));
     }
 
-    if (data.filesWritten && data.filesWritten.length > 0 && data.filesWritten.length <= 5) {
+    const statsFooter = buildStatsFooter(data);
+    if (statsFooter) {
       lines.push('');
-      lines.push('<b>Files written:</b>');
-      for (const file of data.filesWritten) {
-        lines.push(`  <code>${escapeHtml(abbreviatePath(file))}</code>`);
-      }
+      lines.push(`<i>${statsFooter}</i>`);
     }
   } else {
     if (data.error) {
@@ -190,4 +157,26 @@ export function formatTelegramNotification(data: NotificationData): string {
   }
 
   return lines.join('\n');
+}
+
+function buildStatsFooter(data: NotificationData): string | null {
+  const parts: string[] = [];
+
+  if (data.turnCount && data.turnCount > 0) {
+    parts.push(`${data.turnCount} turns`);
+  }
+
+  if (data.durationMs && data.durationMs > 0) {
+    parts.push(formatDuration(data.durationMs));
+  }
+
+  if (data.toolsUsed && data.toolsUsed.length > 0) {
+    parts.push(`${data.toolsUsed.length} tools`);
+  }
+
+  if (data.filesWritten && data.filesWritten.length > 0) {
+    parts.push(`${data.filesWritten.length} file${data.filesWritten.length === 1 ? '' : 's'} written`);
+  }
+
+  return parts.length > 0 ? parts.join(' \u00B7 ') : null;
 }
