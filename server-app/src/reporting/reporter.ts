@@ -42,6 +42,8 @@ const DEFAULT_HEARTBEAT_MS = 30_000;
 const TERMINAL_STATES: ReadonlySet<string> = new Set(['completed', 'failed', 'canceled', 'rejected']);
 const TERMINAL_RETRY_COUNT = 3;
 const TERMINAL_RETRY_BASE_MS = 500;
+const DEFERRED_RETRY_COUNT = 5;
+const DEFERRED_RETRY_BASE_MS = 5_000;
 
 export class TelemetryReporter {
   private readonly config: Required<Omit<ReporterConfig, 'fetch' | 'heartbeatMs' | 'serverId' | 'conversationId'>> & {
@@ -172,5 +174,37 @@ export class TelemetryReporter {
         await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
     }
+
+    if (TERMINAL_STATES.has(event.state)) {
+      this.scheduleDeferredRetry(body);
+    }
+  }
+
+  private scheduleDeferredRetry(body: StatusEvent, attempt = 1): void {
+    if (attempt > DEFERRED_RETRY_COUNT) {
+      console.error(`[telemetry] Abandoned ${body.state} event for "${this.config.agentName}" after all retries`);
+      return;
+    }
+
+    const delayMs = DEFERRED_RETRY_BASE_MS * 2 ** (attempt - 1);
+
+    setTimeout(async () => {
+      try {
+        const response = await this.config.fetch(this.config.endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.config.apiKey}`,
+          },
+          body: JSON.stringify(body),
+        });
+        if (response.ok) return;
+        console.error(`[telemetry] Deferred retry ${attempt} for ${body.state}: ${response.status}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[telemetry] Deferred retry ${attempt} for ${body.state}: ${message}`);
+      }
+      this.scheduleDeferredRetry(body, attempt + 1);
+    }, delayMs);
   }
 }
