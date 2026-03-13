@@ -194,6 +194,95 @@ describe('TelemetryReporter', () => {
     reporter.stop();
   });
 
+  it('retries completed event up to 3 times on failure then succeeds', async () => {
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 200 })   // start
+      .mockRejectedValueOnce(new Error('Network error'))   // complete attempt 1
+      .mockResolvedValueOnce({ ok: false, status: 502 })   // complete attempt 2
+      .mockResolvedValueOnce({ ok: true, status: 200 });   // complete attempt 3
+
+    const reporter = makeReporter({ fetch: mockFetch });
+    await reporter.start();
+
+    const completePromise = reporter.complete({
+      summary: 'Done',
+      output: {},
+      usage: {},
+      turnCount: 1,
+      toolsUsed: [],
+      filesRead: [],
+      filesWritten: [],
+      commandsRun: [],
+    });
+
+    // Advance past retry delays (500ms, 1000ms)
+    await vi.advanceTimersByTimeAsync(2000);
+    await completePromise;
+
+    // start (1) + 3 complete attempts = 4 total
+    expect(mockFetch).toHaveBeenCalledTimes(4);
+    const lastBody = JSON.parse(mockFetch.mock.calls[3][1].body) as StatusEvent;
+    expect(lastBody.state).toBe('completed');
+  });
+
+  it('retries failed event up to 3 times on failure then succeeds', async () => {
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 200 })   // start
+      .mockRejectedValueOnce(new Error('Timeout'))         // fail attempt 1
+      .mockResolvedValueOnce({ ok: true, status: 200 });   // fail attempt 2
+
+    const reporter = makeReporter({ fetch: mockFetch });
+    await reporter.start();
+
+    const failPromise = reporter.fail(new Error('Agent crashed'));
+    await vi.advanceTimersByTimeAsync(1000);
+    await failPromise;
+
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    const lastBody = JSON.parse(mockFetch.mock.calls[2][1].body) as StatusEvent;
+    expect(lastBody.state).toBe('failed');
+  });
+
+  it('gives up after max retries for terminal events', async () => {
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 200 })   // start
+      .mockRejectedValueOnce(new Error('err1'))            // complete attempt 1
+      .mockRejectedValueOnce(new Error('err2'))            // complete attempt 2
+      .mockRejectedValueOnce(new Error('err3'));           // complete attempt 3
+
+    const reporter = makeReporter({ fetch: mockFetch });
+    await reporter.start();
+
+    const completePromise = reporter.complete({
+      summary: 'Done',
+      output: {},
+      usage: {},
+      turnCount: 1,
+      toolsUsed: [],
+      filesRead: [],
+      filesWritten: [],
+      commandsRun: [],
+    });
+
+    await vi.advanceTimersByTimeAsync(3000);
+    await completePromise;
+
+    // start (1) + 3 failed attempts = 4
+    expect(mockFetch).toHaveBeenCalledTimes(4);
+  });
+
+  it('does not retry non-terminal events like heartbeats', async () => {
+    const mockFetch = vi.fn()
+      .mockRejectedValueOnce(new Error('Network error'));  // start fails
+
+    const reporter = makeReporter({ fetch: mockFetch });
+    await reporter.start();
+    reporter.stop();
+
+    // Only 1 attempt, no retry
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
   it('sends heartbeat events at configured interval', async () => {
     const mockFetch = createMockFetch();
     const reporter = makeReporter({ fetch: mockFetch, heartbeatMs: 1000 });

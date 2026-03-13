@@ -39,6 +39,9 @@ type ReporterConfig = {
 };
 
 const DEFAULT_HEARTBEAT_MS = 30_000;
+const TERMINAL_STATES: ReadonlySet<string> = new Set(['completed', 'failed', 'canceled', 'rejected']);
+const TERMINAL_RETRY_COUNT = 3;
+const TERMINAL_RETRY_BASE_MS = 500;
 
 export class TelemetryReporter {
   private readonly config: Required<Omit<ReporterConfig, 'fetch' | 'heartbeatMs' | 'serverId' | 'conversationId'>> & {
@@ -144,21 +147,30 @@ export class TelemetryReporter {
       metadata: { ...workerMetadata, ...event.metadata },
     };
 
-    try {
-      const response = await this.config.fetch(this.config.endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.config.apiKey}`,
-        },
-        body: JSON.stringify(body),
-      });
-      if (!response.ok) {
+    const maxAttempts = TERMINAL_STATES.has(event.state) ? TERMINAL_RETRY_COUNT : 1;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const response = await this.config.fetch(this.config.endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${this.config.apiKey}`,
+          },
+          body: JSON.stringify(body),
+        });
+        if (response.ok) return;
+
         console.error(`[telemetry] POST ${this.config.endpoint} returned ${response.status}: ${response.statusText}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[telemetry] Failed to send ${event.state} event for "${this.config.agentName}": ${message}`);
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`[telemetry] Failed to send ${event.state} event for "${this.config.agentName}": ${message}`);
+
+      if (attempt < maxAttempts) {
+        const delayMs = TERMINAL_RETRY_BASE_MS * 2 ** (attempt - 1);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
     }
   }
 }
