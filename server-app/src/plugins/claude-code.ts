@@ -23,6 +23,8 @@ export async function executeAgent(
 
   const permissionMode = agent.permission_mode ?? 'bypassPermissions';
 
+  const { ANTHROPIC_API_KEY: _, ...cleanEnv } = process.env;
+
   const options: Options = {
     maxTurns: agent.max_turns,
     cwd,
@@ -35,6 +37,7 @@ export async function executeAgent(
     canUseTool: agent.permissions ? buildCanUseTool(agent.permissions) : undefined,
     abortController: extra?.abortController,
     mcpServers: buildMcpServers(agent),
+    env: cleanEnv as Record<string, string>,
   };
 
   let turnCount = 0;
