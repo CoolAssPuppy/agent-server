@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isLoopbackHost, validateNetworkExposure } from './server.js';
+import { isAllowedOrigin, isLoopbackHost, validateNetworkExposure } from './server.js';
 
 describe('server security utilities', () => {
   it('accepts loopback hosts', () => {
@@ -31,5 +31,24 @@ describe('server security utilities', () => {
     expect(() => validateNetworkExposure('127.0.0.1', 'short-key')).toThrow(
       'AGENT_SERVER_API_KEY must be at least 16 characters long',
     );
+  });
+});
+
+
+describe('origin validation', () => {
+  it('allows missing origin header', () => {
+    expect(isAllowedOrigin(undefined, '127.0.0.1')).toBe(true);
+  });
+
+  it('allows same-host origin', () => {
+    expect(isAllowedOrigin('https://example.com', 'example.com')).toBe(true);
+  });
+
+  it('allows loopback variants', () => {
+    expect(isAllowedOrigin('http://localhost:3000', '127.0.0.1')).toBe(true);
+  });
+
+  it('rejects mismatched origin', () => {
+    expect(isAllowedOrigin('https://evil.example', '127.0.0.1')).toBe(false);
   });
 });

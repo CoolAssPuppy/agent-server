@@ -20,6 +20,7 @@ type ApiDependencies = {
   cleanupFn?: () => Promise<number>;
   apiKey?: string;
   startedAt?: string;
+  host?: string;
 };
 
 const MAX_BODY_BYTES = 8_192;
@@ -64,6 +65,36 @@ function parseContentLength(request: Request): number | undefined {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 }
 
+function isLoopbackHost(host: string): boolean {
+  const normalized = host.trim().toLowerCase();
+  return normalized === '127.0.0.1' || normalized === '::1' || normalized === 'localhost';
+}
+
+function parseOriginHost(originHeader: string): string | undefined {
+  try {
+    const origin = new URL(originHeader);
+    return origin.hostname.toLowerCase();
+  } catch {
+    return undefined;
+  }
+}
+
+function isSameOriginRequest(request: Request, expectedHost?: string): boolean {
+  const originHeader = request.headers.get('origin')?.trim();
+  if (!originHeader) return true;
+
+  const originHost = parseOriginHost(originHeader);
+  if (!originHost) return false;
+
+  if (!expectedHost) return false;
+  const normalizedExpected = expectedHost.trim().toLowerCase();
+  if (originHost === normalizedExpected) return true;
+
+  if (isLoopbackHost(normalizedExpected) && isLoopbackHost(originHost)) return true;
+
+  return false;
+}
+
 export function createApi(deps: ApiDependencies): Hono {
   const app = new Hono();
 
@@ -93,6 +124,14 @@ export function createApi(deps: ApiDependencies): Hono {
     const contentLength = parseContentLength(c.req.raw);
     if (contentLength !== undefined && contentLength > MAX_BODY_BYTES) {
       const response = c.json({ error: 'Request body too large' }, 413);
+      setSecurityHeaders(response.headers);
+      return response;
+    }
+
+    const isMutationRequest = c.req.method !== 'GET' && c.req.method !== 'HEAD' && c.req.method !== 'OPTIONS';
+    if (isMutationRequest && !isSameOriginRequest(c.req.raw, deps.host)) {
+      console.warn(`[api] Rejected cross-origin mutation from ${sanitizeText(c.req.raw.headers.get('origin') ?? 'unknown', 120)}`);
+      const response = c.json({ error: 'Cross-origin mutation blocked' }, 403);
       setSecurityHeaders(response.headers);
       return response;
     }
