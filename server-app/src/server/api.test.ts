@@ -12,13 +12,14 @@ describe('API routes', () => {
     triggerRun = vi.fn().mockResolvedValue('run-123');
   });
 
-  function createApp() {
+  function createApp(host?: string) {
     const agents = [makeAgent(), makeAgent({ id: 'other-agent', name: 'Other' })];
     return createApi({
       getAgents: async () => agents,
       store,
       triggerRun,
       cancelRun: vi.fn().mockReturnValue(false),
+      host,
     });
   }
 
@@ -56,6 +57,26 @@ describe('API routes', () => {
       expect(body.name).toBe('Test Agent');
     });
 
+
+    it('blocks cross-origin mutation requests', async () => {
+      const app = createApp('127.0.0.1');
+      const res = await app.request('/agents/test-agent/run', {
+        method: 'POST',
+        headers: { Origin: 'https://evil.example' },
+      });
+
+      expect(res.status).toBe(403);
+    });
+
+    it('allows loopback origin mutation requests when server host is loopback', async () => {
+      const app = createApp('127.0.0.1');
+      const res = await app.request('/agents/test-agent/run', {
+        method: 'POST',
+        headers: { Origin: 'http://localhost:3000' },
+      });
+
+      expect(res.status).toBe(202);
+    });
     it('returns 404 for unknown agent', async () => {
       const app = createApp();
       const res = await app.request('/agents/nonexistent');

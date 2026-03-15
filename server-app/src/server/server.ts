@@ -49,6 +49,23 @@ function parseTimeout(timeout: string): number {
   return unit === 'h' ? value * 60 * 60 * 1000 : value * 60 * 1000;
 }
 
+
+export function isAllowedOrigin(originHeader: string | undefined, host: string): boolean {
+  if (!originHeader) return true;
+
+  try {
+    const origin = new URL(originHeader);
+    const originHost = origin.hostname.toLowerCase();
+    const normalizedHost = host.trim().toLowerCase();
+
+    if (originHost === normalizedHost) return true;
+    if (isLoopbackHost(originHost) && isLoopbackHost(normalizedHost)) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 export function validateNetworkExposure(host: string, apiKey?: string): void {
   const trimmedApiKey = apiKey?.trim();
 
@@ -385,6 +402,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       : undefined,
     apiKey: config.apiKey,
     startedAt,
+    host: config.host,
   });
 
   const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
@@ -393,7 +411,13 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     let listener: ((event: ProgressEvent) => void) | undefined;
 
     return {
-      onOpen(_event, ws) {
+      onOpen(event, ws) {
+        const origin = (event as { req?: { raw?: Request } })?.req?.raw?.headers.get('origin');
+        if (!isAllowedOrigin(origin, config.host)) {
+          ws.close(1008, 'Origin not allowed');
+          return;
+        }
+
         if (wsClientCount >= config.maxWebSocketClients) {
           ws.close(1013, 'Server busy');
           return;
