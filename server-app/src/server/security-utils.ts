@@ -2,7 +2,8 @@ import type { StoredRun } from '../reporting/store.js';
 import type { ProgressEvent } from './websocket.js';
 
 const CONTROL_CHAR_PATTERN = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g;
-const LONG_WHITESPACE_PATTERN = /\s{2,}/g;
+const LONG_HORIZONTAL_SPACE_PATTERN = /[^\S\n]{2,}/g;
+const EXCESSIVE_NEWLINES_PATTERN = /\n{4,}/g;
 
 const SECRET_PATTERNS: RegExp[] = [
   /\b(sk-(?:ant|live|test)?[-_a-zA-Z0-9]{12,})\b/g,
@@ -27,7 +28,8 @@ function replaceSecrets(text: string): string {
 export function sanitizeText(input: string, maxLength = 512): string {
   const cleaned = input
     .replace(CONTROL_CHAR_PATTERN, ' ')
-    .replace(LONG_WHITESPACE_PATTERN, ' ')
+    .replace(LONG_HORIZONTAL_SPACE_PATTERN, ' ')
+    .replace(EXCESSIVE_NEWLINES_PATTERN, '\n\n\n')
     .trim();
 
   const redacted = replaceSecrets(cleaned);

@@ -49,6 +49,21 @@ describe('security-utils', () => {
     expect(getClientIp(request, { trustProxyHeaders: true })).toBe('203.0.113.5');
   });
 
+  it('preserves newlines in sanitized text', () => {
+    const text = sanitizeText('Line one\n\nLine two\n\nLine three', 500);
+    expect(text).toBe('Line one\n\nLine two\n\nLine three');
+  });
+
+  it('collapses excessive newlines but keeps up to three', () => {
+    const text = sanitizeText('Line one\n\n\n\n\n\nLine two', 500);
+    expect(text).toBe('Line one\n\n\nLine two');
+  });
+
+  it('collapses repeated horizontal spaces without affecting newlines', () => {
+    const text = sanitizeText('hello     world\n\ngoodbye     world', 500);
+    expect(text).toBe('hello world\n\ngoodbye world');
+  });
+
   it('blocks after repeated auth failures', () => {
     const tracker = new AuthFailureTracker(2, 10_000);
     expect(tracker.registerFailure('ip').allowed).toBe(true);
