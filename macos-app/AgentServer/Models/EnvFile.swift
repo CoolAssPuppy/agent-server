@@ -6,18 +6,23 @@ struct EnvEntry: Identifiable {
     var value: String
     var isComment: Bool
 
-    static let sensitiveKeys: Set<String> = [
-        "AGENT_SERVER_PANEL_API_KEY",
-        "AGENT_SERVER_TELEGRAM_BOT_TOKEN",
-        "ANTHROPIC_API_KEY",
-    ]
-
     static let readOnlyKeys: Set<String> = [
         "AGENT_SERVER_PORT",
     ]
 
+    static let hiddenKeys: Set<String> = [
+        "AGENT_SERVER_CATCH_UP",
+    ]
+
+    private static let sensitivePatterns = ["API_KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL"]
+
     var isSensitive: Bool {
-        Self.sensitiveKeys.contains(key)
+        let upper = key.uppercased()
+        return Self.sensitivePatterns.contains(where: { upper.contains($0) })
+    }
+
+    var isHidden: Bool {
+        Self.hiddenKeys.contains(key)
     }
 
     var isURL: Bool {

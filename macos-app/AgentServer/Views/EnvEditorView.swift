@@ -13,7 +13,7 @@ struct EnvEditorView: View {
         VStack(spacing: 0) {
             List(selection: $selection) {
                 ForEach($envFile.entries) { $entry in
-                    if !entry.isComment {
+                    if !entry.isComment && !entry.isHidden {
                         HStack(spacing: NSpacing.sm) {
                             Image(systemName: iconForKey(entry.key))
                                 .font(NTypography.caption)

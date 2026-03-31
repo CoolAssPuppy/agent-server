@@ -4,10 +4,7 @@ import NerdsUI
 struct SettingsTabView: View {
     @ObservedObject var monitor: StatusMonitor
     @ObservedObject private var launchManager = LaunchAtLoginManager.shared
-    @State private var catchUpEnabled: Bool = {
-        let env = EnvFile.load()
-        return env.entries.first(where: { $0.key == "AGENT_SERVER_CATCH_UP" })?.value == "true"
-    }()
+    @AppStorage("catchUpEnabled") private var catchUpEnabled = false
     @State private var serverLocation: String = ServerProcessManager.configuredLocation() ?? ""
 
     @Environment(\.nTheme) private var theme
