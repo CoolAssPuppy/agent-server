@@ -149,13 +149,20 @@ struct AgentRunsView: View {
     /// and panel data for everything else (it has the full result).
     private func mergeRuns(panel: [Run], local: [Run]) -> [Run] {
         let localById = Dictionary(local.map { ($0.runId, $0) }, uniquingKeysWith: { _, last in last })
+        let panelIds = Set(panel.map { $0.runId })
 
-        return panel.map { panelRun in
+        var merged = panel.map { panelRun -> Run in
             guard panelRun.isActive, let localRun = localById[panelRun.runId] else {
                 return panelRun
             }
             return localRun
         }
+
+        // Add local-only runs (not yet in panel) at the top
+        let localOnly = local.filter { !panelIds.contains($0.runId) }
+        merged.insert(contentsOf: localOnly, at: 0)
+
+        return merged
     }
 
     private func fetchFromPanel() async throws -> [Run]? {

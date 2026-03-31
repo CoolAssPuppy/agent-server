@@ -20,7 +20,7 @@ struct AgentFile: Identifiable {
     }
 
     static func loadAll() -> [AgentFile] {
-        let dir = agentsDirectory
+        let dir = agentsDirectory.resolvingSymlinksInPath()
         let fm = FileManager.default
 
         guard let entries = try? fm.contentsOfDirectory(
