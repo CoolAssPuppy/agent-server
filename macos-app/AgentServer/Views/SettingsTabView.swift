@@ -88,7 +88,9 @@ struct SettingsTabView: View {
             }
             .formStyle(.grouped)
 
-            Spacer(minLength: 0)
+            Spacer(minLength: NSpacing.lg)
+
+            Divider().opacity(0.3).padding(.horizontal, NSpacing.xxl)
 
             VStack(spacing: NSpacing.xxxs) {
                 Text("\u{00A9} 2026 Strategic Nerds, Inc.")
