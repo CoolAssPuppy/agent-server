@@ -6,13 +6,19 @@ struct SettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @State private var showSettings = false
 
+    private var isDark: Bool { themeManager.currentTheme.palette.isDark }
+
     var body: some View {
         AgentsListView(monitor: monitor, onOpenSettings: { showSettings = true })
             .sheet(isPresented: $showSettings) {
                 SettingsSheet(monitor: monitor, isPresented: $showSettings)
+                    .nTheme(themeManager.themeConfig)
+                    .environment(\.colorScheme, isDark ? .dark : .light)
             }
             .frame(minWidth: 980, minHeight: 550)
             .nTheme(themeManager.themeConfig)
+            .background(themeManager.themeConfig.tokens.background)
+            .environment(\.colorScheme, isDark ? .dark : .light)
     }
 }
 
