@@ -1,14 +1,16 @@
 import SwiftUI
 import NerdsUI
 
-struct RunDetailGutter: View {
+struct DetailsTabView: View {
     let run: Run
 
     @Environment(\.nTheme) private var theme
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: NSpacing.xl) {
+            VStack(alignment: .leading, spacing: NSpacing.xxl) {
+                informationSection
+
                 if !run.toolsUsed.isEmpty {
                     toolsSection
                 }
@@ -20,10 +22,63 @@ struct RunDetailGutter: View {
                 if !run.commandsRun.isEmpty {
                     commandsSection
                 }
-
-                informationSection
             }
             .padding(NSpacing.lg)
+        }
+    }
+
+    // MARK: - Information
+
+    private var informationSection: some View {
+        VStack(alignment: .leading, spacing: NSpacing.md) {
+            RunSectionHeader(title: "Information", icon: "info.circle")
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: NSpacing.md) {
+                infoCell(label: "Agent ID", value: run.agentId)
+                infoCell(label: "Run ID", value: String(run.runId.prefix(8)))
+
+                if let model = run.model {
+                    infoCell(label: "Model", value: model)
+                }
+
+                if let trigger = run.trigger {
+                    infoCell(label: "Trigger", value: trigger)
+                }
+
+                infoCell(label: "Started", value: run.startedAt.formatted(date: .abbreviated, time: .standard))
+
+                if let completed = run.completedAt {
+                    infoCell(label: "Completed", value: completed.formatted(date: .abbreviated, time: .standard))
+                }
+
+                if let duration = run.duration {
+                    infoCell(label: "Duration", value: formatDuration(duration))
+                }
+
+                if let tokens = run.totalTokens {
+                    infoCell(label: "Total tokens", value: formatTokenCount(tokens))
+                }
+
+                if let cost = run.estimatedCostUsd, cost > 0 {
+                    infoCell(label: "Cost", value: formatCost(cost))
+                }
+
+                if run.conversationId != nil {
+                    infoCell(label: "Conversation", value: String(run.conversationId!.prefix(8)))
+                }
+            }
+        }
+    }
+
+    private func infoCell(label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: NSpacing.xxxs) {
+            Text(label)
+                .font(NTypography.captionSmall)
+                .foregroundStyle(theme.tokens.mutedForeground)
+            Text(value)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(theme.tokens.foreground)
+                .textSelection(.enabled)
         }
     }
 
@@ -44,29 +99,31 @@ struct RunDetailGutter: View {
     // MARK: - Files
 
     private var filesSection: some View {
-        VStack(alignment: .leading, spacing: NSpacing.sm) {
+        VStack(alignment: .leading, spacing: NSpacing.md) {
             RunSectionHeader(title: "Files", icon: "doc.text")
 
-            if !run.filesWritten.isEmpty {
-                VStack(alignment: .leading, spacing: NSpacing.xxs) {
-                    Text("Written (\(run.filesWritten.count))")
-                        .font(NTypography.captionSmall)
-                        .foregroundStyle(.green)
+            HStack(alignment: .top, spacing: NSpacing.xxl) {
+                if !run.filesWritten.isEmpty {
+                    VStack(alignment: .leading, spacing: NSpacing.xxs) {
+                        Text("Written (\(run.filesWritten.count))")
+                            .font(NTypography.labelSmall)
+                            .foregroundStyle(.green)
 
-                    ForEach(run.filesWritten, id: \.self) { file in
-                        fileRow(file, color: .green)
+                        ForEach(run.filesWritten, id: \.self) { file in
+                            fileRow(file, color: .green)
+                        }
                     }
                 }
-            }
 
-            if !run.filesRead.isEmpty {
-                VStack(alignment: .leading, spacing: NSpacing.xxs) {
-                    Text("Read (\(run.filesRead.count))")
-                        .font(NTypography.captionSmall)
-                        .foregroundStyle(theme.tokens.mutedForeground)
+                if !run.filesRead.isEmpty {
+                    VStack(alignment: .leading, spacing: NSpacing.xxs) {
+                        Text("Read (\(run.filesRead.count))")
+                            .font(NTypography.labelSmall)
+                            .foregroundStyle(theme.tokens.mutedForeground)
 
-                    ForEach(run.filesRead, id: \.self) { file in
-                        fileRow(file, color: theme.tokens.mutedForeground)
+                        ForEach(run.filesRead, id: \.self) { file in
+                            fileRow(file, color: theme.tokens.mutedForeground)
+                        }
                     }
                 }
             }
@@ -75,7 +132,7 @@ struct RunDetailGutter: View {
 
     private func fileRow(_ file: String, color: Color) -> some View {
         Text(abbreviatePath(file))
-            .font(.system(.caption2, design: .monospaced))
+            .font(.system(.caption, design: .monospaced))
             .foregroundStyle(color)
             .textSelection(.enabled)
             .lineLimit(1)
@@ -90,63 +147,17 @@ struct RunDetailGutter: View {
 
             VStack(alignment: .leading, spacing: NSpacing.xxs) {
                 ForEach(run.commandsRun, id: \.self) { command in
-                    HStack(alignment: .top, spacing: NSpacing.xxs) {
+                    HStack(alignment: .top, spacing: NSpacing.xs) {
                         Text("$")
-                            .font(.system(.caption2, design: .monospaced, weight: .bold))
+                            .font(.system(.caption, design: .monospaced, weight: .bold))
                             .foregroundStyle(theme.tokens.mutedForeground)
                         Text(command)
-                            .font(.system(.caption2, design: .monospaced))
+                            .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(theme.tokens.foreground.opacity(0.8))
                             .textSelection(.enabled)
-                            .lineLimit(2)
                     }
                 }
             }
-        }
-    }
-
-    // MARK: - Information
-
-    private var informationSection: some View {
-        VStack(alignment: .leading, spacing: NSpacing.sm) {
-            RunSectionHeader(title: "Information", icon: "info.circle")
-
-            VStack(alignment: .leading, spacing: NSpacing.xs) {
-                infoRow(label: "Agent ID", value: run.agentId)
-                infoRow(label: "Run ID", value: String(run.runId.prefix(8)))
-
-                if let model = run.model {
-                    infoRow(label: "Model", value: model)
-                }
-
-                if let trigger = run.trigger {
-                    infoRow(label: "Trigger", value: trigger)
-                }
-
-                HStack(spacing: NSpacing.xxs) {
-                    Text("Started")
-                        .font(NTypography.captionSmall)
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                    Spacer()
-                    Text(run.startedAt, style: .date)
-                        .font(.system(.caption2, design: .monospaced))
-                    Text(run.startedAt, style: .time)
-                        .font(.system(.caption2, design: .monospaced))
-                }
-            }
-        }
-    }
-
-    private func infoRow(label: String, value: String) -> some View {
-        HStack(spacing: NSpacing.xxs) {
-            Text(label)
-                .font(NTypography.captionSmall)
-                .foregroundStyle(theme.tokens.mutedForeground)
-            Spacer()
-            Text(value)
-                .font(.system(.caption2, design: .monospaced))
-                .foregroundStyle(theme.tokens.foreground)
-                .textSelection(.enabled)
         }
     }
 }

@@ -5,6 +5,7 @@ enum RunDetailTab: String, CaseIterable {
     case activity = "Activity"
     case logs = "Logs"
     case output = "Output"
+    case details = "Details"
 }
 
 struct RunDetailView: View {
@@ -211,20 +212,13 @@ struct RunDetailView: View {
         .background(.red.opacity(0.08))
     }
 
-    // MARK: - Content: tabs + gutter
+    // MARK: - Content: tabs
 
     private var contentArea: some View {
-        HStack(spacing: 0) {
-            VStack(spacing: 0) {
-                tabPicker
-                Divider()
-                tabContent
-            }
-
+        VStack(spacing: 0) {
+            tabPicker
             Divider()
-
-            RunDetailGutter(run: run)
-                .frame(width: 220)
+            tabContent
         }
     }
 
@@ -263,6 +257,8 @@ struct RunDetailView: View {
             LogsTabView(logs: logs, isLive: run.status == .running)
         case .output:
             OutputTabView(run: run)
+        case .details:
+            DetailsTabView(run: run)
         }
     }
 
