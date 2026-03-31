@@ -1,4 +1,5 @@
 import SwiftUI
+import NerdsUI
 
 enum AgentDetailTab: String, CaseIterable {
     case definition = "Definition"
@@ -9,6 +10,8 @@ struct AgentDetailView: View {
     let agentId: String
     @ObservedObject var monitor: StatusMonitor
     @State private var selectedTab: AgentDetailTab
+
+    @Environment(\.nTheme) private var theme
 
     init(agentId: String, monitor: StatusMonitor, initialTab: AgentDetailTab = .definition) {
         self.agentId = agentId
@@ -29,17 +32,17 @@ struct AgentDetailView: View {
     }
 
     private var headerBar: some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(alignment: .center, spacing: NSpacing.md) {
+            VStack(alignment: .leading, spacing: NSpacing.xxxs) {
                 Text(agent?.name ?? agentId)
-                    .font(.title2)
+                    .font(NTypography.titleLarge)
                     .fontWeight(.semibold)
                     .lineLimit(1)
 
                 if let description = agent?.description, !description.isEmpty {
                     Text(description)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(NTypography.caption)
+                        .foregroundStyle(theme.tokens.mutedForeground)
                 }
             }
 
@@ -53,8 +56,8 @@ struct AgentDetailView: View {
             .pickerStyle(.segmented)
             .frame(width: 220)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, NSpacing.lg)
+        .padding(.vertical, NSpacing.md)
         .background(.bar)
     }
 

@@ -1,4 +1,5 @@
 import SwiftUI
+import NerdsUI
 
 struct AgentsListView: View {
     @ObservedObject var monitor: StatusMonitor
@@ -6,6 +7,8 @@ struct AgentsListView: View {
     @State private var selectedAgentId: String?
     @State private var showNewAgentSheet = false
     @State private var deepLinkToRuns = false
+
+    @Environment(\.nTheme) private var theme
 
     private var agentsDir: URL {
         FileManager.default.homeDirectoryForCurrentUser
@@ -58,7 +61,7 @@ struct AgentsListView: View {
             VStack(spacing: 0) {
                 HStack {
                     Text("Agents")
-                        .font(.title)
+                        .font(NTypography.displaySmall)
                         .fontWeight(.bold)
                     Spacer()
                     if let onOpenSettings {
@@ -66,16 +69,16 @@ struct AgentsListView: View {
                             onOpenSettings()
                         } label: {
                             Image(systemName: "gearshape")
-                                .font(.system(size: 16))
-                                .foregroundStyle(.secondary)
+                                .font(.system(size: NIconSize.sm))
+                                .foregroundStyle(theme.tokens.mutedForeground)
                         }
                         .buttonStyle(.plain)
                         .help("Settings")
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 10)
-                .padding(.bottom, 4)
+                .padding(.horizontal, NSpacing.lg)
+                .padding(.top, NSpacing.md)
+                .padding(.bottom, NSpacing.xxs)
 
                 if monitor.staleRunCount > 0 {
                     StaleRunsBanner(count: monitor.staleRunCount) {
@@ -89,12 +92,12 @@ struct AgentsListView: View {
                 Button {
                     NSWorkspace.shared.open(agentsDir)
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: NSpacing.xxs) {
                         Image(systemName: "folder")
                         Text("Open folder")
                     }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
                 }
                 .buttonStyle(.borderless)
                 .help("Open ~/.agent-server/agents in Finder")
@@ -104,16 +107,16 @@ struct AgentsListView: View {
                 Button {
                     showNewAgentSheet = true
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: NSpacing.xxs) {
                         Image(systemName: "plus")
                         Text("New agent")
                     }
-                    .font(.caption)
+                    .font(NTypography.caption)
                 }
                 .buttonStyle(.borderless)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, NSpacing.md)
+            .padding(.vertical, NSpacing.sm)
             .background(.bar)
         }
         .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 400)
@@ -149,56 +152,58 @@ private struct AgentRow: View {
     let agent: Agent
     let isRunning: Bool
 
+    @Environment(\.nTheme) private var theme
+
     private var kindColor: Color {
         let c = agent.kind.color
         return Color(red: c.r, green: c.g, blue: c.b)
     }
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: NSpacing.md) {
             ZStack {
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: NRadius.sm)
                     .fill(kindColor.opacity(0.15))
                     .frame(width: 36, height: 36)
 
                 Image(systemName: agent.kind.icon)
-                    .font(.system(size: 16, weight: .medium))
+                    .font(.system(size: NIconSize.sm, weight: .medium))
                     .foregroundStyle(kindColor)
             }
 
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: NSpacing.xxxs) {
+                HStack(spacing: NSpacing.xs) {
                     Text(agent.name)
-                        .font(.headline)
+                        .font(NTypography.headlineSmall)
 
                     if !agent.enabled {
                         Text("Disabled")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(.quaternary)
+                            .font(NTypography.badge)
+                            .foregroundStyle(theme.tokens.mutedForeground)
+                            .padding(.horizontal, NSpacing.xs)
+                            .padding(.vertical, NSpacing.xxxs)
+                            .background(theme.tokens.muted)
                             .clipShape(Capsule())
                     }
                 }
 
                 if let description = agent.description {
                     Text(description)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(NTypography.bodySmall)
+                        .foregroundStyle(theme.tokens.mutedForeground)
                         .lineLimit(1)
                 }
 
                 if agent.enabled {
-                    HStack(spacing: 5) {
+                    HStack(spacing: NSpacing.xxs) {
                         Text(agent.kind.label)
-                            .font(.caption)
+                            .font(NTypography.caption)
                             .foregroundStyle(kindColor)
 
                         if agent.isScheduled {
                             Image(systemName: "clock")
                                 .font(.system(size: 9))
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(theme.tokens.mutedForeground.opacity(0.6))
                                 .help(agent.scheduleDisplay)
                         }
                     }
@@ -211,7 +216,7 @@ private struct AgentRow: View {
                 PulsingDot(color: .green)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, NSpacing.xxs)
     }
 }
 
@@ -221,26 +226,28 @@ private struct StaleRunsBanner: View {
     let count: Int
     let onCleanup: () -> Void
 
+    @Environment(\.nTheme) private var theme
+
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: NSpacing.sm) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.yellow)
-                .font(.system(size: 12))
+                .font(.system(size: NIconSize.xs))
 
             Text("\(count) stale run\(count == 1 ? "" : "s") detected")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(NTypography.caption)
+                .foregroundStyle(theme.tokens.mutedForeground)
 
             Spacer()
 
             Button("Clean up") {
                 onCleanup()
             }
-            .font(.caption)
+            .font(NTypography.caption)
             .buttonStyle(.borderless)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 6)
+        .padding(.horizontal, NSpacing.lg)
+        .padding(.vertical, NSpacing.xs)
         .background(.yellow.opacity(0.1))
     }
 }

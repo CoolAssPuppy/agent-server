@@ -1,4 +1,5 @@
 import SwiftUI
+import NerdsUI
 
 struct MarkdownContentView: View {
     let source: String

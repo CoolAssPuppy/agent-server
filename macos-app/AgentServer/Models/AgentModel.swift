@@ -201,6 +201,13 @@ enum CronDescriber {
             return "Every \(dayNames[single])"
         }
 
+        let rangeParts = field.split(separator: "-").compactMap { Int($0) }
+        if rangeParts.count == 2,
+           (0...6).contains(rangeParts[0]),
+           (0...6).contains(rangeParts[1]) {
+            return "\(dayNames[rangeParts[0]])-\(dayNames[rangeParts[1]])"
+        }
+
         let dayParts = field.split(separator: ",").compactMap { Int($0) }
         if !dayParts.isEmpty && dayParts.allSatisfy({ (0...6).contains($0) }) {
             let names = dayParts.map { dayNames[$0] }

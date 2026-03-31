@@ -1,4 +1,5 @@
 import SwiftUI
+import NerdsUI
 
 struct EnvEditorView: View {
     @State private var envFile = EnvFile.load()
@@ -6,15 +7,17 @@ struct EnvEditorView: View {
     @State private var saveError: String?
     @State private var selection: EnvEntry.ID?
 
+    @Environment(\.nTheme) private var theme
+
     var body: some View {
         VStack(spacing: 0) {
             List(selection: $selection) {
                 ForEach($envFile.entries) { $entry in
                     if !entry.isComment {
-                        HStack(spacing: 8) {
+                        HStack(spacing: NSpacing.sm) {
                             Image(systemName: iconForKey(entry.key))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(NTypography.caption)
+                                .foregroundStyle(theme.tokens.mutedForeground)
                                 .frame(width: 14)
 
                             TextField("KEY", text: $entry.key)
@@ -55,7 +58,7 @@ struct EnvEditorView: View {
                 .buttonStyle(.borderless)
 
                 Divider()
-                    .frame(height: 16)
+                    .frame(height: NSpacing.lg)
 
                 Button {
                     removeSelected()
@@ -69,12 +72,12 @@ struct EnvEditorView: View {
                 Spacer()
 
                 if let saveError {
-                    HStack(spacing: 4) {
+                    HStack(spacing: NSpacing.xxs) {
                         Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.red)
+                            .foregroundStyle(theme.tokens.destructive)
                         Text(saveError)
-                            .foregroundStyle(.red)
-                            .font(.caption)
+                            .foregroundStyle(theme.tokens.destructive)
+                            .font(NTypography.caption)
                     }
                 }
 
@@ -85,8 +88,8 @@ struct EnvEditorView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.horizontal, NSpacing.sm)
+            .padding(.vertical, NSpacing.xxs)
             .background(.bar)
         }
     }

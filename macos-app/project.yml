@@ -5,6 +5,10 @@ options:
     macOS: "14.0"
   xcodeVersion: "15.0"
 
+packages:
+  NerdsUI:
+    path: ../../../../nerdsui/swift
+
 settings:
   base:
     SWIFT_VERSION: "5.9"
@@ -23,6 +27,8 @@ targets:
         type: folder
       - path: ../server-app/package.json
         buildPhase: resources
+    dependencies:
+      - package: NerdsUI
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.strategicnerds.agent-server

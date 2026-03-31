@@ -1,8 +1,11 @@
 import SwiftUI
+import NerdsUI
 
 struct SettingsView: View {
     @ObservedObject var monitor: StatusMonitor
     @State private var showSettings = false
+
+    @Environment(\.nTheme) private var theme
 
     var body: some View {
         AgentsListView(monitor: monitor, onOpenSettings: { showSettings = true })
@@ -17,30 +20,32 @@ private struct SettingsSheet: View {
     @ObservedObject var monitor: StatusMonitor
     @Binding var isPresented: Bool
 
+    @Environment(\.nTheme) private var theme
+
     var body: some View {
         VStack(spacing: 0) {
             HStack {
                 Text("Settings")
-                    .font(.title2)
+                    .font(NTypography.titleLarge)
                     .fontWeight(.semibold)
                 Spacer()
                 Button {
                     isPresented = false
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
+                        .font(NTypography.titleLarge)
+                        .foregroundStyle(theme.tokens.mutedForeground)
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 20)
-            .padding(.bottom, 12)
+            .padding(.horizontal, NSpacing.xxl)
+            .padding(.top, NSpacing.xl)
+            .padding(.bottom, NSpacing.md)
 
             Divider()
 
             SettingsTabView(monitor: monitor)
-                .padding(.horizontal, 8)
+                .padding(.horizontal, NSpacing.sm)
         }
         .frame(width: 580, height: 680)
     }

@@ -3,17 +3,20 @@ import Combine
 import SwiftUI
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var statusItem: NSStatusItem?
-    private var menu: NSMenu?
+    private let popover = NSPopover()
     private var settingsWindow: NSWindow?
     private let monitor = StatusMonitor()
     private let serverProcess = ServerProcessManager()
+    private let themeManager = ThemeManager.shared
     private var cancellables = Set<AnyCancellable>()
+    private var eventMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         setupStatusItem()
+        setupPopover()
         subscribeToUpdates()
 
         monitor.setServerProcess(serverProcess)
@@ -28,20 +31,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         monitor.stop()
         serverProcess.stopIfWeStarted()
     }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
 }
 
 // MARK: - Setup
 
 private extension AppDelegate {
     func setupStatusItem() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
         guard let button = statusItem?.button else { return }
         button.image = makeMenuBarIcon(active: false)
-        button.imagePosition = .imageLeft
+        button.action = #selector(togglePopover)
+        button.target = self
+    }
 
-        menu = buildMenu()
-        statusItem?.menu = menu
+    func setupPopover() {
+        let popoverView = MenuBarPopover(
+            monitor: monitor,
+            onOpenSettings: { [weak self] agentId in self?.openSettingsForAgent(agentId) },
+            onQuit: { NSApp.terminate(nil) }
+        )
+        .environmentObject(themeManager)
+        .nTheme(themeManager.themeConfig)
+
+        let hostingView = NSHostingView(rootView: popoverView)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 360, height: 440)
+
+        let viewController = NSViewController()
+        viewController.view = hostingView
+
+        popover.contentSize = NSSize(width: 360, height: 440)
+        popover.behavior = .transient
+        popover.animates = true
+        popover.delegate = self
+        popover.contentViewController = viewController
     }
 
     func makeMenuBarIcon(active: Bool) -> NSImage? {
@@ -57,94 +84,58 @@ private extension AppDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 DispatchQueue.main.async {
-                    self?.refreshMenu()
                     self?.refreshIcon()
+                    self?.refreshPopoverContent()
+                }
+            }
+            .store(in: &cancellables)
+
+        themeManager.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                DispatchQueue.main.async {
+                    self?.refreshPopoverContent()
                 }
             }
             .store(in: &cancellables)
     }
 }
 
-// MARK: - Menu
+// MARK: - Popover
 
 private extension AppDelegate {
-    func buildMenu() -> NSMenu {
-        let menu = NSMenu()
-        populateMenu(menu)
-        return menu
-    }
-
-    func refreshMenu() {
-        guard let menu else { return }
-        menu.removeAllItems()
-        populateMenu(menu)
-    }
-
-    func populateMenu(_ menu: NSMenu) {
-        if !monitor.isServerReachable {
-            let offlineItem = NSMenuItem(title: "Server offline", action: nil, keyEquivalent: "")
-            offlineItem.isEnabled = false
-            menu.addItem(offlineItem)
-            menu.addItem(.separator())
+    @objc func togglePopover() {
+        guard let button = statusItem?.button else { return }
+        if popover.isShown {
+            popover.performClose(nil)
         } else {
-            let activeRuns = monitor.activeRuns
-            if activeRuns.isEmpty {
-                let idleItem = NSMenuItem(title: "No active runs", action: nil, keyEquivalent: "")
-                idleItem.isEnabled = false
-                menu.addItem(idleItem)
-            } else {
-                for run in activeRuns {
-                    let title = "\(run.agentName) (\(run.turnCount) turns)"
-                    let item = NSMenuItem(title: title, action: #selector(openRunningAgent(_:)), keyEquivalent: "")
-                    item.target = self
-                    item.representedObject = run.agentId
-                    item.image = circleImage(color: .systemGreen)
-                    menu.addItem(item)
-                }
-            }
-
-            if monitor.staleRunCount > 0 {
-                menu.addItem(.separator())
-
-                let staleTitle = "\(monitor.staleRunCount) stale run\(monitor.staleRunCount == 1 ? "" : "s")"
-                let staleItem = NSMenuItem(title: staleTitle, action: nil, keyEquivalent: "")
-                staleItem.isEnabled = false
-                staleItem.image = circleImage(color: .systemYellow)
-                menu.addItem(staleItem)
-
-                let cleanupItem = NSMenuItem(title: "Clean up stale runs", action: #selector(cleanupStaleRuns), keyEquivalent: "")
-                cleanupItem.target = self
-                menu.addItem(cleanupItem)
-            }
-
-            menu.addItem(.separator())
-
-            let scheduledCount = monitor.agents.filter { $0.schedule != nil && $0.enabled }.count
-            let summaryTitle = "\(scheduledCount) agent\(scheduledCount == 1 ? "" : "s") scheduled"
-            let summaryItem = NSMenuItem(title: summaryTitle, action: nil, keyEquivalent: "")
-            summaryItem.isEnabled = false
-            menu.addItem(summaryItem)
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            startEventMonitor()
         }
-
-        menu.addItem(.separator())
-
-        let settingsItem = NSMenuItem(title: "Settings...", action: #selector(showSettings), keyEquivalent: ",")
-        settingsItem.target = self
-        menu.addItem(settingsItem)
-
-        let quitItem = NSMenuItem(title: "Quit Agent Server", action: #selector(quitApp), keyEquivalent: "q")
-        quitItem.target = self
-        menu.addItem(quitItem)
     }
 
-    func circleImage(color: NSColor) -> NSImage {
-        let size = NSSize(width: 8, height: 8)
-        let image = NSImage(size: size, flipped: false) { rect in
-            color.setFill()
-            NSBezierPath(ovalIn: rect).fill()
-            return true
+    func startEventMonitor() {
+        eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            self?.popover.performClose(nil)
         }
-        return image
+    }
+
+    func refreshPopoverContent() {
+        let popoverView = MenuBarPopover(
+            monitor: monitor,
+            onOpenSettings: { [weak self] agentId in self?.openSettingsForAgent(agentId) },
+            onQuit: { NSApp.terminate(nil) }
+        )
+        .environmentObject(themeManager)
+        .nTheme(themeManager.themeConfig)
+
+        let hostingView = NSHostingView(rootView: popoverView)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 360, height: 440)
+
+        let viewController = NSViewController()
+        viewController.view = hostingView
+
+        popover.contentViewController = viewController
     }
 }
 
@@ -161,6 +152,15 @@ private extension AppDelegate {
 // MARK: - Actions
 
 extension AppDelegate {
+    func openSettingsForAgent(_ agentId: String?) {
+        popover.performClose(nil)
+
+        if let agentId {
+            monitor.deepLinkAgentId = agentId
+        }
+        showSettings()
+    }
+
     @objc func showSettings() {
         NSApp.setActivationPolicy(.regular)
 
@@ -173,13 +173,17 @@ extension AppDelegate {
                 return
             }
 
+            let settingsView = SettingsView(monitor: monitor)
+                .environmentObject(themeManager)
+                .nTheme(themeManager.themeConfig)
+
             let window = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 980, height: 600),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable],
                 backing: .buffered,
                 defer: false
             )
-            window.contentView = NSHostingView(rootView: SettingsView(monitor: monitor))
+            window.contentView = NSHostingView(rootView: settingsView)
             window.title = "Agent Server"
             window.isReleasedWhenClosed = false
             window.center()
@@ -190,18 +194,19 @@ extension AppDelegate {
         }
     }
 
-    @objc func openRunningAgent(_ sender: NSMenuItem) {
-        guard let agentId = sender.representedObject as? String else { return }
-        monitor.deepLinkAgentId = agentId
-        showSettings()
-    }
-
     @objc func cleanupStaleRuns() {
         monitor.cleanupStaleRuns()
     }
+}
 
-    @objc func quitApp() {
-        NSApp.terminate(nil)
+// MARK: - NSPopoverDelegate
+
+extension AppDelegate {
+    func popoverDidClose(_ notification: Notification) {
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
+        }
     }
 }
 

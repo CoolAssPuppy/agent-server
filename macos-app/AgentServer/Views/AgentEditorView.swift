@@ -1,8 +1,11 @@
 import SwiftUI
+import NerdsUI
 
 struct AgentEditorView: View {
     let agentId: String?
     @ObservedObject var monitor: StatusMonitor
+
+    @Environment(\.nTheme) private var theme
 
     @State private var content = ""
     @State private var originalContent = ""
@@ -24,14 +27,10 @@ struct AgentEditorView: View {
     var body: some View {
         VStack(spacing: 0) {
             toolbar
-
             Divider()
-
             MarkdownEditor(text: $content)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-
             Divider()
-
             bottomBar
         }
         .onAppear { loadFile() }
@@ -40,13 +39,13 @@ struct AgentEditorView: View {
 
     @ViewBuilder
     private var toolbar: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: NSpacing.md) {
             Image(systemName: filename.hasSuffix(".md") ? "doc.richtext" : "doc.text")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(theme.tokens.mutedForeground)
 
             Text(filename)
-                .font(.system(.body, design: .monospaced))
-                .foregroundStyle(.primary)
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(theme.tokens.foreground)
 
             if hasChanges {
                 Circle()
@@ -56,11 +55,11 @@ struct AgentEditorView: View {
             }
 
             if showSavedBadge {
-                HStack(spacing: 4) {
+                HStack(spacing: NSpacing.xxs) {
                     Image(systemName: "checkmark.circle.fill")
                     Text("Saved")
                 }
-                .font(.caption)
+                .font(NTypography.caption)
                 .foregroundStyle(.green)
                 .transition(.opacity)
             }
@@ -68,12 +67,12 @@ struct AgentEditorView: View {
             Spacer()
 
             if let saveError {
-                HStack(spacing: 4) {
+                HStack(spacing: NSpacing.xxs) {
                     Image(systemName: "exclamationmark.triangle.fill")
                     Text(saveError)
                 }
-                .font(.caption)
-                .foregroundStyle(.red)
+                .font(NTypography.caption)
+                .foregroundStyle(theme.tokens.destructive)
                 .lineLimit(1)
             }
 
@@ -81,7 +80,7 @@ struct AgentEditorView: View {
                 Button {
                     monitor.triggerRun(agentId: agentId)
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: NSpacing.xxs) {
                         if isRunning {
                             ProgressView()
                                 .controlSize(.mini)
@@ -96,16 +95,16 @@ struct AgentEditorView: View {
                 .disabled(isRunning || !isEnabled)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, NSpacing.lg)
+        .padding(.vertical, NSpacing.md)
     }
 
     @ViewBuilder
     private var bottomBar: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: NSpacing.lg) {
             Toggle(isOn: $isEnabled) {
                 Text("Enabled")
-                    .font(.subheadline)
+                    .font(NTypography.bodySmall)
             }
             .toggleStyle(.switch)
             .controlSize(.small)
@@ -130,8 +129,8 @@ struct AgentEditorView: View {
             .disabled(!hasChanges)
             .keyboardShortcut("s", modifiers: .command)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, NSpacing.lg)
+        .padding(.vertical, NSpacing.md)
     }
 
     private func loadFile() {
@@ -202,9 +201,13 @@ struct AgentEditorView: View {
     }
 }
 
+// MARK: - New agent sheet
+
 struct NewAgentSheet: View {
     @Binding var isPresented: Bool
     var onCreate: (String) -> Void
+
+    @Environment(\.nTheme) private var theme
 
     @State private var filename = "my-agent"
     @State private var useMarkdown = true
@@ -225,23 +228,23 @@ struct NewAgentSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: NSpacing.xl) {
             Text("New agent")
-                .font(.headline)
+                .font(NTypography.headlineMedium)
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: NSpacing.sm) {
                 Text("Filename")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(NTypography.bodySmall)
+                    .foregroundStyle(theme.tokens.mutedForeground)
 
-                HStack(spacing: 8) {
+                HStack(spacing: NSpacing.sm) {
                     TextField("my-agent", text: $filename)
                         .textFieldStyle(.roundedBorder)
-                        .font(.system(.body, design: .monospaced))
+                        .font(.system(size: 12, design: .monospaced))
 
                     Text(useMarkdown ? ".md" : ".yaml")
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(theme.tokens.mutedForeground)
                         .frame(width: 50)
                 }
             }
@@ -253,12 +256,12 @@ struct NewAgentSheet: View {
             .pickerStyle(.radioGroup)
 
             if let createError {
-                HStack(spacing: 4) {
+                HStack(spacing: NSpacing.xxs) {
                     Image(systemName: "exclamationmark.triangle.fill")
                     Text(createError)
                 }
-                .font(.caption)
-                .foregroundStyle(.red)
+                .font(NTypography.caption)
+                .foregroundStyle(theme.tokens.destructive)
             }
 
             HStack {
@@ -277,7 +280,7 @@ struct NewAgentSheet: View {
                 .disabled(filename.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
-        .padding(24)
+        .padding(NSpacing.xxl)
         .frame(width: 420)
     }
 

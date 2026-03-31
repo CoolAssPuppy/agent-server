@@ -1,4 +1,5 @@
 import SwiftUI
+import NerdsUI
 
 struct SettingsTabView: View {
     @ObservedObject var monitor: StatusMonitor
@@ -8,6 +9,8 @@ struct SettingsTabView: View {
         return env.entries.first(where: { $0.key == "AGENT_SERVER_CATCH_UP" })?.value == "true"
     }()
     @State private var serverLocation: String = ServerProcessManager.configuredLocation() ?? ""
+
+    @Environment(\.nTheme) private var theme
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,19 +23,19 @@ struct SettingsTabView: View {
                             updateCatchUpSetting(newValue)
                         }
 
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: NSpacing.xs) {
                         Text("Server location")
-                        HStack(spacing: 8) {
+                        HStack(spacing: NSpacing.sm) {
                             if serverLocation.isEmpty {
                                 Text("Not configured (auto-detect)")
-                                    .foregroundStyle(.secondary)
-                                    .font(.caption)
+                                    .foregroundStyle(theme.tokens.mutedForeground)
+                                    .font(NTypography.caption)
                             } else {
                                 Text(serverLocation)
-                                    .font(.system(.caption, design: .monospaced))
+                                    .font(.system(size: 11, design: .monospaced))
                                     .lineLimit(1)
                                     .truncationMode(.middle)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(theme.tokens.mutedForeground)
                                     .help(serverLocation)
                             }
                             Spacer()
@@ -53,14 +56,13 @@ struct SettingsTabView: View {
                     HStack {
                         Text("Server status")
                         Spacer()
-                        HStack(spacing: 6) {
+                        HStack(spacing: NSpacing.xs) {
                             Image(systemName: monitor.isServerReachable
                                   ? "checkmark.circle.fill"
                                   : "xmark.circle.fill")
                                 .foregroundStyle(monitor.isServerReachable ? .green : .red)
-                                .font(.body)
                             Text(monitor.isServerReachable ? "Running" : "Offline")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(theme.tokens.mutedForeground)
                         }
                     }
                     .contextMenu {
@@ -74,7 +76,7 @@ struct SettingsTabView: View {
                             Text("Agents loaded")
                             Spacer()
                             Text("\(monitor.agents.count)")
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(theme.tokens.mutedForeground)
                                 .monospacedDigit()
                         }
                     }
@@ -88,19 +90,19 @@ struct SettingsTabView: View {
 
             Spacer(minLength: 0)
 
-            VStack(spacing: 2) {
+            VStack(spacing: NSpacing.xxxs) {
                 Text("\u{00A9} 2026 Strategic Nerds, Inc.")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                Text("Made with \u{2764}\u{FE0F} in Lisbon, Portugal")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(NTypography.captionSmall)
+                    .foregroundStyle(theme.tokens.mutedForeground.opacity(0.6))
+                Text("Made with love in Lisbon, Portugal")
+                    .font(NTypography.captionSmall)
+                    .foregroundStyle(theme.tokens.mutedForeground.opacity(0.6))
                 Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0")")
-                    .font(.caption2)
-                    .foregroundStyle(.quaternary)
+                    .font(NTypography.captionSmall)
+                    .foregroundStyle(theme.tokens.mutedForeground.opacity(0.4))
             }
             .frame(maxWidth: .infinity)
-            .padding(.bottom, 12)
+            .padding(.bottom, NSpacing.md)
         }
     }
 
