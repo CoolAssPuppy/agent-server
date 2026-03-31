@@ -54,5 +54,6 @@ private struct SettingsSheet: View {
                 .padding(.horizontal, NSpacing.sm)
         }
         .frame(width: 580, height: 680)
+        .background(theme.tokens.background)
     }
 }
