@@ -251,23 +251,3 @@ private struct StaleRunsBanner: View {
         .background(.yellow.opacity(0.1))
     }
 }
-
-// MARK: - Pulsing dot
-
-struct PulsingDot: View {
-    let color: Color
-    @State private var isPulsing = false
-
-    var body: some View {
-        Circle()
-            .fill(color)
-            .frame(width: 8, height: 8)
-            .shadow(color: color.opacity(isPulsing ? 0.7 : 0.2), radius: isPulsing ? 5 : 1)
-            .opacity(isPulsing ? 1.0 : 0.6)
-            .animation(
-                .easeInOut(duration: 1.2).repeatForever(autoreverses: true),
-                value: isPulsing
-            )
-            .onAppear { isPulsing = true }
-    }
-}
