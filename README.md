@@ -38,25 +38,76 @@ This means agents inherit everything Claude Code provides: MCP server integratio
 
 ## Quick start
 
+### 1. Build the server
+
 ```bash
 cd server-app
 npm install
 npm run build
-
-# Create config directory with a sample agent
-npx tsx src/cli.ts init
-
-# Edit your agent
-$EDITOR ~/.agent-server/agents/hello-world.yaml
-
-# Test a single agent
-npx tsx src/cli.ts run hello-world
-
-# Start the server (HTTP API + scheduler)
-npx tsx src/cli.ts start
 ```
 
-The `init` command creates `~/.agent-server/` with `agents/`, `locks/`, and `logs/` directories and a sample `hello-world.yaml` agent.
+### 2. Initialize the config directory
+
+```bash
+node dist/cli.js init
+```
+
+This creates `~/.agent-server/` with `agents/`, `locks/`, and `logs/` directories and a sample `hello-world.yaml` agent.
+
+### 3. Configure environment variables
+
+Add your keys to `~/.agent-server/.env`. At minimum you need an Anthropic API key. The panel URL and API key are optional but required for the Agent Panel dashboard.
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-...
+AGENT_SERVER_PANEL_URL=https://www.agentpanel.dev
+AGENT_SERVER_PANEL_API_KEY=ap_live_...
+AGENT_SERVER_TELEGRAM_BOT_TOKEN=7123456789:AAH...
+```
+
+If you use [Doppler](https://www.doppler.com/) for secret management, you can pull secrets directly:
+
+```bash
+doppler secrets download --project agent-server --config dev --no-file --format env \
+  | grep -v '^DOPPLER_' > ~/.agent-server/.env
+```
+
+Or run the server through Doppler instead of using a `.env` file:
+
+```bash
+doppler run -- node dist/cli.js start
+```
+
+### 4. Add your agents
+
+Agent definitions live in `~/.agent-server/agents/`. You can create files directly, or symlink to an existing directory:
+
+```bash
+# Option A: edit the sample agent
+$EDITOR ~/.agent-server/agents/hello-world.yaml
+
+# Option B: symlink to your own agents directory
+rm -rf ~/.agent-server/agents
+ln -s ~/path/to/your/agents ~/.agent-server/agents
+```
+
+### 5. Start the server
+
+```bash
+# Test a single agent
+node dist/cli.js run hello-world
+
+# Start the server (HTTP API + scheduler + Telegram)
+node dist/cli.js start
+```
+
+### 6. (Optional) Use the macOS menu bar app
+
+If you use the macOS app, it starts the server automatically. On first launch, open Settings and set the server location to the repo root (the directory containing `server-app/`). The app needs to know where the built server lives on disk.
+
+The server reads `~/.agent-server/.env` once at startup. If you change the `.env` file, restart the server (right-click "Server status" in Settings, or quit and relaunch the app).
+
+See [Server location](#server-location) for details on how the app finds the server.
 
 ## Creating agents
 

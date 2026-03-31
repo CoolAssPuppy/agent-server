@@ -149,20 +149,30 @@ struct AgentRunsView: View {
     /// and panel data for everything else (it has the full result).
     private func mergeRuns(panel: [Run], local: [Run]) -> [Run] {
         let localById = Dictionary(local.map { ($0.runId, $0) }, uniquingKeysWith: { _, last in last })
-        let panelIds = Set(panel.map { $0.runId })
 
-        var merged = panel.map { panelRun -> Run in
-            guard panelRun.isActive, let localRun = localById[panelRun.runId] else {
-                return panelRun
+        // Replace active panel runs with local data (has live progress).
+        // Match by runId first, then by start time proximity (panel and local use different IDs).
+        var matched = panel.map { panelRun -> Run in
+            if panelRun.isActive, let localRun = localById[panelRun.runId] {
+                return localRun
             }
-            return localRun
+            if panelRun.isActive, let localRun = local.first(where: {
+                $0.isActive && abs($0.startedAt.timeIntervalSince(panelRun.startedAt)) < 10
+            }) {
+                return localRun
+            }
+            return panelRun
         }
 
-        // Add local-only runs (not yet in panel) at the top
-        let localOnly = local.filter { !panelIds.contains($0.runId) }
-        merged.insert(contentsOf: localOnly, at: 0)
+        // Add local-only runs not matched to any panel run
+        let matchedStartTimes = Set(matched.filter { $0.isActive }.map { Int($0.startedAt.timeIntervalSince1970) })
+        let localOnly = local.filter { localRun in
+            !matched.contains(where: { $0.runId == localRun.runId }) &&
+            !matchedStartTimes.contains(Int(localRun.startedAt.timeIntervalSince1970))
+        }
+        matched.insert(contentsOf: localOnly, at: 0)
 
-        return merged
+        return matched
     }
 
     private func fetchFromPanel() async throws -> [Run]? {
