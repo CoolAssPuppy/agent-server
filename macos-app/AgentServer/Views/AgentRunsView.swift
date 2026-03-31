@@ -147,26 +147,37 @@ struct AgentRunsView: View {
     private func mergeRuns(panel: [Run], local: [Run]) -> [Run] {
         let localById = Dictionary(local.map { ($0.runId, $0) }, uniquingKeysWith: { _, last in last })
 
-        var matched = panel.map { panelRun -> Run in
-            if panelRun.isActive, let localRun = localById[panelRun.runId] {
-                return localRun
+        // For each panel run, prefer local data if we can match by ID or start time.
+        // Active runs get local data (has live progress); completed runs keep panel data (has full result).
+        var matchedLocalStartTimes = Set<Int>()
+        var matchedLocalIds = Set<String>()
+
+        var merged = panel.map { panelRun -> Run in
+            // Exact ID match
+            if let localRun = localById[panelRun.runId] {
+                matchedLocalIds.insert(localRun.runId)
+                matchedLocalStartTimes.insert(Int(localRun.startedAt.timeIntervalSince1970))
+                return panelRun.isActive ? localRun : panelRun
             }
-            if panelRun.isActive, let localRun = local.first(where: {
-                $0.isActive && abs($0.startedAt.timeIntervalSince(panelRun.startedAt)) < 10
+            // Fuzzy time match (panel and local use different IDs for the same run)
+            if let localRun = local.first(where: {
+                abs($0.startedAt.timeIntervalSince(panelRun.startedAt)) < 10
             }) {
-                return localRun
+                matchedLocalIds.insert(localRun.runId)
+                matchedLocalStartTimes.insert(Int(localRun.startedAt.timeIntervalSince1970))
+                return panelRun.isActive ? localRun : panelRun
             }
             return panelRun
         }
 
-        let matchedStartTimes = Set(matched.filter { $0.isActive }.map { Int($0.startedAt.timeIntervalSince1970) })
+        // Add local-only runs not matched to any panel run
         let localOnly = local.filter { localRun in
-            !matched.contains(where: { $0.runId == localRun.runId }) &&
-            !matchedStartTimes.contains(Int(localRun.startedAt.timeIntervalSince1970))
+            !matchedLocalIds.contains(localRun.runId) &&
+            !matchedLocalStartTimes.contains(Int(localRun.startedAt.timeIntervalSince1970))
         }
-        matched.insert(contentsOf: localOnly, at: 0)
+        merged.insert(contentsOf: localOnly, at: 0)
 
-        return matched
+        return merged
     }
 
     private func fetchFromPanel() async throws -> [Run]? {
