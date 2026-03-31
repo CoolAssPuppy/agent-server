@@ -154,8 +154,8 @@ export class TelegramChannel implements Channel {
 
   async notify(data: NotificationData): Promise<number | undefined> {
     if (!this.hasChatId()) return undefined;
-    const html = formatTelegramNotification(data);
-    const result = await this.api.sendMessage(this.chatId as number, sanitizeText(html, MAX_TELEGRAM_TEXT_LENGTH), { parse_mode: 'HTML' });
+    const text = formatTelegramNotification(data);
+    const result = await this.api.sendMessage(this.chatId as number, sanitizeText(text, MAX_TELEGRAM_TEXT_LENGTH));
     return result.message_id;
   }
 

@@ -42,6 +42,6 @@ private struct SettingsSheet: View {
             SettingsTabView(monitor: monitor)
                 .padding(.horizontal, 8)
         }
-        .frame(width: 540, height: 520)
+        .frame(width: 580, height: 680)
     }
 }

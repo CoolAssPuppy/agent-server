@@ -1,25 +1,18 @@
 import type { NotificationData } from '../interaction/notification.js';
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-export function markdownToTelegramHtml(md: string): string {
+function stripMarkdown(md: string): string {
   const lines = md.split('\n');
   const output: string[] = [];
   let inCodeBlock = false;
-  let codeBlockLines: string[] = [];
+  const codeBlockLines: string[] = [];
 
   for (const line of lines) {
     const trimmed = line.trim();
 
     if (trimmed.startsWith('```')) {
       if (inCodeBlock) {
-        output.push(`<pre>${escapeHtml(codeBlockLines.join('\n'))}</pre>`);
-        codeBlockLines = [];
+        output.push(codeBlockLines.join('\n'));
+        codeBlockLines.length = 0;
         inCodeBlock = false;
       } else {
         inCodeBlock = true;
@@ -37,79 +30,69 @@ export function markdownToTelegramHtml(md: string): string {
       continue;
     }
 
-    // Headings -> bold
     const headingMatch = trimmed.match(/^#{1,6}\s+(.+)$/);
     if (headingMatch) {
-      output.push(`<b>${inlineToHtml(headingMatch[1])}</b>`);
+      output.push(stripInline(headingMatch[1]).toUpperCase());
       continue;
     }
 
-    // Horizontal rules
     if (/^[-*_]{3,}$/.test(trimmed)) {
       output.push('\u2500\u2500\u2500');
       continue;
     }
 
-    // Bullet lists
     if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-      const content = trimmed.slice(2);
-      output.push(`  \u2022 ${inlineToHtml(content)}`);
+      output.push(`  \u2022 ${stripInline(trimmed.slice(2))}`);
       continue;
     }
 
-    // Numbered lists
     const numMatch = trimmed.match(/^(\d+)\.\s+(.+)$/);
     if (numMatch) {
-      output.push(`  ${numMatch[1]}. ${inlineToHtml(numMatch[2])}`);
+      output.push(`  ${numMatch[1]}. ${stripInline(numMatch[2])}`);
       continue;
     }
 
-    // Blockquotes
     if (trimmed.startsWith('> ')) {
-      const content = trimmed.slice(2);
-      output.push(`\u2502 <i>${inlineToHtml(content)}</i>`);
+      output.push(`\u2502 ${stripInline(trimmed.slice(2))}`);
       continue;
     }
 
-    // Table rows -> monospaced
     if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
-      if (trimmed.includes('---')) continue; // skip separator rows
+      if (trimmed.includes('---')) continue;
       const cells = trimmed.slice(1, -1).split('|').map(c => c.trim());
-      output.push(`<code>${escapeHtml(cells.join(' | '))}</code>`);
+      output.push(cells.join(' | '));
       continue;
     }
 
-    // Regular paragraph
-    output.push(inlineToHtml(trimmed));
+    output.push(stripInline(trimmed));
   }
 
-  // Close unclosed code block
   if (inCodeBlock && codeBlockLines.length > 0) {
-    output.push(`<pre>${escapeHtml(codeBlockLines.join('\n'))}</pre>`);
+    output.push(codeBlockLines.join('\n'));
   }
 
   return collapseBlankLines(output.join('\n'));
 }
 
-function inlineToHtml(text: string): string {
-  let result = escapeHtml(text);
+function stripInline(text: string): string {
+  let result = text;
 
-  // Bold: **text** or __text__
-  result = result.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
-  result = result.replace(/__(.+?)__/g, '<b>$1</b>');
+  // Bold
+  result = result.replace(/\*\*(.+?)\*\*/g, '$1');
+  result = result.replace(/__(.+?)__/g, '$1');
 
-  // Italic: *text* or _text_ (but not inside words with underscores)
-  result = result.replace(/(?<!\w)\*([^*]+?)\*(?!\w)/g, '<i>$1</i>');
-  result = result.replace(/(?<!\w)_([^_]+?)_(?!\w)/g, '<i>$1</i>');
+  // Italic
+  result = result.replace(/(?<!\w)\*([^*]+?)\*(?!\w)/g, '$1');
+  result = result.replace(/(?<!\w)_([^_]+?)_(?!\w)/g, '$1');
 
-  // Inline code: `text`
-  result = result.replace(/`([^`]+?)`/g, '<code>$1</code>');
+  // Inline code
+  result = result.replace(/`([^`]+?)`/g, '$1');
 
-  // Strikethrough: ~~text~~
-  result = result.replace(/~~(.+?)~~/g, '<s>$1</s>');
+  // Strikethrough
+  result = result.replace(/~~(.+?)~~/g, '$1');
 
-  // Links: [text](url)
-  result = result.replace(/\[([^\]]+?)\]\(([^)]+?)\)/g, '<a href="$2">$1</a>');
+  // Links: keep the label, drop the URL
+  result = result.replace(/\[([^\]]+?)\]\([^)]+?\)/g, '$1');
 
   return result;
 }
@@ -133,26 +116,26 @@ export function formatTelegramNotification(data: NotificationData): string {
   const lines: string[] = [];
 
   if (data.status === 'completed') {
-    lines.push(`\u2705 <b>${escapeHtml(data.agentName)}</b> completed`);
+    lines.push(`\u2705 ${data.agentName} completed`);
   } else {
-    lines.push(`\u274C <b>${escapeHtml(data.agentName)}</b> failed`);
+    lines.push(`\u274C ${data.agentName} failed`);
   }
 
   lines.push('');
 
   if (data.status === 'completed') {
     if (data.summary) {
-      lines.push(markdownToTelegramHtml(data.summary));
+      lines.push(stripMarkdown(data.summary));
     }
 
     const statsFooter = buildStatsFooter(data);
     if (statsFooter) {
       lines.push('');
-      lines.push(`<i>${statsFooter}</i>`);
+      lines.push(statsFooter);
     }
   } else {
     if (data.error) {
-      lines.push(`<pre>${escapeHtml(data.error)}</pre>`);
+      lines.push(data.error);
     }
   }
 
@@ -180,3 +163,5 @@ function buildStatsFooter(data: NotificationData): string | null {
 
   return parts.length > 0 ? parts.join(' \u00B7 ') : null;
 }
+
+export { stripMarkdown as markdownToPlainText };

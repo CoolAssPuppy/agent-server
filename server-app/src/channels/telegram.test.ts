@@ -199,16 +199,16 @@ describe('TelegramChannel', () => {
     expect(replies).toHaveLength(1);
   });
 
-  it('sends notification as HTML-formatted message', async () => {
+  it('sends notification as plain text message', async () => {
     const { channel, mockApi } = makeChannel();
     await channel.notify({ agentName: 'Weekly Report', status: 'completed', summary: 'Created report' });
 
     expect(mockApi.sendMessage).toHaveBeenCalledOnce();
     const [chatId, text, options] = mockApi.sendMessage.mock.calls[0];
     expect(chatId).toBe(12345);
-    expect(text).toContain('<b>Weekly Report</b>');
+    expect(text).toContain('Weekly Report');
     expect(text).toContain('completed');
-    expect(options).toEqual({ parse_mode: 'HTML' });
+    expect(options).toBeUndefined();
   });
 
   it('skips notification when no chat ID is configured', async () => {

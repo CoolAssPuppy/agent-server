@@ -413,7 +413,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     return {
       onOpen(event, ws) {
         const origin = (event as { req?: { raw?: Request } })?.req?.raw?.headers.get('origin');
-        if (!isAllowedOrigin(origin, config.host)) {
+        if (!isAllowedOrigin(origin ?? undefined, config.host)) {
           ws.close(1008, 'Origin not allowed');
           return;
         }
@@ -487,7 +487,10 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   const fileWatcherPromise = setupFileWatchers();
 
   async function setupTelegram(): Promise<void> {
-    if (!config.telegramBotToken) return;
+    if (!config.telegramBotToken) {
+      console.log('Telegram bot disabled (no AGENT_SERVER_TELEGRAM_BOT_TOKEN set)');
+      return;
+    }
 
     const chatIdPath = join(config.agentsDir, '..', 'telegram.json');
     const telegramChannel = await createTelegramChannel({

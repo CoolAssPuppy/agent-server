@@ -7,14 +7,58 @@ final class ServerProcessManager {
 
     private let healthURL = URL(string: "http://localhost:47821/health")!
 
+    private static let locationKey = "AGENT_SERVER_LOCATION"
+
     private var serverDirectory: String? {
-        let candidates = [
-            bundledResourcePath,
-            bundleAdjacentPath,
-            "\(FileManager.default.homeDirectoryForCurrentUser.path)/Developer/saas-apps/agent-server/server-app",
-        ]
-        return candidates.compactMap { $0 }.first {
+        // Precedence: 1) UserDefaults, 2) .env, 3) bundled, 4) bundle-adjacent
+        if let configured = Self.configuredLocation() {
+            let serverApp = (configured as NSString).appendingPathComponent("server-app")
+            // Support pointing at the repo root or directly at server-app/
+            let candidates = [serverApp, configured]
+            if let match = candidates.first(where: { FileManager.default.fileExists(atPath: "\($0)/dist/cli.js") }) {
+                return match
+            }
+            print("[ServerProcessManager] AGENT_SERVER_LOCATION is set but dist/cli.js not found at \(configured)")
+        }
+
+        let fallbacks = [bundledResourcePath, bundleAdjacentPath]
+        return fallbacks.compactMap { $0 }.first {
             FileManager.default.fileExists(atPath: "\($0)/dist/cli.js")
+        }
+    }
+
+    static func configuredLocation() -> String? {
+        if let fromDefaults = UserDefaults.standard.string(forKey: locationKey), !fromDefaults.isEmpty {
+            return fromDefaults
+        }
+
+        let envPath = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".agent-server/.env").path
+        if let content = try? String(contentsOfFile: envPath, encoding: .utf8) {
+            for line in content.components(separatedBy: .newlines) {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                if trimmed.hasPrefix("#") || trimmed.isEmpty { continue }
+                guard let eqIndex = trimmed.firstIndex(of: "=") else { continue }
+                let key = String(trimmed[trimmed.startIndex..<eqIndex]).trimmingCharacters(in: .whitespaces)
+                if key == locationKey {
+                    var value = String(trimmed[trimmed.index(after: eqIndex)...]).trimmingCharacters(in: .whitespaces)
+                    if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
+                       (value.hasPrefix("'") && value.hasSuffix("'")) {
+                        value = String(value.dropFirst().dropLast())
+                    }
+                    if !value.isEmpty { return value }
+                }
+            }
+        }
+
+        return nil
+    }
+
+    static func setLocation(_ path: String?) {
+        if let path {
+            UserDefaults.standard.set(path, forKey: locationKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: locationKey)
         }
     }
 

@@ -7,6 +7,7 @@ struct SettingsTabView: View {
         let env = EnvFile.load()
         return env.entries.first(where: { $0.key == "AGENT_SERVER_CATCH_UP" })?.value == "true"
     }()
+    @State private var serverLocation: String = ServerProcessManager.configuredLocation() ?? ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -18,6 +19,36 @@ struct SettingsTabView: View {
                         .onChange(of: catchUpEnabled) { _, newValue in
                             updateCatchUpSetting(newValue)
                         }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Server location")
+                        HStack(spacing: 8) {
+                            if serverLocation.isEmpty {
+                                Text("Not configured (auto-detect)")
+                                    .foregroundStyle(.secondary)
+                                    .font(.caption)
+                            } else {
+                                Text(serverLocation)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                    .foregroundStyle(.secondary)
+                                    .help(serverLocation)
+                            }
+                            Spacer()
+                            Button("Choose\u{2026}") {
+                                chooseServerLocation()
+                            }
+                            .controlSize(.small)
+                            if !serverLocation.isEmpty {
+                                Button("Clear") {
+                                    serverLocation = ""
+                                    ServerProcessManager.setLocation(nil)
+                                }
+                                .controlSize(.small)
+                            }
+                        }
+                    }
 
                     HStack {
                         Text("Server status")
@@ -49,7 +80,7 @@ struct SettingsTabView: View {
                     }
                 }
 
-                Section("Environment") {
+                Section("Environment variables") {
                     EnvEditorView()
                 }
             }
@@ -71,6 +102,21 @@ struct SettingsTabView: View {
             .frame(maxWidth: .infinity)
             .padding(.bottom, 12)
         }
+    }
+
+    private func chooseServerLocation() {
+        let panel = NSOpenPanel()
+        panel.title = "Select agent-server repo folder"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let path = url.path
+        serverLocation = path
+        ServerProcessManager.setLocation(path)
+        monitor.requestServerRestart()
     }
 
     private func updateCatchUpSetting(_ enabled: Bool) {

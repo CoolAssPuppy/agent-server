@@ -4,35 +4,67 @@ struct EnvEditorView: View {
     @State private var envFile = EnvFile.load()
     @State private var hasChanges = false
     @State private var saveError: String?
-
-    private let labelWidth: CGFloat = 220
-    private let fieldWidth: CGFloat = 240
+    @State private var selection: EnvEntry.ID?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if envFile.entries.isEmpty {
-                HStack(spacing: 8) {
-                    Image(systemName: "doc.badge.plus")
-                        .foregroundStyle(.secondary)
-                    Text("No .env file found at ~/.agent-server/.env")
-                        .foregroundStyle(.secondary)
-                        .font(.callout)
-                }
-            } else {
+        VStack(spacing: 0) {
+            List(selection: $selection) {
                 ForEach($envFile.entries) { $entry in
                     if !entry.isComment {
-                        envRow(entry: $entry)
+                        HStack(spacing: 8) {
+                            Image(systemName: iconForKey(entry.key))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 14)
+
+                            TextField("KEY", text: $entry.key)
+                                .font(.system(.body, design: .monospaced))
+                                .textFieldStyle(.plain)
+                                .frame(minWidth: 200)
+                                .onChange(of: entry.key) { hasChanges = true }
+
+                            Spacer()
+
+                            Group {
+                                if entry.isSensitive {
+                                    SecureField("Value", text: $entry.value)
+                                        .onChange(of: entry.value) { hasChanges = true }
+                                } else {
+                                    TextField("Value", text: $entry.value)
+                                        .textSelection(.enabled)
+                                        .onChange(of: entry.value) { hasChanges = true }
+                                }
+                            }
+                            .textFieldStyle(.plain)
+                            .frame(width: 200)
+                        }
+                        .tag(entry.id)
                     }
                 }
             }
+            .listStyle(.bordered(alternatesRowBackgrounds: true))
+            .frame(minHeight: 160)
 
-            HStack {
+            HStack(spacing: 0) {
                 Button {
                     addEntry()
                 } label: {
-                    Label("Add variable", systemImage: "plus")
+                    Image(systemName: "plus")
+                        .frame(width: 24, height: 20)
                 }
                 .buttonStyle(.borderless)
+
+                Divider()
+                    .frame(height: 16)
+
+                Button {
+                    removeSelected()
+                } label: {
+                    Image(systemName: "minus")
+                        .frame(width: 24, height: 20)
+                }
+                .buttonStyle(.borderless)
+                .disabled(selection == nil)
 
                 Spacer()
 
@@ -53,49 +85,9 @@ struct EnvEditorView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
             }
-        }
-    }
-
-    @ViewBuilder
-    private func envRow(entry: Binding<EnvEntry>) -> some View {
-        HStack(spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: iconForKey(entry.wrappedValue.key))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 14)
-
-                Text(entry.wrappedValue.key)
-                    .font(.system(.body, design: .monospaced))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            .frame(width: labelWidth, alignment: .leading)
-
-            if entry.wrappedValue.isURL {
-                TextField("", text: entry.value)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: fieldWidth)
-                    .textSelection(.enabled)
-                    .onChange(of: entry.wrappedValue.value) { hasChanges = true }
-            } else if entry.wrappedValue.isSensitive {
-                SecureField("", text: entry.value)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: fieldWidth)
-                    .onChange(of: entry.wrappedValue.value) { hasChanges = true }
-            } else {
-                TextField("", text: entry.value)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: fieldWidth)
-                    .onChange(of: entry.wrappedValue.value) { hasChanges = true }
-            }
-
-            Button(role: .destructive) {
-                removeEntry(entry.wrappedValue)
-            } label: {
-                Image(systemName: "minus.circle")
-            }
-            .buttonStyle(.borderless)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(.bar)
         }
     }
 
@@ -123,12 +115,16 @@ struct EnvEditorView: View {
     }
 
     private func addEntry() {
-        envFile.entries.append(EnvEntry(key: "NEW_KEY", value: "", isComment: false))
+        let entry = EnvEntry(key: "NEW_KEY", value: "", isComment: false)
+        envFile.entries.append(entry)
+        selection = entry.id
         hasChanges = true
     }
 
-    private func removeEntry(_ entry: EnvEntry) {
-        envFile.entries.removeAll { $0.id == entry.id }
+    private func removeSelected() {
+        guard let selection else { return }
+        envFile.entries.removeAll { $0.id == selection }
+        self.selection = nil
         hasChanges = true
     }
 

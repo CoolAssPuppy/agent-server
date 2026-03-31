@@ -597,6 +597,7 @@ The CLI loads `~/.agent-server/.env` at startup. Shell environment variables tak
 | `AGENT_SERVER_PORT` | `47821` | HTTP API port |
 | `AGENT_SERVER_HOST` | `127.0.0.1` | HTTP bind host |
 | `AGENT_SERVER_TELEGRAM_BOT_TOKEN` | | Telegram bot token for interactive agents and notifications |
+| `AGENT_SERVER_LOCATION` | | Path to the agent-server repo root. Used by the macOS app to find the server. |
 | `AGENT_SERVER_CATCH_UP` | `false` | Resume missed scheduled agents after sleep/wake |
 | `AGENT_SERVER_MAX_CONCURRENT_RUNS` | `8` | Maximum concurrent running agents before new triggers are rejected |
 | `AGENT_SERVER_MAX_WS_CLIENTS` | `100` | Maximum simultaneous WebSocket clients |
@@ -742,6 +743,19 @@ macos-app/
 ```
 
 The app communicates with the server entirely through the HTTP API on `localhost:47821`. If no server is running, `ServerProcessManager` starts the Node.js server automatically and stops it on quit.
+
+### Server location
+
+The macOS app needs to know where the agent-server code lives on disk so it can start the Node.js process. It looks for `dist/cli.js` in these locations, in order:
+
+1. **macOS app Settings** (highest priority). Open Settings and use the "Choose..." button under "Server location" to pick the repo root folder. This is stored in UserDefaults and persists across app launches.
+2. **`AGENT_SERVER_LOCATION` in `~/.agent-server/.env`**. Set this if you want the location configured once for both the macOS app and any scripts that need it.
+3. **Bundled server**. The app checks its own Resources bundle for a `server-app/` directory (used in standalone distribution).
+4. **Bundle-adjacent**. The app checks for an `agent-server/` directory next to the `.app` bundle.
+
+If you cloned the repo to a non-standard location, set `AGENT_SERVER_LOCATION` either in the app's Settings UI or in `~/.agent-server/.env`. The value should point to the repo root (the directory containing `server-app/`). Pointing directly at `server-app/` also works.
+
+When both Settings and `.env` have a value, Settings wins. To fall back to `.env` or auto-detection, click "Clear" in Settings.
 
 Target: macOS 14.0+, Swift 5.9+.
 
