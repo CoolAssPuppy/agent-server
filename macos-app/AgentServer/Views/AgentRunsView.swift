@@ -80,7 +80,7 @@ struct AgentRunsView: View {
                 Spacer()
             } else if runs.isEmpty {
                 Spacer()
-                VStack(spacing: 8) {
+                VStack(spacing: NSpacing.sm) {
                     Image(systemName: "clock.arrow.circlepath")
                         .font(.system(size: 28))
                         .foregroundStyle(.quaternary)
@@ -208,11 +208,11 @@ private struct RunRow: View {
     let run: Run
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: NSpacing.md) {
             StatusIndicator(status: run.status)
 
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: NSpacing.xxxs) {
+                HStack(spacing: NSpacing.xs) {
                     Text(run.startedAt, style: .date)
                         .font(.system(.subheadline, weight: .medium))
                     Text(run.startedAt, style: .time)
@@ -220,7 +220,7 @@ private struct RunRow: View {
                         .foregroundStyle(.secondary)
                 }
 
-                HStack(spacing: 8) {
+                HStack(spacing: NSpacing.sm) {
                     if run.conversationId != nil {
                         Image(systemName: "bubble.left.and.bubble.right")
                             .font(.caption)
@@ -253,7 +253,7 @@ private struct RunRow: View {
                 PulsingDot(color: .green)
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, NSpacing.xxs)
     }
 }
 
@@ -368,7 +368,7 @@ struct RunDetailView: View {
     // MARK: - Live indicator
 
     private var liveIndicator: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: NSpacing.md) {
             PulsingDot(color: .green)
 
             Text("Running")
@@ -391,24 +391,24 @@ struct RunDetailView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 4))
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.horizontal, NSpacing.lg)
+        .padding(.vertical, NSpacing.md)
         .background(.green.opacity(0.04))
     }
 
     // MARK: - Header
 
     private var header: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
+        HStack(spacing: NSpacing.md) {
+            VStack(alignment: .leading, spacing: NSpacing.xxs) {
+                HStack(spacing: NSpacing.sm) {
                     Text(run.agentName)
                         .font(.system(.title3, weight: .semibold))
 
                     StatusBadge(status: run.status)
                 }
 
-                HStack(spacing: 10) {
+                HStack(spacing: NSpacing.md) {
                     Text("Run \(run.runId.prefix(8))")
                         .font(.system(.caption, design: .monospaced))
                         .foregroundStyle(.tertiary)
@@ -447,7 +447,7 @@ struct RunDetailView: View {
                 .controlSize(.small)
             }
         }
-        .padding(16)
+        .padding(NSpacing.lg)
     }
 
     // MARK: - Stats bar
@@ -466,7 +466,7 @@ struct RunDetailView: View {
                 )
             }
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, NSpacing.md)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
     }
 
@@ -530,8 +530,8 @@ struct RunDetailView: View {
     }
 
     private func statItem(icon: String, label: String, value: String) -> some View {
-        VStack(spacing: 4) {
-            HStack(spacing: 4) {
+        VStack(spacing: NSpacing.xxs) {
+            HStack(spacing: NSpacing.xxs) {
                 Image(systemName: icon)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
@@ -554,7 +554,7 @@ struct RunDetailView: View {
     // MARK: - Error banner
 
     private func errorBanner(_ error: String) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: NSpacing.md) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.red)
             Text(error)
@@ -564,14 +564,14 @@ struct RunDetailView: View {
             Spacer()
             CopyTextButton(text: error, label: "Copy error")
         }
-        .padding(12)
+        .padding(NSpacing.md)
         .background(.red.opacity(0.08))
     }
 
     // MARK: - Summary
 
     private func summarySection(_ summary: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: NSpacing.xs) {
             HStack {
                 SectionHeader(title: "Summary", icon: "text.alignleft")
                 Spacer()
@@ -579,15 +579,15 @@ struct RunDetailView: View {
             }
             MarkdownContentView(source: summary)
         }
-        .padding(16)
+        .padding(NSpacing.lg)
     }
 
     // MARK: - Conversation
 
     private var conversationSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: NSpacing.xs) {
             SectionHeader(title: "Conversation", icon: "bubble.left.and.bubble.right")
-            HStack(spacing: 6) {
+            HStack(spacing: NSpacing.xs) {
                 Image(systemName: "bubble.left.and.bubble.right")
                     .font(.caption)
                     .foregroundStyle(.purple)
@@ -601,7 +601,7 @@ struct RunDetailView: View {
                 }
             }
         }
-        .padding(16)
+        .padding(NSpacing.lg)
     }
 
     // MARK: - Activity timeline
@@ -614,7 +614,7 @@ struct RunDetailView: View {
     }
 
     private var activityTimeline: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: NSpacing.xs) {
             HStack {
                 SectionHeader(title: "Activity", icon: "list.bullet")
                 Spacer()
@@ -638,13 +638,13 @@ struct RunDetailView: View {
                 }
             }
         }
-        .padding(16)
+        .padding(NSpacing.lg)
     }
 
     // MARK: - Detail sections
 
     private var detailSections: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: NSpacing.xl) {
             if run.inputTokens != nil || run.outputTokens != nil {
                 tokenBreakdown
             }
@@ -665,16 +665,16 @@ struct RunDetailView: View {
                 commandsSection
             }
         }
-        .padding(16)
+        .padding(NSpacing.lg)
     }
 
     private var tokenBreakdown: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: NSpacing.sm) {
             SectionHeader(title: "Token usage", icon: "number")
 
-            HStack(spacing: 20) {
+            HStack(spacing: NSpacing.xl) {
                 if let input = run.inputTokens {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: NSpacing.xxxs) {
                         Text("Input")
                             .font(.caption)
                             .foregroundStyle(.tertiary)
@@ -685,7 +685,7 @@ struct RunDetailView: View {
                 }
 
                 if let output = run.outputTokens {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: NSpacing.xxxs) {
                         Text("Output")
                             .font(.caption)
                             .foregroundStyle(.tertiary)
@@ -696,7 +696,7 @@ struct RunDetailView: View {
                 }
 
                 if let total = run.totalTokens {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: NSpacing.xxxs) {
                         Text("Total")
                             .font(.caption)
                             .foregroundStyle(.tertiary)
@@ -706,7 +706,7 @@ struct RunDetailView: View {
                 }
 
                 if let cost = run.estimatedCostUsd, cost > 0 {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: NSpacing.xxxs) {
                         Text("Cost")
                             .font(.caption)
                             .foregroundStyle(.tertiary)
@@ -720,10 +720,10 @@ struct RunDetailView: View {
     }
 
     private var toolsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: NSpacing.sm) {
             SectionHeader(title: "Tools used", icon: "wrench.and.screwdriver")
 
-            FlowLayout(spacing: 6) {
+            FlowLayout(spacing: NSpacing.xs) {
                 ForEach(run.toolsUsed, id: \.self) { tool in
                     ToolTag(name: tool)
                 }
@@ -732,10 +732,10 @@ struct RunDetailView: View {
     }
 
     private func fileSection(title: String, icon: String, files: [String], color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: NSpacing.sm) {
             SectionHeader(title: title, icon: icon)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: NSpacing.xxs) {
                 ForEach(files, id: \.self) { file in
                     Text(abbreviatePath(file))
                         .font(.system(.caption, design: .monospaced))
@@ -749,12 +749,12 @@ struct RunDetailView: View {
     }
 
     private var commandsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: NSpacing.sm) {
             SectionHeader(title: "Commands", icon: "terminal")
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: NSpacing.xxs) {
                 ForEach(run.commandsRun, id: \.self) { command in
-                    HStack(alignment: .top, spacing: 6) {
+                    HStack(alignment: .top, spacing: NSpacing.xs) {
                         Text("$")
                             .font(.system(.caption, design: .monospaced, weight: .bold))
                             .foregroundStyle(.tertiary)
@@ -809,7 +809,7 @@ private struct SectionHeader: View {
     let icon: String
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: NSpacing.xs) {
             Image(systemName: icon)
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
@@ -864,8 +864,8 @@ private struct LogTimelineRow: View {
             }
             .frame(width: 7)
 
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: NSpacing.xxxs) {
+                HStack(spacing: NSpacing.xs) {
                     if isToolUse {
                         Text(formatToolName(displayMessage))
                             .font(.system(.caption, design: .monospaced, weight: .medium))
@@ -935,7 +935,7 @@ private struct TimelineRow: View {
             }
             .frame(width: 7)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: NSpacing.xxxs) {
                 if isToolUse {
                     Text(formatToolName(displayMessage))
                         .font(.system(.caption, design: .monospaced, weight: .medium))
@@ -972,7 +972,7 @@ private struct ToolTag: View {
             .font(.system(.caption2, design: .monospaced, weight: .medium))
             .foregroundStyle(tagColor)
             .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.vertical, NSpacing.xxs)
             .background(tagColor.opacity(0.1))
             .clipShape(RoundedRectangle(cornerRadius: 5))
     }

@@ -49,6 +49,8 @@ private extension AppDelegate {
         button.target = self
     }
 
+    static let popoverSize = NSSize(width: 360, height: 440)
+
     func setupPopover() {
         let popoverView = MenuBarPopover(
             monitor: monitor,
@@ -56,19 +58,18 @@ private extension AppDelegate {
             onQuit: { NSApp.terminate(nil) }
         )
         .environmentObject(themeManager)
-        .nTheme(themeManager.themeConfig)
 
         let hostingView = NSHostingView(rootView: popoverView)
-        hostingView.frame = NSRect(x: 0, y: 0, width: 360, height: 440)
+        hostingView.frame = NSRect(origin: .zero, size: Self.popoverSize)
 
-        let viewController = NSViewController()
-        viewController.view = hostingView
+        let controller = NSViewController()
+        controller.view = hostingView
 
-        popover.contentSize = NSSize(width: 360, height: 440)
+        popover.contentSize = Self.popoverSize
         popover.behavior = .transient
         popover.animates = true
         popover.delegate = self
-        popover.contentViewController = viewController
+        popover.contentViewController = controller
     }
 
     func makeMenuBarIcon(active: Bool) -> NSImage? {
@@ -81,21 +82,9 @@ private extension AppDelegate {
 
     func subscribeToUpdates() {
         monitor.objectWillChange
-            .receive(on: RunLoop.main)
+            .debounce(for: .milliseconds(50), scheduler: RunLoop.main)
             .sink { [weak self] _ in
-                DispatchQueue.main.async {
-                    self?.refreshIcon()
-                    self?.refreshPopoverContent()
-                }
-            }
-            .store(in: &cancellables)
-
-        themeManager.objectWillChange
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                DispatchQueue.main.async {
-                    self?.refreshPopoverContent()
-                }
+                self?.refreshIcon()
             }
             .store(in: &cancellables)
     }
@@ -118,24 +107,6 @@ private extension AppDelegate {
         eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             self?.popover.performClose(nil)
         }
-    }
-
-    func refreshPopoverContent() {
-        let popoverView = MenuBarPopover(
-            monitor: monitor,
-            onOpenSettings: { [weak self] agentId in self?.openSettingsForAgent(agentId) },
-            onQuit: { NSApp.terminate(nil) }
-        )
-        .environmentObject(themeManager)
-        .nTheme(themeManager.themeConfig)
-
-        let hostingView = NSHostingView(rootView: popoverView)
-        hostingView.frame = NSRect(x: 0, y: 0, width: 360, height: 440)
-
-        let viewController = NSViewController()
-        viewController.view = hostingView
-
-        popover.contentViewController = viewController
     }
 }
 
@@ -175,7 +146,6 @@ extension AppDelegate {
 
             let settingsView = SettingsView(monitor: monitor)
                 .environmentObject(themeManager)
-                .nTheme(themeManager.themeConfig)
 
             let window = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 980, height: 600),

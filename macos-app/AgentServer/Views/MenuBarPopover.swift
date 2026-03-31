@@ -28,7 +28,8 @@ struct MenuBarPopover: View {
             bottomBar
         }
         .frame(width: 360, height: 440)
-        .background(theme.tokens.background)
+        .nTheme(themeManager.themeConfig)
+        .background(themeManager.themeConfig.tokens.background)
         .environment(\.colorScheme, themeManager.currentTheme.palette.isDark ? .dark : .light)
     }
 

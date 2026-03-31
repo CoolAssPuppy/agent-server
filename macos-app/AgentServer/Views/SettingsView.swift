@@ -3,9 +3,8 @@ import NerdsUI
 
 struct SettingsView: View {
     @ObservedObject var monitor: StatusMonitor
+    @EnvironmentObject var themeManager: ThemeManager
     @State private var showSettings = false
-
-    @Environment(\.nTheme) private var theme
 
     var body: some View {
         AgentsListView(monitor: monitor, onOpenSettings: { showSettings = true })
@@ -13,6 +12,7 @@ struct SettingsView: View {
                 SettingsSheet(monitor: monitor, isPresented: $showSettings)
             }
             .frame(minWidth: 980, minHeight: 550)
+            .nTheme(themeManager.themeConfig)
     }
 }
 
