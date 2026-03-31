@@ -125,14 +125,14 @@ private extension AppDelegate {
 extension AppDelegate {
     func openSettingsForAgent(_ agentId: String?) {
         popover.performClose(nil)
-
-        if let agentId {
-            monitor.deepLinkAgentId = agentId
-        }
-        showSettings()
+        showSettings(deepLinkAgentId: agentId)
     }
 
     @objc func showSettings() {
+        showSettings(deepLinkAgentId: nil)
+    }
+
+    private func showSettings(deepLinkAgentId: String?) {
         NSApp.setActivationPolicy(.regular)
 
         Task { @MainActor in
@@ -141,6 +141,9 @@ extension AppDelegate {
 
             if let existingWindow = settingsWindow {
                 existingWindow.makeKeyAndOrderFront(nil)
+                if let deepLinkAgentId {
+                    monitor.deepLinkAgentId = deepLinkAgentId
+                }
                 return
             }
 
@@ -161,6 +164,12 @@ extension AppDelegate {
             window.delegate = self
 
             settingsWindow = window
+
+            if let deepLinkAgentId {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    self.monitor.deepLinkAgentId = deepLinkAgentId
+                }
+            }
         }
     }
 
