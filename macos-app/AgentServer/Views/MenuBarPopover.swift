@@ -215,7 +215,8 @@ struct ThemeDotStrip: View {
                 } label: {
                     Circle()
                         .fill(appTheme.dotColor)
-                        .frame(width: show ? 10 : 0, height: 10)
+                        .frame(width: 10, height: 10)
+                        .scaleEffect(show ? 1 : 0.01)
                         .opacity(show ? 1 : 0)
                         .overlay(
                             Circle()
@@ -225,6 +226,8 @@ struct ThemeDotStrip: View {
                         )
                 }
                 .buttonStyle(.plain)
+                .frame(width: show ? 10 : 0)
+                .clipped()
                 .help(appTheme.displayName)
             }
         }
