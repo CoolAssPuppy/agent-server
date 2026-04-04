@@ -1,9 +1,9 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import type { Options } from '@anthropic-ai/claude-agent-sdk';
+import type { Options, Query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentConfig } from '../agents/config.js';
 import { resolveEnvVars } from '../agents/config.js';
 import type { Reporter } from '../execution/runner.js';
-import { truncate, WRITE_TOOLS, type ExecutionResult } from '../execution/executor.js';
+import { truncate, WRITE_TOOLS, type ExecutionResult, type McpServerInfo } from '../execution/executor.js';
 import { expandHome } from '../agents/file-watcher.js';
 import { parseInteractionBlock } from '../interaction/parser.js';
 import { buildCanUseTool } from '../execution/permissions.js';
@@ -44,8 +44,11 @@ export async function executeAgent(
   const allCommandsRun: string[] = [];
   let lastAssistantText = '';
   let lastToolName: string | null = null;
+  let mcpServers: McpServerInfo[] = [];
 
   const stream = query({ prompt: agent.prompt, options });
+
+  mcpServers = await handleMcpServerStatus(stream, reporter);
 
   for await (const message of stream) {
     if (message.type === 'assistant') {
@@ -114,6 +117,7 @@ export async function executeAgent(
         allFilesWritten,
         allCommandsRun,
         lastAssistantText,
+        mcpServers,
       });
     }
   }
@@ -126,6 +130,7 @@ export async function executeAgent(
     allFilesWritten,
     allCommandsRun,
     lastAssistantText,
+    mcpServers,
   });
 }
 
@@ -137,6 +142,7 @@ function buildResult(params: {
   allFilesWritten: Set<string>;
   allCommandsRun: string[];
   lastAssistantText: string;
+  mcpServers: McpServerInfo[];
 }): ExecutionResult {
   const interaction = parseInteractionBlock(params.lastAssistantText);
 
@@ -155,7 +161,116 @@ function buildResult(params: {
     filesWritten: [...params.allFilesWritten],
     commandsRun: params.allCommandsRun,
     interaction,
+    mcpServers: params.mcpServers.length > 0 ? params.mcpServers : undefined,
   };
+}
+
+export const RECONNECT_DELAY_MS = 3000;
+export const MAX_RECONNECT_ATTEMPTS = 2;
+
+function logMcpStatus(servers: McpServerInfo[]): void {
+  const connected = servers.filter((s) => s.status === 'connected').map((s) => s.name);
+  const failed = servers.filter((s) => s.status === 'failed');
+  const needsAuth = servers.filter((s) => s.status === 'needs-auth').map((s) => s.name);
+  const pending = servers.filter((s) => s.status === 'pending').map((s) => s.name);
+  const disabled = servers.filter((s) => s.status === 'disabled').map((s) => s.name);
+
+  if (connected.length > 0) {
+    console.log(`[mcp] Connected: ${connected.join(', ')}`);
+  }
+  if (failed.length > 0) {
+    console.error(`[mcp] Failed: ${failed.map((s) => `${s.name}${s.error ? ` (${s.error})` : ''}`).join(', ')}`);
+  }
+  if (needsAuth.length > 0) {
+    console.error(`[mcp] Needs auth: ${needsAuth.join(', ')} -- re-authenticate in Claude Code`);
+  }
+  if (pending.length > 0) {
+    console.log(`[mcp] Pending: ${pending.join(', ')}`);
+  }
+  if (disabled.length > 0) {
+    console.log(`[mcp] Disabled: ${disabled.join(', ')}`);
+  }
+}
+
+async function fetchMcpStatus(stream: Query): Promise<McpServerInfo[]> {
+  try {
+    const statuses = await stream.mcpServerStatus();
+    return statuses.map((s) => ({
+      name: s.name,
+      status: s.status,
+      error: s.error,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function handleMcpServerStatus(
+  stream: Query,
+  reporter: Reporter,
+): Promise<McpServerInfo[]> {
+  const servers = await fetchMcpStatus(stream);
+  if (servers.length === 0) return [];
+
+  logMcpStatus(servers);
+
+  const failedServers = servers.filter((s) => s.status === 'failed');
+
+  if (failedServers.length > 0) {
+    for (let attempt = 0; attempt < MAX_RECONNECT_ATTEMPTS; attempt++) {
+      console.log(`[mcp] Reconnecting failed servers (attempt ${attempt + 1}/${MAX_RECONNECT_ATTEMPTS})...`);
+
+      for (const server of failedServers) {
+        try {
+          await stream.reconnectMcpServer(server.name);
+        } catch {
+          console.error(`[mcp] Reconnect failed for ${server.name}`);
+        }
+      }
+
+      await delay(RECONNECT_DELAY_MS);
+      const updated = await fetchMcpStatus(stream);
+      const stillFailed = updated.filter((s) => s.status === 'failed');
+
+      if (stillFailed.length === 0) {
+        console.log('[mcp] All servers reconnected successfully');
+        logMcpStatus(updated);
+        reportMcpStatus(updated, reporter);
+        return updated;
+      }
+
+      if (attempt === MAX_RECONNECT_ATTEMPTS - 1) {
+        console.error(`[mcp] Servers still failed after ${MAX_RECONNECT_ATTEMPTS} attempts: ${stillFailed.map((s) => s.name).join(', ')}`);
+        logMcpStatus(updated);
+        reportMcpStatus(updated, reporter);
+        return updated;
+      }
+    }
+  }
+
+  reportMcpStatus(servers, reporter);
+  return servers;
+}
+
+function reportMcpStatus(servers: McpServerInfo[], reporter: Reporter): void {
+  const connected = servers.filter((s) => s.status === 'connected').length;
+  const failed = servers.filter((s) => s.status === 'failed').length;
+  const needsAuth = servers.filter((s) => s.status === 'needs-auth').length;
+
+  const parts: string[] = [];
+  if (connected > 0) parts.push(`${connected} connected`);
+  if (failed > 0) parts.push(`${failed} failed`);
+  if (needsAuth > 0) parts.push(`${needsAuth} needs auth`);
+
+  if (parts.length > 0) {
+    void reporter.progress(`[mcp] ${parts.join(', ')}`, {
+      mcp_servers: servers,
+    });
+  }
 }
 
 function buildMcpServers(agent: AgentConfig): Options['mcpServers'] {

@@ -16,6 +16,12 @@ export type ClaudeStreamEvent = {
   [key: string]: unknown;
 };
 
+export type McpServerInfo = {
+  name: string;
+  status: string;
+  error?: string;
+};
+
 export type ExecutionResult = {
   summary: string;
   output: Record<string, unknown>;
@@ -26,6 +32,7 @@ export type ExecutionResult = {
   filesWritten: string[];
   commandsRun: string[];
   interaction?: InteractionRequest;
+  mcpServers?: McpServerInfo[];
 };
 
 export function parseStreamEvent(line: string): ClaudeStreamEvent | null {

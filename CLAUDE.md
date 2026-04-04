@@ -137,7 +137,9 @@ The old `parseExpression()` function does not exist in v5.
 
 ### Claude Agent SDK
 
-The executor in `plugins/claude-code.ts` uses `query()` from `@anthropic-ai/claude-agent-sdk`. It passes the agent's prompt and an `Options` object with `maxTurns`, `cwd`, `permissionMode: 'bypassPermissions'`, and optionally `allowedTools`. The SDK returns an `AsyncGenerator<SDKMessage>`. Key message types: `assistant` (has `message.content` blocks with text/tool_use), `result` (subtype `success` or error variants, has `num_turns`, `result` text).
+The executor in `plugins/claude-code.ts` uses `query()` from `@anthropic-ai/claude-agent-sdk`. It passes the agent's prompt and an `Options` object with `maxTurns`, `cwd`, `permissionMode: 'bypassPermissions'`, and optionally `allowedTools`. The SDK returns a `Query` object (extends `AsyncGenerator<SDKMessage>` with control methods). Key message types: `assistant` (has `message.content` blocks with text/tool_use), `result` (subtype `success` or error variants, has `num_turns`, `result` text).
+
+**MCP server status handling**: Before iterating the stream, the executor calls `stream.mcpServerStatus()` to check all MCP server connections. It logs statuses with `[mcp]` prefix (connected, failed, needs-auth, pending, disabled). Failed servers get automatic reconnection via `stream.reconnectMcpServer(name)` with up to 2 retry attempts (3s delay between). Status is reported via `reporter.progress()` and included in `ExecutionResult.mcpServers`.
 
 The legacy `parseStreamEvent()` and `extractToolMetadata()` functions in `execution/executor.ts` still exist for CLI stream parsing compatibility but are not used by the SDK executor.
 

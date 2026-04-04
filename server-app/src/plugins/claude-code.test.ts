@@ -26,6 +26,8 @@ function createAgentConfig(overrides?: Partial<AgentConfig>): AgentConfig {
   };
 }
 
+const mockMcpServerStatus = vi.fn();
+const mockReconnectMcpServer = vi.fn();
 const mockQuery = vi.fn();
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
@@ -34,6 +36,10 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
 
 beforeEach(() => {
   mockQuery.mockReset();
+  mockMcpServerStatus.mockReset();
+  mockReconnectMcpServer.mockReset();
+  mockMcpServerStatus.mockResolvedValue([]);
+  mockReconnectMcpServer.mockResolvedValue(undefined);
 });
 
 describe('executeAgent with Agent SDK', () => {
@@ -334,12 +340,149 @@ describe('executeAgent with Agent SDK', () => {
   });
 });
 
-function createAsyncGenerator<T>(items: T[]): AsyncGenerator<T, void> {
-  return (async function* () {
+describe('MCP server status handling', () => {
+  it('includes MCP server statuses in execution result when servers exist', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+
+    mockMcpServerStatus.mockResolvedValue([
+      { name: 'slack', status: 'connected' },
+      { name: 'linear', status: 'connected' },
+    ]);
+
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createResultSuccess({ result: 'Done', num_turns: 1 }),
+    ]));
+
+    const reporter = createMockReporter();
+    const result = await executeAgent(createAgentConfig(), reporter);
+
+    expect(result.mcpServers).toEqual([
+      { name: 'slack', status: 'connected', error: undefined },
+      { name: 'linear', status: 'connected', error: undefined },
+    ]);
+  });
+
+  it('does not include mcpServers when no servers are configured', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+
+    mockMcpServerStatus.mockResolvedValue([]);
+
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createResultSuccess({ result: 'Done', num_turns: 1 }),
+    ]));
+
+    const reporter = createMockReporter();
+    const result = await executeAgent(createAgentConfig(), reporter);
+
+    expect(result.mcpServers).toBeUndefined();
+  });
+
+  it('reports MCP status via reporter.progress when all connected', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+
+    mockMcpServerStatus.mockResolvedValue([
+      { name: 'slack', status: 'connected' },
+      { name: 'linear', status: 'connected' },
+    ]);
+
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createResultSuccess({ result: 'Done', num_turns: 1 }),
+    ]));
+
+    const reporter = createMockReporter();
+    await executeAgent(createAgentConfig(), reporter);
+
+    expect(reporter.progress).toHaveBeenCalledWith(
+      expect.stringContaining('[mcp]'),
+      expect.objectContaining({ mcp_servers: expect.any(Array) }),
+    );
+  });
+
+  it('attempts to reconnect failed servers', async () => {
+    vi.useFakeTimers();
+    const { executeAgent } = await import('./claude-code.js');
+
+    mockMcpServerStatus
+      .mockResolvedValueOnce([
+        { name: 'slack', status: 'connected' },
+        { name: 'gmail', status: 'failed', error: 'timeout' },
+      ])
+      .mockResolvedValue([
+        { name: 'slack', status: 'connected' },
+        { name: 'gmail', status: 'connected' },
+      ]);
+
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createResultSuccess({ result: 'Done', num_turns: 1 }),
+    ]));
+
+    const reporter = createMockReporter();
+    const resultPromise = executeAgent(createAgentConfig(), reporter);
+
+    await vi.advanceTimersByTimeAsync(10000);
+    const result = await resultPromise;
+
+    expect(mockReconnectMcpServer).toHaveBeenCalledWith('gmail');
+    expect(result.mcpServers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'gmail', status: 'connected' }),
+      ]),
+    );
+    vi.useRealTimers();
+  });
+
+  it('handles mcpServerStatus throwing gracefully', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+
+    mockMcpServerStatus.mockRejectedValue(new Error('Not supported'));
+
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createResultSuccess({ result: 'Done', num_turns: 1 }),
+    ]));
+
+    const reporter = createMockReporter();
+    const result = await executeAgent(createAgentConfig(), reporter);
+
+    expect(result.mcpServers).toBeUndefined();
+    expect(result.summary).toBe('Done');
+  });
+
+  it('preserves failed server error info after reconnect attempts fail', async () => {
+    vi.useFakeTimers();
+    const { executeAgent } = await import('./claude-code.js');
+
+    mockMcpServerStatus.mockResolvedValue([
+      { name: 'gmail', status: 'failed', error: 'auth expired' },
+    ]);
+
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createResultSuccess({ result: 'Done', num_turns: 1 }),
+    ]));
+
+    const reporter = createMockReporter();
+    const resultPromise = executeAgent(createAgentConfig(), reporter);
+
+    await vi.advanceTimersByTimeAsync(10000);
+    const result = await resultPromise;
+
+    expect(result.mcpServers).toEqual([
+      { name: 'gmail', status: 'failed', error: 'auth expired' },
+    ]);
+    vi.useRealTimers();
+  });
+});
+
+function createAsyncGenerator<T>(items: T[]) {
+  const gen = (async function* () {
     for (const item of items) {
       yield item;
     }
-  })() as AsyncGenerator<T, void>;
+  })();
+
+  return Object.assign(gen, {
+    mcpServerStatus: mockMcpServerStatus,
+    reconnectMcpServer: mockReconnectMcpServer,
+  });
 }
 
 function createAssistantMessage(text: string) {
