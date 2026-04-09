@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { evaluateTriggers } from '../agents/triggers.js';
 import { makeAgent } from '../test-factories.js';
 import type { AgentConfig } from '../agents/config.js';
-import { shouldSendTelegramRunNotification } from './server.js';
+import { shouldDispatchNotification, shouldSendTelegramRunNotification } from './server.js';
 
 describe('fireDownstreamTriggers', () => {
   async function fireDownstreamTriggers(
@@ -131,5 +131,95 @@ describe('shouldSendTelegramRunNotification', () => {
     });
 
     expect(shouldSendTelegramRunNotification(agent, 'completed')).toBe(true);
+  });
+});
+
+describe('shouldDispatchNotification', () => {
+  const notifyingAgent = makeAgent({
+    id: 'silent-agent',
+    notification: {
+      channel: 'telegram',
+      on_complete: true,
+      on_failure: true,
+    },
+  });
+
+  it('suppresses completion notifications when summary is the empty-fallback string', () => {
+    expect(
+      shouldDispatchNotification(notifyingAgent, {
+        status: 'completed',
+        summary: 'Agent completed',
+      }),
+    ).toBe(false);
+  });
+
+  it('dispatches completion notifications when summary contains real content', () => {
+    expect(
+      shouldDispatchNotification(notifyingAgent, {
+        status: 'completed',
+        summary: '🔔 Proactive Work Update\n\nCreated 2 drafts.',
+      }),
+    ).toBe(true);
+  });
+
+  it('dispatches failure notifications even when the error string matches the fallback', () => {
+    expect(
+      shouldDispatchNotification(notifyingAgent, {
+        status: 'failed',
+        summary: 'Agent completed',
+        error: 'Agent completed',
+      }),
+    ).toBe(true);
+  });
+
+  it('returns false when the agent has no notification config', () => {
+    const agent = makeAgent({ id: 'quiet-agent' });
+    expect(
+      shouldDispatchNotification(agent, {
+        status: 'completed',
+        summary: 'Found work.',
+      }),
+    ).toBe(false);
+  });
+
+  it('returns false when on_complete is disabled even for real content', () => {
+    const agent = makeAgent({
+      notification: {
+        channel: 'telegram',
+        on_complete: false,
+        on_failure: true,
+      },
+    });
+    expect(
+      shouldDispatchNotification(agent, {
+        status: 'completed',
+        summary: 'Found work.',
+      }),
+    ).toBe(false);
+  });
+
+  it('returns false when on_failure is disabled even for failures', () => {
+    const agent = makeAgent({
+      notification: {
+        channel: 'telegram',
+        on_complete: true,
+        on_failure: false,
+      },
+    });
+    expect(
+      shouldDispatchNotification(agent, {
+        status: 'failed',
+        error: 'MCP server unreachable',
+      }),
+    ).toBe(false);
+  });
+
+  it('dispatches completion notifications when the summary is undefined but on_complete is true', () => {
+    expect(
+      shouldDispatchNotification(notifyingAgent, {
+        status: 'completed',
+        summary: undefined,
+      }),
+    ).toBe(true);
   });
 });

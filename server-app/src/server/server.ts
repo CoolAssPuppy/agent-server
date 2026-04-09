@@ -96,6 +96,43 @@ export function shouldSendTelegramRunNotification(
   return notification.on_failure !== true;
 }
 
+/**
+ * Sentinel summary produced by plugins/claude-code.ts when the agent's final
+ * message is empty. Treating this as "silent mode" lets agents opt out of a
+ * completion notification by returning an empty final message. See the guard
+ * in {@link shouldDispatchNotification}.
+ */
+export const SILENT_COMPLETION_SUMMARY = 'Agent completed';
+
+/**
+ * Decides whether a run-completion or run-failure notification should be
+ * dispatched to the agent's configured channel.
+ *
+ * Silent-mode behavior: when an agent returns an empty final message, the
+ * claude-code plugin fills in the fallback string `"Agent completed"`. That
+ * fallback is not a meaningful summary — it means the agent had nothing to
+ * report — so completion notifications with that exact summary are suppressed.
+ * Failure notifications are never silenced by this rule.
+ */
+export function shouldDispatchNotification(
+  agent: AgentConfig,
+  data: Pick<NotificationData, 'status' | 'summary'>,
+): boolean {
+  if (!agent.notification) return false;
+
+  const shouldNotify = data.status === 'completed'
+    ? agent.notification.on_complete
+    : agent.notification.on_failure;
+
+  if (!shouldNotify) return false;
+
+  if (data.status === 'completed' && data.summary === SILENT_COMPLETION_SUMMARY) {
+    return false;
+  }
+
+  return true;
+}
+
 type StartServerOptions = {
   anthropicApiKey?: string;
 };
@@ -146,13 +183,8 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   }
 
   function sendNotification(agent: AgentConfig, runId: string, data: Omit<NotificationData, 'agentName'>): void {
+    if (!shouldDispatchNotification(agent, data)) return;
     if (!agent.notification) return;
-
-    const shouldNotify = data.status === 'completed'
-      ? agent.notification.on_complete
-      : agent.notification.on_failure;
-
-    if (!shouldNotify) return;
 
     const storedRun = store.get(runId);
     const notificationData: NotificationData = {
