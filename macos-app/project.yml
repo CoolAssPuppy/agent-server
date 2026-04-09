@@ -87,19 +87,58 @@ targets:
           echo "Staged production node_modules (lock hash $CURRENT_HASH)"
         basedOnDependencyAnalysis: false
     postBuildScripts:
-      - name: Embed agent-server-eventkit helper
+      - name: Embed and sign helper plus vendored binaries
         script: |
           set -e
-          SRC="${BUILT_PRODUCTS_DIR}/agent-server-eventkit"
-          DEST_DIR="${BUILT_PRODUCTS_DIR}/${WRAPPER_NAME}/Contents/Helpers"
-          DEST="${DEST_DIR}/agent-server-eventkit"
-          if [ ! -f "$SRC" ]; then
-            echo "warning: agent-server-eventkit not built at $SRC"
+
+          HELPER_SRC="${BUILT_PRODUCTS_DIR}/agent-server-eventkit"
+          HELPERS_DIR="${BUILT_PRODUCTS_DIR}/${WRAPPER_NAME}/Contents/Helpers"
+          HELPER_DEST="${HELPERS_DIR}/agent-server-eventkit"
+
+          if [ ! -f "$HELPER_SRC" ]; then
+            echo "warning: agent-server-eventkit not built at $HELPER_SRC"
             exit 0
           fi
-          mkdir -p "$DEST_DIR"
-          cp -f "$SRC" "$DEST"
-          codesign --force --sign - "$DEST"
+
+          mkdir -p "$HELPERS_DIR"
+          cp -f "$HELPER_SRC" "$HELPER_DEST"
+
+          if [ "${CODE_SIGNING_ALLOWED:-YES}" = "NO" ]; then
+            echo "Code signing disabled, skipping embedded binary signing"
+            exit 0
+          fi
+
+          IDENTITY="${EXPANDED_CODE_SIGN_IDENTITY:-}"
+          if [ -z "$IDENTITY" ]; then
+            IDENTITY="-"
+          fi
+
+          echo "Signing embedded binaries with identity: $IDENTITY (hardened runtime)"
+
+          codesign --force --options runtime --sign "$IDENTITY" "$HELPER_DEST"
+
+          NODE_MODULES="${BUILT_PRODUCTS_DIR}/${WRAPPER_NAME}/Contents/Resources/node_modules"
+          if [ ! -d "$NODE_MODULES" ]; then
+            exit 0
+          fi
+
+          COUNT_FILE="$(mktemp)"
+          echo 0 > "$COUNT_FILE"
+
+          find "$NODE_MODULES" -type f -perm -u+x 2>/dev/null | while IFS= read -r bin; do
+            if file "$bin" 2>/dev/null | head -1 | grep -q "Mach-O"; then
+              if codesign --force --options runtime --sign "$IDENTITY" "$bin" >/dev/null 2>&1; then
+                count=$(cat "$COUNT_FILE")
+                echo $((count + 1)) > "$COUNT_FILE"
+              else
+                echo "warning: failed to sign $bin"
+              fi
+            fi
+          done
+
+          signed_count=$(cat "$COUNT_FILE")
+          rm -f "$COUNT_FILE"
+          echo "Re-signed $signed_count Mach-O binaries inside node_modules"
         basedOnDependencyAnalysis: false
 
   AgentServerEventKit:
@@ -113,5 +152,5 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.strategicnerds.agent-server-eventkit
         INFOPLIST_FILE: AgentServerEventKit/Info.plist
         CREATE_INFOPLIST_SECTION_IN_BINARY: YES
-        SKIP_INSTALL: NO
+        SKIP_INSTALL: YES
         ENABLE_HARDENED_RUNTIME: true
