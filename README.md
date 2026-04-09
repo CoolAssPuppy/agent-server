@@ -479,6 +479,28 @@ permissions:
 
 The agent now has read access to work Notion and read/write access to personal Notion, each authenticated separately.
 
+#### Built-in: Calendar and Reminders via EventKit
+
+When the server is launched by the macOS app, it automatically gets an `eventkit` MCP server injected into every agent run. No YAML configuration needed. This is backed by a bundled Swift helper binary (`agent-server-eventkit`) that speaks MCP over stdio and calls Apple's EventKit framework directly.
+
+Tools exposed by the helper:
+
+| Tool | Description |
+|---|---|
+| `list_calendars` | List available calendars |
+| `list_events` | List events in a date range, optionally filtered by calendar |
+| `create_event` | Create a new event (title, start, end, location, notes, calendar, isAllDay) |
+| `update_event` | Update fields on an existing event by id |
+| `delete_event` | Delete an event by id |
+| `list_reminder_lists` | List reminder lists |
+| `list_reminders` | List reminders, optionally filtered by list and completion state |
+| `create_reminder` | Create a new reminder (title, due date, list, notes) |
+| `complete_reminder` | Mark a reminder completed by id |
+
+On first launch, the macOS app requests Calendar and Reminders access from the system. Agents call the tools as `mcp__eventkit__list_events`, `mcp__eventkit__create_reminder`, etc. If an agent explicitly declares its own `eventkit` MCP server under `mcp_servers`, the agent's configuration wins and the bundled helper is not injected.
+
+This integration only works when the server is spawned by the macOS app (the app sets `AGENT_SERVER_EVENTKIT_BIN` at spawn time). Running `agent-server start` directly from the CLI does not enable it.
+
 #### Environment variable substitution
 
 Values in `env` and `headers` fields support `${VAR}` substitution, resolved from `process.env` at runtime. This includes variables from `~/.agent-server/.env` and from secret managers like Doppler (`doppler run -- agent-server start`).
@@ -744,17 +766,19 @@ A native Swift app that lives in the menu bar for monitoring and controlling age
 
 - **Menu bar monitoring**: Icon shows server status at a glance. Turns yellow when agents are actively running. Dropdown shows active runs and scheduled agent count.
 - **Real-time updates**: Connects to the server via WebSocket (`ws://localhost:47821/ws`) for instant run progress. Falls back to HTTP polling if WebSocket disconnects.
+- **Native notifications**: Fires a macOS notification when any agent starts, completes, or fails. Completion notifications include a brief summary from the agent's final message. Uses `UNUserNotificationCenter` and prompts for authorization on first launch.
+- **Calendar and Reminders integration**: Bundled `agent-server-eventkit` helper binary exposes EventKit to agents through a stdio MCP server. Every agent run gets automatic access to tools like `list_events`, `create_event`, `list_reminders`, and `create_reminder`. Calendar and Reminders permissions are requested on first launch via `EKEventStore.requestFullAccess*`.
 - **Agent list**: All discovered agents with kind-based icons and colors (scheduled, interactive, watcher, chained, on-demand). Disabled agents show a "Disabled" pill.
 - **Agent editor**: View and edit agent definition files with Markdown and YAML syntax highlighting. Save with Cmd+S. Enable/disable agents with a toggle.
 - **Create agents**: Create new agents from Markdown or YAML templates directly from the app.
 - **Run and cancel agents**: Trigger any agent from the agent list with a single click. Cancel running agents via the API.
 - **Environment editor**: Edit `~/.agent-server/.env` with a key-value editor. Contextual icons for each variable type.
 - **Server settings**: View server status, agent count, launch-at-login toggle, sleep/wake catch-up toggle, and app version.
-- **Bundled server**: The app bundles `server-app/dist/` in its Resources for standalone distribution. Auto-installs npm dependencies on first launch.
+- **Bundled server**: The compiled `server-app/dist/`, `package.json`, and production `node_modules/` are copied into `Contents/Resources/` at build time. The app launches the Node server immediately on first run — no npm install step, no network required, code signing stays valid because nothing is written inside the bundle post-signing.
 
 ### Build
 
-Requires Xcode 15+ and [xcodegen](https://github.com/yonaskolb/XcodeGen):
+Requires Xcode 15+, [xcodegen](https://github.com/yonaskolb/XcodeGen), and Node.js 20+ on PATH (needed at build time to stage production dependencies):
 
 ```bash
 cd macos-app
@@ -763,6 +787,8 @@ xcodebuild -project AgentServer.xcodeproj -scheme AgentServer build
 ```
 
 Or open `AgentServer.xcodeproj` in Xcode after running `xcodegen generate`.
+
+The first build runs `npm ci --omit=dev` in `macos-app/.build-cache/server-bundle/` to stage the production `node_modules/` that gets bundled into `Contents/Resources/`. Subsequent builds skip the install step when `server-app/package-lock.json` is unchanged (detected via a cached SHA-256 hash). `.build-cache/` is gitignored.
 
 ### Architecture
 
@@ -779,8 +805,10 @@ macos-app/
       AgentFile.swift                 Agent file CRUD + templates
     Services/
       AgentServerClient.swift         HTTP client for localhost:47821
-      StatusMonitor.swift             WebSocket + HTTP polling, @Published state
-      ServerProcessManager.swift      Auto-start/stop the Node.js server
+      StatusMonitor.swift             WebSocket + HTTP polling, fires notifications on run lifecycle events
+      ServerProcessManager.swift      Auto-start/stop the Node.js server, exports AGENT_SERVER_EVENTKIT_BIN
+      NotificationManager.swift       UNUserNotificationCenter wrapper for run lifecycle notifications
+      EventKitPermissionManager.swift Requests Calendar and Reminders access at launch
       LaunchAtLoginManager.swift      SMAppService wrapper
     Views/
       SettingsView.swift              Tab container (Agents, Settings)
@@ -790,10 +818,16 @@ macos-app/
       SettingsTabView.swift           Server status, launch at login, catch-up toggle, env editor
       EnvEditorView.swift             Key-value editor with contextual icons
     Assets.xcassets/                  App icon + menu bar icons
-  project.yml                        xcodegen spec
+    Info.plist                        App metadata + TCC usage descriptions
+  AgentServerEventKit/                Separate target: standalone Swift MCP helper binary
+    main.swift                        Entry point
+    MCPServer.swift                   JSON-RPC 2.0 stdio MCP server implementation
+    EventKitHandler.swift             Calendar and Reminders tool handlers via EventKit
+    Info.plist                        Embedded into binary for TCC usage descriptions
+  project.yml                         xcodegen spec (two targets)
 ```
 
-The app communicates with the server entirely through the HTTP API on `localhost:47821`. If no server is running, `ServerProcessManager` starts the Node.js server automatically and stops it on quit.
+The app communicates with the server entirely through the HTTP API on `localhost:47821`. If no server is running, `ServerProcessManager` starts the Node.js server automatically and stops it on quit. When spawning the server, it exports `AGENT_SERVER_EVENTKIT_BIN` pointing at the bundled helper so the server's executor plugin can auto-inject the `eventkit` MCP server into every agent run.
 
 ### Server location
 
@@ -801,7 +835,7 @@ The macOS app needs to know where the agent-server code lives on disk so it can 
 
 1. **macOS app Settings** (highest priority). Open Settings and use the "Choose..." button under "Server location" to pick the repo root folder. This is stored in UserDefaults and persists across app launches.
 2. **`AGENT_SERVER_LOCATION` in `~/.agent-server/.env`**. Set this if you want the location configured once for both the macOS app and any scripts that need it.
-3. **Bundled server**. The app checks its own Resources bundle for a `server-app/` directory (used in standalone distribution).
+3. **Bundled server**. The app checks its own Resources bundle at `Contents/Resources/dist/cli.js` (used in standalone distribution).
 4. **Bundle-adjacent**. The app checks for an `agent-server/` directory next to the `.app` bundle.
 
 If you cloned the repo to a non-standard location, set `AGENT_SERVER_LOCATION` either in the app's Settings UI or in `~/.agent-server/.env`. The value should point to the repo root (the directory containing `server-app/`). Pointing directly at `server-app/` also works.
@@ -986,7 +1020,7 @@ All development commands run from `server-app/`:
 ```bash
 cd server-app
 npm install
-npm test              # 331 tests
+npm test              # 486 tests
 npm run type-check    # TypeScript strict mode
 npm run build         # Compile to dist/
 npm run dev           # Watch mode with tsx

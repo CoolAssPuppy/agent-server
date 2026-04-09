@@ -273,23 +273,32 @@ function reportMcpStatus(servers: McpServerInfo[], reporter: Reporter): void {
   }
 }
 
-function buildMcpServers(agent: AgentConfig): Options['mcpServers'] {
-  if (!agent.mcp_servers) return undefined;
-
+export function buildMcpServers(agent: AgentConfig): Options['mcpServers'] {
   const servers: NonNullable<Options['mcpServers']> = {};
 
-  for (const [name, config] of Object.entries(agent.mcp_servers)) {
-    if ('command' in config) {
-      servers[name] = {
-        ...config,
-        env: config.env ? resolveEnvVars(config.env) : undefined,
-      };
-    } else if ('url' in config) {
-      servers[name] = {
-        ...config,
-        headers: config.headers ? resolveEnvVars(config.headers) : undefined,
-      };
+  if (agent.mcp_servers) {
+    for (const [name, config] of Object.entries(agent.mcp_servers)) {
+      if ('command' in config) {
+        servers[name] = {
+          ...config,
+          env: config.env ? resolveEnvVars(config.env) : undefined,
+        };
+      } else if ('url' in config) {
+        servers[name] = {
+          ...config,
+          headers: config.headers ? resolveEnvVars(config.headers) : undefined,
+        };
+      }
     }
+  }
+
+  const eventKitBin = process.env.AGENT_SERVER_EVENTKIT_BIN;
+  if (eventKitBin && !servers.eventkit) {
+    servers.eventkit = {
+      type: 'stdio',
+      command: eventKitBin,
+      args: [],
+    };
   }
 
   return Object.keys(servers).length > 0 ? servers : undefined;

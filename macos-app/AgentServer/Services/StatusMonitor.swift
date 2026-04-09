@@ -16,6 +16,7 @@ final class StatusMonitor: ObservableObject {
     private var isWebSocketConnected = false
 
     private weak var serverProcess: ServerProcessManager?
+    private var notificationManager: NotificationManager?
     private var consecutiveFailures = 0
     private static let restartThreshold = 3
     private var previousServerStartedAt: String?
@@ -23,6 +24,10 @@ final class StatusMonitor: ObservableObject {
 
     func setServerProcess(_ manager: ServerProcessManager) {
         self.serverProcess = manager
+    }
+
+    func setNotificationManager(_ manager: NotificationManager) {
+        self.notificationManager = manager
     }
 
     func start() {
@@ -172,14 +177,34 @@ final class StatusMonitor: ObservableObject {
             guard let data = text.data(using: .utf8),
                   let event = try? JSONDecoder().decode(ProgressEvent.self, from: data) else { return }
 
-            if event.type == "run_started" || event.type == "run_completed" || event.type == "run_failed" {
+            switch event.type {
+            case "run_started":
+                notificationManager?.notifyRunStarted(agentName: agentName(for: event.agentId))
                 poll()
+            case "run_completed":
+                notificationManager?.notifyRunCompleted(
+                    agentName: agentName(for: event.agentId),
+                    summary: event.summary
+                )
+                poll()
+            case "run_failed":
+                notificationManager?.notifyRunFailed(
+                    agentName: agentName(for: event.agentId),
+                    error: event.error ?? event.message
+                )
+                poll()
+            default:
+                break
             }
         case .data:
             break
         @unknown default:
             break
         }
+    }
+
+    private func agentName(for agentId: String) -> String {
+        agents.first(where: { $0.id == agentId })?.name ?? agentId
     }
 
     private func scheduleWebSocketReconnect() {

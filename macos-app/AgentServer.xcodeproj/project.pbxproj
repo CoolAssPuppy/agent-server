@@ -8,9 +8,13 @@
 
 /* Begin PBXBuildFile section */
 		02C20F87D5C7526ABDB06C67 /* RunDetailTabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A98A3C8D660F909083764E1 /* RunDetailTabs.swift */; };
+		142B004902E78A73CD4D174B /* package.json in Resources */ = {isa = PBXBuildFile; fileRef = 34998C870C76F29FD6B67745 /* package.json */; };
 		1E5DAD909924982752591F2E /* MarkdownEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B514CCB37C240E8BC2D16DAE /* MarkdownEditor.swift */; };
 		1FC99E63F164FA6DF9287E79 /* RunHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF167864F821C8B9892C0849 /* RunHelpers.swift */; };
+		24C3E239750CE16796D6085C /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACF4DF2407A9787F480AEEE7 /* NotificationManager.swift */; };
+		286D0BA5C8914421646E03D9 /* MCPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FDC36BB13528F7FD3BE8F2C /* MCPServer.swift */; };
 		2CDA922300E92E5825F5EEB1 /* PanelClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FE442CAD3D55ADB3B5F89D7 /* PanelClient.swift */; };
+		382BDD6B5E296A886C55232C /* EventKitHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9098758BCD6B9EC571281A51 /* EventKitHandler.swift */; };
 		470120920161412825893DBC /* StatusMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DF962BADEAC09F5A5F46093 /* StatusMonitor.swift */; };
 		519B2C93BA543F3811D53C8E /* AgentServerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBA361A75AD13345528DB75F /* AgentServerApp.swift */; };
 		59592B3D24D39DD5E4D21714 /* NerdsUI in Frameworks */ = {isa = PBXBuildFile; productRef = 2A1CF52BEE1D8E2E8804D3C5 /* NerdsUI */; };
@@ -21,7 +25,11 @@
 		87780D46FC7AA630FC93521B /* EnvEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE2D05889A0359D1B96434A4 /* EnvEditorView.swift */; };
 		8931C92E49FA360813268002 /* SettingsTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55DE0475DCC49D002DA3AECF /* SettingsTabView.swift */; };
 		8952BBEC6C2E7723B78B683A /* AgentModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE7640067645F8E1352BCE04 /* AgentModel.swift */; };
+		8FCB715D7BFE32EFB9E8DBBD /* node_modules in Resources */ = {isa = PBXBuildFile; fileRef = 4AC0BFA54BF2C9E3FD945E78 /* node_modules */; };
+		90D2742B2CD0C605C3181ED4 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B8C3600FDBE09650A796C7E /* main.swift */; };
+		91E11BD741066906FB70BE46 /* dist in Resources */ = {isa = PBXBuildFile; fileRef = 98817ADC119A4121E0A3B079 /* dist */; };
 		99DA993395D36324F62670AF /* AgentServerClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76D1FBFD51A44407DC395C7F /* AgentServerClient.swift */; };
+		A0D0411E2B0DE47445503404 /* EventKitPermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1359015CD6B7782FF2A70E69 /* EventKitPermissionManager.swift */; };
 		A3AD8E3C9F02AE053611EE52 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ED303774162FECB5D22909C1 /* Assets.xcassets */; };
 		A965DC2A98A88151EDC11360 /* RunDetailGutter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23C1CA4CDE204047AD9448D /* RunDetailGutter.swift */; };
 		B5453300A1BD30D48C23D05C /* AgentRunsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 643CBD2E294E942C10398144 /* AgentRunsView.swift */; };
@@ -39,32 +47,52 @@
 		F3428059091E528FF3F7B8CF /* MenuBarPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0885A392057C026891B6710 /* MenuBarPopover.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		62C9EEB5E208CDFC4A19737A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = DBA73188BCDBE96C6D79B91B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 514E3624E8F18BC870E11B52;
+			remoteInfo = AgentServerEventKit;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		1166D983A336A4F217C9282E /* PanelRun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelRun.swift; sourceTree = "<group>"; };
+		1359015CD6B7782FF2A70E69 /* EventKitPermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitPermissionManager.swift; sourceTree = "<group>"; };
 		2AEC874CD4B98C234CA70908 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		34998C870C76F29FD6B67745 /* package.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = package.json; sourceTree = "<group>"; };
 		3FA7DF74260188E7ABD701D6 /* ServerProcessManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerProcessManager.swift; sourceTree = "<group>"; };
 		41C82F59F5DF4F52A592AD3F /* swift */ = {isa = PBXFileReference; lastKnownFileType = folder; name = swift; path = ../../../../nerdsui/swift; sourceTree = SOURCE_ROOT; };
 		4262F21955BC608AD2576EA7 /* AgentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentDetailView.swift; sourceTree = "<group>"; };
 		4900D26B20B4FF31D3A37106 /* AgentServerPalettes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentServerPalettes.swift; sourceTree = "<group>"; };
 		4A98A3C8D660F909083764E1 /* RunDetailTabs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailTabs.swift; sourceTree = "<group>"; };
+		4AC0BFA54BF2C9E3FD945E78 /* node_modules */ = {isa = PBXFileReference; lastKnownFileType = folder; name = node_modules; path = ".build-cache/server-bundle/node_modules"; sourceTree = SOURCE_ROOT; };
 		4ADB33D19CFCCCE6AC45B049 /* AgentServer.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AgentServer.entitlements; sourceTree = "<group>"; };
 		4FE442CAD3D55ADB3B5F89D7 /* PanelClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelClient.swift; sourceTree = "<group>"; };
 		5408352E637AF41D2211E4CC /* AgentsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentsListView.swift; sourceTree = "<group>"; };
 		55DE0475DCC49D002DA3AECF /* SettingsTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsTabView.swift; sourceTree = "<group>"; };
 		5D862852E3835F69170B608A /* AgentEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentEditorView.swift; sourceTree = "<group>"; };
+		5FDC36BB13528F7FD3BE8F2C /* MCPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServer.swift; sourceTree = "<group>"; };
 		643CBD2E294E942C10398144 /* AgentRunsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRunsView.swift; sourceTree = "<group>"; };
 		6DF962BADEAC09F5A5F46093 /* StatusMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusMonitor.swift; sourceTree = "<group>"; };
 		76D1FBFD51A44407DC395C7F /* AgentServerClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentServerClient.swift; sourceTree = "<group>"; };
+		7B8C3600FDBE09650A796C7E /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		8A39F8EC44F73E7FD02BB9B6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		8ADE39E580F94F63F2070A8B /* AgentFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentFile.swift; sourceTree = "<group>"; };
+		9098758BCD6B9EC571281A51 /* EventKitHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitHandler.swift; sourceTree = "<group>"; };
 		90FD11ED8E05AE334B24E838 /* MarkdownContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownContentView.swift; sourceTree = "<group>"; };
+		98817ADC119A4121E0A3B079 /* dist */ = {isa = PBXFileReference; lastKnownFileType = folder; name = dist; path = "../server-app/dist"; sourceTree = SOURCE_ROOT; };
 		9B13E51E6E5B8B223735BD6B /* AgentServerTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentServerTheme.swift; sourceTree = "<group>"; };
 		A1539357FAE628189796A64F /* EnvFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvFile.swift; sourceTree = "<group>"; };
 		A520B1763B663153CBBA3F1B /* RunDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailView.swift; sourceTree = "<group>"; };
+		ACF4DF2407A9787F480AEEE7 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		B514CCB37C240E8BC2D16DAE /* MarkdownEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownEditor.swift; sourceTree = "<group>"; };
 		B66EAB07DB79E15BAC20F17E /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		BBF1B4A941CE9F9CD5925E4E /* LaunchAtLoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginManager.swift; sourceTree = "<group>"; };
 		BF167864F821C8B9892C0849 /* RunHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunHelpers.swift; sourceTree = "<group>"; };
 		BF267E78CF53DB3D651E8D62 /* AgentServer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AgentServer.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C1C9BFADC1AEB3CEFB05D566 /* AgentServerEventKit */ = {isa = PBXFileReference; includeInIndex = 0; path = AgentServerEventKit; sourceTree = BUILT_PRODUCTS_DIR; };
 		C2BC95C8DAB6DCFFF47D6082 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		DE2D05889A0359D1B96434A4 /* EnvEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvEditorView.swift; sourceTree = "<group>"; };
 		E0885A392057C026891B6710 /* MenuBarPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPopover.swift; sourceTree = "<group>"; };
@@ -108,6 +136,15 @@
 			path = Theme;
 			sourceTree = "<group>";
 		};
+		5423C5A5A8FAB60711E72401 /* server-app */ = {
+			isa = PBXGroup;
+			children = (
+				34998C870C76F29FD6B67745 /* package.json */,
+			);
+			name = "server-app";
+			path = "../server-app";
+			sourceTree = "<group>";
+		};
 		652CC27383D083CB6A53C94C /* App */ = {
 			isa = PBXGroup;
 			children = (
@@ -120,8 +157,12 @@
 		6E25A08092543BB4B04696F4 = {
 			isa = PBXGroup;
 			children = (
+				98817ADC119A4121E0A3B079 /* dist */,
+				4AC0BFA54BF2C9E3FD945E78 /* node_modules */,
 				A4C6DD20EC2DD9F19B4B0BEF /* AgentServer */,
+				F8442B1515EB5212D1D69158 /* AgentServerEventKit */,
 				CDBA99D8972601D447FD2331 /* Packages */,
+				5423C5A5A8FAB60711E72401 /* server-app */,
 				C7AF683C4FC612BD0C84F3B0 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -130,7 +171,9 @@
 			isa = PBXGroup;
 			children = (
 				76D1FBFD51A44407DC395C7F /* AgentServerClient.swift */,
+				1359015CD6B7782FF2A70E69 /* EventKitPermissionManager.swift */,
 				BBF1B4A941CE9F9CD5925E4E /* LaunchAtLoginManager.swift */,
+				ACF4DF2407A9787F480AEEE7 /* NotificationManager.swift */,
 				4FE442CAD3D55ADB3B5F89D7 /* PanelClient.swift */,
 				3FA7DF74260188E7ABD701D6 /* ServerProcessManager.swift */,
 				6DF962BADEAC09F5A5F46093 /* StatusMonitor.swift */,
@@ -178,6 +221,7 @@
 			isa = PBXGroup;
 			children = (
 				BF267E78CF53DB3D651E8D62 /* AgentServer.app */,
+				C1C9BFADC1AEB3CEFB05D566 /* AgentServerEventKit */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -190,20 +234,51 @@
 			name = Packages;
 			sourceTree = "<group>";
 		};
+		F8442B1515EB5212D1D69158 /* AgentServerEventKit */ = {
+			isa = PBXGroup;
+			children = (
+				9098758BCD6B9EC571281A51 /* EventKitHandler.swift */,
+				8A39F8EC44F73E7FD02BB9B6 /* Info.plist */,
+				7B8C3600FDBE09650A796C7E /* main.swift */,
+				5FDC36BB13528F7FD3BE8F2C /* MCPServer.swift */,
+			);
+			path = AgentServerEventKit;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		970F72FE0AEAC7C289BCF7E4 /* AgentServer */ = {
+		514E3624E8F18BC870E11B52 /* AgentServerEventKit */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 5F27CA2FBF7537F0AF836369 /* Build configuration list for PBXNativeTarget "AgentServer" */;
+			buildConfigurationList = 625B8C6C97262F1B292C08F8 /* Build configuration list for PBXNativeTarget "AgentServerEventKit" */;
 			buildPhases = (
-				FCEE816A45D09F7582304603 /* Sources */,
-				CE7AEBA20D5018151BA01456 /* Resources */,
-				D64933D504D816D7BA9CE94A /* Frameworks */,
+				E3EC9DCA1F2E698E8022E8BE /* Sources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+			);
+			name = AgentServerEventKit;
+			packageProductDependencies = (
+			);
+			productName = AgentServerEventKit;
+			productReference = C1C9BFADC1AEB3CEFB05D566 /* AgentServerEventKit */;
+			productType = "com.apple.product-type.tool";
+		};
+		970F72FE0AEAC7C289BCF7E4 /* AgentServer */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5F27CA2FBF7537F0AF836369 /* Build configuration list for PBXNativeTarget "AgentServer" */;
+			buildPhases = (
+				A900F1553071B6CE41A48AF9 /* Stage production node_modules for bundling */,
+				FCEE816A45D09F7582304603 /* Sources */,
+				CE7AEBA20D5018151BA01456 /* Resources */,
+				D64933D504D816D7BA9CE94A /* Frameworks */,
+				068BEBB4EB4AC7596D1AF7DE /* Embed agent-server-eventkit helper */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0CB42768046FEF20CF0E7B90 /* PBXTargetDependency */,
 			);
 			name = AgentServer;
 			packageProductDependencies = (
@@ -242,6 +317,7 @@
 			projectRoot = "";
 			targets = (
 				970F72FE0AEAC7C289BCF7E4 /* AgentServer */,
+				514E3624E8F18BC870E11B52 /* AgentServerEventKit */,
 			);
 		};
 /* End PBXProject section */
@@ -252,12 +328,66 @@
 			buildActionMask = 2147483647;
 			files = (
 				A3AD8E3C9F02AE053611EE52 /* Assets.xcassets in Resources */,
+				91E11BD741066906FB70BE46 /* dist in Resources */,
+				8FCB715D7BFE32EFB9E8DBBD /* node_modules in Resources */,
+				142B004902E78A73CD4D174B /* package.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		068BEBB4EB4AC7596D1AF7DE /* Embed agent-server-eventkit helper */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Embed agent-server-eventkit helper";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nSRC=\"${BUILT_PRODUCTS_DIR}/agent-server-eventkit\"\nDEST_DIR=\"${BUILT_PRODUCTS_DIR}/${WRAPPER_NAME}/Contents/Helpers\"\nDEST=\"${DEST_DIR}/agent-server-eventkit\"\nif [ ! -f \"$SRC\" ]; then\n  echo \"warning: agent-server-eventkit not built at $SRC\"\n  exit 0\nfi\nmkdir -p \"$DEST_DIR\"\ncp -f \"$SRC\" \"$DEST\"\ncodesign --force --sign - \"$DEST\"\n";
+		};
+		A900F1553071B6CE41A48AF9 /* Stage production node_modules for bundling */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Stage production node_modules for bundling";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\nexport PATH=\"/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH\"\n\nif ! command -v npm >/dev/null 2>&1; then\n  echo \"error: npm not found on PATH; install Node.js before building\"\n  exit 1\nfi\n\nSRC_DIR=\"${SRCROOT}/../server-app\"\nSTAGING=\"${SRCROOT}/.build-cache/server-bundle\"\nHASH_FILE=\"$STAGING/.installed-lock-hash\"\n\nif [ ! -f \"$SRC_DIR/package-lock.json\" ]; then\n  echo \"error: server-app/package-lock.json missing; run npm install in server-app first\"\n  exit 1\nfi\n\nCURRENT_HASH=$(shasum -a 256 \"$SRC_DIR/package-lock.json\" | awk '{print $1}')\nINSTALLED_HASH=\"\"\nif [ -f \"$HASH_FILE\" ]; then\n  INSTALLED_HASH=$(cat \"$HASH_FILE\")\nfi\n\nif [ \"$CURRENT_HASH\" = \"$INSTALLED_HASH\" ] && [ -d \"$STAGING/node_modules\" ] && [ \"$(ls -A \"$STAGING/node_modules\" 2>/dev/null)\" ]; then\n  echo \"Staged node_modules already up to date (lock hash $CURRENT_HASH)\"\n  exit 0\nfi\n\necho \"Staging production node_modules...\"\nmkdir -p \"$STAGING\"\ncp -f \"$SRC_DIR/package.json\" \"$STAGING/package.json\"\ncp -f \"$SRC_DIR/package-lock.json\" \"$STAGING/package-lock.json\"\n\ncd \"$STAGING\"\nrm -rf node_modules\nnpm ci --omit=dev --ignore-scripts --silent\n\necho \"$CURRENT_HASH\" > \"$HASH_FILE\"\necho \"Staged production node_modules (lock hash $CURRENT_HASH)\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
+		E3EC9DCA1F2E698E8022E8BE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				382BDD6B5E296A886C55232C /* EventKitHandler.swift in Sources */,
+				286D0BA5C8914421646E03D9 /* MCPServer.swift in Sources */,
+				90D2742B2CD0C605C3181ED4 /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		FCEE816A45D09F7582304603 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -275,10 +405,12 @@
 				E883FEF25E1CA4ADE2A5E648 /* AppDelegate.swift in Sources */,
 				87780D46FC7AA630FC93521B /* EnvEditorView.swift in Sources */,
 				EE292187B9B2FC34A554F88C /* EnvFile.swift in Sources */,
+				A0D0411E2B0DE47445503404 /* EventKitPermissionManager.swift in Sources */,
 				666BECD19A8137F064869C82 /* LaunchAtLoginManager.swift in Sources */,
 				D42B7EBEF97546289CB6A551 /* MarkdownContentView.swift in Sources */,
 				1E5DAD909924982752591F2E /* MarkdownEditor.swift in Sources */,
 				F3428059091E528FF3F7B8CF /* MenuBarPopover.swift in Sources */,
+				24C3E239750CE16796D6085C /* NotificationManager.swift in Sources */,
 				2CDA922300E92E5825F5EEB1 /* PanelClient.swift in Sources */,
 				7A01C939E76AF850AAD3EC4E /* PanelRun.swift in Sources */,
 				A965DC2A98A88151EDC11360 /* RunDetailGutter.swift in Sources */,
@@ -294,6 +426,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		0CB42768046FEF20CF0E7B90 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 514E3624E8F18BC870E11B52 /* AgentServerEventKit */;
+			targetProxy = 62C9EEB5E208CDFC4A19737A /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		3B50E4101B899F36370CD2D8 /* Release */ = {
@@ -313,6 +453,42 @@
 				SDKROOT = macosx;
 			};
 			name = Release;
+		};
+		530439C0317FD0E74FC5445F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = AgentServerEventKit/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.strategicnerds.agent-server-eventkit";
+				PRODUCT_NAME = "agent-server-eventkit";
+				SDKROOT = macosx;
+				SKIP_INSTALL = NO;
+			};
+			name = Release;
+		};
+		97C472C7BD627C3F35C4B798 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COMBINE_HIDPI_IMAGES = YES;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = AgentServerEventKit/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.strategicnerds.agent-server-eventkit";
+				PRODUCT_NAME = "agent-server-eventkit";
+				SDKROOT = macosx;
+				SKIP_INSTALL = NO;
+			};
+			name = Debug;
 		};
 		9950212ECD41BA6A5F357181 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -461,6 +637,15 @@
 			buildConfigurations = (
 				9950212ECD41BA6A5F357181 /* Debug */,
 				3B50E4101B899F36370CD2D8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		625B8C6C97262F1B292C08F8 /* Build configuration list for PBXNativeTarget "AgentServerEventKit" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				97C472C7BD627C3F35C4B798 /* Debug */,
+				530439C0317FD0E74FC5445F /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

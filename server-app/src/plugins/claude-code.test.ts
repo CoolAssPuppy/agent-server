@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Reporter } from '../execution/runner.js';
 import type { AgentConfig } from '../agents/config.js';
 
@@ -469,6 +469,106 @@ describe('MCP server status handling', () => {
       { name: 'gmail', status: 'failed', error: 'auth expired' },
     ]);
     vi.useRealTimers();
+  });
+});
+
+describe('buildMcpServers eventkit auto-injection', () => {
+  const ORIGINAL_ENV = process.env.AGENT_SERVER_EVENTKIT_BIN;
+
+  beforeEach(() => {
+    delete process.env.AGENT_SERVER_EVENTKIT_BIN;
+  });
+
+  afterEach(() => {
+    if (ORIGINAL_ENV === undefined) {
+      delete process.env.AGENT_SERVER_EVENTKIT_BIN;
+    } else {
+      process.env.AGENT_SERVER_EVENTKIT_BIN = ORIGINAL_ENV;
+    }
+  });
+
+  it('injects eventkit when env var is set and agent has no mcp_servers', async () => {
+    const { buildMcpServers } = await import('./claude-code.js');
+    process.env.AGENT_SERVER_EVENTKIT_BIN = '/Applications/Agent Server.app/Contents/Helpers/agent-server-eventkit';
+
+    const servers = buildMcpServers(createAgentConfig());
+
+    expect(servers).toBeDefined();
+    expect(servers?.eventkit).toEqual({
+      type: 'stdio',
+      command: '/Applications/Agent Server.app/Contents/Helpers/agent-server-eventkit',
+      args: [],
+    });
+  });
+
+  it('injects eventkit alongside existing user-declared mcp_servers', async () => {
+    const { buildMcpServers } = await import('./claude-code.js');
+    process.env.AGENT_SERVER_EVENTKIT_BIN = '/path/to/helper';
+
+    const agent = createAgentConfig({
+      mcp_servers: {
+        linear: {
+          command: 'npx',
+          args: ['-y', 'linear-mcp'],
+        },
+      },
+    });
+
+    const servers = buildMcpServers(agent);
+
+    expect(servers?.linear).toBeDefined();
+    expect(servers?.eventkit).toEqual({
+      type: 'stdio',
+      command: '/path/to/helper',
+      args: [],
+    });
+  });
+
+  it('does not inject eventkit when env var is unset', async () => {
+    const { buildMcpServers } = await import('./claude-code.js');
+
+    const servers = buildMcpServers(createAgentConfig());
+
+    expect(servers).toBeUndefined();
+  });
+
+  it('does not inject eventkit when env var is unset even with other mcp_servers', async () => {
+    const { buildMcpServers } = await import('./claude-code.js');
+
+    const agent = createAgentConfig({
+      mcp_servers: {
+        linear: {
+          command: 'npx',
+          args: ['-y', 'linear-mcp'],
+        },
+      },
+    });
+
+    const servers = buildMcpServers(agent);
+
+    expect(servers?.linear).toBeDefined();
+    expect(servers?.eventkit).toBeUndefined();
+  });
+
+  it('does not override user-declared eventkit mcp server', async () => {
+    const { buildMcpServers } = await import('./claude-code.js');
+    process.env.AGENT_SERVER_EVENTKIT_BIN = '/bundled/helper';
+
+    const agent = createAgentConfig({
+      mcp_servers: {
+        eventkit: {
+          command: '/custom/path/to/eventkit',
+          args: ['--verbose'],
+        },
+      },
+    });
+
+    const servers = buildMcpServers(agent);
+
+    expect(servers?.eventkit).toMatchObject({
+      command: '/custom/path/to/eventkit',
+      args: ['--verbose'],
+    });
   });
 });
 

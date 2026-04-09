@@ -9,6 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var settingsWindow: NSWindow?
     private let monitor = StatusMonitor()
     private let serverProcess = ServerProcessManager()
+    private let notificationManager = NotificationManager()
+    private let eventKitPermissionManager = EventKitPermissionManager()
     private let themeManager = ThemeManager.shared
     private var cancellables = Set<AnyCancellable>()
     private var eventMonitor: Any?
@@ -19,7 +21,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         setupPopover()
         subscribeToUpdates()
 
+        notificationManager.requestAuthorization()
+        eventKitPermissionManager.requestAccessIfNeeded()
         monitor.setServerProcess(serverProcess)
+        monitor.setNotificationManager(notificationManager)
 
         Task {
             await serverProcess.startIfNeeded()
