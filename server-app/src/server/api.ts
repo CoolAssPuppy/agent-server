@@ -259,7 +259,13 @@ export function createApi(deps: ApiDependencies): Hono {
     if (run.status !== 'running') return c.json({ error: 'Run is not running' }, 409);
 
     const cancelled = deps.cancelRun?.(runId) ?? false;
-    if (!cancelled) return c.json({ error: 'Run not found' }, 404);
+    if (!cancelled) {
+      deps.store.update(runId, {
+        status: 'failed',
+        completedAt: new Date(),
+        error: 'Cancelled (orphaned run)',
+      });
+    }
 
     return c.json({ status: 'cancelled', runId });
   });

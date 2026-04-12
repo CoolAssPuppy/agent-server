@@ -324,6 +324,13 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       promptSuffix,
     }).then((result) => {
       activeControllers.delete(runId);
+      if (result.status === 'skipped') {
+        store.update(runId, {
+          status: 'skipped',
+          completedAt: new Date(),
+        });
+        return;
+      }
       if (result.status === 'failed') {
         store.update(runId, {
           status: 'failed',

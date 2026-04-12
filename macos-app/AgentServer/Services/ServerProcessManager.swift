@@ -113,8 +113,42 @@ final class ServerProcessManager {
             process.waitUntilExit()
             serverProcess = nil
             didStartServer = false
+        } else {
+            await killExternalServer()
         }
         launchServer()
+    }
+
+    private func killExternalServer() async {
+        guard await isServerRunning() else { return }
+
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/lsof")
+        task.arguments = ["-ti", "tcp:47821"]
+
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !output.isEmpty else { return }
+
+            for pidString in output.components(separatedBy: .newlines) {
+                if let pid = Int32(pidString.trimmingCharacters(in: .whitespaces)), pid > 0 {
+                    kill(pid, SIGTERM)
+                    print("[ServerProcessManager] Sent SIGTERM to external server (PID \(pid))")
+                }
+            }
+
+            try? await Task.sleep(for: .seconds(1))
+        } catch {
+            print("[ServerProcessManager] Failed to find external server process: \(error)")
+        }
     }
 
     private func isServerRunning() async -> Bool {
