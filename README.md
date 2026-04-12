@@ -943,6 +943,117 @@ Copy the DMG to a machine that has never run the app before. Mount, drag to Appl
 
 Expect the usual macOS permission prompts on first run: Calendars, Reminders, Notifications. They use the usage descriptions from `Info.plist`.
 
+## Releasing updates
+
+The macOS app ships with [Sparkle 2](https://sparkle-project.org) for auto-updates. Every running copy checks an appcast hourly and prompts the user when a new version is available.
+
+The full release pipeline is automated. One command cuts a release:
+
+```bash
+./scripts/release.sh 1.0.3 "<li>Fix cron parsing bug.</li><li>New agent template.</li>"
+```
+
+That command bumps the version, archives in Xcode, exports a signed `.app`, notarizes it, builds a signed+notarized+stapled DMG, Sparkle-signs the DMG, uploads both the DMG and updated appcast to Supabase Storage, and verifies everything resolves through the Dub shortlink.
+
+### Architecture
+
+```
+Running app                Dub shortlink                 Supabase Storage
+(Info.plist SUFeedURL) →   coolasspuppy.com/        →    hlwjnusdotqtmtwrjidu/
+                           agent-server-updates          downloads/appcast.xml
+                                                         downloads/AgentServer-*.dmg
+```
+
+Why a shortlink: the feed URL is baked into every shipped app's `Info.plist` and can never be changed. Dub lets you repoint the destination to a different host later (R2, S3, GitHub Releases) by editing one link. The DMG URLs in the appcast point directly at Supabase — no need to shortlink them because the appcast is rewritten on every release anyway.
+
+Why Supabase: egress is cheap at our scale, the `downloads` bucket is public so Sparkle reaches it without auth, and we already store the service-role key in Doppler for uploads.
+
+### One-time setup
+
+These steps are done once per project. If you're taking over an existing setup, you only need step 4.
+
+**1. Generate the Ed25519 signing key.** Download Sparkle tools, generate a key pair, back up the private key, put the public key in `Info.plist`.
+
+```bash
+# Download Sparkle tools
+curl -L https://github.com/sparkle-project/Sparkle/releases/download/2.6.4/Sparkle-2.6.4.tar.xz | tar -xJ -C /tmp
+mkdir -p ~/bin/sparkle
+cp /tmp/bin/{generate_keys,sign_update,generate_appcast} ~/bin/sparkle/
+
+# Generate the key pair. Private key lives in your login keychain.
+# Public key is printed — paste it into macos-app/AgentServer/Info.plist under SUPublicEDKey.
+~/bin/sparkle/generate_keys
+
+# Back up the private key. If you lose it, every installed copy is stranded.
+~/bin/sparkle/generate_keys -x ~/sparkle-private-key-backup.txt
+# Then: paste the contents into 1Password as a secure note, delete the file.
+```
+
+**2. Create the Supabase `downloads` bucket.** In the Supabase dashboard: Storage → New bucket → name `downloads`, set Public ON, raise the file size limit to 200 MB. Upload an empty placeholder `appcast.xml` with just the `<channel>` wrapper (the release script prepends `<item>` entries).
+
+**3. Create a Dub shortlink.** Destination: the Supabase appcast URL. Short URL: something stable you won't want to change. Cloaking/frame OFF. Put this shortlink in `Info.plist` under `SUFeedURL`. You can repoint the destination URL later; the slug is forever.
+
+**4. Set up the notarytool profile, Doppler secret, and Sparkle tools on your machine.**
+
+```bash
+# App-specific password from appleid.apple.com → Sign-In and Security → App-Specific Passwords
+xcrun notarytool store-credentials "agent-server" \
+  --apple-id "you@example.com" \
+  --team-id "YOURTEAMID" \
+  --password "xxxx-xxxx-xxxx-xxxx"
+
+# Verify you can pull the Supabase key
+doppler secrets get SB_AGENT_PANEL_SERVICE_ROLE_KEY --project agent-server --config prd --plain
+
+# Confirm Sparkle tools are installed
+ls ~/bin/sparkle/  # generate_keys, sign_update, generate_appcast
+```
+
+### Per-release flow
+
+```bash
+./scripts/release.sh 1.0.3 "<li>Release note one.</li><li>Release note two.</li>"
+```
+
+The script runs these steps in order. Any failure aborts immediately.
+
+1. **Bump version** in `macos-app/project.yml` (`MARKETING_VERSION` → new value, `CURRENT_PROJECT_VERSION` → current + 1). The Info.plist uses `$(MARKETING_VERSION)` and `$(CURRENT_PROJECT_VERSION)` variable substitution, so Xcode and the runtime pick these up automatically.
+2. **Regenerate** the Xcode project with xcodegen.
+3. **Archive** with `xcodebuild archive` in Release configuration.
+4. **Export** a Developer ID signed `.app` from the archive (using `scripts/export-options.plist`).
+5. **Notarize + staple** the `.app`. Blocks until Apple returns "Accepted", then staples the ticket.
+6. **Build the DMG** via `scripts/build-dmg.sh`: create-dmg with the background art, codesign the DMG with Developer ID, submit for notarization, staple, verify with Gatekeeper (`spctl`), then Sparkle-sign it. Produces `dist/AgentServer-<version>.dmg` and `dist/AgentServer-<version>.sparkle.txt`.
+7. **Fetch the Supabase service-role key** via `doppler secrets get SB_AGENT_PANEL_SERVICE_ROLE_KEY --project agent-server --config prd`.
+8. **Upload the DMG** to the `downloads` bucket via Supabase's Storage REST API with both `Authorization: Bearer` and `apikey` headers (required by the new `sb_secret_*` key format).
+9. **Prepend a new `<item>`** to `dist/appcast.xml` with the RFC 822 pub date, new version/build, release notes, and the `edSignature` + `length` from the Sparkle signing step. Upload the updated appcast.
+10. **Verify** the uploaded DMG size matches what Sparkle signed and the Dub shortlink resolves to the new appcast.
+
+Wall time: ~5–8 minutes, most of it spent waiting for Apple's notary service.
+
+After the script finishes, commit `macos-app/project.yml` + `dist/appcast.xml` + any code changes. The DMG is gitignored.
+
+### What installed apps see
+
+All previously-installed copies check the appcast every 24 hours in the background, or immediately when the user clicks **Agent Server → Check for Updates…** in the app menu. Sparkle 2 handles the whole download → verify signature → mount DMG → swap `.app` → relaunch flow.
+
+When `./scripts/release.sh` finishes uploading the new appcast, the following things happen without any further action:
+
+- The `agent-panel` website (`web/app/agent-server/page.tsx`) fetches the appcast on the server with a 5-minute revalidate window. The download button's `href` and the visible version label update automatically within 5 minutes.
+- Running copies of Agent Server pick up the new version on their next scheduled check.
+
+### Troubleshooting
+
+- **`source=no usable signature` after notarization**: the DMG wasn't codesigned before notarization. Check that `scripts/build-dmg.sh` runs `codesign --force --sign "$SIGN_IDENTITY" --timestamp` before `notarytool submit`.
+- **`Invalid Compact JWS` on upload**: Supabase's new `sb_secret_*` key format needs both `Authorization: Bearer` and `apikey` headers. The release script sets both.
+- **Website still shows the old version**: Vercel's edge cache matches Next.js's `revalidate: 300`, so the first visitor after the 5-minute window triggers a re-render. Until then, `curl -sI` on the page shows `age:` counting up and `x-vercel-cache: HIT`. Either wait or purge the cache from the Vercel dashboard.
+- **`Cannot find generate_keys`**: the Sparkle tools aren't in `~/bin/sparkle/`. Re-run the download in setup step 1, or point `SPARKLE_SIGN_UPDATE` at your preferred location.
+- **Sparkle won't relaunch after install (a "pop" sound)**: macOS `NSBeep` — `NSApp.terminate` was blocked by an open sheet. `UpdaterManager.updaterWillRelaunchApplication` dismisses all sheets before terminate to handle this. If you reintroduce a modal somewhere, make sure it's dismissable from that delegate callback.
+- **`notarytool` says "Invalid Credentials"**: the keychain profile expired (app-specific passwords rotate). Regenerate one at appleid.apple.com and re-run `xcrun notarytool store-credentials "agent-server" …`.
+
+### Rolling back
+
+Never amend a released `<item>` entry — some clients may already have it cached. To retract a bad release, ship the next version with a fix. If you absolutely must make an installed app downgrade to a prior version, you'd need to bump the build number and ship the old source tree with a new version string — painful, which is why you just fix forward.
+
 ## Monitoring with Agent Panel
 
 Agent Server reports status events via HTTP POST to a configurable panel endpoint. Events follow the [A2A protocol](https://google.github.io/A2A/) status format.

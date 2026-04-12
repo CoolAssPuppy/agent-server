@@ -169,6 +169,7 @@ DMG_NAME="AgentServer-$VERSION.dmg"
 echo "==> Uploading $DMG_NAME to Supabase bucket '$SUPABASE_BUCKET'"
 HTTP_CODE=$(curl -sS -o /tmp/release-upload.out -w "%{http_code}" -X POST \
   -H "Authorization: Bearer $SB_KEY" \
+  -H "apikey: $SB_KEY" \
   -H "Content-Type: application/x-apple-diskimage" \
   -H "x-upsert: true" \
   --data-binary "@$DMG" \
@@ -225,6 +226,7 @@ PY
 echo "==> Uploading appcast.xml"
 HTTP_CODE=$(curl -sS -o /tmp/release-upload.out -w "%{http_code}" -X POST \
   -H "Authorization: Bearer $SB_KEY" \
+  -H "apikey: $SB_KEY" \
   -H "Content-Type: application/xml" \
   -H "x-upsert: true" \
   --data-binary "@$APPCAST" \

@@ -97,6 +97,12 @@ echo ""
 echo "DMG built: $DMG_OUT"
 echo ""
 
+# Codesign the DMG itself with Developer ID. Without this, Gatekeeper rejects
+# the DMG with "no usable signature" even after notarization+stapling.
+SIGN_IDENTITY="${SIGN_IDENTITY:-Developer ID Application: Prashant Sridharan (955GSY56UT)}"
+echo "Codesigning DMG with: $SIGN_IDENTITY"
+codesign --force --sign "$SIGN_IDENTITY" --timestamp "$DMG_OUT"
+
 # Notarize the DMG. Sparkle 2 refuses to install an un-notarized DMG on macOS,
 # so this is required, not optional.
 echo "Notarizing DMG (this can take several minutes)..."

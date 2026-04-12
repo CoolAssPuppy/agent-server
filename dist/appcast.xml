@@ -6,6 +6,44 @@
     <description>Agent Server updates</description>
     <language>en</language>
     <item>
+      <title>Version 1.0.3</title>
+      <pubDate>Sun, 12 Apr 2026 20:25:53 +0000</pubDate>
+      <sparkle:version>5</sparkle:version>
+      <sparkle:shortVersionString>1.0.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Fix Sparkle auto-update relaunch: dismiss open sheets so terminate+relaunch completes cleanly.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://hlwjnusdotqtmtwrjidu.supabase.co/storage/v1/object/public/downloads/AgentServer-1.0.3.dmg"
+        sparkle:edSignature="QmZOaVbTbf4OKwjTKd3POHtNTWUHBJdtElNQ7rOFyc6LCLKR52J3kLae4Jr2tMfOZwj9dhGWe65w9QDB/VHsBg=="
+        length="30540135"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 1.0.2</title>
+      <pubDate>Sun, 12 Apr 2026 20:14:09 +0000</pubDate>
+      <sparkle:version>4</sparkle:version>
+      <sparkle:shortVersionString>1.0.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Added About window with Strategic Nerds logo, copyright, and Venmo link.</li>
+          <li>Custom main menu with Check for Updates and Settings items.</li>
+          <li>Venmo support link in Settings footer.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://hlwjnusdotqtmtwrjidu.supabase.co/storage/v1/object/public/downloads/AgentServer-1.0.2.dmg"
+        sparkle:edSignature="2QHmV4idylgDWhn2e45/XuaDG72brZDeKvC0PiYQU82ja3Xfu9Sg/G/CGeUpOgq+SuprVwudVYmHS+44F2Y+Bw=="
+        length="30536778"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
       <title>Version 1.0.1</title>
       <pubDate>Sun, 12 Apr 2026 19:45:00 +0000</pubDate>
       <sparkle:version>2</sparkle:version>
