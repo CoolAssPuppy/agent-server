@@ -28,6 +28,12 @@ program
   .command('start')
   .description('Start the server with HTTP API and agent scheduler')
   .action(() => {
+    // Self-heal on every launch: idempotently ensure ~/.agent-server/
+    // has its directories, .env scaffold, and sample agents. This makes
+    // the macOS app work out of the box on first install without the
+    // user having to run `agent-server init` manually.
+    initAgentServer(baseDir);
+
     const config = loadConfig();
     const server = startServer(config, { anthropicApiKey });
 
@@ -59,9 +65,9 @@ program
 
 program
   .command('init')
-  .description('Create config directory with a sample agent')
+  .description('Create config directory with sample agents and an .env scaffold')
   .action(() => {
-    initAgentServer(baseDir);
+    initAgentServer(baseDir, { verbose: true });
   });
 
 program
