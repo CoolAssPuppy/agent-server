@@ -844,6 +844,105 @@ When both Settings and `.env` have a value, Settings wins. To fall back to `.env
 
 Target: macOS 14.0+, Swift 5.9+.
 
+### Deployment
+
+Full release flow from source to a distributable DMG. Every step has to happen in order; skipping any of them produces a DMG that either won't launch on other Macs or gets blocked by Gatekeeper.
+
+#### Prerequisites (one-time)
+
+- A **paid** Apple Developer account (free personal teams cannot issue Developer ID certs).
+- A **Developer ID Application** certificate in your login Keychain, with its paired private key. Verify in Keychain Access → **My Certificates** (not "All Items"): the cert must have a disclosure triangle expanding to a private key. If it doesn't, Xcode → Settings → Accounts → your team → **Manage Certificates…** → **+** → **Developer ID Application**. This must be done *on the Mac you're building from* so the CSR's private key lives locally.
+- `brew install create-dmg`.
+- An app-specific password for notarization, stored in the keychain once:
+  ```bash
+  xcrun notarytool store-credentials agent-server-notary \
+    --apple-id "you@example.com" \
+    --team-id "955GSY56UT" \
+    --password "app-specific-password-from-appleid.apple.com"
+  ```
+
+> A note on signing UX: certs are scattered across Keychain, Xcode Settings, target settings, and the Organizer, each showing a different subset depending on build config and phase of the moon. "Sign to Run Locally" appearing as a first-class option next to real certs is peak Xcode. The Developer ID cert only shows up at the **Archive → Distribute** stage, not in the regular target's Signing & Capabilities dropdown. That's expected, not a bug.
+
+#### 1. Rebuild the server
+
+Any change under `server-app/` must be compiled before building the app, because the macOS app bundles `server-app/dist/` at build time.
+
+```bash
+cd server-app
+npm run type-check
+npm test
+npm run build
+```
+
+#### 2. Archive the macOS app
+
+```bash
+cd ../macos-app
+xcodegen generate
+```
+
+Then in Xcode:
+
+1. Open `AgentServer.xcodeproj`.
+2. Scheme → **AgentServer**, destination → **Any Mac**.
+3. **Product → Scheme → Edit Scheme → Archive → Build Configuration** must be **Release**.
+4. **Product → Archive**. Wait for the Organizer to open.
+
+The `preBuildScripts` phase stages production `node_modules/` in `.build-cache/server-bundle/` the first time (or whenever `package-lock.json` changes). The post-build phase embeds `agent-server-eventkit` into `Contents/Helpers/` and re-signs vendored Mach-O binaries inside `node_modules/` with the hardened runtime.
+
+#### 3. Export with Developer ID
+
+In the Organizer:
+
+1. Select the archive → **Distribute App**.
+2. Choose **Direct Distribution** (or **Developer ID** in older Xcode versions).
+3. Pick the **Developer ID Application** cert. This is the step where it finally appears in the dropdown.
+4. Choose whether to let Xcode notarize automatically (slower, but done) or export unnotarized (faster, you notarize the DMG in step 5).
+5. Export to a folder (e.g. `~/Desktop/AgentServer-export/`). You get `Agent Server.app`.
+
+Verify the signature:
+
+```bash
+codesign --verify --deep --strict --verbose=2 ~/Desktop/AgentServer-export/"Agent Server.app"
+spctl --assess --type execute --verbose ~/Desktop/AgentServer-export/"Agent Server.app"
+```
+
+#### 4. Build the DMG
+
+```bash
+cd /path/to/agent-server
+./scripts/build-dmg.sh ~/Desktop/AgentServer-export/"Agent Server.app" 1.0.0
+```
+
+Output lands at `dist/AgentServer-1.0.0.dmg`. The script uses `create-dmg` with a custom background (`macos-app/dmg-assets/background.tiff`) and drop-zones for the app and an `/Applications` symlink. If you edit the background PNG, update the drop-zone coordinates at the bottom of `scripts/build-dmg.sh`.
+
+#### 5. Notarize the DMG (if not auto-notarized)
+
+Notarize the DMG so Gatekeeper stops blocking it. Stapling embeds the ticket into the DMG so users can launch offline.
+
+```bash
+xcrun notarytool submit dist/AgentServer-1.0.0.dmg \
+  --keychain-profile agent-server-notary \
+  --wait
+
+xcrun stapler staple dist/AgentServer-1.0.0.dmg
+xcrun stapler validate dist/AgentServer-1.0.0.dmg
+```
+
+If `notarytool` returns `Invalid`, pull the log:
+
+```bash
+xcrun notarytool log <submission-id> --keychain-profile agent-server-notary
+```
+
+Common failures: an unsigned Mach-O binary inside `node_modules/` (the post-build script should have re-signed them — rebuild and check the build log for "Re-signed N Mach-O binaries"), or the hardened runtime missing on the helper.
+
+#### 6. Sanity check on a clean Mac
+
+Copy the DMG to a machine that has never run the app before. Mount, drag to Applications, launch. First launch should show the standard "downloaded from the internet" prompt but **not** "cannot be opened because the developer cannot be verified" — that second message means notarization failed or didn't staple.
+
+Expect the usual macOS permission prompts on first run: Calendars, Reminders, Notifications. They use the usage descriptions from `Info.plist`.
+
 ## Monitoring with Agent Panel
 
 Agent Server reports status events via HTTP POST to a configurable panel endpoint. Events follow the [A2A protocol](https://google.github.io/A2A/) status format.
