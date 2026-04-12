@@ -1,26 +1,34 @@
 #!/bin/bash
 #
-# Build a distributable DMG for Agent Server.
+# Build a distributable, notarized, Sparkle-signed DMG for Agent Server.
 #
 # Prerequisites:
-#   1. Xcode Archive + Developer ID export of "Agent Server.app" (notarized)
+#   1. Xcode Archive + Developer ID export of "Agent Server.app" (the .app
+#      must already be signed with Developer ID and notarized+stapled).
 #   2. `brew install create-dmg`
-#   3. Background PNG at macos-app/dmg-assets/background.png (1320x800)
+#   3. Background TIFF at macos-app/dmg-assets/background.tiff
+#   4. A `notarytool` keychain profile stored via:
+#        xcrun notarytool store-credentials <profile-name> --apple-id ... --team-id ... --password ...
+#   5. Sparkle `sign_update` tool at ~/bin/sparkle/sign_update (see SPARKLE.md).
 #
 # Usage:
-#   ./scripts/build-dmg.sh <path-to-exported-Agent-Server.app> [version]
+#   ./scripts/build-dmg.sh <path-to-Agent-Server.app> <version> <notarytool-profile>
 #
 # Example:
-#   ./scripts/build-dmg.sh ~/Desktop/AgentServer-export/Agent\ Server.app 1.0.0
+#   ./scripts/build-dmg.sh ~/Desktop/AgentServer-export/Agent\ Server.app 1.0.0 agent-server
 #
 # Output:
-#   dist/AgentServer-<version>.dmg
+#   dist/AgentServer-<version>.dmg               (signed, notarized, stapled)
+#   dist/AgentServer-<version>.sparkle.txt       (edSignature + length for appcast)
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_PATH="${1:?Usage: $0 <path-to-Agent-Server.app> [version]}"
-VERSION="${2:-1.0.0}"
+APP_PATH="${1:?Usage: $0 <path-to-Agent-Server.app> <version> <notarytool-profile>}"
+VERSION="${2:?Usage: $0 <path-to-Agent-Server.app> <version> <notarytool-profile>}"
+NOTARY_PROFILE="${3:?Usage: $0 <path-to-Agent-Server.app> <version> <notarytool-profile>}"
+
+SIGN_UPDATE="${SPARKLE_SIGN_UPDATE:-$HOME/bin/sparkle/sign_update}"
 
 BACKGROUND="$REPO_ROOT/macos-app/dmg-assets/background.tiff"
 DMG_OUT="$REPO_ROOT/dist/AgentServer-$VERSION.dmg"
@@ -44,6 +52,12 @@ fi
 
 if ! command -v create-dmg >/dev/null 2>&1; then
   echo "Error: create-dmg not installed. Run: brew install create-dmg"
+  exit 1
+fi
+
+if [[ ! -x "$SIGN_UPDATE" ]]; then
+  echo "Error: Sparkle sign_update not found at $SIGN_UPDATE"
+  echo "Install it (see SPARKLE.md) or set SPARKLE_SIGN_UPDATE to its path."
   exit 1
 fi
 
@@ -80,11 +94,38 @@ create-dmg \
   "$APP_PATH"
 
 echo ""
-echo "Done: $DMG_OUT"
+echo "DMG built: $DMG_OUT"
 echo ""
-echo "Next steps:"
-echo "  1. Mount and inspect:  open \"$DMG_OUT\""
-echo "  2. Verify signing:     codesign --verify --deep --strict --verbose=2 \"$DMG_OUT\""
-echo "  3. (Optional) Notarize the DMG itself for extra polish:"
-echo "       xcrun notarytool submit \"$DMG_OUT\" --keychain-profile <profile> --wait"
-echo "       xcrun stapler staple \"$DMG_OUT\""
+
+# Notarize the DMG. Sparkle 2 refuses to install an un-notarized DMG on macOS,
+# so this is required, not optional.
+echo "Notarizing DMG (this can take several minutes)..."
+xcrun notarytool submit "$DMG_OUT" --keychain-profile "$NOTARY_PROFILE" --wait
+
+echo ""
+echo "Stapling notarization ticket..."
+xcrun stapler staple "$DMG_OUT"
+
+echo ""
+echo "Verifying notarization..."
+xcrun stapler validate "$DMG_OUT"
+spctl -a -t open --context context:primary-signature -v "$DMG_OUT"
+
+echo ""
+echo "Signing DMG with Sparkle..."
+SPARKLE_OUT="${DMG_OUT%.dmg}.sparkle.txt"
+"$SIGN_UPDATE" "$DMG_OUT" | tee "$SPARKLE_OUT"
+
+echo ""
+echo "============================================================"
+echo "Release artifacts for v$VERSION"
+echo "============================================================"
+echo "  DMG:           $DMG_OUT"
+echo "  Sparkle info:  $SPARKLE_OUT"
+echo ""
+echo "Next steps (see SPARKLE.md step 6d-6f):"
+echo "  1. Upload $DMG_OUT to the Supabase 'downloads' bucket."
+echo "  2. Add an <item> to appcast.xml using the edSignature and length"
+echo "     printed above, then re-upload appcast.xml."
+echo "  3. Smoke-test by running a previous version of the app and clicking"
+echo "     'Check for Updates...'."

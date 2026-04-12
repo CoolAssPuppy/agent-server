@@ -1,0 +1,589 @@
+import { serve } from '@hono/node-server';
+import { createNodeWebSocket } from '@hono/node-ws';
+import { hostname } from 'os';
+import { join } from 'path';
+import { createApi } from './api.js';
+import { discoverAgents } from '../agents/discovery.js';
+import { RunStore } from '../reporting/store.js';
+import { runAgent } from '../execution/runner.js';
+import { executeAgent } from '../plugins/claude-code.js';
+import { ExecutorRegistry } from '../execution/executor-registry.js';
+import { createReporter } from '../reporting/reporter-factory.js';
+import { createPanelClient } from '../reporting/panel-client.js';
+import { shouldRun, hasMissedRun } from '../agents/scheduler.js';
+import { evaluateTriggers } from '../agents/triggers.js';
+import { FileWatcher, extractWatchConfigs } from '../agents/file-watcher.js';
+import { ChannelDispatcher } from '../channels/dispatcher.js';
+import { InteractionStore } from '../interaction/store.js';
+import { ConversationStore } from '../conversation/store.js';
+import { formatConversationHistory } from '../conversation/history-formatter.js';
+import { createTelegramChannel } from '../channels/telegram.js';
+import { formatAgentListMessage } from '../interaction/notification.js';
+import { routeMessage } from '../channels/router.js';
+import { randomUUID } from 'crypto';
+import { ProgressBroadcaster } from './websocket.js';
+import { sanitizeProgressEvent, sanitizeText } from './security-utils.js';
+const TIMEOUT_PATTERN = /^(\d+)(m|h)$/;
+const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
+export function isLoopbackHost(host) {
+    const normalized = host.trim().toLowerCase();
+    return normalized === '127.0.0.1' || normalized === '::1' || normalized === 'localhost';
+}
+function parseTimeout(timeout) {
+    const match = TIMEOUT_PATTERN.exec(timeout);
+    if (!match)
+        return DEFAULT_TIMEOUT_MS;
+    const value = parseInt(match[1], 10);
+    const unit = match[2];
+    return unit === 'h' ? value * 60 * 60 * 1000 : value * 60 * 1000;
+}
+export function isAllowedOrigin(originHeader, host) {
+    if (!originHeader)
+        return true;
+    try {
+        const origin = new URL(originHeader);
+        const originHost = origin.hostname.toLowerCase();
+        const normalizedHost = host.trim().toLowerCase();
+        if (originHost === normalizedHost)
+            return true;
+        if (isLoopbackHost(originHost) && isLoopbackHost(normalizedHost))
+            return true;
+        return false;
+    }
+    catch {
+        return false;
+    }
+}
+export function validateNetworkExposure(host, apiKey) {
+    const trimmedApiKey = apiKey?.trim();
+    if (!trimmedApiKey && !isLoopbackHost(host)) {
+        throw new Error('Refusing to bind to a non-loopback host without AGENT_SERVER_API_KEY');
+    }
+    if (trimmedApiKey && trimmedApiKey.length < 16) {
+        throw new Error('AGENT_SERVER_API_KEY must be at least 16 characters long');
+    }
+}
+const STALE_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+export function shouldSendTelegramRunNotification(agent, status) {
+    const notification = agent.notification;
+    if (!notification || notification.channel !== 'telegram') {
+        return true;
+    }
+    if (status === 'completed') {
+        return notification.on_complete !== true;
+    }
+    return notification.on_failure !== true;
+}
+/**
+ * Sentinel summary produced by plugins/claude-code.ts when the agent's final
+ * message is empty. Treating this as "silent mode" lets agents opt out of a
+ * completion notification by returning an empty final message. See the guard
+ * in {@link shouldDispatchNotification}.
+ */
+export const SILENT_COMPLETION_SUMMARY = 'Agent completed';
+/**
+ * Decides whether a run-completion or run-failure notification should be
+ * dispatched to the agent's configured channel.
+ *
+ * Silent-mode behavior: when an agent returns an empty final message, the
+ * claude-code plugin fills in the fallback string `"Agent completed"`. That
+ * fallback is not a meaningful summary — it means the agent had nothing to
+ * report — so completion notifications with that exact summary are suppressed.
+ * Failure notifications are never silenced by this rule.
+ */
+export function shouldDispatchNotification(agent, data) {
+    if (!agent.notification)
+        return false;
+    const shouldNotify = data.status === 'completed'
+        ? agent.notification.on_complete
+        : agent.notification.on_failure;
+    if (!shouldNotify)
+        return false;
+    if (data.status === 'completed' && data.summary === SILENT_COMPLETION_SUMMARY) {
+        return false;
+    }
+    return true;
+}
+export function startServer(config, options) {
+    validateNetworkExposure(config.host, config.apiKey);
+    const startedAt = new Date().toISOString();
+    const serverId = `${hostname()}-${process.pid}`;
+    const panelClient = createPanelClient(config);
+    const store = new RunStore();
+    const interactionStore = new InteractionStore();
+    const conversationStore = new ConversationStore();
+    const channelDispatcher = new ChannelDispatcher();
+    const port = config.port;
+    const executorRegistry = new ExecutorRegistry();
+    executorRegistry.register('claude-code', executeAgent);
+    executorRegistry.setDefault('claude-code');
+    const activeControllers = new Map();
+    const broadcaster = new ProgressBroadcaster();
+    let wsClientCount = 0;
+    async function handleInteractionResult(runId, agent, interaction) {
+        if (!agent.interaction)
+            return;
+        const interactionId = randomUUID();
+        const timeoutMs = parseTimeout(agent.interaction.timeout);
+        interactionStore.add({
+            id: interactionId,
+            runId,
+            agentId: agent.id,
+            replyAgentId: agent.interaction.on_reply,
+            request: interaction,
+            channel: agent.interaction.channel,
+            createdAt: new Date(),
+            expiresAt: new Date(Date.now() + timeoutMs),
+        });
+        await channelDispatcher.dispatch(interactionId, agent.interaction.channel, interaction);
+    }
+    function sendNotification(agent, runId, data) {
+        if (!shouldDispatchNotification(agent, data))
+            return;
+        if (!agent.notification)
+            return;
+        const storedRun = store.get(runId);
+        const notificationData = {
+            agentName: agent.name,
+            ...data,
+            turnCount: data.turnCount ?? storedRun?.turnCount,
+            toolsUsed: data.toolsUsed ?? storedRun?.toolsUsed,
+            filesWritten: data.filesWritten ?? storedRun?.filesWritten,
+            durationMs: storedRun?.startedAt
+                ? Date.now() - storedRun.startedAt.getTime()
+                : undefined,
+        };
+        channelDispatcher.notify(agent.notification.channel, notificationData)
+            .catch((err) => console.error(`[notification] Failed for ${agent.id}:`, err));
+    }
+    async function fireDownstreamTriggers(sourceAgentId, status) {
+        try {
+            const agents = await discoverAgents(config.agentsDir);
+            const downstream = evaluateTriggers(agents, sourceAgentId, status);
+            for (const agent of downstream) {
+                console.log(`[triggers] ${status} ${sourceAgentId} -> triggering ${agent.id}`);
+                triggerRunForAgent(agent);
+            }
+        }
+        catch (err) {
+            console.error(`[triggers] Failed to evaluate triggers for ${sourceAgentId}:`, err);
+        }
+    }
+    function triggerRunForAgent(agent, optionsOrSuffix, onDoneArg) {
+        const opts = typeof optionsOrSuffix === 'string'
+            ? { promptSuffix: optionsOrSuffix, onDone: onDoneArg }
+            : optionsOrSuffix ?? {};
+        const { promptSuffix, onDone, conversationId } = opts;
+        if (activeControllers.size >= config.maxConcurrentRuns) {
+            throw new Error('Too many active runs. Please retry later.');
+        }
+        const runId = randomUUID();
+        const abortController = new AbortController();
+        activeControllers.set(runId, abortController);
+        const now = new Date();
+        store.add({
+            runId,
+            agentId: agent.id,
+            agentName: agent.name,
+            status: 'running',
+            startedAt: now,
+            turnCount: 0,
+            toolsUsed: [],
+            filesRead: [],
+            filesWritten: [],
+            commandsRun: [],
+            progressMessages: [],
+            conversationId,
+        });
+        broadcaster.emit(sanitizeProgressEvent({
+            type: 'run_started',
+            runId,
+            agentId: agent.id,
+            timestamp: now.toISOString(),
+        }));
+        runAgent({
+            agent,
+            lockDir: config.lockDir,
+            execute: async (a, reporter) => {
+                const wrappedReporter = {
+                    start: () => reporter.start(),
+                    progress: (msg, meta) => {
+                        store.addProgress(runId, msg);
+                        if (meta) {
+                            store.update(runId, {
+                                turnCount: typeof meta.turns_completed === 'number' ? meta.turns_completed : 0,
+                                toolsUsed: Array.isArray(meta.tools_used) ? meta.tools_used : [],
+                            });
+                        }
+                        broadcaster.emit(sanitizeProgressEvent({
+                            type: 'run_progress',
+                            runId,
+                            agentId: agent.id,
+                            message: msg,
+                            metadata: meta,
+                            timestamp: new Date().toISOString(),
+                        }));
+                        return reporter.progress(msg, meta);
+                    },
+                    complete: (result) => reporter.complete(result),
+                    fail: (error) => reporter.fail(error),
+                    stop: () => reporter.stop(),
+                };
+                const executor = executorRegistry.resolve(a);
+                const result = await executor(a, wrappedReporter, { abortController });
+                store.update(runId, {
+                    status: 'completed',
+                    completedAt: new Date(),
+                    summary: result.summary,
+                    turnCount: result.turnCount,
+                    toolsUsed: result.toolsUsed,
+                    filesRead: result.filesRead,
+                    filesWritten: result.filesWritten,
+                    commandsRun: result.commandsRun,
+                });
+                if (result.interaction && agent.interaction) {
+                    void handleInteractionResult(runId, agent, result.interaction);
+                }
+                broadcaster.emit(sanitizeProgressEvent({
+                    type: 'run_completed',
+                    runId,
+                    agentId: agent.id,
+                    summary: result.summary,
+                    timestamp: new Date().toISOString(),
+                }));
+                sendNotification(agent, runId, {
+                    status: 'completed',
+                    summary: result.summary,
+                    turnCount: result.turnCount,
+                    toolsUsed: result.toolsUsed,
+                    filesWritten: result.filesWritten,
+                });
+                onDone?.({ status: 'completed', summary: result.summary });
+                void fireDownstreamTriggers(agent.id, 'completed');
+                return result;
+            },
+            createReporter: (rid, name, convId) => createReporter(config, rid, name, { serverId, conversationId: convId ?? conversationId }),
+            promptSuffix,
+        }).then((result) => {
+            activeControllers.delete(runId);
+            if (result.status === 'skipped') {
+                store.update(runId, {
+                    status: 'skipped',
+                    completedAt: new Date(),
+                });
+                return;
+            }
+            if (result.status === 'failed') {
+                store.update(runId, {
+                    status: 'failed',
+                    completedAt: new Date(),
+                    error: result.error,
+                });
+                broadcaster.emit(sanitizeProgressEvent({
+                    type: 'run_failed',
+                    runId,
+                    agentId: agent.id,
+                    error: result.error,
+                    timestamp: new Date().toISOString(),
+                }));
+                sendNotification(agent, runId, { status: 'failed', error: result.error });
+                onDone?.({ status: 'failed', error: result.error });
+                void fireDownstreamTriggers(agent.id, 'failed');
+            }
+        }).catch((err) => {
+            activeControllers.delete(runId);
+            const errorMsg = err instanceof Error ? err.message : String(err);
+            store.update(runId, {
+                status: 'failed',
+                completedAt: new Date(),
+                error: errorMsg,
+            });
+            broadcaster.emit(sanitizeProgressEvent({
+                type: 'run_failed',
+                runId,
+                agentId: agent.id,
+                error: errorMsg,
+                timestamp: new Date().toISOString(),
+            }));
+            sendNotification(agent, runId, { status: 'failed', error: errorMsg });
+            onDone?.({ status: 'failed', error: errorMsg });
+            void fireDownstreamTriggers(agent.id, 'failed');
+        });
+        return runId;
+    }
+    async function triggerRun(agentId, promptSuffix) {
+        const agents = await discoverAgents(config.agentsDir);
+        const agent = agents.find((a) => a.id === agentId);
+        if (!agent)
+            throw new Error(`Agent not found: ${agentId}`);
+        return triggerRunForAgent(agent, promptSuffix);
+    }
+    function cancelRun(runId) {
+        const controller = activeControllers.get(runId);
+        if (!controller)
+            return false;
+        controller.abort();
+        activeControllers.delete(runId);
+        store.update(runId, {
+            status: 'failed',
+            completedAt: new Date(),
+            error: 'Cancelled by user',
+        });
+        return true;
+    }
+    let lastCheckedAt = new Date();
+    const SLEEP_GAP_MULTIPLIER = 2;
+    async function runDueAgents() {
+        const agents = await discoverAgents(config.agentsDir);
+        const now = new Date();
+        if (config.catchUp) {
+            const gap = now.getTime() - lastCheckedAt.getTime();
+            if (gap > SLEEP_GAP_MULTIPLIER * config.checkIntervalMs) {
+                console.log(`[catch-up] Detected sleep gap of ${Math.round(gap / 1000)}s, checking for missed agents`);
+                const missedAgents = agents.filter((agent) => hasMissedRun(agent, lastCheckedAt, now));
+                for (const agent of missedAgents) {
+                    try {
+                        console.log(`[catch-up] Triggering missed agent: ${agent.id}`);
+                        triggerRunForAgent(agent);
+                    }
+                    catch (err) {
+                        console.error(`[catch-up] ${agent.id}: error - ${err}`);
+                    }
+                }
+            }
+        }
+        lastCheckedAt = now;
+        const dueAgents = agents.filter((agent) => shouldRun(agent, now));
+        if (dueAgents.length === 0)
+            return;
+        console.log(`[${now.toISOString()}] ${dueAgents.length} agent(s) due: ${dueAgents.map((a) => a.id).join(', ')}`);
+        for (const agent of dueAgents) {
+            try {
+                triggerRunForAgent(agent);
+            }
+            catch (err) {
+                console.error(`  ${agent.id}: error - ${err}`);
+            }
+        }
+    }
+    const app = createApi({
+        getAgents: () => discoverAgents(config.agentsDir),
+        store,
+        triggerRun,
+        cancelRun,
+        cleanupFn: panelClient
+            ? () => panelClient.failOrphanedRuns(serverId)
+            : undefined,
+        apiKey: config.apiKey,
+        startedAt,
+        host: config.host,
+    });
+    const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
+    app.get('/ws', upgradeWebSocket(() => {
+        let listener;
+        return {
+            onOpen(event, ws) {
+                const origin = event?.req?.raw?.headers.get('origin');
+                if (!isAllowedOrigin(origin ?? undefined, config.host)) {
+                    ws.close(1008, 'Origin not allowed');
+                    return;
+                }
+                if (wsClientCount >= config.maxWebSocketClients) {
+                    ws.close(1013, 'Server busy');
+                    return;
+                }
+                wsClientCount += 1;
+                listener = (progressEvent) => {
+                    ws.send(JSON.stringify(sanitizeProgressEvent(progressEvent)));
+                };
+                broadcaster.subscribe(listener);
+            },
+            onClose() {
+                if (listener) {
+                    broadcaster.unsubscribe(listener);
+                    listener = undefined;
+                }
+                if (wsClientCount > 0)
+                    wsClientCount -= 1;
+            },
+            onError(err) {
+                console.error('[ws] connection error:', sanitizeText(String(err), 300));
+            },
+        };
+    }));
+    const httpServer = serve({ fetch: app.fetch, port, hostname: config.host });
+    injectWebSocket(httpServer);
+    console.log(`Agent Server API listening on http://${config.host}:${port}`);
+    if (panelClient) {
+        void panelClient.failOrphanedRuns(serverId).then((cleaned) => {
+            if (cleaned > 0) {
+                console.log(`[startup] Cleaned up ${cleaned} orphaned run(s) from previous server instance`);
+            }
+        });
+    }
+    void runDueAgents();
+    const interval = setInterval(() => {
+        void runDueAgents();
+    }, config.checkIntervalMs);
+    const staleSweepInterval = panelClient
+        ? setInterval(() => {
+            void panelClient.markStaleRuns();
+        }, STALE_SWEEP_INTERVAL_MS)
+        : null;
+    async function setupFileWatchers() {
+        const agents = await discoverAgents(config.agentsDir);
+        const watchConfigs = extractWatchConfigs(agents);
+        if (watchConfigs.length === 0)
+            return null;
+        console.log(`  File watches: ${watchConfigs.length} path(s)`);
+        const watcher = new FileWatcher({
+            watches: watchConfigs,
+            onChange: (agentId, filePath) => {
+                console.log(`[file-watch] ${filePath} changed, triggering ${agentId}`);
+                void triggerRun(agentId).catch((err) => {
+                    console.error(`[file-watch] Failed to trigger ${agentId}: ${err}`);
+                });
+            },
+        });
+        watcher.start();
+        return watcher;
+    }
+    const fileWatcherPromise = setupFileWatchers();
+    async function setupTelegram() {
+        if (!config.telegramBotToken) {
+            console.log('Telegram bot disabled (no AGENT_SERVER_TELEGRAM_BOT_TOKEN set)');
+            return;
+        }
+        const chatIdPath = join(config.agentsDir, '..', 'telegram.json');
+        const telegramChannel = await createTelegramChannel({
+            botToken: config.telegramBotToken,
+            chatIdPath,
+        });
+        telegramChannel.onReply((reply) => {
+            const interaction = interactionStore.get(reply.interactionId);
+            if (!interaction || interaction.status !== 'pending')
+                return;
+            interactionStore.markActed(reply.interactionId);
+            const promptSuffix = reply.selectedValue ?? reply.freeText;
+            if (!promptSuffix)
+                return;
+            console.log(`[telegram] Reply for ${interaction.agentId}, triggering ${interaction.replyAgentId}`);
+            void triggerRun(interaction.replyAgentId, promptSuffix).catch((err) => {
+                console.error(`[telegram] Failed to trigger ${interaction.replyAgentId}: ${err}`);
+            });
+        });
+        telegramChannel.onMessage((text) => {
+            void (async () => {
+                try {
+                    const chatId = telegramChannel.getChatId();
+                    if (!chatId)
+                        return;
+                    const activeConv = conversationStore.findActiveByChat(chatId);
+                    if (activeConv) {
+                        const agents = await discoverAgents(config.agentsDir);
+                        const agent = agents.find((a) => a.id === activeConv.agentId);
+                        if (!agent) {
+                            conversationStore.expire(activeConv.id);
+                            await telegramChannel.notifyText('Conversation expired (agent not found).');
+                            return;
+                        }
+                        conversationStore.addMessage(activeConv.id, 'user', text);
+                        const history = formatConversationHistory(activeConv.messages.concat([{ role: 'user', content: text, createdAt: new Date() }]));
+                        const contextSuffix = `${history}\n\nUser's latest message: ${text}`;
+                        await telegramChannel.notifyText(`Running ${agent.name}...`);
+                        triggerRunForAgent(agent, {
+                            promptSuffix: contextSuffix,
+                            conversationId: activeConv.id,
+                            onDone: (done) => {
+                                if (done.status === 'completed' && done.summary) {
+                                    conversationStore.addMessage(activeConv.id, 'assistant', done.summary);
+                                }
+                                const data = done.status === 'completed'
+                                    ? { agentName: agent.name, status: 'completed', summary: done.summary }
+                                    : { agentName: agent.name, status: 'failed', error: done.error };
+                                if (shouldSendTelegramRunNotification(agent, done.status)) {
+                                    void telegramChannel.notify(data);
+                                }
+                            },
+                        });
+                        return;
+                    }
+                    const agents = await discoverAgents(config.agentsDir);
+                    const result = await routeMessage(text, agents, { apiKey: options?.anthropicApiKey });
+                    if (result.type === 'list') {
+                        await telegramChannel.notifyText(formatAgentListMessage(agents));
+                        return;
+                    }
+                    if (result.type === 'none') {
+                        await telegramChannel.notifyText('No matching agent found for your message.');
+                        return;
+                    }
+                    const { agent } = result;
+                    const isConversational = agent.conversation?.enabled === true;
+                    let convId;
+                    if (isConversational) {
+                        const ttlMs = parseTimeout(agent.conversation?.ttl ?? '30m');
+                        const conv = conversationStore.create(chatId, agent.id, ttlMs);
+                        convId = conv.id;
+                        conversationStore.addMessage(conv.id, 'user', text);
+                    }
+                    await telegramChannel.notifyText(`Running ${agent.name}...`);
+                    triggerRunForAgent(agent, {
+                        promptSuffix: result.context,
+                        conversationId: convId,
+                        onDone: (done) => {
+                            if (convId && done.status === 'completed' && done.summary) {
+                                conversationStore.addMessage(convId, 'assistant', done.summary);
+                            }
+                            const data = done.status === 'completed'
+                                ? { agentName: agent.name, status: 'completed', summary: done.summary }
+                                : { agentName: agent.name, status: 'failed', error: done.error };
+                            if (shouldSendTelegramRunNotification(agent, done.status)) {
+                                void telegramChannel.notify(data);
+                            }
+                        },
+                    });
+                }
+                catch (err) {
+                    const msg = err instanceof Error ? err.message : String(err);
+                    console.error(`[telegram] Message routing failed: ${msg}`);
+                    void telegramChannel.notifyText(`Error: ${msg}`);
+                }
+            })();
+        });
+        channelDispatcher.register(telegramChannel);
+        await telegramChannel.start();
+        console.log('  Telegram: connected');
+    }
+    const telegramPromise = setupTelegram();
+    const expiryInterval = setInterval(() => {
+        const expiredConvs = conversationStore.expireStale();
+        if (expiredConvs.length > 0) {
+            console.log(`[conversations] Expired ${expiredConvs.length} stale conversation(s)`);
+        }
+        const expiredIds = interactionStore.expireStale();
+        if (expiredIds.length > 0) {
+            console.log(`[interactions] Expired ${expiredIds.length} stale interaction(s)`);
+            const expiredWithChannels = expiredIds
+                .map((id) => {
+                const interaction = interactionStore.get(id);
+                return interaction ? { id, channel: interaction.channel } : null;
+            })
+                .filter((item) => item !== null);
+            void channelDispatcher.expireInteractions(expiredWithChannels);
+        }
+    }, 60_000);
+    return {
+        stop: () => {
+            clearInterval(interval);
+            clearInterval(expiryInterval);
+            if (staleSweepInterval)
+                clearInterval(staleSweepInterval);
+            httpServer.close();
+            void fileWatcherPromise.then((w) => w?.stop());
+            void telegramPromise.then(() => channelDispatcher.stopAll());
+            console.log('Agent Server stopped.');
+        },
+    };
+}
+//# sourceMappingURL=server.js.map

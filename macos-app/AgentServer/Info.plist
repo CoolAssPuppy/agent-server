@@ -19,9 +19,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
 	<key>LSMinimumSystemVersion</key>
@@ -36,5 +36,13 @@
 	<string>Agent Server reads and writes calendar events on behalf of agents you configure.</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
 	<string>Agent Server reads and writes reminders on behalf of agents you configure.</string>
+	<key>SUFeedURL</key>
+	<string>https://coolasspuppy.com/agent-server-updates</string>
+	<key>SUPublicEDKey</key>
+	<string>hIV1KEdDQd7xtUL0ZunRLIIujLV9FBBwJSxxNXuWXZM=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 </dict>
 </plist>

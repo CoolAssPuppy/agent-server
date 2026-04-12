@@ -4,6 +4,7 @@ import NerdsUI
 struct SettingsTabView: View {
     @ObservedObject var monitor: StatusMonitor
     @ObservedObject private var launchManager = LaunchAtLoginManager.shared
+    @ObservedObject private var updater = UpdaterManager.shared
     @AppStorage("catchUpEnabled") private var catchUpEnabled = false
     @State private var serverLocation: String = ServerProcessManager.configuredLocation() ?? ""
 
@@ -79,6 +80,27 @@ struct SettingsTabView: View {
                     }
                 }
 
+                Section("Updates") {
+                    Toggle("Automatically check for updates", isOn: $updater.automaticallyChecksForUpdates)
+
+                    HStack {
+                        Text("Current version")
+                        Spacer()
+                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0")
+                            .foregroundStyle(theme.tokens.mutedForeground)
+                            .monospacedDigit()
+                    }
+
+                    HStack {
+                        Spacer()
+                        Button("Check for Updates\u{2026}") {
+                            updater.checkForUpdates()
+                        }
+                        .controlSize(.small)
+                        .disabled(!updater.canCheckForUpdates)
+                    }
+                }
+
                 Section("Environment variables") {
                     EnvEditorView()
                 }
@@ -99,6 +121,12 @@ struct SettingsTabView: View {
                 Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1.0")")
                     .font(NTypography.captionSmall)
                     .foregroundStyle(theme.tokens.mutedForeground.opacity(0.4))
+
+                Link("Like Agent Server? Buy me coffee on Venmo: @coolasspuppy",
+                     destination: URL(string: "https://venmo.com/coolasspuppy")!)
+                    .font(NTypography.captionSmall)
+                    .foregroundStyle(theme.tokens.mutedForeground.opacity(0.8))
+                    .padding(.top, NSpacing.xs)
             }
             .frame(maxWidth: .infinity)
             .padding(.bottom, NSpacing.md)
