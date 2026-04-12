@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { existsSync, readFileSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { initAgentServer } from './init.js';
@@ -54,5 +54,41 @@ describe('initAgentServer', () => {
     initAgentServer(base);
     const afterContent = readFileSync(samplePath, 'utf-8');
     expect(afterContent).toBe(originalContent);
+  });
+
+  it('does not re-seed sample agents after the user deletes them', () => {
+    const base = createTempPath();
+    dirs.push(base);
+
+    initAgentServer(base);
+    const helloPath = join(base, 'agents', 'hello-world.yaml');
+    const pulsePath = join(base, 'agents', 'pulse.md');
+    expect(existsSync(helloPath)).toBe(true);
+    expect(existsSync(pulsePath)).toBe(true);
+
+    // User deletes the samples
+    unlinkSync(helloPath);
+    unlinkSync(pulsePath);
+
+    // Next launch should respect the deletion
+    initAgentServer(base);
+    expect(existsSync(helloPath)).toBe(false);
+    expect(existsSync(pulsePath)).toBe(false);
+  });
+
+  it('does not seed samples when the agents folder already has user agents', () => {
+    const base = createTempPath();
+    dirs.push(base);
+
+    // Simulate a user who brought their own agent before first launch
+    const agentsDir = join(base, 'agents');
+    mkdirSync(agentsDir, { recursive: true });
+    writeFileSync(join(agentsDir, 'my-agent.yaml'), 'id: my-agent\nname: Mine\n');
+
+    initAgentServer(base);
+
+    expect(existsSync(join(agentsDir, 'hello-world.yaml'))).toBe(false);
+    expect(existsSync(join(agentsDir, 'pulse.md'))).toBe(false);
+    expect(existsSync(join(agentsDir, 'my-agent.yaml'))).toBe(true);
   });
 });

@@ -1,5 +1,7 @@
-import { mkdirSync, writeFileSync, existsSync } from 'fs';
+import { mkdirSync, writeFileSync, existsSync, readdirSync } from 'fs';
 import { join } from 'path';
+
+const SEED_MARKER = '.seeded';
 
 const SAMPLE_AGENT_HELLO = `id: hello-world
 name: Hello World
@@ -119,8 +121,20 @@ export function initAgentServer(baseDir: string, options: InitOptions = {}): voi
   mkdirSync(locksDir, { recursive: true });
   mkdirSync(logsDir, { recursive: true });
 
-  writeIfMissing(join(agentsDir, 'hello-world.yaml'), SAMPLE_AGENT_HELLO, verbose);
-  writeIfMissing(join(agentsDir, 'pulse.md'), SAMPLE_AGENT_PULSE, verbose);
+  // Seed sample agents only on a true first run: no seed marker AND
+  // no pre-existing agent files. Either condition means the user has
+  // either already been through first-run (and possibly deleted the
+  // samples) or brought their own agents — in both cases, leave the
+  // folder alone.
+  const markerPath = join(agentsDir, SEED_MARKER);
+  if (!existsSync(markerPath) && isDirEmptyOfAgents(agentsDir)) {
+    writeIfMissing(join(agentsDir, 'hello-world.yaml'), SAMPLE_AGENT_HELLO, verbose);
+    writeIfMissing(join(agentsDir, 'pulse.md'), SAMPLE_AGENT_PULSE, verbose);
+  }
+  // Drop the marker so future launches never re-seed, even if the
+  // user deletes every agent.
+  writeIfMissing(markerPath, '', verbose);
+
   writeIfMissing(join(baseDir, '.env'), ENV_SCAFFOLD, verbose);
 
   if (verbose) {
@@ -139,4 +153,11 @@ function writeIfMissing(filePath: string, content: string, verbose: boolean): vo
   if (verbose) {
     console.log(`Created: ${filePath}`);
   }
+}
+
+function isDirEmptyOfAgents(dir: string): boolean {
+  if (!existsSync(dir)) return true;
+  const entries = readdirSync(dir);
+  // Hidden/system files (e.g. .DS_Store, .seeded) don't count.
+  return entries.every((name) => name.startsWith('.'));
 }

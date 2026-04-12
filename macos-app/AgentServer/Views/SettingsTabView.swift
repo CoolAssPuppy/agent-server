@@ -21,20 +21,8 @@ struct SettingsTabView: View {
                         }
 
                     VStack(alignment: .leading, spacing: NSpacing.xs) {
-                        Text("Server location")
                         HStack(spacing: NSpacing.sm) {
-                            if serverLocation.isEmpty {
-                                Text("Not configured (auto-detect)")
-                                    .foregroundStyle(theme.tokens.mutedForeground)
-                                    .font(NTypography.caption)
-                            } else {
-                                Text(serverLocation)
-                                    .font(.system(size: 11, design: .monospaced))
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                    .foregroundStyle(theme.tokens.mutedForeground)
-                                    .help(serverLocation)
-                            }
+                            Text("Server location")
                             Spacer()
                             Button("Choose\u{2026}") {
                                 chooseServerLocation()
@@ -47,6 +35,18 @@ struct SettingsTabView: View {
                                 }
                                 .controlSize(.small)
                             }
+                        }
+                        if serverLocation.isEmpty {
+                            Text("Built-in server detected")
+                                .foregroundStyle(theme.tokens.mutedForeground)
+                                .font(NTypography.caption)
+                        } else {
+                            Text(serverLocation)
+                                .font(.system(size: 11, design: .monospaced))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .foregroundStyle(theme.tokens.mutedForeground)
+                                .help(serverLocation)
                         }
                     }
 
