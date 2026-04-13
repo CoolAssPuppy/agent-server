@@ -163,18 +163,23 @@ private struct AgentRow: View {
         HStack(spacing: NSpacing.md) {
             ZStack {
                 RoundedRectangle(cornerRadius: NRadius.sm)
-                    .fill(kindColor.opacity(0.15))
+                    .fill((isRunning ? Color.green : kindColor).opacity(0.15))
                     .frame(width: 36, height: 36)
 
-                Image(systemName: agent.kind.icon)
-                    .font(.system(size: NIconSize.sm, weight: .medium))
-                    .foregroundStyle(kindColor)
+                if isRunning {
+                    GlowingPulsingBall(color: .green)
+                } else {
+                    Image(systemName: agent.kind.icon)
+                        .font(.system(size: NIconSize.sm, weight: .medium))
+                        .foregroundStyle(kindColor)
+                }
             }
 
             VStack(alignment: .leading, spacing: NSpacing.xxxs) {
                 HStack(spacing: NSpacing.xs) {
                     Text(agent.name)
                         .font(NTypography.headlineSmall)
+                        .foregroundStyle(theme.tokens.foreground)
 
                     if !agent.enabled {
                         Text("Disabled")
@@ -211,12 +216,28 @@ private struct AgentRow: View {
             }
 
             Spacer()
-
-            if isRunning {
-                PulsingDot(color: .green)
-            }
         }
         .padding(.vertical, NSpacing.xxs)
+    }
+}
+
+private struct GlowingPulsingBall: View {
+    let color: Color
+    @State private var isPulsing = false
+
+    var body: some View {
+        Circle()
+            .fill(color)
+            .frame(width: 14, height: 14)
+            .shadow(color: color.opacity(isPulsing ? 0.9 : 0.4), radius: isPulsing ? 8 : 3)
+            .shadow(color: color.opacity(isPulsing ? 0.6 : 0.2), radius: isPulsing ? 14 : 5)
+            .scaleEffect(isPulsing ? 1.08 : 0.92)
+            .opacity(isPulsing ? 1.0 : 0.75)
+            .animation(
+                .easeInOut(duration: 1.1).repeatForever(autoreverses: true),
+                value: isPulsing
+            )
+            .onAppear { isPulsing = true }
     }
 }
 

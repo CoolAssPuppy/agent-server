@@ -6,6 +6,24 @@
     <description>Agent Server updates</description>
     <language>en</language>
     <item>
+      <title>Version 1.0.4</title>
+      <pubDate>Mon, 13 Apr 2026 13:11:21 +0000</pubDate>
+      <sparkle:version>6</sparkle:version>
+      <sparkle:shortVersionString>1.0.4</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Folder picker now allows creating new folders.</li><li>Fixed washed-out text in Kujan and Graff (light) themes.</li><li>Improved primary text contrast in dark themes.</li><li>Running agents now display a glowing, pulsing green indicator in the agent list.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://hlwjnusdotqtmtwrjidu.supabase.co/storage/v1/object/public/downloads/AgentServer-1.0.4.dmg"
+        sparkle:edSignature="J1UKSFRhb/5A2CG3tekacYTeU8ywL99UmcjSwKnAV+5U8T7xuJVNxnDCUUq+ZGeVUBvnjh4KPu/9yLIZVlEVAw=="
+        length="30544773"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
       <title>Version 1.0.3</title>
       <pubDate>Sun, 12 Apr 2026 20:25:53 +0000</pubDate>
       <sparkle:version>5</sparkle:version>

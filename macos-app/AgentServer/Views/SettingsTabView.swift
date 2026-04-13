@@ -139,7 +139,7 @@ struct SettingsTabView: View {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.canCreateDirectories = false
+        panel.canCreateDirectories = true
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let path = url.path
