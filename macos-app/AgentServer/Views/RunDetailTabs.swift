@@ -213,6 +213,96 @@ struct LogsTabView: View {
     }
 }
 
+// MARK: - Decisions tab
+
+struct RunDecisionsTabView: View {
+    let viewModel: RunDecisionsViewModel
+
+    @Environment(\.nTheme) private var theme
+
+    var body: some View {
+        if viewModel.isEmpty {
+            emptyState
+        } else {
+            ScrollView {
+                VStack(alignment: .leading, spacing: NSpacing.lg) {
+                    if !viewModel.pending.isEmpty {
+                        section(title: "Pending", decisions: viewModel.pending, isPending: true)
+                    }
+                    if !viewModel.history.isEmpty {
+                        section(title: "History", decisions: viewModel.history, isPending: false)
+                    }
+                }
+                .padding(NSpacing.lg)
+            }
+            .accessibilityLabel("Decisions for this run")
+        }
+    }
+
+    private func section(title: String, decisions: [Decision], isPending: Bool) -> some View {
+        VStack(alignment: .leading, spacing: NSpacing.sm) {
+            Text(title)
+                .font(NTypography.labelMedium)
+                .foregroundStyle(theme.tokens.mutedForeground)
+            ForEach(decisions) { decision in
+                DecisionRunRow(decision: decision, isPending: isPending)
+            }
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: NSpacing.sm) {
+            Image(systemName: "questionmark.bubble")
+                .font(.system(size: NIconSize.lg))
+                .foregroundStyle(theme.tokens.mutedForeground.opacity(0.4))
+            Text("No decisions on this run")
+                .font(NTypography.bodyMedium)
+                .foregroundStyle(theme.tokens.mutedForeground)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.vertical, NSpacing.huge)
+    }
+}
+
+private struct DecisionRunRow: View {
+    let decision: Decision
+    let isPending: Bool
+
+    @Environment(\.nTheme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: NSpacing.xxs) {
+            HStack(spacing: NSpacing.xs) {
+                Text(decision.type.rawValue.capitalized)
+                    .font(NTypography.badge)
+                    .foregroundStyle(isPending ? theme.tokens.primaryForeground : theme.tokens.mutedForeground)
+                    .padding(.horizontal, NSpacing.xs)
+                    .padding(.vertical, NSpacing.xxxs)
+                    .background(isPending ? theme.tokens.primary : theme.tokens.muted)
+                    .clipShape(Capsule())
+                Text(decision.relativeCreatedAt)
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                Spacer()
+                if !isPending, let resolvedVia = decision.resolvedVia {
+                    Text("via \(resolvedVia)")
+                        .font(NTypography.caption)
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                }
+            }
+            Text(decision.title)
+                .font(NTypography.bodyMedium)
+                .foregroundStyle(theme.tokens.foreground)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(NSpacing.md)
+        .background(theme.tokens.muted.opacity(0.4))
+        .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(isPending ? "Pending" : "Resolved") \(decision.type.rawValue) decision: \(decision.title)")
+    }
+}
+
 // MARK: - Output tab
 
 struct OutputTabView: View {

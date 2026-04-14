@@ -35,10 +35,18 @@ struct AgentsListView: View {
         }
     }
 
+    private var badgeViewModel: AgentsListBadgeViewModel {
+        AgentsListBadgeViewModel(decisions: monitor.pendingDecisions)
+    }
+
     @ViewBuilder
     private var sidebar: some View {
         List(monitor.agents, selection: $selectedAgentId) { agent in
-            AgentRow(agent: agent, isRunning: isRunning(agent))
+            AgentRow(
+                agent: agent,
+                isRunning: isRunning(agent),
+                pendingDecisionsCount: badgeViewModel.badge(forAgentSlug: agent.id)
+            )
                 .tag(agent.id)
         }
         .listStyle(.sidebar)
@@ -151,6 +159,7 @@ struct AgentsListView: View {
 private struct AgentRow: View {
     let agent: Agent
     let isRunning: Bool
+    var pendingDecisionsCount: Int? = nil
 
     @Environment(\.nTheme) private var theme
 
@@ -180,6 +189,22 @@ private struct AgentRow: View {
                     Text(agent.name)
                         .font(NTypography.headlineSmall)
                         .foregroundStyle(theme.tokens.foreground)
+
+                    if let count = pendingDecisionsCount {
+                        HStack(spacing: NSpacing.xxxs) {
+                            Circle()
+                                .fill(theme.tokens.destructive)
+                                .frame(width: 6, height: 6)
+                            Text("\(count)")
+                                .font(NTypography.badge)
+                                .foregroundStyle(theme.tokens.destructive)
+                        }
+                        .padding(.horizontal, NSpacing.xs)
+                        .padding(.vertical, NSpacing.xxxs)
+                        .background(theme.tokens.destructive.opacity(0.12))
+                        .clipShape(Capsule())
+                        .accessibilityLabel("\(count) pending decision\(count == 1 ? "" : "s")")
+                    }
 
                     if !agent.enabled {
                         Text("Disabled")

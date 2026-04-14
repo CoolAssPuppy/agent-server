@@ -77,6 +77,40 @@ actor PanelClient {
         return parsed.runs
     }
 
+    // MARK: - Decisions
+
+    func fetchPendingDecisions() async throws -> [Decision] {
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("/api/decisions"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [URLQueryItem(name: "status", value: "pending")]
+
+        var request = URLRequest(url: components.url!)
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response)
+
+        let parsed = try decoder.decode(DecisionsResponse.self, from: data)
+        return parsed.decisions
+    }
+
+    func resolveDecision(id: String, body: DecisionResolveBody) async throws {
+        let url = baseURL.appendingPathComponent("/api/decisions/\(id)/resolve")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        request.httpBody = try encoder.encode(body)
+
+        let (_, response) = try await session.data(for: request)
+        try validateResponse(response)
+    }
+
     private func validateResponse(_ response: URLResponse) throws {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ClientError.invalidResponse

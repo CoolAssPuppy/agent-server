@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		02C20F87D5C7526ABDB06C67 /* RunDetailTabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A98A3C8D660F909083764E1 /* RunDetailTabs.swift */; };
+		0684663469A89D89CA00F022 /* RunDecisionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A846AEE9153B33BA7E15DB9 /* RunDecisionsViewModel.swift */; };
 		142B004902E78A73CD4D174B /* package.json in Resources */ = {isa = PBXBuildFile; fileRef = 34998C870C76F29FD6B67745 /* package.json */; };
 		1E5DAD909924982752591F2E /* MarkdownEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B514CCB37C240E8BC2D16DAE /* MarkdownEditor.swift */; };
 		1FC99E63F164FA6DF9287E79 /* RunHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF167864F821C8B9892C0849 /* RunHelpers.swift */; };
@@ -15,9 +16,11 @@
 		286D0BA5C8914421646E03D9 /* MCPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FDC36BB13528F7FD3BE8F2C /* MCPServer.swift */; };
 		2CDA922300E92E5825F5EEB1 /* PanelClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FE442CAD3D55ADB3B5F89D7 /* PanelClient.swift */; };
 		382BDD6B5E296A886C55232C /* EventKitHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9098758BCD6B9EC571281A51 /* EventKitHandler.swift */; };
+		3CB4D6BB18637F00B57B4B59 /* MenuBarDecisionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FD3C4BF1D811F05450C0CF2 /* MenuBarDecisionsViewModel.swift */; };
 		470120920161412825893DBC /* StatusMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DF962BADEAC09F5A5F46093 /* StatusMonitor.swift */; };
 		519B2C93BA543F3811D53C8E /* AgentServerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBA361A75AD13345528DB75F /* AgentServerApp.swift */; };
 		59592B3D24D39DD5E4D21714 /* NerdsUI in Frameworks */ = {isa = PBXBuildFile; productRef = 2A1CF52BEE1D8E2E8804D3C5 /* NerdsUI */; };
+		59831E5595B33F9E1EF1F7D3 /* Decision.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E3A0BC90A75E1C817A3238 /* Decision.swift */; };
 		5E2D43B8D9860050C5944FCA /* RunDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A520B1763B663153CBBA3F1B /* RunDetailView.swift */; };
 		666BECD19A8137F064869C82 /* LaunchAtLoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBF1B4A941CE9F9CD5925E4E /* LaunchAtLoginManager.swift */; };
 		6DC305D1685AE6EBD82B7427 /* UpdaterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C244E8EFAB9899352ECD2C /* UpdaterManager.swift */; };
@@ -26,6 +29,7 @@
 		87780D46FC7AA630FC93521B /* EnvEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE2D05889A0359D1B96434A4 /* EnvEditorView.swift */; };
 		8931C92E49FA360813268002 /* SettingsTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55DE0475DCC49D002DA3AECF /* SettingsTabView.swift */; };
 		8952BBEC6C2E7723B78B683A /* AgentModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE7640067645F8E1352BCE04 /* AgentModel.swift */; };
+		8D9A0C7374DD4D1B57E281E3 /* AgentsListBadgeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 689DD1451D8EBE1AF2A3FBE1 /* AgentsListBadgeViewModel.swift */; };
 		8FCB715D7BFE32EFB9E8DBBD /* node_modules in Resources */ = {isa = PBXBuildFile; fileRef = 4AC0BFA54BF2C9E3FD945E78 /* node_modules */; };
 		90D2742B2CD0C605C3181ED4 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B8C3600FDBE09650A796C7E /* main.swift */; };
 		91E11BD741066906FB70BE46 /* dist in Resources */ = {isa = PBXBuildFile; fileRef = 98817ADC119A4121E0A3B079 /* dist */; };
@@ -61,15 +65,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0FD3C4BF1D811F05450C0CF2 /* MenuBarDecisionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarDecisionsViewModel.swift; sourceTree = "<group>"; };
 		1166D983A336A4F217C9282E /* PanelRun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelRun.swift; sourceTree = "<group>"; };
 		1359015CD6B7782FF2A70E69 /* EventKitPermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitPermissionManager.swift; sourceTree = "<group>"; };
 		2AEC874CD4B98C234CA70908 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		34998C870C76F29FD6B67745 /* package.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = package.json; sourceTree = "<group>"; };
 		3B0EE1DB6BF41B4EA3CC6310 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		3FA7DF74260188E7ABD701D6 /* ServerProcessManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerProcessManager.swift; sourceTree = "<group>"; };
-		41C82F59F5DF4F52A592AD3F /* swift */ = {isa = PBXFileReference; lastKnownFileType = folder; name = swift; path = ../../../../nerdsui/swift; sourceTree = SOURCE_ROOT; };
+		41C82F59F5DF4F52A592AD3F /* swift */ = {isa = PBXFileReference; lastKnownFileType = folder; name = swift; path = ../../../../../../nerdsui/swift; sourceTree = SOURCE_ROOT; };
 		4262F21955BC608AD2576EA7 /* AgentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentDetailView.swift; sourceTree = "<group>"; };
 		4900D26B20B4FF31D3A37106 /* AgentServerPalettes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentServerPalettes.swift; sourceTree = "<group>"; };
+		4A846AEE9153B33BA7E15DB9 /* RunDecisionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDecisionsViewModel.swift; sourceTree = "<group>"; };
 		4A98A3C8D660F909083764E1 /* RunDetailTabs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailTabs.swift; sourceTree = "<group>"; };
 		4AC0BFA54BF2C9E3FD945E78 /* node_modules */ = {isa = PBXFileReference; lastKnownFileType = folder; name = node_modules; path = ".build-cache/server-bundle/node_modules"; sourceTree = SOURCE_ROOT; };
 		4ADB33D19CFCCCE6AC45B049 /* AgentServer.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AgentServer.entitlements; sourceTree = "<group>"; };
@@ -79,6 +85,7 @@
 		5D862852E3835F69170B608A /* AgentEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentEditorView.swift; sourceTree = "<group>"; };
 		5FDC36BB13528F7FD3BE8F2C /* MCPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServer.swift; sourceTree = "<group>"; };
 		643CBD2E294E942C10398144 /* AgentRunsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRunsView.swift; sourceTree = "<group>"; };
+		689DD1451D8EBE1AF2A3FBE1 /* AgentsListBadgeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentsListBadgeViewModel.swift; sourceTree = "<group>"; };
 		6DF962BADEAC09F5A5F46093 /* StatusMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusMonitor.swift; sourceTree = "<group>"; };
 		76D1FBFD51A44407DC395C7F /* AgentServerClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentServerClient.swift; sourceTree = "<group>"; };
 		7B8C3600FDBE09650A796C7E /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
@@ -94,6 +101,7 @@
 		ACF4DF2407A9787F480AEEE7 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		B514CCB37C240E8BC2D16DAE /* MarkdownEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownEditor.swift; sourceTree = "<group>"; };
 		B66EAB07DB79E15BAC20F17E /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		B9E3A0BC90A75E1C817A3238 /* Decision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Decision.swift; sourceTree = "<group>"; };
 		BBF1B4A941CE9F9CD5925E4E /* LaunchAtLoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginManager.swift; sourceTree = "<group>"; };
 		BF167864F821C8B9892C0849 /* RunHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunHelpers.swift; sourceTree = "<group>"; };
 		BF267E78CF53DB3D651E8D62 /* AgentServer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AgentServer.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -166,6 +174,7 @@
 				98817ADC119A4121E0A3B079 /* dist */,
 				4AC0BFA54BF2C9E3FD945E78 /* node_modules */,
 				A4C6DD20EC2DD9F19B4B0BEF /* AgentServer */,
+				F6B39A2CC067BCD5335D3A5D /* AgentServerCore */,
 				F8442B1515EB5212D1D69158 /* AgentServerEventKit */,
 				CDBA99D8972601D447FD2331 /* Packages */,
 				5423C5A5A8FAB60711E72401 /* server-app */,
@@ -240,6 +249,18 @@
 				41C82F59F5DF4F52A592AD3F /* swift */,
 			);
 			name = Packages;
+			sourceTree = "<group>";
+		};
+		F6B39A2CC067BCD5335D3A5D /* AgentServerCore */ = {
+			isa = PBXGroup;
+			children = (
+				689DD1451D8EBE1AF2A3FBE1 /* AgentsListBadgeViewModel.swift */,
+				B9E3A0BC90A75E1C817A3238 /* Decision.swift */,
+				0FD3C4BF1D811F05450C0CF2 /* MenuBarDecisionsViewModel.swift */,
+				4A846AEE9153B33BA7E15DB9 /* RunDecisionsViewModel.swift */,
+			);
+			name = AgentServerCore;
+			path = AgentServerSwiftTests/Sources/AgentServerCore;
 			sourceTree = "<group>";
 		};
 		F8442B1515EB5212D1D69158 /* AgentServerEventKit */ = {
@@ -327,7 +348,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				0793D742AA9538F857ADBE9E /* XCRemoteSwiftPackageReference "Sparkle" */,
-				36DFF1AE84418537001A2BBE /* XCLocalSwiftPackageReference "../../../../nerdsui/swift" */,
+				ACDB56C2C5568BCC61F9D964 /* XCLocalSwiftPackageReference "../../../../nerdsui/swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C7AF683C4FC612BD0C84F3B0 /* Products */;
@@ -420,18 +441,22 @@
 				99DA993395D36324F62670AF /* AgentServerClient.swift in Sources */,
 				DF5DBE12E018D9F4F22178C5 /* AgentServerPalettes.swift in Sources */,
 				E5FDD1F3278B244A0371D3EC /* AgentServerTheme.swift in Sources */,
+				8D9A0C7374DD4D1B57E281E3 /* AgentsListBadgeViewModel.swift in Sources */,
 				C9E2E13C6B848A341745C6BB /* AgentsListView.swift in Sources */,
 				E883FEF25E1CA4ADE2A5E648 /* AppDelegate.swift in Sources */,
+				59831E5595B33F9E1EF1F7D3 /* Decision.swift in Sources */,
 				87780D46FC7AA630FC93521B /* EnvEditorView.swift in Sources */,
 				EE292187B9B2FC34A554F88C /* EnvFile.swift in Sources */,
 				A0D0411E2B0DE47445503404 /* EventKitPermissionManager.swift in Sources */,
 				666BECD19A8137F064869C82 /* LaunchAtLoginManager.swift in Sources */,
 				D42B7EBEF97546289CB6A551 /* MarkdownContentView.swift in Sources */,
 				1E5DAD909924982752591F2E /* MarkdownEditor.swift in Sources */,
+				3CB4D6BB18637F00B57B4B59 /* MenuBarDecisionsViewModel.swift in Sources */,
 				F3428059091E528FF3F7B8CF /* MenuBarPopover.swift in Sources */,
 				24C3E239750CE16796D6085C /* NotificationManager.swift in Sources */,
 				2CDA922300E92E5825F5EEB1 /* PanelClient.swift in Sources */,
 				7A01C939E76AF850AAD3EC4E /* PanelRun.swift in Sources */,
+				0684663469A89D89CA00F022 /* RunDecisionsViewModel.swift in Sources */,
 				A965DC2A98A88151EDC11360 /* RunDetailGutter.swift in Sources */,
 				02C20F87D5C7526ABDB06C67 /* RunDetailTabs.swift in Sources */,
 				5E2D43B8D9860050C5944FCA /* RunDetailView.swift in Sources */,
@@ -690,7 +715,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		36DFF1AE84418537001A2BBE /* XCLocalSwiftPackageReference "../../../../nerdsui/swift" */ = {
+		ACDB56C2C5568BCC61F9D964 /* XCLocalSwiftPackageReference "../../../../nerdsui/swift" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../../../../nerdsui/swift;
 		};
