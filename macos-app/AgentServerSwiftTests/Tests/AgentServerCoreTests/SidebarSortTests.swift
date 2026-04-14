@@ -4,7 +4,15 @@ import XCTest
 final class SidebarSortTests: XCTestCase {
 
     private func agent(_ id: String, _ name: String, slug: String? = nil) -> SidebarAgent {
-        SidebarAgent(id: id, slug: slug ?? id, name: name, description: nil)
+        SidebarAgent(
+            id: id,
+            slug: slug ?? id,
+            name: name,
+            description: nil,
+            scheduleLabel: nil,
+            kind: .scheduled,
+            lastRunFailed: false
+        )
     }
 
     func testAlphabeticalSortByNameCaseInsensitive() {
@@ -59,7 +67,7 @@ final class SidebarSortTests: XCTestCase {
         )
 
         let rows = SidebarSort.sortedRows(
-            agents: [SidebarAgent(id: "f", slug: "finance", name: "Finance", description: nil)],
+            agents: [SidebarAgent(id: "f", slug: "finance", name: "Finance", description: nil, scheduleLabel: nil, kind: .scheduled, lastRunFailed: false)],
             runningAgentIds: [],
             pendingDecisions: [decision]
         )
@@ -88,7 +96,7 @@ final class SidebarSortTests: XCTestCase {
         )
 
         let rows = SidebarSort.sortedRows(
-            agents: [SidebarAgent(id: "f", slug: "finance", name: "Finance", description: nil)],
+            agents: [SidebarAgent(id: "f", slug: "finance", name: "Finance", description: nil, scheduleLabel: nil, kind: .scheduled, lastRunFailed: false)],
             runningAgentIds: ["f"],
             pendingDecisions: [decision]
         )
