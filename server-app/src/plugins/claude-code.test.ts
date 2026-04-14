@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { EventEmitter } from 'events';
 import type { Reporter } from '../execution/runner.js';
 import type { AgentConfig } from '../agents/config.js';
+import type { SseEventBus } from '../execution/decision-handler.js';
 
 function createMockReporter(): Reporter {
   return {
@@ -326,6 +328,129 @@ describe('executeAgent with Agent SDK', () => {
     expect(unlisted.behavior).toBe('deny');
   });
 
+  it('pauses and resumes when assistant emits a decision block', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+    const bus = new EventEmitter() as SseEventBus;
+
+    const decisionJson = JSON.stringify({
+      type: 'approve',
+      title: 'Approve?',
+      approve_label: 'Yes',
+    });
+
+    const fetchFn = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ decision_id: 'dec-xyz' }),
+    });
+
+    let queryCallCount = 0;
+    mockQuery.mockImplementation(() => {
+      queryCallCount++;
+      if (queryCallCount === 1) {
+        return createAsyncGenerator([
+          createAssistantMessage(`I need approval.\n\n\`\`\`decision\n${decisionJson}\n\`\`\``),
+        ]);
+      }
+      return createAsyncGenerator([
+        createAssistantMessage('Proceeding with purchase.'),
+        createResultSuccess({ result: 'Done', num_turns: 2 }),
+      ]);
+    });
+
+    const reporter = createMockReporter();
+    const resultPromise = executeAgent(createAgentConfig(), reporter, {
+      decisionContext: {
+        runId: 'run-abc',
+        panelUrl: 'https://panel.example',
+        panelApiKey: 'k',
+        eventBus: bus,
+        fetch: fetchFn,
+      },
+    });
+
+    // Resolve the decision after the first turn is observed.
+    setTimeout(() => {
+      bus.emit('decision_resolved', {
+        id: 1,
+        type: 'decision_resolved',
+        decision_id: 'dec-xyz',
+        task_run_id: 'run-abc',
+        resolution: { action_id: 'approve' },
+      });
+    }, 20);
+
+    const result = await resultPromise;
+    expect(result.summary).toBe('Done');
+    expect(fetchFn).toHaveBeenCalledOnce();
+    const postBody = JSON.parse(fetchFn.mock.calls[0][1].body);
+    expect(postBody.state).toBe('input_required');
+    expect(postBody.decision.title).toBe('Approve?');
+    expect(queryCallCount).toBe(2);
+
+    const resumedPrompt = mockQuery.mock.calls[1][0].prompt as string;
+    expect(resumedPrompt).toContain('User approved: Yes.');
+  });
+
+  it('fails the run when a decision times out', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+    const bus = new EventEmitter() as SseEventBus;
+
+    const decisionJson = JSON.stringify({
+      type: 'approve',
+      title: 'Approve?',
+      due_at: new Date(Date.now() - 10 * 60_000).toISOString(),
+    });
+
+    const fetchFn = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ decision_id: 'dec-t' }),
+      })
+      .mockResolvedValueOnce({ ok: true, status: 200 });
+
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createAssistantMessage(`Need approval.\n\n\`\`\`decision\n${decisionJson}\n\`\`\``),
+    ]));
+
+    const reporter = createMockReporter();
+
+    await expect(
+      executeAgent(createAgentConfig(), reporter, {
+        decisionContext: {
+          runId: 'run-t',
+          panelUrl: 'https://p',
+          panelApiKey: 'k',
+          eventBus: bus,
+          fetch: fetchFn,
+        },
+      }),
+    ).rejects.toThrow('Decision timed out');
+
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    const failedBody = JSON.parse(fetchFn.mock.calls[1][1].body);
+    expect(failedBody.state).toBe('failed');
+  });
+
+  it('ignores decision blocks when no decisionContext is provided (backward compat)', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+
+    const decisionJson = JSON.stringify({
+      type: 'approve',
+      title: 'Approve?',
+    });
+
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createAssistantMessage(`With decision block.\n\n\`\`\`decision\n${decisionJson}\n\`\`\``),
+      createResultSuccess({ result: 'Done', num_turns: 1 }),
+    ]));
+
+    const reporter = createMockReporter();
+    const result = await executeAgent(createAgentConfig(), reporter);
+    expect(result.summary).toBe('Done');
+  });
+
   it('returns default summary when result text is empty', async () => {
     const { executeAgent } = await import('./claude-code.js');
 
@@ -582,6 +707,7 @@ function createAsyncGenerator<T>(items: T[]) {
   return Object.assign(gen, {
     mcpServerStatus: mockMcpServerStatus,
     reconnectMcpServer: mockReconnectMcpServer,
+    interrupt: vi.fn().mockResolvedValue(undefined),
   });
 }
 

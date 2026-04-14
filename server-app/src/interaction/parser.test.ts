@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseInteractionBlock } from './parser.js';
+import { parseInteractionBlock, parseDecisionBlock } from './parser.js';
 
 describe('parseInteractionBlock', () => {
   it('extracts a valid interaction block from text', () => {
@@ -96,5 +96,85 @@ Let me know which one you prefer.`;
 Just regular output.`;
 
     expect(parseInteractionBlock(text)).toBeUndefined();
+  });
+});
+
+describe('parseDecisionBlock', () => {
+  it('extracts a valid approve decision block', () => {
+    const text = `Thinking about it.
+
+\`\`\`decision
+{
+  "type": "approve",
+  "title": "Approve purchase?",
+  "body": "The vendor quoted $1,200.",
+  "approve_label": "Approve",
+  "decline_label": "Decline"
+}
+\`\`\`
+`;
+    const result = parseDecisionBlock(text);
+    expect(result).toBeDefined();
+    expect(result!.type).toBe('approve');
+    expect(result!.title).toBe('Approve purchase?');
+  });
+
+  it('extracts a valid pick decision block', () => {
+    const text = `\`\`\`decision
+{
+  "type": "pick",
+  "title": "Pick a slot",
+  "options": [
+    { "id": "slot_1", "label": "19:00" },
+    { "id": "slot_2", "label": "20:30" }
+  ]
+}
+\`\`\``;
+    const result = parseDecisionBlock(text);
+    expect(result).toBeDefined();
+    expect(result!.type).toBe('pick');
+    if (result!.type === 'pick') {
+      expect(result!.options).toHaveLength(2);
+    }
+  });
+
+  it('returns undefined when no decision block is present', () => {
+    expect(parseDecisionBlock('just plain text')).toBeUndefined();
+  });
+
+  it('returns undefined for malformed JSON', () => {
+    const text = `\`\`\`decision
+{ not valid json }
+\`\`\``;
+    expect(parseDecisionBlock(text)).toBeUndefined();
+  });
+
+  it('returns undefined when schema validation fails', () => {
+    const text = `\`\`\`decision
+{ "type": "approve" }
+\`\`\``;
+    expect(parseDecisionBlock(text)).toBeUndefined();
+  });
+
+  it('does not throw on random fenced blocks', () => {
+    const text = '```json\n{"x":1}\n```';
+    expect(() => parseDecisionBlock(text)).not.toThrow();
+    expect(parseDecisionBlock(text)).toBeUndefined();
+  });
+
+  it('coexists with interaction block — decision parser ignores interaction blocks', () => {
+    const text = `\`\`\`interaction
+{ "message": "hi", "freeText": true }
+\`\`\``;
+    expect(parseDecisionBlock(text)).toBeUndefined();
+    expect(parseInteractionBlock(text)).toBeDefined();
+  });
+
+  it('coexists with interaction block — interaction parser ignores decision blocks', () => {
+    const text = `\`\`\`decision
+{ "type": "approve", "title": "ok?" }
+\`\`\``;
+    expect(parseInteractionBlock(text)).toBeUndefined();
+    expect(parseDecisionBlock(text)).toBeDefined();
   });
 });

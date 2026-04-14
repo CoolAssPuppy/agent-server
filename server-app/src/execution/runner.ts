@@ -4,6 +4,7 @@ import type { ExecutionResult } from './executor.js';
 import { acquireLock, releaseLock } from './lockfile.js';
 import { sanitizePromptSuffix } from '../server/security-utils.js';
 import { assessPromptInjectionRisk, wrapUntrustedUserContext } from './prompt-injection.js';
+import type { DecisionContext } from './decision-handler.js';
 
 export type RunResult = {
   runId?: string;
@@ -23,14 +24,19 @@ export type Reporter = {
 type RunAgentOptions = {
   agent: AgentConfig;
   lockDir: string;
-  execute: (agent: AgentConfig, reporter: Reporter) => Promise<ExecutionResult>;
+  execute: (
+    agent: AgentConfig,
+    reporter: Reporter,
+    context?: { runId: string; decisionContext?: DecisionContext },
+  ) => Promise<ExecutionResult>;
   createReporter: (runId: string, agentName: string, conversationId?: string) => Reporter;
   promptSuffix?: string;
   conversationId?: string;
+  buildDecisionContext?: (runId: string) => DecisionContext | undefined;
 };
 
 export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
-  const { agent, lockDir, execute, createReporter, promptSuffix, conversationId } = options;
+  const { agent, lockDir, execute, createReporter, promptSuffix, conversationId, buildDecisionContext } = options;
 
   if (!acquireLock(lockDir, agent.id)) {
     return { status: 'skipped' };
@@ -75,7 +81,8 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
       }
     }
 
-    const result = await execute(effectiveAgent, reporter);
+    const decisionContext = buildDecisionContext?.(runId);
+    const result = await execute(effectiveAgent, reporter, { runId, decisionContext });
     await reporter.complete(result);
     reporter.stop();
     return { runId, status: 'completed', result };

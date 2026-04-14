@@ -5,11 +5,14 @@ import { resolveEnvVars } from '../agents/config.js';
 import type { Reporter } from '../execution/runner.js';
 import { truncate, WRITE_TOOLS, type ExecutionResult, type McpServerInfo } from '../execution/executor.js';
 import { expandHome } from '../agents/file-watcher.js';
-import { parseInteractionBlock } from '../interaction/parser.js';
+import { parseInteractionBlock, parseDecisionBlock } from '../interaction/parser.js';
 import { buildCanUseTool } from '../execution/permissions.js';
+import { runDecisionCycle, type DecisionContext } from '../execution/decision-handler.js';
 
 type ExecuteAgentExtra = {
   abortController?: AbortController;
+  decisionContext?: DecisionContext;
+  runId?: string;
 };
 
 export async function executeAgent(
@@ -45,93 +48,135 @@ export async function executeAgent(
   let lastAssistantText = '';
   let lastToolName: string | null = null;
   let mcpServers: McpServerInfo[] = [];
+  let currentPrompt = agent.prompt;
+  const resumptionHistory: string[] = [];
 
-  const stream = query({ prompt: agent.prompt, options });
+  // Outer loop runs one SDK invocation per paused-and-resumed segment. Each
+  // `query()` call emits an assistant stream; if a decision block appears
+  // mid-stream, we pause, await resolution, and restart the SDK with the
+  // resumption text appended to the prompt. Without a decisionContext this
+  // loop runs exactly once (backward compatible).
+  while (true) {
+    const stream = query({ prompt: currentPrompt, options });
 
-  mcpServers = await handleMcpServerStatus(stream, reporter);
+    mcpServers = await handleMcpServerStatus(stream, reporter);
 
-  for await (const message of stream) {
-    if (message.type === 'assistant') {
-      turnCount++;
-      const content = message.message?.content;
-      if (!Array.isArray(content)) continue;
+    let decisionHandled = false;
+    let resultPayload: ExecutionResult | undefined;
 
-      const textParts: string[] = [];
+    for await (const message of stream) {
+      if (message.type === 'assistant') {
+        turnCount++;
+        const content = message.message?.content;
+        if (!Array.isArray(content)) continue;
 
-      for (const block of content) {
-        if (block.type === 'text' && 'text' in block) {
-          textParts.push(block.text as string);
+        const textParts: string[] = [];
+
+        for (const block of content) {
+          if (block.type === 'text' && 'text' in block) {
+            textParts.push(block.text as string);
+          }
+
+          if (block.type === 'tool_use' && 'name' in block) {
+            const name = block.name as string;
+            toolsUsed.add(name);
+            lastToolName = name;
+
+            const input = ('input' in block ? block.input : {}) as Record<string, unknown>;
+            const filePath = typeof input.file_path === 'string' ? input.file_path : null;
+
+            if (name === 'Read' && filePath) {
+              allFilesRead.add(filePath);
+            } else if (WRITE_TOOLS.has(name) && filePath) {
+              allFilesWritten.add(filePath);
+            } else if (name === 'Bash' && typeof input.command === 'string') {
+              allCommandsRun.push(input.command);
+            }
+          }
         }
 
-        if (block.type === 'tool_use' && 'name' in block) {
-          const name = block.name as string;
-          toolsUsed.add(name);
-          lastToolName = name;
+        if (textParts.length > 0) {
+          lastAssistantText = textParts.join('\n');
+        }
 
-          const input = ('input' in block ? block.input : {}) as Record<string, unknown>;
-          const filePath = typeof input.file_path === 'string' ? input.file_path : null;
+        const summary = textParts.length > 0
+          ? truncate(textParts.join(' '))
+          : lastToolName
+            ? `Using tool: ${lastToolName}`
+            : null;
 
-          if (name === 'Read' && filePath) {
-            allFilesRead.add(filePath);
-          } else if (WRITE_TOOLS.has(name) && filePath) {
-            allFilesWritten.add(filePath);
-          } else if (name === 'Bash' && typeof input.command === 'string') {
-            allCommandsRun.push(input.command);
+        if (summary) {
+          void reporter.progress(summary, {
+            turns_completed: turnCount,
+            tools_used: [...toolsUsed],
+            files_written: [...allFilesWritten],
+            commands_run: allCommandsRun.length,
+          });
+        }
+
+        if (extra?.decisionContext && textParts.length > 0) {
+          const joined = textParts.join('\n');
+          const decision = parseDecisionBlock(joined);
+          if (decision) {
+            try {
+              await stream.interrupt();
+            } catch {
+              // Some SDK builds may not support interrupt; ignore.
+            }
+            const outcome = await runDecisionCycle(decision, extra.decisionContext);
+            if (outcome.status === 'timeout') {
+              throw new Error('Decision timed out');
+            }
+            resumptionHistory.push(outcome.resumptionText);
+            currentPrompt = buildResumptionPrompt(agent.prompt, resumptionHistory);
+            decisionHandled = true;
+            break;
           }
         }
       }
 
-      if (textParts.length > 0) {
-        lastAssistantText = textParts.join('\n');
-      }
+      if (message.type === 'result') {
+        if (message.subtype !== 'success') {
+          const errors = 'errors' in message ? (message.errors as string[]) : [];
+          throw new Error(errors.join('; ') || `Agent failed: ${message.subtype}`);
+        }
 
-      const summary = textParts.length > 0
-        ? truncate(textParts.join(' '))
-        : lastToolName
-          ? `Using tool: ${lastToolName}`
-          : null;
+        const resultText = 'result' in message ? (message.result as string) : '';
 
-      if (summary) {
-        void reporter.progress(summary, {
-          turns_completed: turnCount,
-          tools_used: [...toolsUsed],
-          files_written: [...allFilesWritten],
-          commands_run: allCommandsRun.length,
+        resultPayload = buildResult({
+          summary: resultText || 'Agent completed',
+          turnCount: message.num_turns,
+          toolsUsed,
+          allFilesRead,
+          allFilesWritten,
+          allCommandsRun,
+          lastAssistantText,
+          mcpServers,
         });
+        break;
       }
     }
 
-    if (message.type === 'result') {
-      if (message.subtype !== 'success') {
-        const errors = 'errors' in message ? (message.errors as string[]) : [];
-        throw new Error(errors.join('; ') || `Agent failed: ${message.subtype}`);
-      }
+    if (resultPayload) return resultPayload;
+    if (decisionHandled) continue;
 
-      const resultText = 'result' in message ? (message.result as string) : '';
-
-      return buildResult({
-        summary: resultText || 'Agent completed',
-        turnCount: message.num_turns,
-        toolsUsed,
-        allFilesRead,
-        allFilesWritten,
-        allCommandsRun,
-        lastAssistantText,
-        mcpServers,
-      });
-    }
+    return buildResult({
+      summary: lastAssistantText || 'Agent completed',
+      turnCount,
+      toolsUsed,
+      allFilesRead,
+      allFilesWritten,
+      allCommandsRun,
+      lastAssistantText,
+      mcpServers,
+    });
   }
+}
 
-  return buildResult({
-    summary: lastAssistantText || 'Agent completed',
-    turnCount,
-    toolsUsed,
-    allFilesRead,
-    allFilesWritten,
-    allCommandsRun,
-    lastAssistantText,
-    mcpServers,
-  });
+function buildResumptionPrompt(originalPrompt: string, history: string[]): string {
+  if (history.length === 0) return originalPrompt;
+  const historyBlock = history.map((h, i) => `[Resumption ${i + 1}] ${h}`).join('\n');
+  return `${originalPrompt}\n\nConversation updates since you last paused:\n${historyBlock}\n\nContinue the task.`;
 }
 
 function buildResult(params: {

@@ -362,6 +362,61 @@ describe('runAgent', () => {
     );
   });
 
+  it('builds and passes decisionContext to execute when buildDecisionContext is provided', async () => {
+    const lockDir = createTempDir('runner');
+    dirs.push(lockDir);
+    const execute = vi.fn().mockResolvedValue(makeExecutionResult());
+    const buildDecisionContext = vi.fn().mockReturnValue({
+      runId: 'will-be-overridden',
+      panelUrl: 'https://p',
+      panelApiKey: 'k',
+      eventBus: {} as never,
+    });
+
+    await runAgent({
+      agent: makeAgent(),
+      lockDir,
+      execute,
+      createReporter: () => ({
+        start: noop,
+        progress: noop,
+        complete: noop,
+        fail: noop,
+        stop: () => {},
+      }),
+      buildDecisionContext,
+    });
+
+    expect(buildDecisionContext).toHaveBeenCalledOnce();
+    const context = execute.mock.calls[0][2];
+    expect(context).toBeDefined();
+    expect(context.decisionContext).toBeDefined();
+    expect(typeof context.runId).toBe('string');
+  });
+
+  it('passes runId in context when no buildDecisionContext is provided', async () => {
+    const lockDir = createTempDir('runner');
+    dirs.push(lockDir);
+    const execute = vi.fn().mockResolvedValue(makeExecutionResult());
+
+    await runAgent({
+      agent: makeAgent(),
+      lockDir,
+      execute,
+      createReporter: () => ({
+        start: noop,
+        progress: noop,
+        complete: noop,
+        fail: noop,
+        stop: () => {},
+      }),
+    });
+
+    const context = execute.mock.calls[0][2];
+    expect(context.decisionContext).toBeUndefined();
+    expect(typeof context.runId).toBe('string');
+  });
+
   it('returns skipped when agent is already locked', async () => {
     const lockDir = createTempDir('runner');
     dirs.push(lockDir);
