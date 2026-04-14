@@ -64,7 +64,7 @@ function isAgentServerEvent(value: unknown): value is AgentServerEvent {
 }
 
 export class SseClient {
-  readonly events: SseEvents;
+  readonly events: EventEmitter & SseEvents;
   private readonly options: SseClientOptions;
   private readonly initialBackoffMs: number;
   private readonly maxBackoffMs: number;
@@ -87,7 +87,7 @@ export class SseClient {
     this.idleTimeoutMs = options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
     this.fetchFn = options.fetch ?? globalThis.fetch;
     this.backoffMs = this.initialBackoffMs;
-    this.events = new EventEmitter() as unknown as SseEvents;
+    this.events = new EventEmitter() as EventEmitter & SseEvents;
     this.cursor = options.initialCursor ?? this.loadCursor();
   }
 
@@ -237,14 +237,15 @@ export class SseClient {
 
     try {
       while (!this.stopped) {
-        let chunk: ReadableStreamReadResult<Uint8Array>;
+        let chunk: { done: boolean; value: Uint8Array | undefined };
         try {
-          chunk = await reader.read();
+          chunk = await reader.read() as { done: boolean; value: Uint8Array | undefined };
         } catch (err) {
           if (this.idleTimedOut || this.stopped) return;
           throw err;
         }
         if (chunk.done) return;
+        if (!chunk.value) continue;
 
         this.resetIdleTimer();
         buffer += decoder.decode(chunk.value, { stream: true });

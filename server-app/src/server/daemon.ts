@@ -8,8 +8,13 @@ import { executeAgent } from '../plugins/claude-code.js';
 import { ExecutorRegistry } from '../execution/executor-registry.js';
 import { createReporter } from '../reporting/reporter-factory.js';
 import { ScheduleSync } from '../reporting/sync-schedule.js';
+import { SseClient } from '../reporting/sse-client.js';
+import { TriggerHandler, type InvokeRun } from '../execution/trigger-handler.js';
 import { ConsoleChannel } from '../channels/console.js';
 import type { ChannelReply } from '../channels/channel.js';
+import { homedir } from 'os';
+import { join } from 'path';
+import type { Reporter } from '../execution/runner.js';
 
 function createDefaultRegistry(): ExecutorRegistry {
   const registry = new ExecutorRegistry();
@@ -173,6 +178,32 @@ export async function listAgents(config: ServerConfig): Promise<void> {
   console.table(rows);
 }
 
+function createInvokeRun(config: ServerConfig): InvokeRun {
+  const registry = createDefaultRegistry();
+  return async (options) => {
+    return runAgent({
+      agent: options.agent,
+      lockDir: config.lockDir,
+      execute: (a, reporter) => registry.resolve(a)(a, reporter),
+      createReporter: (runId, agentName, convId) => {
+        const reporter = createReporter(config, runId, agentName, { conversationId: convId });
+        const wrapped: Reporter = {
+          start: async () => {
+            await options.onRunStart(runId);
+            await reporter.start();
+          },
+          progress: (message, metadata) => reporter.progress(message, metadata),
+          complete: (result) => reporter.complete(result),
+          fail: (error) => reporter.fail(error),
+          stop: () => reporter.stop(),
+        };
+        return wrapped;
+      },
+      promptSuffix: options.promptSuffix,
+    });
+  };
+}
+
 export function startDaemon(config: ServerConfig): { stop: () => void } {
   console.log('Agent Server starting...');
   console.log(`  Agents: ${config.agentsDir}`);
@@ -190,11 +221,31 @@ export function startDaemon(config: ServerConfig): { stop: () => void } {
     void runDueAgents(config);
   }, config.checkIntervalMs);
 
-  const scheduleSync = config.panelUrl && config.panelApiKey
+  const panelConfigured = Boolean(config.panelUrl && config.panelApiKey);
+
+  const scheduleSync = panelConfigured
     ? new ScheduleSync({
         agentsDir: config.agentsDir,
-        panelUrl: config.panelUrl,
-        panelApiKey: config.panelApiKey,
+        panelUrl: config.panelUrl!,
+        panelApiKey: config.panelApiKey!,
+      })
+    : undefined;
+
+  const sseClient = panelConfigured
+    ? new SseClient({
+        panelUrl: config.panelUrl!,
+        panelApiKey: config.panelApiKey!,
+        cursorPath: join(homedir(), '.agent-server', 'sse-cursor'),
+      })
+    : undefined;
+
+  const triggerHandler = panelConfigured && sseClient
+    ? new TriggerHandler({
+        agentsDir: config.agentsDir,
+        panelUrl: config.panelUrl!,
+        panelApiKey: config.panelApiKey!,
+        sseEvents: sseClient.events,
+        invokeRun: createInvokeRun(config),
       })
     : undefined;
 
@@ -202,10 +253,20 @@ export function startDaemon(config: ServerConfig): { stop: () => void } {
     void scheduleSync.start();
   }
 
+  if (triggerHandler) {
+    triggerHandler.start();
+  }
+
+  if (sseClient) {
+    void sseClient.start();
+  }
+
   return {
     stop: () => {
       clearInterval(interval);
       scheduleSync?.stop();
+      triggerHandler?.stop();
+      sseClient?.stop();
       console.log('Agent Server stopped.');
     },
   };
