@@ -120,7 +120,7 @@ struct AgentDetailDrawer: View {
                     }
                     if let schedule = agent.schedule {
                         section(title: "Schedule") {
-                            Text(CronDescriber.describe(schedule))
+                            Text(CronEnglishFormatter.describe(schedule))
                                 .font(NTypography.bodySmall)
                                 .foregroundStyle(theme.tokens.foreground)
                             Text(schedule)

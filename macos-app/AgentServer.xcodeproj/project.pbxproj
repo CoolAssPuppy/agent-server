@@ -58,6 +58,7 @@
 		E75B0A24760A6DC1AB27F358 /* AgentEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D862852E3835F69170B608A /* AgentEditorView.swift */; };
 		E883FEF25E1CA4ADE2A5E648 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66EAB07DB79E15BAC20F17E /* AppDelegate.swift */; };
 		EE292187B9B2FC34A554F88C /* EnvFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1539357FAE628189796A64F /* EnvFile.swift */; };
+		F17110F056DA38776543B8F6 /* CronEnglishFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0136765C94481AB61536D483 /* CronEnglishFormatter.swift */; };
 		F29F0133F7342467DB3E6975 /* MainWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9978ED2ADE2B6DA7E9F2E403 /* MainWindow.swift */; };
 		F3428059091E528FF3F7B8CF /* MenuBarPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0885A392057C026891B6710 /* MenuBarPopover.swift */; };
 /* End PBXBuildFile section */
@@ -73,6 +74,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0136765C94481AB61536D483 /* CronEnglishFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CronEnglishFormatter.swift; sourceTree = "<group>"; };
 		019F0C7D13F571CF359F3CB9 /* ConnectionsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionsStore.swift; sourceTree = "<group>"; };
 		061AB904031536A4DEDD6795 /* Sidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sidebar.swift; sourceTree = "<group>"; };
 		0FD3C4BF1D811F05450C0CF2 /* MenuBarDecisionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarDecisionsViewModel.swift; sourceTree = "<group>"; };
@@ -85,7 +87,7 @@
 		34998C870C76F29FD6B67745 /* package.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = package.json; sourceTree = "<group>"; };
 		3B0EE1DB6BF41B4EA3CC6310 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		3FA7DF74260188E7ABD701D6 /* ServerProcessManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerProcessManager.swift; sourceTree = "<group>"; };
-		41C82F59F5DF4F52A592AD3F /* swift */ = {isa = PBXFileReference; lastKnownFileType = folder; name = swift; path = ../../../../../../nerdsui/swift; sourceTree = SOURCE_ROOT; };
+		41C82F59F5DF4F52A592AD3F /* swift */ = {isa = PBXFileReference; lastKnownFileType = folder; name = swift; path = ../../../../nerdsui/swift; sourceTree = SOURCE_ROOT; };
 		4262F21955BC608AD2576EA7 /* AgentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentDetailView.swift; sourceTree = "<group>"; };
 		4900D26B20B4FF31D3A37106 /* AgentServerPalettes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentServerPalettes.swift; sourceTree = "<group>"; };
 		4A846AEE9153B33BA7E15DB9 /* RunDecisionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDecisionsViewModel.swift; sourceTree = "<group>"; };
@@ -277,6 +279,7 @@
 			children = (
 				689DD1451D8EBE1AF2A3FBE1 /* AgentsListBadgeViewModel.swift */,
 				019F0C7D13F571CF359F3CB9 /* ConnectionsStore.swift */,
+				0136765C94481AB61536D483 /* CronEnglishFormatter.swift */,
 				B9E3A0BC90A75E1C817A3238 /* Decision.swift */,
 				1A9B17FFF708C7E5834EAB27 /* DrawerRouter.swift */,
 				0FD3C4BF1D811F05450C0CF2 /* MenuBarDecisionsViewModel.swift */,
@@ -372,7 +375,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				0793D742AA9538F857ADBE9E /* XCRemoteSwiftPackageReference "Sparkle" */,
-				ACDB56C2C5568BCC61F9D964 /* XCLocalSwiftPackageReference "../../../../nerdsui/swift" */,
+				36DFF1AE84418537001A2BBE /* XCLocalSwiftPackageReference "../../../../nerdsui/swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C7AF683C4FC612BD0C84F3B0 /* Products */;
@@ -470,6 +473,7 @@
 				C9E2E13C6B848A341745C6BB /* AgentsListView.swift in Sources */,
 				E883FEF25E1CA4ADE2A5E648 /* AppDelegate.swift in Sources */,
 				39740E464CDDEC9742EDB194 /* ConnectionsStore.swift in Sources */,
+				F17110F056DA38776543B8F6 /* CronEnglishFormatter.swift in Sources */,
 				59831E5595B33F9E1EF1F7D3 /* Decision.swift in Sources */,
 				35FDE3BEDFC10D02FAD60D3F /* DrawerRouter.swift in Sources */,
 				87780D46FC7AA630FC93521B /* EnvEditorView.swift in Sources */,
@@ -747,7 +751,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		ACDB56C2C5568BCC61F9D964 /* XCLocalSwiftPackageReference "../../../../nerdsui/swift" */ = {
+		36DFF1AE84418537001A2BBE /* XCLocalSwiftPackageReference "../../../../nerdsui/swift" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../../../../nerdsui/swift;
 		};
