@@ -85,7 +85,7 @@
 		34998C870C76F29FD6B67745 /* package.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = package.json; sourceTree = "<group>"; };
 		3B0EE1DB6BF41B4EA3CC6310 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		3FA7DF74260188E7ABD701D6 /* ServerProcessManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerProcessManager.swift; sourceTree = "<group>"; };
-		41C82F59F5DF4F52A592AD3F /* swift */ = {isa = PBXFileReference; lastKnownFileType = folder; name = swift; path = ../../../../../../nerdsui/swift; sourceTree = SOURCE_ROOT; };
+		41C82F59F5DF4F52A592AD3F /* swift */ = {isa = PBXFileReference; lastKnownFileType = folder; name = swift; path = ../../../../nerdsui/swift; sourceTree = SOURCE_ROOT; };
 		4262F21955BC608AD2576EA7 /* AgentDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentDetailView.swift; sourceTree = "<group>"; };
 		4900D26B20B4FF31D3A37106 /* AgentServerPalettes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentServerPalettes.swift; sourceTree = "<group>"; };
 		4A846AEE9153B33BA7E15DB9 /* RunDecisionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDecisionsViewModel.swift; sourceTree = "<group>"; };
@@ -372,7 +372,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				0793D742AA9538F857ADBE9E /* XCRemoteSwiftPackageReference "Sparkle" */,
-				ACDB56C2C5568BCC61F9D964 /* XCLocalSwiftPackageReference "../../../../nerdsui/swift" */,
+				36DFF1AE84418537001A2BBE /* XCLocalSwiftPackageReference "../../../../nerdsui/swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C7AF683C4FC612BD0C84F3B0 /* Products */;
@@ -747,7 +747,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		ACDB56C2C5568BCC61F9D964 /* XCLocalSwiftPackageReference "../../../../nerdsui/swift" */ = {
+		36DFF1AE84418537001A2BBE /* XCLocalSwiftPackageReference "../../../../nerdsui/swift" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../../../../nerdsui/swift;
 		};

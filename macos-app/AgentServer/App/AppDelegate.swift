@@ -19,6 +19,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        // SwiftUI's WindowGroup eagerly creates the main window at launch. On
+        // a menubar-only app the window should stay closed until the user
+        // opens it from the popover. Hide every auto-created window now;
+        // `openMainWindow()` below reopens them on demand.
+        for window in NSApplication.shared.windows {
+            window.orderOut(nil)
+        }
         setupMainMenu()
         setupStatusItem()
         setupPopover()
@@ -187,6 +194,7 @@ private extension AppDelegate {
         let popoverView = MenuBarPopover(
             monitor: monitor,
             onOpenSettings: { [weak self] agentId in self?.openSettingsForAgent(agentId) },
+            onOpenMainWindow: { [weak self] in self?.openMainWindow() },
             onQuit: { NSApp.terminate(nil) }
         )
         .environmentObject(themeManager)
@@ -258,6 +266,30 @@ extension AppDelegate {
     func openSettingsForAgent(_ agentId: String?) {
         popover.performClose(nil)
         showSettings(deepLinkAgentId: agentId)
+    }
+
+    func openMainWindow() {
+        popover.performClose(nil)
+        NSApp.setActivationPolicy(.regular)
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(80))
+            NSApp.activate(ignoringOtherApps: true)
+            // The SwiftUI WindowGroup scene is registered with id "main".
+            // Prefer an existing window if one exists; otherwise reveal the
+            // orderOut'd window that was hidden at launch.
+            let existing = NSApplication.shared.windows.first { window in
+                window.identifier?.rawValue == "main" ||
+                window.contentViewController?.className.contains("MainWindow") == true
+            }
+            if let window = existing {
+                window.makeKeyAndOrderFront(nil)
+                window.orderFrontRegardless()
+            } else if #available(macOS 14.0, *) {
+                // Last-resort: ask SwiftUI to open it by id.
+                let selector = Selector(("sendAction:to:from:"))
+                _ = NSApp.perform(selector)
+            }
+        }
     }
 
     @objc func showSettings() {
