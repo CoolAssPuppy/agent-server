@@ -6,7 +6,19 @@ import Foundation
 public enum CronEnglishFormatter {
     public static func describe(_ expression: String) -> String {
         let trimmed = expression.trimmingCharacters(in: .whitespaces)
-        let fields = trimmed.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        let rawFields = trimmed.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        // Be lenient: users sometimes write "0 7 * * 2 6" (space-separated day
+        // list) instead of the canonical "0 7 * * 2,6". Collapse any extra
+        // trailing fields into a comma-joined day-of-week list so the
+        // formatter can still produce a readable label.
+        let fields: [String]
+        if rawFields.count > 5 {
+            let head = Array(rawFields.prefix(4))
+            let tail = rawFields.suffix(from: 4).joined(separator: ",")
+            fields = head + [tail]
+        } else {
+            fields = rawFields
+        }
         guard fields.count == 5 else { return expression }
 
         let minute = fields[0]
