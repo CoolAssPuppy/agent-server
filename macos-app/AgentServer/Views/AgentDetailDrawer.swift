@@ -204,7 +204,9 @@ struct AgentDetailDrawer: View {
                             // while the drawer is open — otherwise the
                             // editor keeps showing the previous agent's
                             // markdown.
-                            AgentPromptEditor(fileURL: url).id(url)
+                            AgentPromptEditor(fileURL: url)
+                                .id(url)
+                                .padding(.top, NSpacing.xs)
                         } else {
                             Text(agent.prompt)
                                 .font(NTypography.bodySmall)
