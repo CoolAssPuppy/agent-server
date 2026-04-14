@@ -73,17 +73,12 @@ struct AgentPromptEditor: View {
             .background(theme.tokens.card)
             .clipShape(RoundedRectangle(cornerRadius: 8))
         } else {
-            // Plain SwiftUI TextEditor in a mono font. Intentionally NOT the
-            // NSTextView-backed MarkdownEditor — that NSView path kept
-            // introducing a drop shadow around the rounded card via the
-            // scroll view's internal fill, and the fix-per-version arms
-            // race wasn't worth it. Punting on syntax highlighting; if we
-            // want it back later we can layer a read-only preview toggle.
-            TextEditor(text: $model.body)
-                .font(.system(size: 13, design: .monospaced))
-                .foregroundStyle(theme.tokens.foreground)
-                .scrollContentBackground(.hidden)
-                .frame(minHeight: 280)
+            // Syntax-highlighted editor (NSTextView-backed) restored. The
+            // card is a fixed-height frame so the editor scrolls internally
+            // instead of pushing the drawer layout to match the document
+            // length.
+            MarkdownEditor(text: $model.body)
+                .frame(height: 360)
                 .padding(16)
                 .background(
                     RoundedRectangle(cornerRadius: 10)
