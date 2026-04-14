@@ -1,9 +1,12 @@
 import SwiftUI
 import NerdsUI
 
+/// Menu bar popover (mock 1EL-0). Layout: header → optional Needs-you →
+/// Running / Up next / Recent / All agents lists → bottom bar.
 struct MenuBarPopover: View {
     @ObservedObject var monitor: StatusMonitor
     @EnvironmentObject var themeManager: ThemeManager
+
     /// Fires when the user clicks the gear icon. Opens the main window with
     /// the settings drawer down (3NT-1).
     var onOpenSettings: (() -> Void)?
@@ -14,33 +17,52 @@ struct MenuBarPopover: View {
 
     @Environment(\.nTheme) private var theme
 
-    private var sortedAgents: [Agent] {
-        let running = Set(monitor.activeRuns.map(\.agentId))
-        return monitor.agents.sorted { a, b in
-            let aRunning = running.contains(a.id)
-            let bRunning = running.contains(b.id)
-            if aRunning != bRunning { return aRunning }
-            return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
-        }
-    }
-
     private var decisionsViewModel: MenuBarDecisionsViewModel {
         MenuBarDecisionsViewModel(decisions: monitor.pendingDecisions)
+    }
+
+    private var runningAgents: [Agent] {
+        let runningIds = Set(monitor.activeRuns.map(\.agentId))
+        return monitor.agents
+            .filter { runningIds.contains($0.id) }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private var scheduledAgents: [Agent] {
+        let runningIds = Set(monitor.activeRuns.map(\.agentId))
+        return monitor.agents
+            .filter { !runningIds.contains($0.id) && $0.isScheduled }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            Divider().opacity(0.3)
-            if decisionsViewModel.isVisible {
-                needsYouSection
-                Divider().opacity(0.3)
+            ScrollView {
+                VStack(spacing: 0) {
+                    if decisionsViewModel.isVisible {
+                        needsYouSection
+                    }
+                    if !runningAgents.isEmpty {
+                        SectionDivider()
+                        runningSection
+                    }
+                    if !scheduledAgents.isEmpty {
+                        SectionDivider()
+                        allAgentsSection
+                    }
+                    if !monitor.isServerReachable && monitor.agents.isEmpty {
+                        SectionDivider()
+                        offlineEmpty
+                    } else if monitor.agents.isEmpty {
+                        SectionDivider()
+                        emptyState
+                    }
+                }
             }
-            agentList
-            Divider().opacity(0.3)
             bottomBar
         }
-        .frame(width: 360, height: 440)
+        .frame(width: 360, height: 520)
         .nTheme(themeManager.themeConfig)
         .background(themeManager.themeConfig.tokens.background)
         .environment(\.colorScheme, themeManager.currentTheme.palette.isDark ? .dark : .light)
@@ -51,52 +73,38 @@ struct MenuBarPopover: View {
     private var header: some View {
         HStack {
             Text("Agent Server")
-                .font(NTypography.headlineSmall)
+                .font(.system(size: 15))
+                .tracking(-0.15)
                 .foregroundStyle(theme.tokens.foreground)
 
             Spacer()
 
-            if monitor.isServerReachable {
-                Circle()
-                    .fill(.green)
-                    .frame(width: 6, height: 6)
-            } else {
-                Circle()
-                    .fill(.red)
-                    .frame(width: 6, height: 6)
-            }
+            Circle()
+                .fill(monitor.isServerReachable ? Color.green : Color.red)
+                .frame(width: 8, height: 8)
         }
-        .padding(.horizontal, NSpacing.lg)
-        .padding(.vertical, NSpacing.md)
+        .padding(.horizontal, 18)
+        .padding(.top, NSpacing.lg)
+        .padding(.bottom, 10)
     }
 
     // MARK: - Needs you
 
     private var needsYouSection: some View {
-        VStack(alignment: .leading, spacing: NSpacing.xs) {
-            HStack {
-                Text("Needs you")
-                    .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                Spacer()
-                Text("\(decisionsViewModel.badgeCount)")
-                    .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-            }
-            .padding(.horizontal, NSpacing.lg)
-            .padding(.top, NSpacing.sm)
+        VStack(spacing: NSpacing.sm) {
+            sectionLabel(title: "Needs you", trailing: "\(decisionsViewModel.badgeCount)")
+                .padding(.horizontal, NSpacing.lg)
+                .padding(.top, NSpacing.md)
 
             ForEach(decisionsViewModel.cards) { card in
                 NeedsYouCard(
                     card: card,
-                    onAction: { intent in
-                        handle(intent: intent, for: card)
-                    }
+                    onAction: { intent in handle(intent: intent, for: card) }
                 )
-                .padding(.horizontal, NSpacing.lg)
-                .padding(.bottom, NSpacing.xs)
+                .padding(.horizontal, NSpacing.md)
             }
         }
+        .padding(.bottom, NSpacing.md)
     }
 
     private func handle(intent: DecisionActionIntent, for card: DecisionCard) {
@@ -110,39 +118,53 @@ struct MenuBarPopover: View {
         }
     }
 
-    // MARK: - Agent list
+    // MARK: - Running
 
-    private var agentList: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                if !monitor.isServerReachable {
-                    serverOfflineView
-                } else if monitor.agents.isEmpty {
-                    emptyView
-                } else {
-                    ForEach(sortedAgents) { agent in
-                        PopoverAgentRow(
-                            agent: agent,
-                            isRunning: monitor.activeRuns.contains { $0.agentId == agent.id }
-                        )
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            onOpenAgent?(agent.id)
-                        }
+    private var runningSection: some View {
+        VStack(spacing: NSpacing.xxs) {
+            sectionLabel(title: "Running", trailing: "\(runningAgents.count)")
+                .padding(.horizontal, NSpacing.lg)
+                .padding(.top, NSpacing.sm)
+                .padding(.bottom, NSpacing.xxs)
 
-                        if agent.id != sortedAgents.last?.id {
-                            Divider()
-                                .padding(.horizontal, NSpacing.lg)
-                                .opacity(0.2)
-                        }
-                    }
-                }
+            ForEach(runningAgents) { agent in
+                PopoverAgentRow(
+                    agent: agent,
+                    variant: .running,
+                    trailingText: nil
+                )
+                .contentShape(Rectangle())
+                .onTapGesture { onOpenAgent?(agent.id) }
             }
         }
-        .frame(maxHeight: .infinity)
+        .padding(.bottom, NSpacing.xxs)
     }
 
-    private var serverOfflineView: some View {
+    // MARK: - All agents
+
+    private var allAgentsSection: some View {
+        VStack(spacing: NSpacing.xxs) {
+            sectionLabel(title: "All agents", trailing: "\(scheduledAgents.count)")
+                .padding(.horizontal, NSpacing.lg)
+                .padding(.top, NSpacing.sm)
+                .padding(.bottom, NSpacing.xxs)
+
+            ForEach(scheduledAgents) { agent in
+                PopoverAgentRow(
+                    agent: agent,
+                    variant: .scheduled,
+                    trailingText: agent.scheduleDisplay
+                )
+                .contentShape(Rectangle())
+                .onTapGesture { onOpenAgent?(agent.id) }
+            }
+        }
+        .padding(.bottom, NSpacing.sm)
+    }
+
+    // MARK: - Empty / offline
+
+    private var offlineEmpty: some View {
         VStack(spacing: NSpacing.sm) {
             Image(systemName: "bolt.horizontal.circle")
                 .font(.system(size: NIconSize.lg))
@@ -151,11 +173,11 @@ struct MenuBarPopover: View {
                 .font(NTypography.bodyMedium)
                 .foregroundStyle(theme.tokens.mutedForeground)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
         .padding(.vertical, NSpacing.huge)
     }
 
-    private var emptyView: some View {
+    private var emptyState: some View {
         VStack(spacing: NSpacing.sm) {
             Image(systemName: "tray")
                 .font(.system(size: NIconSize.lg))
@@ -164,7 +186,7 @@ struct MenuBarPopover: View {
                 .font(NTypography.bodyMedium)
                 .foregroundStyle(theme.tokens.mutedForeground)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
         .padding(.vertical, NSpacing.huge)
     }
 
@@ -176,8 +198,8 @@ struct MenuBarPopover: View {
                 onOpenSettings?()
             } label: {
                 Image(systemName: "gearshape")
-                    .font(NTypography.bodySmall)
-                    .foregroundStyle(theme.tokens.foreground.opacity(0.4))
+                    .font(.system(size: 14))
+                    .foregroundStyle(theme.tokens.mutedForeground)
                     .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
             }
@@ -194,57 +216,123 @@ struct MenuBarPopover: View {
                 onQuit?()
             } label: {
                 Image(systemName: "power")
-                    .font(NTypography.bodySmall)
-                    .foregroundStyle(theme.tokens.foreground.opacity(0.4))
+                    .font(.system(size: 14))
+                    .foregroundStyle(theme.tokens.mutedForeground)
                     .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help("Quit")
         }
-        .padding(.horizontal, NSpacing.sm)
+        .padding(.horizontal, NSpacing.md)
         .padding(.vertical, NSpacing.xs)
+        .overlay(alignment: .top) {
+            Divider().opacity(0.4)
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func sectionLabel(title: String, trailing: String) -> some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 11))
+                .foregroundStyle(theme.tokens.mutedForeground)
+            Spacer()
+            Text(trailing)
+                .font(.system(size: 11))
+                .foregroundStyle(theme.tokens.mutedForeground.opacity(0.8))
+        }
     }
 }
 
-// MARK: - Agent row in popover
+// MARK: - Section divider
+
+private struct SectionDivider: View {
+    @Environment(\.nTheme) private var theme
+
+    var body: some View {
+        Rectangle()
+            .fill(theme.tokens.border.opacity(0.6))
+            .frame(height: 1)
+            .padding(.horizontal, NSpacing.lg)
+    }
+}
+
+// MARK: - Agent row variants
+
+private enum PopoverRowVariant {
+    case running
+    case scheduled
+}
 
 private struct PopoverAgentRow: View {
     let agent: Agent
-    let isRunning: Bool
+    let variant: PopoverRowVariant
+    let trailingText: String?
 
     @Environment(\.nTheme) private var theme
 
     var body: some View {
-        HStack(spacing: NSpacing.md) {
-            Image(systemName: agent.kind.icon)
-                .font(.system(size: NIconSize.sm))
-                .foregroundStyle(theme.tokens.mutedForeground)
-                .frame(width: NIconSize.md)
+        HStack(alignment: .center, spacing: NSpacing.md) {
+            iconWell
+                .frame(width: 26, height: 26)
 
-            VStack(alignment: .leading, spacing: NSpacing.xxxs) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(agent.name)
-                    .font(NTypography.bodyMedium)
-                    .fontWeight(.medium)
+                    .font(.system(size: 13))
                     .foregroundStyle(theme.tokens.foreground)
                     .lineLimit(1)
 
-                if let description = agent.description, !description.isEmpty {
-                    Text(description)
-                        .font(NTypography.caption)
+                if let sub = subtitle, !sub.isEmpty {
+                    Text(sub)
+                        .font(.system(size: 11))
                         .foregroundStyle(theme.tokens.mutedForeground)
                         .lineLimit(1)
                 }
             }
 
-            Spacer()
+            Spacer(minLength: NSpacing.xs)
 
-            if isRunning {
-                PulsingDot(color: .green)
+            if let trailingText, !trailingText.isEmpty {
+                Text(trailingText)
+                    .font(.system(size: 11))
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
         }
         .padding(.horizontal, NSpacing.lg)
-        .padding(.vertical, NSpacing.sm)
+        .padding(.vertical, 7)
+    }
+
+    @ViewBuilder
+    private var iconWell: some View {
+        switch variant {
+        case .running:
+            ZStack {
+                RoundedRectangle(cornerRadius: NRadius.sm)
+                    .fill(Color.blue.opacity(0.12))
+                PulsingDot(color: .blue)
+            }
+        case .scheduled:
+            ZStack {
+                RoundedRectangle(cornerRadius: NRadius.sm)
+                    .fill(theme.tokens.muted)
+                Image(systemName: agent.kind.icon)
+                    .font(.system(size: 11))
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            }
+        }
+    }
+
+    private var subtitle: String? {
+        switch variant {
+        case .running:
+            return agent.description
+        case .scheduled:
+            return agent.description
+        }
     }
 }
 
@@ -255,32 +343,27 @@ private struct NeedsYouCard: View {
     let onAction: (DecisionActionIntent) -> Void
 
     @Environment(\.nTheme) private var theme
-    @State private var showDeferMenu = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: NSpacing.sm) {
-            HStack(alignment: .top, spacing: NSpacing.xs) {
+        VStack(alignment: .leading, spacing: NSpacing.xs) {
+            HStack(spacing: NSpacing.xs) {
                 Text("Decision")
                     .font(NTypography.badge)
+                    .tracking(0.4)
                     .foregroundStyle(theme.tokens.primaryForeground)
-                    .padding(.horizontal, NSpacing.xs)
-                    .padding(.vertical, NSpacing.xxxs)
+                    .padding(.horizontal, NSpacing.sm)
+                    .padding(.vertical, 2)
                     .background(theme.tokens.primary)
                     .clipShape(Capsule())
-                Text(card.agentName)
-                    .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.foreground)
-                Text("·")
+                Text("\(card.agentName) · \(card.relativeTimestamp)")
+                    .font(.system(size: 11))
                     .foregroundStyle(theme.tokens.mutedForeground)
-                Text(card.relativeTimestamp)
-                    .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .lineLimit(1)
                 Spacer()
             }
 
             Text(card.title)
-                .font(NTypography.bodyMedium)
-                .fontWeight(.semibold)
+                .font(.system(size: 13))
                 .foregroundStyle(theme.tokens.foreground)
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
@@ -288,14 +371,13 @@ private struct NeedsYouCard: View {
             metadataLine
 
             agentActionsRow
-
-            systemRow
+                .padding(.top, 2)
         }
         .padding(NSpacing.md)
         .background(theme.tokens.primary.opacity(0.12))
         .overlay(
             RoundedRectangle(cornerRadius: NRadius.md)
-                .stroke(theme.tokens.primary.opacity(0.4), lineWidth: 1)
+                .stroke(theme.tokens.primary.opacity(0.35), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
     }
@@ -305,7 +387,7 @@ private struct NeedsYouCard: View {
         let parts = buildMetadataParts()
         if !parts.isEmpty {
             Text(parts.joined(separator: " · "))
-                .font(NTypography.caption)
+                .font(.system(size: 11))
                 .foregroundStyle(theme.tokens.mutedForeground)
                 .lineLimit(1)
         }
@@ -313,12 +395,8 @@ private struct NeedsYouCard: View {
 
     private func buildMetadataParts() -> [String] {
         var parts: [String] = []
-        if let rec = recommendedLabel() {
-            parts.append("Recommends \(rec)")
-        }
-        if let c = card.confidence {
-            parts.append("\(Int(c * 100))% confidence")
-        }
+        if let rec = recommendedLabel() { parts.append("Recommends \(rec)") }
+        if let c = card.confidence { parts.append("\(Int(c * 100))% confidence") }
         if card.sourcesCount > 0 {
             parts.append("\(card.sourcesCount) source\(card.sourcesCount == 1 ? "" : "s")")
         }
@@ -336,56 +414,17 @@ private struct NeedsYouCard: View {
                     onAction(action)
                 } label: {
                     Text(action.label)
-                        .font(NTypography.bodySmall)
-                        .fontWeight(.semibold)
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(action.isRecommended ? theme.tokens.primaryForeground : theme.tokens.foreground)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, NSpacing.xs)
-                        .background(action.isRecommended ? theme.tokens.primary : theme.tokens.muted)
-                        .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
+                        .frame(height: 32)
+                        .background(
+                            RoundedRectangle(cornerRadius: NRadius.sm)
+                                .fill(action.isRecommended ? theme.tokens.primary : theme.tokens.muted)
+                        )
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(action.accessibilityLabel)
-            }
-        }
-    }
-
-    private var systemRow: some View {
-        HStack(spacing: NSpacing.xs) {
-            Menu {
-                ForEach(card.systemActions.filter {
-                    if case .defer1Hour = $0.kind { return true }
-                    if case .deferTomorrow = $0.kind { return true }
-                    return false
-                }, id: \.self) { action in
-                    Button(action.label) { onAction(action) }
-                        .accessibilityLabel(action.accessibilityLabel)
-                }
-            } label: {
-                HStack(spacing: NSpacing.xxxs) {
-                    Text("Defer")
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 9))
-                }
-                .font(NTypography.caption)
-                .foregroundStyle(theme.tokens.mutedForeground)
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .accessibilityLabel("Defer decision")
-
-            Spacer()
-
-            if let openAction = card.systemActions.first(where: { $0.kind == .openInPanel }) {
-                Button {
-                    onAction(openAction)
-                } label: {
-                    Text(openAction.label)
-                        .font(NTypography.caption)
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(openAction.accessibilityLabel)
             }
         }
     }
