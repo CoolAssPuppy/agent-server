@@ -199,7 +199,12 @@ struct AgentDetailDrawer: View {
                     }
                     section(title: "Prompt") {
                         if let url = AgentFile.find(agentId: agent.id)?.url {
-                            AgentPromptEditor(fileURL: url)
+                            // `.id(url)` forces the StateObject-backed
+                            // Loader to reset when the user switches agents
+                            // while the drawer is open — otherwise the
+                            // editor keeps showing the previous agent's
+                            // markdown.
+                            AgentPromptEditor(fileURL: url).id(url)
                         } else {
                             Text(agent.prompt)
                                 .font(NTypography.bodySmall)

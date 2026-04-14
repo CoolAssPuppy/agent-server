@@ -75,14 +75,14 @@ struct MainWindow: View {
         }
     }
 
-    /// Detail drawer: left-edge slide. Layout HStack is ALWAYS present;
-    /// only the drawer child toggles. If the HStack were itself conditional,
-    /// SwiftUI would apply a default .opacity transition to it and the
-    /// drawer's .move(edge: .leading) would never fire.
+    /// Detail drawer: slides out from the right edge of the sidebar (as if
+    /// tucked behind it). The slot to the right of the sidebar is clipped,
+    /// so when the drawer animates in with .move(edge: .leading) it emerges
+    /// from the sidebar's right border rather than crossing over it.
     private var detailDrawerLayer: some View {
         HStack(spacing: 0) {
             Color.clear.frame(width: Sidebar.width)
-            Group {
+            ZStack(alignment: .leading) {
                 if case .detail(let agentId) = router.open {
                     AgentDetailDrawer(
                         monitor: monitor,
@@ -92,7 +92,8 @@ struct MainWindow: View {
                     .transition(.move(edge: .leading))
                 }
             }
-            Spacer()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .clipped()
         }
         .animation(
             .easeOut(duration: AgentDetailDrawer.slideDuration),
@@ -100,11 +101,10 @@ struct MainWindow: View {
         )
     }
 
-    /// Settings drawer: top-edge slide over the main pane. Dimmer + drawer
-    /// are siblings in an always-present ZStack; only the drawer's
-    /// conditional child toggles. Same reasoning as detailDrawerLayer —
-    /// keeping the container present prevents SwiftUI from hijacking the
-    /// transition with its default .opacity.
+    /// Settings drawer: slides down from the top of the window. Full window
+    /// width, flush with the top edge (the drawer visually covers the
+    /// transparent titlebar area while open — that's the "drawer sliding
+    /// over the titlebar" feel). Rounded bottom corners only.
     private var settingsDrawerLayer: some View {
         ZStack(alignment: .top) {
             Group {
@@ -117,7 +117,6 @@ struct MainWindow: View {
             Group {
                 if router.isSettingsOpen {
                     SettingsDrawer(monitor: monitor, router: router)
-                        .padding(.top, 56)
                         .transition(
                             .move(edge: .top).combined(with: .opacity)
                         )

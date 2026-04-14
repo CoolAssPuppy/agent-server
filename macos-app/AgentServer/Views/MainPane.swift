@@ -39,10 +39,13 @@ struct MainPane: View {
             Button {
                 router.openSettings()
             } label: {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 14))
+                // Size + typography matches the sidebar footer's
+                // Open folder / New agent Labels so the gear sits on
+                // the same horizontal baseline as those icons.
+                Label("Settings", systemImage: "gearshape")
+                    .labelStyle(.iconOnly)
+                    .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
-                    .frame(width: 32, height: 32)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

@@ -29,7 +29,7 @@ struct SettingsDrawer: View {
     @State private var autoUpdates: Bool = true
     @State private var didLoad: Bool = false
 
-    static let height: CGFloat = 460
+    static let height: CGFloat = 500
     static let slideDuration: Double = 0.26
 
     private static let envPath: URL = {
@@ -45,12 +45,13 @@ struct SettingsDrawer: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: Self.height)
-        // Distinct surface color (not main pane background) so the drawer
-        // reads as a separate layer sliding down over the content.
+        // Distinct surface color so the drawer reads as its own layer.
         .background(theme.tokens.card)
         .clipShape(BottomRoundedRectangle(radius: NRadius.md))
+        // Rasterize before shadow so the drawer draws one soft edge, not
+        // a per-card bleed-through.
+        .compositingGroup()
         .shadow(color: Color.black.opacity(0.25), radius: 16, x: 0, y: 6)
-        .padding(.horizontal, NSpacing.lg)
         .onKeyPress(.escape) {
             router.close()
             return .handled
@@ -92,7 +93,10 @@ struct SettingsDrawer: View {
             .accessibilityLabel("Close settings")
         }
         .padding(.horizontal, NSpacing.xxl)
-        .padding(.top, NSpacing.xl)
+        // Reserve space for the transparent titlebar's traffic lights.
+        // The drawer covers the titlebar area, so the Settings title and
+        // ✕ close need to sit below the traffic light row.
+        .padding(.top, 40)
         .padding(.bottom, NSpacing.md)
     }
 

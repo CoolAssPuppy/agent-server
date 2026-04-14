@@ -78,7 +78,7 @@ struct AgentPromptEditor: View {
             // instead of pushing the drawer layout to match the document
             // length.
             MarkdownEditor(text: $model.body)
-                .frame(height: 360)
+                .frame(height: 240)
                 .padding(16)
                 .background(
                     RoundedRectangle(cornerRadius: 10)
