@@ -19,10 +19,18 @@ struct MenuBarPopover: View {
         }
     }
 
+    private var decisionsViewModel: MenuBarDecisionsViewModel {
+        MenuBarDecisionsViewModel(decisions: monitor.pendingDecisions)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider().opacity(0.3)
+            if decisionsViewModel.isVisible {
+                needsYouSection
+                Divider().opacity(0.3)
+            }
             agentList
             Divider().opacity(0.3)
             bottomBar
@@ -55,6 +63,46 @@ struct MenuBarPopover: View {
         }
         .padding(.horizontal, NSpacing.lg)
         .padding(.vertical, NSpacing.md)
+    }
+
+    // MARK: - Needs you
+
+    private var needsYouSection: some View {
+        VStack(alignment: .leading, spacing: NSpacing.xs) {
+            HStack {
+                Text("Needs you")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                Spacer()
+                Text("\(decisionsViewModel.badgeCount)")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            }
+            .padding(.horizontal, NSpacing.lg)
+            .padding(.top, NSpacing.sm)
+
+            ForEach(decisionsViewModel.cards) { card in
+                NeedsYouCard(
+                    card: card,
+                    onAction: { intent in
+                        handle(intent: intent, for: card)
+                    }
+                )
+                .padding(.horizontal, NSpacing.lg)
+                .padding(.bottom, NSpacing.xs)
+            }
+        }
+    }
+
+    private func handle(intent: DecisionActionIntent, for card: DecisionCard) {
+        switch intent.kind {
+        case .openInPanel:
+            if let urlString = card.openInPanelURL, let url = URL(string: urlString) {
+                NSWorkspace.shared.open(url)
+            }
+        default:
+            monitor.resolveDecision(id: card.decisionId, body: intent.resolveBody)
+        }
     }
 
     // MARK: - Agent list
@@ -192,6 +240,149 @@ private struct PopoverAgentRow: View {
         }
         .padding(.horizontal, NSpacing.lg)
         .padding(.vertical, NSpacing.sm)
+    }
+}
+
+// MARK: - Needs you card
+
+private struct NeedsYouCard: View {
+    let card: DecisionCard
+    let onAction: (DecisionActionIntent) -> Void
+
+    @Environment(\.nTheme) private var theme
+    @State private var showDeferMenu = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: NSpacing.sm) {
+            HStack(alignment: .top, spacing: NSpacing.xs) {
+                Text("Decision")
+                    .font(NTypography.badge)
+                    .foregroundStyle(theme.tokens.primaryForeground)
+                    .padding(.horizontal, NSpacing.xs)
+                    .padding(.vertical, NSpacing.xxxs)
+                    .background(theme.tokens.primary)
+                    .clipShape(Capsule())
+                Text(card.agentName)
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.foreground)
+                Text("·")
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                Text(card.relativeTimestamp)
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                Spacer()
+            }
+
+            Text(card.title)
+                .font(NTypography.bodyMedium)
+                .fontWeight(.semibold)
+                .foregroundStyle(theme.tokens.foreground)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+
+            metadataLine
+
+            agentActionsRow
+
+            systemRow
+        }
+        .padding(NSpacing.md)
+        .background(theme.tokens.primary.opacity(0.12))
+        .overlay(
+            RoundedRectangle(cornerRadius: NRadius.md)
+                .stroke(theme.tokens.primary.opacity(0.4), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
+    }
+
+    @ViewBuilder
+    private var metadataLine: some View {
+        let parts = buildMetadataParts()
+        if !parts.isEmpty {
+            Text(parts.joined(separator: " · "))
+                .font(NTypography.caption)
+                .foregroundStyle(theme.tokens.mutedForeground)
+                .lineLimit(1)
+        }
+    }
+
+    private func buildMetadataParts() -> [String] {
+        var parts: [String] = []
+        if let rec = recommendedLabel() {
+            parts.append("Recommends \(rec)")
+        }
+        if let c = card.confidence {
+            parts.append("\(Int(c * 100))% confidence")
+        }
+        if card.sourcesCount > 0 {
+            parts.append("\(card.sourcesCount) source\(card.sourcesCount == 1 ? "" : "s")")
+        }
+        return parts
+    }
+
+    private func recommendedLabel() -> String? {
+        card.agentActions.first(where: { $0.isRecommended })?.label
+    }
+
+    private var agentActionsRow: some View {
+        HStack(spacing: NSpacing.xs) {
+            ForEach(card.agentActions, id: \.self) { action in
+                Button {
+                    onAction(action)
+                } label: {
+                    Text(action.label)
+                        .font(NTypography.bodySmall)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(action.isRecommended ? theme.tokens.primaryForeground : theme.tokens.foreground)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, NSpacing.xs)
+                        .background(action.isRecommended ? theme.tokens.primary : theme.tokens.muted)
+                        .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(action.accessibilityLabel)
+            }
+        }
+    }
+
+    private var systemRow: some View {
+        HStack(spacing: NSpacing.xs) {
+            Menu {
+                ForEach(card.systemActions.filter {
+                    if case .defer1Hour = $0.kind { return true }
+                    if case .deferTomorrow = $0.kind { return true }
+                    return false
+                }, id: \.self) { action in
+                    Button(action.label) { onAction(action) }
+                        .accessibilityLabel(action.accessibilityLabel)
+                }
+            } label: {
+                HStack(spacing: NSpacing.xxxs) {
+                    Text("Defer")
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9))
+                }
+                .font(NTypography.caption)
+                .foregroundStyle(theme.tokens.mutedForeground)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .accessibilityLabel("Defer decision")
+
+            Spacer()
+
+            if let openAction = card.systemActions.first(where: { $0.kind == .openInPanel }) {
+                Button {
+                    onAction(openAction)
+                } label: {
+                    Text(openAction.label)
+                        .font(NTypography.caption)
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(openAction.accessibilityLabel)
+            }
+        }
     }
 }
 

@@ -7,9 +7,13 @@ final class StatusMonitor: ObservableObject {
     @Published private(set) var activeRuns: [Run] = []
     @Published private(set) var isServerReachable = false
     @Published private(set) var staleRunCount: Int = 0
+    @Published private(set) var pendingDecisions: [Decision] = []
     @Published var deepLinkAgentId: String?
 
     private let client = AgentServerClient()
+    private var panelClient: PanelClient?
+    private var decisionsTimer: Timer?
+    private let decisionsPollInterval: TimeInterval = 10
     private var timer: Timer?
     private let pollInterval: TimeInterval = 5
     private var webSocketTask: URLSessionWebSocketTask?
@@ -32,10 +36,16 @@ final class StatusMonitor: ObservableObject {
 
     func start() {
         poll()
+        pollDecisions()
         connectWebSocket()
         timer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.poll()
+            }
+        }
+        decisionsTimer = Timer.scheduledTimer(withTimeInterval: decisionsPollInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.pollDecisions()
             }
         }
     }
@@ -43,7 +53,46 @@ final class StatusMonitor: ObservableObject {
     func stop() {
         timer?.invalidate()
         timer = nil
+        decisionsTimer?.invalidate()
+        decisionsTimer = nil
         disconnectWebSocket()
+    }
+
+    // MARK: - Decisions polling
+
+    func pollDecisions() {
+        if panelClient == nil {
+            panelClient = PanelClient.fromEnv()
+        }
+        guard let panelClient else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let decisions = try await panelClient.fetchPendingDecisions()
+                self.pendingDecisions = decisions
+            } catch {
+                // Silently ignore — keep previous list until next poll succeeds.
+            }
+        }
+    }
+
+    func resolveDecision(id: String, body: DecisionResolveBody) {
+        // Optimistic removal.
+        pendingDecisions.removeAll { $0.id == id }
+        guard let panelClient else { return }
+        Task { [weak self] in
+            do {
+                try await panelClient.resolveDecision(id: id, body: body)
+            } catch {
+                // On failure, refetch to restore state.
+                self?.pollDecisions()
+            }
+        }
+    }
+
+    // Inject decisions directly (used by tests and realtime push paths).
+    func setPendingDecisions(_ decisions: [Decision]) {
+        self.pendingDecisions = decisions
     }
 
     func poll() {

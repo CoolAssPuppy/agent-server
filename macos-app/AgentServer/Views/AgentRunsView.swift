@@ -104,13 +104,18 @@ struct AgentRunsView: View {
     @ViewBuilder
     private var runDetail: some View {
         if let selectedRunId, let run = runs.first(where: { $0.runId == selectedRunId }) {
-            RunDetailView(run: run, logs: selectedRunLogs, onCancel: {
-                Task {
-                    monitor.cancelRun(id: selectedRunId)
-                    try? await Task.sleep(nanoseconds: 1_000_000_000)
-                    await fetchRuns()
-                }
-            })
+            RunDetailView(
+                run: run,
+                logs: selectedRunLogs,
+                onCancel: {
+                    Task {
+                        monitor.cancelRun(id: selectedRunId)
+                        try? await Task.sleep(nanoseconds: 1_000_000_000)
+                        await fetchRuns()
+                    }
+                },
+                decisions: monitor.pendingDecisions.filter { $0.taskRunId == selectedRunId }
+            )
         } else {
             ContentUnavailableView(
                 "Select a run",

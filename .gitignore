@@ -40,3 +40,7 @@ macos-app/DerivedData/
 macos-app/.build-cache/
 *.xcuserstate
 xcuserdata/
+
+# Swift package build artifacts (Chunk 10 test harness)
+macos-app/AgentServerSwiftTests/.build/
+macos-app/AgentServerSwiftTests/.swiftpm/

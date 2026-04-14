@@ -5,6 +5,7 @@ enum RunDetailTab: String, CaseIterable {
     case activity = "Activity"
     case logs = "Logs"
     case output = "Output"
+    case decisions = "Decisions"
     case details = "Details"
 }
 
@@ -12,9 +13,14 @@ struct RunDetailView: View {
     let run: Run
     let logs: [PanelLog]
     let onCancel: () -> Void
+    var decisions: [Decision] = []
 
     @Environment(\.nTheme) private var theme
     @State private var selectedTab: RunDetailTab = .activity
+
+    private var runDecisionsViewModel: RunDecisionsViewModel {
+        RunDecisionsViewModel(runId: run.runId, decisions: decisions)
+    }
     @State private var now = Date()
     @State private var elapsedTimer: Timer?
 
@@ -227,6 +233,8 @@ struct RunDetailView: View {
             ForEach(RunDetailTab.allCases, id: \.self) { tab in
                 if tab == .output && !hasOutput && run.status == .running {
                     EmptyView()
+                } else if tab == .decisions && runDecisionsViewModel.isEmpty {
+                    EmptyView()
                 } else {
                     Button {
                         selectedTab = tab
@@ -257,6 +265,8 @@ struct RunDetailView: View {
             LogsTabView(logs: logs, isLive: run.status == .running)
         case .output:
             OutputTabView(run: run)
+        case .decisions:
+            RunDecisionsTabView(viewModel: runDecisionsViewModel)
         case .details:
             DetailsTabView(run: run)
         }

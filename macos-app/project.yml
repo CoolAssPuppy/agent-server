@@ -29,6 +29,7 @@ targets:
       gatherCoverageData: false
     sources:
       - path: AgentServer
+      - path: AgentServerSwiftTests/Sources/AgentServerCore
       - path: ../server-app/dist
         buildPhase: resources
         type: folder
