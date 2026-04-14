@@ -89,23 +89,28 @@ struct MainWindow: View {
     private var titlebarGear: some View {
         HStack {
             Spacer()
-            Button {
-                if router.isSettingsOpen {
-                    router.close()
-                } else {
-                    router.openSettings()
+            // Hide the gear entirely while the settings drawer is open — its
+            // close affordance lives inside the drawer itself (the ✕ circle
+            // in the drawer's upper-right corner). Showing both is confusing.
+            if !router.isSettingsOpen {
+                Button {
+                    withAnimation(.easeOut(duration: SettingsDrawer.slideDuration)) {
+                        router.openSettings()
+                    }
+                } label: {
+                    Image(systemName: "gearshape")
+                        .font(NTypography.bodyMedium)
+                        .foregroundStyle(themeManager.themeConfig.tokens.mutedForeground)
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
                 }
-            } label: {
-                Image(systemName: "gearshape")
-                    .font(NTypography.bodyMedium)
-                    .foregroundStyle(themeManager.themeConfig.tokens.mutedForeground)
-                    .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .padding(.trailing, NSpacing.sm)
+                .padding(.top, NSpacing.xs)
+                .transition(.opacity)
             }
-            .buttonStyle(.plain)
-            .padding(.trailing, NSpacing.sm)
-            .padding(.top, NSpacing.xs)
         }
+        .animation(.easeInOut(duration: 0.18), value: router.isSettingsOpen)
     }
 
     // MARK: - Actions
