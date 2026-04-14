@@ -7,6 +7,7 @@ import { runAgent, type RunResult } from '../execution/runner.js';
 import { executeAgent } from '../plugins/claude-code.js';
 import { ExecutorRegistry } from '../execution/executor-registry.js';
 import { createReporter } from '../reporting/reporter-factory.js';
+import { ScheduleSync } from '../reporting/sync-schedule.js';
 import { ConsoleChannel } from '../channels/console.js';
 import type { ChannelReply } from '../channels/channel.js';
 
@@ -189,9 +190,22 @@ export function startDaemon(config: ServerConfig): { stop: () => void } {
     void runDueAgents(config);
   }, config.checkIntervalMs);
 
+  const scheduleSync = config.panelUrl && config.panelApiKey
+    ? new ScheduleSync({
+        agentsDir: config.agentsDir,
+        panelUrl: config.panelUrl,
+        panelApiKey: config.panelApiKey,
+      })
+    : undefined;
+
+  if (scheduleSync) {
+    void scheduleSync.start();
+  }
+
   return {
     stop: () => {
       clearInterval(interval);
+      scheduleSync?.stop();
       console.log('Agent Server stopped.');
     },
   };
