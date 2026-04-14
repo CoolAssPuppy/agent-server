@@ -76,11 +76,13 @@ struct AgentPromptEditor: View {
             MarkdownEditor(text: $model.body)
                 .frame(minHeight: 280)
                 .padding(16)
-                .background(theme.tokens.card)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .overlay(
+                .background(
                     RoundedRectangle(cornerRadius: 10)
-                        .stroke(theme.tokens.border, lineWidth: 1)
+                        .fill(theme.tokens.card)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .strokeBorder(theme.tokens.border, lineWidth: 1)
+                        )
                 )
         }
     }

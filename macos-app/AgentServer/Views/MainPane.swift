@@ -19,15 +19,40 @@ struct MainPane: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: NSpacing.xl) {
-                greeting
-                cardsGrid
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: NSpacing.xl) {
+                    greeting
+                    cardsGrid
+                }
+                .padding(NSpacing.xxl)
             }
-            .padding(NSpacing.xxl)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            footer
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.tokens.background)
+    }
+
+    private var footer: some View {
+        HStack {
+            Spacer()
+            Button {
+                router.openSettings()
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 14))
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Settings")
+        }
+        .padding(.horizontal, NSpacing.lg)
+        .padding(.vertical, NSpacing.sm)
+        .overlay(alignment: .top) {
+            Divider().opacity(0.4)
+        }
     }
 
     private var greeting: some View {

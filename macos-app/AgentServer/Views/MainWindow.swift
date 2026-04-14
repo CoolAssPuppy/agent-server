@@ -31,8 +31,6 @@ struct MainWindow: View {
             detailDrawerLayer
 
             settingsDrawerLayer
-
-            titlebarGear
         }
         .frame(minWidth: 1080, minHeight: 640)
         .nTheme(themeManager.themeConfig)
@@ -77,28 +75,34 @@ struct MainWindow: View {
         }
     }
 
-    @ViewBuilder
+    /// Detail drawer: left-edge slide. Animation modifier is OUTSIDE the
+    /// conditional so SwiftUI observes the state flip on the container and
+    /// drives the child's transition.
     private var detailDrawerLayer: some View {
-        if case .detail(let agentId) = router.open {
-            HStack(spacing: 0) {
-                Color.clear.frame(width: Sidebar.width)
-                AgentDetailDrawer(
-                    monitor: monitor,
-                    router: router,
-                    agentId: agentId
-                )
-                .transition(.move(edge: .leading))
-                Spacer()
+        ZStack(alignment: .topLeading) {
+            if case .detail(let agentId) = router.open {
+                HStack(spacing: 0) {
+                    Color.clear.frame(width: Sidebar.width)
+                    AgentDetailDrawer(
+                        monitor: monitor,
+                        router: router,
+                        agentId: agentId
+                    )
+                    .transition(.move(edge: .leading))
+                    Spacer()
+                }
             }
-            .animation(.easeOut(duration: AgentDetailDrawer.slideDuration), value: router.openAgentId)
         }
+        .animation(
+            .easeOut(duration: AgentDetailDrawer.slideDuration),
+            value: router.openAgentId
+        )
     }
 
-    @ViewBuilder
-    /// Settings drawer overlay. Dimmer + drawer are SEPARATE siblings of the
-    /// ZStack so each plays its own transition — the drawer slides down from
-    /// above, the dimmer fades in. A ~32pt top inset keeps the drawer clear
-    /// of the transparent titlebar's traffic lights.
+    /// Settings drawer: top-edge slide over the main pane. The window's
+    /// `fullSizeContentView` makes the content area include the titlebar, so
+    /// the drawer starts 48pt down to clear the traffic lights before its
+    /// rounded top edge appears.
     private var settingsDrawerLayer: some View {
         ZStack(alignment: .top) {
             if router.isSettingsOpen {
@@ -108,40 +112,16 @@ struct MainWindow: View {
 
                 SettingsDrawer(monitor: monitor, router: router)
                     .padding(.horizontal, NSpacing.lg)
-                    .padding(.top, 32)
+                    .padding(.top, 48)
                     .transition(
-                        .move(edge: .top)
-                            .combined(with: .opacity)
+                        .move(edge: .top).combined(with: .opacity)
                     )
             }
         }
-    }
-
-    private var titlebarGear: some View {
-        HStack {
-            Spacer()
-            // Hide the gear entirely while the settings drawer is open — its
-            // close affordance lives inside the drawer itself (the ✕ circle
-            // in the drawer's upper-right corner). Showing both is confusing.
-            if !router.isSettingsOpen {
-                Button {
-                    withAnimation(.easeOut(duration: SettingsDrawer.slideDuration)) {
-                        router.openSettings()
-                    }
-                } label: {
-                    Image(systemName: "gearshape")
-                        .font(NTypography.bodyMedium)
-                        .foregroundStyle(themeManager.themeConfig.tokens.mutedForeground)
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .padding(.trailing, NSpacing.sm)
-                .padding(.top, NSpacing.xs)
-                .transition(.opacity)
-            }
-        }
-        .animation(.easeInOut(duration: 0.18), value: router.isSettingsOpen)
+        .animation(
+            .easeOut(duration: SettingsDrawer.slideDuration),
+            value: router.isSettingsOpen
+        )
     }
 
     // MARK: - Actions
