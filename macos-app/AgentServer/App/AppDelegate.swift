@@ -268,9 +268,14 @@ extension AppDelegate {
     /// Brings the main window to front with the requested drawer (settings or
     /// a specific agent detail) open. Called from the popover's gear button
     /// and agent row taps. Creates the NSWindow lazily on first use.
+    ///
+    /// Animation sequence on open:
+    ///   1. NSWindow fades in (~150ms) from alpha 0 -> 1.
+    ///   2. After the window is on screen, `DrawerRouter.shared.routeTo(_:)`
+    ///      is called inside `withAnimation(.easeOut(...))` so SwiftUI sees
+    ///      the nil -> open transition and plays the drawer's .move(edge:).
     func openMainWindow(route: Drawer) {
         popover.performClose(nil)
-        DrawerRouter.shared.routeTo(route)
 
         Task { @MainActor in
             // Give the popover time to collapse before activating the app.
@@ -283,9 +288,14 @@ extension AppDelegate {
             NSApp.activate(ignoringOtherApps: true)
 
             if let window = mainWindow {
-                window.makeKeyAndOrderFront(nil)
+                fadeIn(window: window)
+                scheduleDrawerOpen(route: route)
                 return
             }
+
+            // Ensure the router is closed so the drawer has a nil -> open
+            // transition SwiftUI can animate on first appear.
+            DrawerRouter.shared.close()
 
             let content = MainWindow(monitor: monitor)
                 .environmentObject(themeManager)
@@ -301,11 +311,46 @@ extension AppDelegate {
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
             window.isReleasedWhenClosed = false
+            window.animationBehavior = .documentWindow
             window.center()
             window.delegate = self
             window.contentViewController = NSHostingController(rootView: content)
             mainWindow = window
-            window.makeKeyAndOrderFront(nil)
+
+            fadeIn(window: window)
+            scheduleDrawerOpen(route: route)
+        }
+    }
+
+    /// Fades the window from alphaValue 0 to 1 over ~150ms so the app-open
+    /// feels less abrupt than a synchronous `makeKeyAndOrderFront`.
+    private func fadeIn(window: NSWindow) {
+        window.alphaValue = 0
+        window.makeKeyAndOrderFront(nil)
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.15
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            window.animator().alphaValue = 1
+        }
+    }
+
+    /// Flips `DrawerRouter.shared` from nil -> route after the NSWindow is
+    /// on screen, wrapped in `withAnimation` so the drawer's `.move(edge:)`
+    /// transition plays its enter animation.
+    private func scheduleDrawerOpen(route: Drawer) {
+        let duration: Double
+        switch route {
+        case .detail:
+            duration = AgentDetailDrawer.slideDuration
+        case .settings:
+            duration = SettingsDrawer.slideDuration
+        }
+        // One runloop hop after makeKeyAndOrderFront so SwiftUI has rendered
+        // the initial (closed) state before we mutate the router.
+        DispatchQueue.main.async {
+            withAnimation(.easeOut(duration: duration)) {
+                DrawerRouter.shared.routeTo(route)
+            }
         }
     }
 

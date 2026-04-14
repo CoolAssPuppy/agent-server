@@ -18,6 +18,7 @@ struct SettingsDrawer: View {
 
     static let height: CGFloat = 440
     static let slideDuration: Double = 0.26
+    static let dismissThreshold: CGFloat = 80
 
     private static let connectionsPath: URL = {
         let home = FileManager.default.homeDirectoryForCurrentUser
@@ -34,24 +35,56 @@ struct SettingsDrawer: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            dragHandle
-            header
-            Divider().opacity(0.3)
-            content
-            Divider().opacity(0.3)
-            footer
+        ZStack(alignment: .bottom) {
+            VStack(spacing: 0) {
+                dragHandle
+                header
+                Divider().opacity(0.3)
+                content
+                Divider().opacity(0.3)
+                footer
+            }
+
+            bottomGrabBar
         }
         .frame(maxWidth: .infinity)
         .frame(height: Self.height)
         .background(theme.tokens.background)
         .shadow(color: Color.black.opacity(0.3), radius: 20, x: 0, y: 8)
         .offset(y: dragOffset)
-        .gesture(dragGesture)
         .onKeyPress(.escape) {
             router.close()
             return .handled
         }
+    }
+
+    /// Horizontal 4pt grab bar glued to the bottom edge. Dragging it downward
+    /// follows the drawer; release past `dismissThreshold` closes.
+    private var bottomGrabBar: some View {
+        ZStack {
+            Rectangle()
+                .fill(theme.tokens.border.opacity(0.5))
+                .frame(height: 4)
+                .frame(maxWidth: .infinity)
+
+            HStack(spacing: 4) {
+                ForEach(0..<3, id: \.self) { _ in
+                    Circle()
+                        .fill(theme.tokens.mutedForeground.opacity(0.6))
+                        .frame(width: 3, height: 3)
+                }
+            }
+        }
+        .frame(height: 12)
+        .contentShape(Rectangle())
+        .onHover { inside in
+            if inside {
+                NSCursor.resizeUpDown.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+        .gesture(dragGesture)
     }
 
     private var dragHandle: some View {
@@ -260,17 +293,22 @@ struct SettingsDrawer: View {
     private var dragGesture: some Gesture {
         DragGesture()
             .onChanged { value in
-                dragOffset = min(0, value.translation.height).magnitude > 0
-                    ? max(0, value.translation.height)
-                    : 0
-                if value.translation.height < 0 {
-                    dragOffset = max(value.translation.height, -20)
+                // Clamp: allow downward drag toward dismissal plus a small
+                // elastic overshoot upward. Can't pull further than the
+                // drawer's own height.
+                let raw = value.translation.height
+                if raw >= 0 {
+                    dragOffset = min(Self.height, raw)
                 } else {
-                    dragOffset = value.translation.height
+                    dragOffset = max(-20, raw)
                 }
             }
             .onEnded { value in
-                if value.translation.height > 80 {
+                if shouldDismissOnRelease(
+                    translation: value.translation.height,
+                    threshold: Self.dismissThreshold,
+                    axis: .vertical
+                ) {
                     withAnimation(.easeOut(duration: Self.slideDuration)) {
                         dragOffset = -Self.height
                     }
