@@ -18,7 +18,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var eventMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
+        // Agent Server is a windowed app per the v2 Paper mocks (3E9-1). The
+        // menubar popover is a secondary quick-access surface, not the primary
+        // UI. Keep activation policy at .regular so the MainWindow shows up in
+        // the Dock and isn't dismissed when other apps take focus.
+        NSApp.setActivationPolicy(.regular)
         setupMainMenu()
         setupStatusItem()
         setupPopover()
@@ -362,7 +366,7 @@ extension AppDelegate: NSWindowDelegate {
 
         if window == settingsWindow {
             settingsWindow = nil
-            NSApp.setActivationPolicy(.accessory)
+            // Stay .regular — the main window is the primary UI.
         }
     }
 }
