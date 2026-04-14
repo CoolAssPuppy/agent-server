@@ -19,6 +19,7 @@
 		35FDE3BEDFC10D02FAD60D3F /* DrawerRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A9B17FFF708C7E5834EAB27 /* DrawerRouter.swift */; };
 		382BDD6B5E296A886C55232C /* EventKitHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9098758BCD6B9EC571281A51 /* EventKitHandler.swift */; };
 		39740E464CDDEC9742EDB194 /* ConnectionsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 019F0C7D13F571CF359F3CB9 /* ConnectionsStore.swift */; };
+		E0F1A0010000ENVFILEA001 /* EnvFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0F1A0020000ENVFILEB002 /* EnvFileStore.swift */; };
 		3CB4D6BB18637F00B57B4B59 /* MenuBarDecisionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FD3C4BF1D811F05450C0CF2 /* MenuBarDecisionsViewModel.swift */; };
 		470120920161412825893DBC /* StatusMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DF962BADEAC09F5A5F46093 /* StatusMonitor.swift */; };
 		519B2C93BA543F3811D53C8E /* AgentServerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBA361A75AD13345528DB75F /* AgentServerApp.swift */; };
@@ -74,6 +75,7 @@
 
 /* Begin PBXFileReference section */
 		019F0C7D13F571CF359F3CB9 /* ConnectionsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionsStore.swift; sourceTree = "<group>"; };
+		E0F1A0020000ENVFILEB002 /* EnvFileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvFileStore.swift; sourceTree = "<group>"; };
 		061AB904031536A4DEDD6795 /* Sidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sidebar.swift; sourceTree = "<group>"; };
 		0FD3C4BF1D811F05450C0CF2 /* MenuBarDecisionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarDecisionsViewModel.swift; sourceTree = "<group>"; };
 		1166D983A336A4F217C9282E /* PanelRun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelRun.swift; sourceTree = "<group>"; };
@@ -279,6 +281,7 @@
 				019F0C7D13F571CF359F3CB9 /* ConnectionsStore.swift */,
 				B9E3A0BC90A75E1C817A3238 /* Decision.swift */,
 				1A9B17FFF708C7E5834EAB27 /* DrawerRouter.swift */,
+				E0F1A0020000ENVFILEB002 /* EnvFileStore.swift */,
 				0FD3C4BF1D811F05450C0CF2 /* MenuBarDecisionsViewModel.swift */,
 				4A846AEE9153B33BA7E15DB9 /* RunDecisionsViewModel.swift */,
 				325C74DAF7BB5F1C25B3A733 /* SidebarViewModel.swift */,
@@ -472,6 +475,7 @@
 				39740E464CDDEC9742EDB194 /* ConnectionsStore.swift in Sources */,
 				59831E5595B33F9E1EF1F7D3 /* Decision.swift in Sources */,
 				35FDE3BEDFC10D02FAD60D3F /* DrawerRouter.swift in Sources */,
+				E0F1A0010000ENVFILEA001 /* EnvFileStore.swift in Sources */,
 				87780D46FC7AA630FC93521B /* EnvEditorView.swift in Sources */,
 				EE292187B9B2FC34A554F88C /* EnvFile.swift in Sources */,
 				A0D0411E2B0DE47445503404 /* EventKitPermissionManager.swift in Sources */,

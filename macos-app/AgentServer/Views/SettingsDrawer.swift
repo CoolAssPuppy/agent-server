@@ -2,84 +2,102 @@ import SwiftUI
 import NerdsUI
 import AppKit
 
-/// Settings drawer that slides down from the top edge of the main window
-/// (below the titlebar). Full width, content height. Three side-by-side cards:
-/// General, Panel connections, Updates.
+/// Settings drawer (mock 3NT-1). Pulls down over the main pane from the top
+/// edge of the window. Three flat cards side by side: General,
+/// Panel connections, Updates. Panel connections edits `~/.agent-server/.env`
+/// via `EnvFileStore` (atomic, comment-preserving).
+///
+/// Visual rules:
+///  - Overlay, not push. The drawer layers on top of the content; the main
+///    pane stays put. The host is responsible for dimming the content behind.
+///  - Inset from the window chrome (`NSpacing.lg` on left and right).
+///  - Rounded bottom corners only.
+///  - No drop shadows on the cards themselves — flat border + card fill.
+///  - Close affordance pinned upper-right of the drawer inside a muted circle.
 struct SettingsDrawer: View {
     @ObservedObject var monitor: StatusMonitor
     @ObservedObject var router: DrawerRouter
 
     @Environment(\.nTheme) private var theme
-    @StateObject private var connections: ConnectionsStore = SettingsDrawer.loadConnections()
-    @State private var dragOffset: CGFloat = 0
+    @State private var pairs: [EnvPair] = []
+    @State private var revealedKeys: Set<String> = []
+    @State private var editingKey: String? = nil
+    @State private var invalidKeys: Set<String> = []
+    @State private var saveError: String? = nil
     @State private var launchAtLogin: Bool = LaunchAtLoginManager.shared.isEnabled
     @State private var resumeAfterWake: Bool = true
     @State private var autoUpdates: Bool = true
+    @State private var didLoad: Bool = false
 
-    static let height: CGFloat = 440
+    static let height: CGFloat = 460
     static let slideDuration: Double = 0.26
 
-    private static let connectionsPath: URL = {
+    private static let envPath: URL = {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        return home.appendingPathComponent(".agent-server/connections.json")
+        return home.appendingPathComponent(".agent-server/.env")
     }()
-
-    static func loadConnections() -> ConnectionsStore {
-        let url = Self.connectionsPath
-        guard let data = try? Data(contentsOf: url),
-              let store = try? ConnectionsStore.from(jsonData: data) else {
-            return ConnectionsStore()
-        }
-        return store
-    }
 
     var body: some View {
         VStack(spacing: 0) {
-            dragHandle
             header
-            Divider().opacity(0.3)
             content
-            Divider().opacity(0.3)
             footer
         }
         .frame(maxWidth: .infinity)
         .frame(height: Self.height)
         .background(theme.tokens.background)
-        .shadow(color: Color.black.opacity(0.3), radius: 20, x: 0, y: 8)
-        .offset(y: dragOffset)
-        .gesture(dragGesture)
+        .clipShape(BottomRoundedRectangle(radius: NRadius.md))
+        .overlay(alignment: .top) {
+            // Pill handle that peeks above the drawer, mirroring 3NT-1.
+            Capsule()
+                .fill(theme.tokens.mutedForeground.opacity(0.25))
+                .frame(width: 48, height: 4)
+                .padding(.top, NSpacing.sm)
+        }
+        .padding(.horizontal, NSpacing.lg)
         .onKeyPress(.escape) {
             router.close()
             return .handled
         }
+        .task {
+            guard !didLoad else { return }
+            didLoad = true
+            loadPairs()
+        }
     }
 
-    private var dragHandle: some View {
-        Capsule()
-            .fill(theme.tokens.mutedForeground.opacity(0.4))
-            .frame(width: 48, height: 4)
-            .padding(.top, NSpacing.xs)
-            .padding(.bottom, NSpacing.xs)
-    }
+    // MARK: - Header
 
     private var header: some View {
-        HStack {
+        HStack(alignment: .top) {
             Text("Settings")
                 .font(NTypography.titleLarge)
                 .fontWeight(.semibold)
                 .foregroundStyle(theme.tokens.foreground)
+                .padding(.top, NSpacing.xs)
+
             Spacer()
+
             Button(action: router.close) {
-                Image(systemName: "xmark")
-                    .font(NTypography.bodyMedium)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                    .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
+                ZStack {
+                    Circle()
+                        .fill(theme.tokens.muted)
+                        .overlay(
+                            Circle().stroke(theme.tokens.border, lineWidth: 1)
+                        )
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                }
+                .frame(width: 28, height: 28)
+                .contentShape(Circle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Close settings")
         }
         .padding(.horizontal, NSpacing.xxl)
-        .padding(.vertical, NSpacing.sm)
+        .padding(.top, NSpacing.xl)
+        .padding(.bottom, NSpacing.md)
     }
 
     private var content: some View {
@@ -88,152 +106,376 @@ struct SettingsDrawer: View {
             panelConnectionsCard
             updatesCard
         }
-        .padding(NSpacing.xxl)
+        .padding(.horizontal, NSpacing.xxl)
     }
 
     private var footer: some View {
         HStack {
-            Text("Agent Server · Strategic Nerds")
+            Text("© 2026 Strategic Nerds, Inc. · Made with love in Lisbon, Portugal.")
                 .font(NTypography.captionSmall)
                 .foregroundStyle(theme.tokens.mutedForeground)
             Spacer()
         }
         .padding(.horizontal, NSpacing.xxl)
-        .padding(.vertical, NSpacing.xs)
+        .padding(.vertical, NSpacing.md)
     }
 
     // MARK: - Cards
 
     private var generalCard: some View {
         SettingsCard(title: "General") {
-            Toggle("Launch at login", isOn: $launchAtLogin)
+            settingsToggle("Launch at login", isOn: $launchAtLogin)
                 .onChange(of: launchAtLogin) { _, newValue in
                     LaunchAtLoginManager.shared.isEnabled = newValue
                 }
-                .font(NTypography.bodySmall)
 
-            Toggle("Resume after wake", isOn: $resumeAfterWake)
-                .font(NTypography.bodySmall)
+            settingsToggle("Resume scheduled agents after wake", isOn: $resumeAfterWake)
 
-            settingsRow(label: "Agents folder", value: agentsFolderDisplay)
-            settingsRow(label: "Server status", value: monitor.isServerReachable ? "Online" : "Offline")
-            settingsRow(label: "SSE stream", value: sseStatusText)
+            settingsRow(label: "Agents folder") {
+                Text(agentsFolderDisplay)
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.foreground)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+
+            settingsRow(label: "Server status") {
+                statusPill(
+                    isHealthy: monitor.isServerReachable,
+                    label: monitor.isServerReachable ? "Running" : "Offline"
+                )
+            }
+
+            settingsRow(label: "SSE stream") {
+                statusPill(
+                    isHealthy: monitor.isServerReachable && hasRequiredPanelPair,
+                    label: sseStatusText
+                )
+            }
         }
     }
 
     private var panelConnectionsCard: some View {
         SettingsCard(title: "Panel connections") {
             VStack(alignment: .leading, spacing: NSpacing.xs) {
-                ForEach($connections.entries) { $entry in
-                    connectionRow($entry)
-                }
-                Button {
-                    connections.append()
-                } label: {
-                    Label("Add connection", systemImage: "plus")
-                        .font(NTypography.caption)
-                        .foregroundStyle(theme.tokens.primary)
-                }
-                .buttonStyle(.plain)
-                .padding(.top, NSpacing.xxs)
+                headerRow
 
-                if !connections.allKeysValid {
+                VStack(spacing: NSpacing.xxs) {
+                    ForEach(Array(pairs.enumerated()), id: \.offset) { idx, pair in
+                        connectionRow(index: idx, pair: pair)
+                    }
+                    addConnectionButton
+                }
+                .padding(NSpacing.xxs)
+                .background(
+                    RoundedRectangle(cornerRadius: NRadius.sm)
+                        .fill(theme.tokens.background)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: NRadius.sm)
+                                .stroke(theme.tokens.border, lineWidth: 1)
+                        )
+                )
+
+                if !invalidKeys.isEmpty {
                     Text("Keys must match `[A-Z][A-Z0-9_]*`.")
                         .font(NTypography.captionSmall)
                         .foregroundStyle(theme.tokens.destructive)
                 }
-                if !connections.hasRequiredPanelPair {
-                    Text("SSE paused — add AGENT_SERVER_PANEL_URL + AGENT_SERVER_PANEL_API_KEY.")
+                if let saveError {
+                    Text(saveError)
+                        .font(NTypography.captionSmall)
+                        .foregroundStyle(theme.tokens.destructive)
+                }
+                if !hasRequiredPanelPair {
+                    Text("SSE paused · add AGENT_SERVER_PANEL_URL + AGENT_SERVER_PANEL_API_KEY.")
                         .font(NTypography.captionSmall)
                         .foregroundStyle(theme.tokens.mutedForeground)
                 }
             }
-            .onChange(of: connections.entries) { _, _ in
-                persistConnections()
-            }
         }
     }
 
-    private func connectionRow(_ entry: Binding<ConnectionEntry>) -> some View {
-        HStack(spacing: NSpacing.xs) {
-            TextField("KEY", text: entry.key)
-                .textFieldStyle(.roundedBorder)
-                .font(NTypography.captionSmall)
-                .frame(maxWidth: 150)
-            Group {
-                if ConnectionsStore.isSecretKey(entry.wrappedValue.key) {
-                    HStack(spacing: NSpacing.xxs) {
-                        Text(ConnectionsStore.maskedValue(
-                            key: entry.wrappedValue.key,
-                            value: entry.wrappedValue.value
-                        ))
-                        .font(NTypography.captionSmall)
-                        .foregroundStyle(theme.tokens.foreground)
-                        Spacer()
-                    }
-                    .padding(.horizontal, NSpacing.xs)
-                    .padding(.vertical, 3)
-                    .background(theme.tokens.card)
+    private var headerRow: some View {
+        HStack(spacing: NSpacing.sm) {
+            Text("KEY")
+                .font(.system(size: 10, weight: .semibold))
+                .tracking(0.6)
+                .foregroundStyle(theme.tokens.mutedForeground)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("VALUE")
+                .font(.system(size: 10, weight: .semibold))
+                .tracking(0.6)
+                .foregroundStyle(theme.tokens.mutedForeground)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Color.clear.frame(width: 22, height: 1)
+        }
+        .padding(.horizontal, NSpacing.xs)
+    }
+
+    private func connectionRow(index: Int, pair: EnvPair) -> some View {
+        HStack(spacing: NSpacing.sm) {
+            keyField(index: index, pair: pair)
+                .frame(maxWidth: .infinity)
+            valueField(index: index, pair: pair)
+                .frame(maxWidth: .infinity)
+            Button {
+                deleteRow(at: index)
+            } label: {
+                Image(systemName: "minus")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .frame(width: 22, height: 22)
+                    .background(
+                        RoundedRectangle(cornerRadius: NRadius.xs)
+                            .fill(theme.tokens.background)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: NRadius.xs)
+                                    .stroke(theme.tokens.border, lineWidth: 1)
+                            )
+                    )
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Remove \(pair.key.isEmpty ? "row" : pair.key)")
+        }
+        .padding(NSpacing.xxs)
+        .background(
+            RoundedRectangle(cornerRadius: NRadius.xs)
+                .fill(theme.tokens.muted.opacity(0.5))
+        )
+    }
+
+    private func keyField(index: Int, pair: EnvPair) -> some View {
+        let binding = Binding<String>(
+            get: { pairs[index].key },
+            set: { newKey in
+                let updated = EnvPair(
+                    key: newKey,
+                    value: pairs[index].value,
+                    isSecret: EnvFileStore.isSecretKey(newKey)
+                )
+                pairs[index] = updated
+                refreshValidation()
+            }
+        )
+        return TextField("KEY", text: binding, onCommit: persistIfValid)
+            .textFieldStyle(.plain)
+            .font(.system(size: 11, design: .monospaced))
+            .foregroundStyle(theme.tokens.foreground)
+            .padding(.horizontal, NSpacing.xs)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: NRadius.xs)
+                    .fill(theme.tokens.background)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: NRadius.xs)
+                            .stroke(
+                                invalidKeys.contains(pair.key)
+                                    ? theme.tokens.destructive
+                                    : theme.tokens.border,
+                                lineWidth: 1
+                            )
+                    )
+            )
+    }
+
+    @ViewBuilder
+    private func valueField(index: Int, pair: EnvPair) -> some View {
+        let isRevealed = revealedKeys.contains(pair.key)
+        let shouldMask = pair.isSecret && !isRevealed
+        let isEditing = editingKey == pair.key && !shouldMask
+
+        if shouldMask {
+            HStack(spacing: NSpacing.xxs) {
+                Text(EnvFileStore.masked(value: pair.value))
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(theme.tokens.foreground)
+                    .lineLimit(1)
+                Spacer()
+                Button {
+                    revealedKeys.insert(pair.key)
+                } label: {
+                    Image(systemName: "eye")
+                        .font(.system(size: 10))
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Reveal \(pair.key)")
+            }
+            .padding(.horizontal, NSpacing.xs)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: NRadius.xs)
+                    .fill(theme.tokens.background)
                     .overlay(
                         RoundedRectangle(cornerRadius: NRadius.xs)
                             .stroke(theme.tokens.border, lineWidth: 1)
                     )
-                } else {
-                    TextField("value", text: entry.value)
-                        .textFieldStyle(.roundedBorder)
-                        .font(NTypography.captionSmall)
+            )
+            .onTapGesture {
+                revealedKeys.insert(pair.key)
+                editingKey = pair.key
+            }
+        } else {
+            let binding = Binding<String>(
+                get: { pairs[index].value },
+                set: { newValue in
+                    pairs[index] = EnvPair(
+                        key: pairs[index].key,
+                        value: newValue,
+                        isSecret: pairs[index].isSecret
+                    )
+                }
+            )
+            HStack(spacing: NSpacing.xxs) {
+                TextField("value", text: binding, onCommit: {
+                    editingKey = nil
+                    persistIfValid()
+                })
+                .textFieldStyle(.plain)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(theme.tokens.foreground)
+                if pair.isSecret && isEditing {
+                    Button {
+                        revealedKeys.remove(pair.key)
+                        editingKey = nil
+                        persistIfValid()
+                    } label: {
+                        Image(systemName: "eye.slash")
+                            .font(.system(size: 10))
+                            .foregroundStyle(theme.tokens.mutedForeground)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Hide \(pair.key)")
                 }
             }
-            Button {
-                connections.remove(id: entry.wrappedValue.id)
-            } label: {
-                Image(systemName: "minus.circle")
-                    .foregroundStyle(theme.tokens.mutedForeground)
-            }
-            .buttonStyle(.plain)
+            .padding(.horizontal, NSpacing.xs)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: NRadius.xs)
+                    .fill(theme.tokens.background)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: NRadius.xs)
+                            .stroke(theme.tokens.border, lineWidth: 1)
+                    )
+            )
         }
+    }
+
+    private var addConnectionButton: some View {
+        Button {
+            pairs.append(EnvPair(key: "", value: "", isSecret: false))
+            refreshValidation()
+        } label: {
+            HStack(spacing: NSpacing.xxs) {
+                Image(systemName: "plus")
+                    .font(.system(size: 10, weight: .bold))
+                Text("Add connection")
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .foregroundStyle(theme.tokens.primary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, NSpacing.xs)
+            .background(
+                RoundedRectangle(cornerRadius: NRadius.xs)
+                    .strokeBorder(
+                        theme.tokens.border,
+                        style: StrokeStyle(lineWidth: 1, dash: [4, 3])
+                    )
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private var updatesCard: some View {
         SettingsCard(title: "Updates") {
-            Toggle("Auto-update", isOn: $autoUpdates)
-                .font(NTypography.bodySmall)
-            settingsRow(label: "Version", value: version)
-            settingsRow(label: "Agents loaded", value: "\(monitor.agents.count)")
+            settingsToggle("Automatically check for updates", isOn: $autoUpdates)
+
+            settingsRow(label: "Current version") {
+                Text(version)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(theme.tokens.foreground)
+            }
+
+            settingsRow(label: "Agents loaded") {
+                Text("\(monitor.agents.count)")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(theme.tokens.foreground)
+            }
+
             Button {
                 UpdaterManager.shared.checkForUpdates()
             } label: {
                 Text("Check for updates…")
-                    .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.primary)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(theme.tokens.foreground)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, NSpacing.xs)
+                    .background(
+                        RoundedRectangle(cornerRadius: NRadius.sm)
+                            .stroke(theme.tokens.border, lineWidth: 1)
+                    )
             }
             .buttonStyle(.plain)
         }
     }
 
-    // MARK: - Helpers
+    // MARK: - Row helpers
 
-    private func settingsRow(label: String, value: String) -> some View {
+    private func settingsToggle(_ label: String, isOn: Binding<Bool>) -> some View {
         HStack {
             Text(label)
-                .font(NTypography.caption)
-                .foregroundStyle(theme.tokens.mutedForeground)
-            Spacer()
-            Text(value)
-                .font(NTypography.caption)
+                .font(.system(size: 13))
                 .foregroundStyle(theme.tokens.foreground)
-                .lineLimit(1)
-                .truncationMode(.middle)
+            Spacer()
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
         }
+        .padding(.vertical, 4)
+    }
+
+    private func settingsRow<Trailing: View>(
+        label: String,
+        @ViewBuilder trailing: () -> Trailing
+    ) -> some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 13))
+                .foregroundStyle(theme.tokens.foreground)
+            Spacer()
+            trailing()
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func statusPill(isHealthy: Bool, label: String) -> some View {
+        HStack(spacing: NSpacing.xxs) {
+            Circle()
+                .fill(isHealthy ? Color.green : Color.orange)
+                .frame(width: 6, height: 6)
+            Text(label)
+                .font(.system(size: 12))
+                .foregroundStyle(theme.tokens.foreground)
+        }
+    }
+
+    // MARK: - Derived state
+
+    private var hasRequiredPanelPair: Bool {
+        let keys = Set(pairs.map(\.key))
+        return keys.contains("AGENT_SERVER_PANEL_URL")
+            && keys.contains("AGENT_SERVER_PANEL_API_KEY")
     }
 
     private var agentsFolderDisplay: String {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        return "~/.agent-server/agents".replacingOccurrences(of: "~", with: home)
+        return "\(home)/.agent-server/agents"
     }
 
     private var sseStatusText: String {
-        if !connections.hasRequiredPanelPair { return "Paused" }
+        if !hasRequiredPanelPair { return "Paused" }
         return monitor.isServerReachable ? "Connected" : "Reconnecting"
     }
 
@@ -244,47 +486,49 @@ struct SettingsDrawer: View {
         return "\(short) (\(build))"
     }
 
-    private func persistConnections() {
-        guard connections.allKeysValid else { return }
-        let url = Self.connectionsPath
-        try? FileManager.default.createDirectory(
-            at: url.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        guard let data = try? connections.toJSONData() else { return }
-        try? data.write(to: url, options: .atomic)
+    // MARK: - Load / save
+
+    private func loadPairs() {
+        do {
+            pairs = try EnvFileStore.load(from: Self.envPath)
+        } catch {
+            pairs = []
+            saveError = "Could not load \(Self.envPath.lastPathComponent): \(error.localizedDescription)"
+        }
+        refreshValidation()
     }
 
-    // MARK: - Drag gesture
+    private func deleteRow(at index: Int) {
+        guard pairs.indices.contains(index) else { return }
+        let removed = pairs.remove(at: index)
+        revealedKeys.remove(removed.key)
+        refreshValidation()
+        persistIfValid()
+    }
 
-    private var dragGesture: some Gesture {
-        DragGesture()
-            .onChanged { value in
-                dragOffset = min(0, value.translation.height).magnitude > 0
-                    ? max(0, value.translation.height)
-                    : 0
-                if value.translation.height < 0 {
-                    dragOffset = max(value.translation.height, -20)
-                } else {
-                    dragOffset = value.translation.height
-                }
-            }
-            .onEnded { value in
-                if value.translation.height > 80 {
-                    withAnimation(.easeOut(duration: Self.slideDuration)) {
-                        dragOffset = -Self.height
-                    }
-                    router.close()
-                } else {
-                    withAnimation(.easeOut(duration: 0.18)) {
-                        dragOffset = 0
-                    }
-                }
-            }
+    private func refreshValidation() {
+        invalidKeys = Set(
+            pairs
+                .filter { !EnvFileStore.isValidKey($0.key) }
+                .map(\.key)
+        )
+    }
+
+    private func persistIfValid() {
+        guard invalidKeys.isEmpty else { return }
+        let nonEmpty = pairs.filter { !$0.key.isEmpty }
+        do {
+            try EnvFileStore.save(nonEmpty, to: Self.envPath)
+            saveError = nil
+        } catch EnvFileStoreError.invalidKey(let key) {
+            saveError = "Invalid key: \(key)"
+        } catch {
+            saveError = "Could not save .env: \(error.localizedDescription)"
+        }
     }
 }
 
-// MARK: - Card container
+// MARK: - Card container (flat: border + card fill, no shadows)
 
 private struct SettingsCard<Content: View>: View {
     let title: String
@@ -294,11 +538,11 @@ private struct SettingsCard<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: NSpacing.sm) {
-            Text(title)
-                .font(NTypography.titleSmall)
-                .fontWeight(.semibold)
-                .foregroundStyle(theme.tokens.foreground)
-            VStack(alignment: .leading, spacing: NSpacing.xs) {
+            Text(title.uppercased())
+                .font(.system(size: 11, weight: .semibold))
+                .tracking(0.6)
+                .foregroundStyle(theme.tokens.mutedForeground)
+            VStack(alignment: .leading, spacing: NSpacing.xxs) {
                 content()
             }
             Spacer(minLength: 0)
@@ -311,5 +555,36 @@ private struct SettingsCard<Content: View>: View {
                 .stroke(theme.tokens.border, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
+    }
+}
+
+// MARK: - Bottom-only rounded rectangle
+
+private struct BottomRoundedRectangle: Shape {
+    let radius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let r = min(radius, min(rect.width, rect.height) / 2)
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
+        path.addArc(
+            center: CGPoint(x: rect.maxX - r, y: rect.maxY - r),
+            radius: r,
+            startAngle: .degrees(0),
+            endAngle: .degrees(90),
+            clockwise: false
+        )
+        path.addLine(to: CGPoint(x: rect.minX + r, y: rect.maxY))
+        path.addArc(
+            center: CGPoint(x: rect.minX + r, y: rect.maxY - r),
+            radius: r,
+            startAngle: .degrees(90),
+            endAngle: .degrees(180),
+            clockwise: false
+        )
+        path.closeSubpath()
+        return path
     }
 }
