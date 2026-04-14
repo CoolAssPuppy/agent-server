@@ -122,13 +122,13 @@ struct RunDetailView: View {
                 if index > 0 {
                     Rectangle().fill(.quaternary).frame(width: 1, height: 28)
                 }
-                statCell(icon: items[index].icon, label: items[index].label, value: items[index].value)
+                statCell(icon: items[index].icon, label: items[index].label, value: items[index].value, tooltip: items[index].tooltip)
             }
         }
         .padding(.vertical, NSpacing.md)
     }
 
-    private func statCell(icon: String, label: String, value: String) -> some View {
+    private func statCell(icon: String, label: String, value: String, tooltip: String?) -> some View {
         VStack(spacing: NSpacing.xxxs) {
             HStack(spacing: NSpacing.xxs) {
                 Image(systemName: icon)
@@ -137,9 +137,14 @@ struct RunDetailView: View {
                 Text(value)
                     .font(.system(.body, design: .monospaced, weight: .semibold))
             }
-            Text(label)
-                .font(NTypography.captionSmall)
-                .foregroundStyle(theme.tokens.mutedForeground)
+            HStack(spacing: NSpacing.xxs) {
+                Text(label)
+                    .font(NTypography.captionSmall)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                if let tooltip {
+                    InfoTooltip(text: tooltip)
+                }
+            }
         }
         .frame(maxWidth: .infinity)
     }
@@ -148,6 +153,7 @@ struct RunDetailView: View {
         let icon: String
         let label: String
         let value: String
+        var tooltip: String? = nil
     }
 
     private func buildStatItems() -> [StatItem] {
@@ -163,7 +169,7 @@ struct RunDetailView: View {
             items.append(StatItem(icon: "number", label: "Tokens", value: formatTokenCount(tokens)))
         }
         if let cost = run.estimatedCostUsd, cost > 0 {
-            items.append(StatItem(icon: "dollarsign.circle", label: "Cost", value: formatCost(cost)))
+            items.append(StatItem(icon: "dollarsign.circle", label: "Cost", value: formatCost(cost), tooltip: InfoTooltip.costExplanation))
         }
 
         items.append(StatItem(icon: "wrench", label: "Tools", value: "\(run.toolsUsed.count)"))

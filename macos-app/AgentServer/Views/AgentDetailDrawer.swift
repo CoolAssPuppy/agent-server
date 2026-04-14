@@ -184,7 +184,7 @@ struct AgentDetailDrawer: View {
                     }
                     if let schedule = agent.schedule {
                         section(title: "Schedule") {
-                            Text(CronDescriber.describe(schedule))
+                            Text(CronEnglishFormatter.describe(schedule))
                                 .font(NTypography.bodySmall)
                                 .foregroundStyle(theme.tokens.foreground)
                             Text(schedule)
@@ -193,10 +193,14 @@ struct AgentDetailDrawer: View {
                         }
                     }
                     section(title: "Prompt") {
-                        Text(agent.prompt)
-                            .font(NTypography.bodySmall)
-                            .foregroundStyle(theme.tokens.foreground)
-                            .fixedSize(horizontal: false, vertical: true)
+                        if let url = AgentFile.find(agentId: agent.id)?.url {
+                            AgentPromptEditor(fileURL: url)
+                        } else {
+                            Text(agent.prompt)
+                                .font(NTypography.bodySmall)
+                                .foregroundStyle(theme.tokens.foreground)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                     if !agent.tools.isEmpty {
                         section(title: "Tools") {

@@ -248,9 +248,12 @@ private struct RunRow: View {
                     }
 
                     if let cost = run.estimatedCostUsd, cost > 0 {
-                        Label(formatCost(cost), systemImage: "dollarsign.circle")
-                            .font(NTypography.caption)
-                            .foregroundStyle(theme.tokens.mutedForeground)
+                        HStack(spacing: NSpacing.xxs) {
+                            Label(formatCost(cost), systemImage: "dollarsign.circle")
+                                .font(NTypography.caption)
+                                .foregroundStyle(theme.tokens.mutedForeground)
+                            InfoTooltip(text: InfoTooltip.costExplanation)
+                        }
                     }
                 }
             }
