@@ -19,6 +19,10 @@ final class DrawerRouter: ObservableObject {
     static let shared = DrawerRouter()
 
     @Published private(set) var open: Drawer?
+    /// Route requested by the popover but not yet committed to `open`.
+    /// MainWindow.onAppear consumes this inside `withAnimation` so the
+    /// drawer transition plays on the initial insert.
+    @Published var pending: Drawer?
 
     init(open: Drawer? = nil) {
         self.open = open

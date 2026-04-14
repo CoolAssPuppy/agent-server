@@ -15,6 +15,12 @@ struct MarkdownEditor: NSViewRepresentable {
         scrollView.hasHorizontalScroller = false
         scrollView.borderType = .noBorder
         scrollView.scrollerStyle = .overlay
+        // Keep the NSScrollView transparent so the SwiftUI card background
+        // (theme.tokens.card) is the only surface rendered. Without this the
+        // scroll view drew its own solid fill, which on dark palettes reads
+        // as a faint drop-shadow edge inside the card.
+        scrollView.drawsBackground = false
+        scrollView.contentView.drawsBackground = false
 
         let textView = NSTextView()
         textView.isEditable = isEditable

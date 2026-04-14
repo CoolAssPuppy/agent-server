@@ -38,6 +38,27 @@ struct MainWindow: View {
         .nTheme(themeManager.themeConfig)
         .background(themeManager.themeConfig.tokens.background)
         .environment(\.colorScheme, isDark ? .dark : .light)
+        .onAppear { commitPendingRouteIfAny() }
+        .onChange(of: router.pending) { _ in commitPendingRouteIfAny() }
+    }
+
+    /// Consumes `DrawerRouter.shared.pending` (set by AppDelegate when the
+    /// popover triggered the window open) and animates the drawer into view.
+    /// Runs after a single runloop hop so SwiftUI has laid out the closed
+    /// state before the route flip — otherwise the transition is skipped.
+    private func commitPendingRouteIfAny() {
+        guard let pending = router.pending else { return }
+        let duration: Double
+        switch pending {
+        case .detail: duration = AgentDetailDrawer.slideDuration
+        case .settings: duration = SettingsDrawer.slideDuration
+        }
+        DispatchQueue.main.async {
+            withAnimation(.easeOut(duration: duration)) {
+                router.routeTo(pending)
+            }
+            router.pending = nil
+        }
     }
 
     // MARK: - Overlays

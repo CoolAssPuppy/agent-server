@@ -334,27 +334,14 @@ extension AppDelegate {
         }
     }
 
-    /// Flips `DrawerRouter.shared` from nil -> route after the NSWindow is
-    /// on screen AND SwiftUI has had a full layout pass to render the
-    /// initial (closed) state. Without that delay SwiftUI conflates the
-    /// "appear" with "state change" and skips the enter transition.
-    ///
-    /// We wait ~150ms (matches the window fade-in) before flipping, which
-    /// means the drawer visibly slides in AFTER the window is fully opaque.
+    /// Stages the requested route as a `pending` value on the shared router.
+    /// `MainWindow.onAppear` commits it inside its own `withAnimation` block
+    /// so the drawer's `.move(edge:)` transition plays reliably on insert.
+    /// Driving the animation from AppDelegate didn't work because
+    /// `withAnimation` called outside the NSHostingController's SwiftUI
+    /// transaction is not always honored.
     private func scheduleDrawerOpen(route: Drawer) {
-        let duration: Double
-        switch route {
-        case .detail:
-            duration = AgentDetailDrawer.slideDuration
-        case .settings:
-            duration = SettingsDrawer.slideDuration
-        }
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(150))
-            withAnimation(.easeOut(duration: duration)) {
-                DrawerRouter.shared.routeTo(route)
-            }
-        }
+        DrawerRouter.shared.pending = route
     }
 
     @objc func showSettings() {
