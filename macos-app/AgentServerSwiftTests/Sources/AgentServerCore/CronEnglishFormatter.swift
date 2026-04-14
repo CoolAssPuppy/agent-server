@@ -96,6 +96,17 @@ public enum CronEnglishFormatter {
 
         if field == "1-5" { return "Weekdays" }
 
+        // Generic day-of-week range like "2-6" (Tuesday–Saturday).
+        if field.contains("-"), !field.contains(",") {
+            let parts = field.split(separator: "-")
+            if parts.count == 2,
+               let start = Int(parts[0]).flatMap(normalize),
+               let end = Int(parts[1]).flatMap(normalize),
+               start <= end {
+                return "\(dayFull[start])–\(dayFull[end])"
+            }
+        }
+
         if field.contains(",") {
             let parts = field.split(separator: ",").compactMap { Int($0).flatMap(normalize) }
             guard parts.count == field.split(separator: ",").count else { return nil }

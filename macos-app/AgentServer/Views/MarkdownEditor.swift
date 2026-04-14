@@ -5,11 +5,21 @@ struct MarkdownEditor: NSViewRepresentable {
     @Binding var text: String
     var isEditable: Bool = true
 
+    @Environment(\.colorScheme) private var colorScheme
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
 
+    /// Pushes the current SwiftUI colorScheme into the shared EditorTheme
+    /// so syntax colors follow the app's NerdsUI palette instead of the
+    /// system appearance. Called on make + update.
+    private func syncThemeAppearance() {
+        EditorTheme.shared.isDarkOverride = (colorScheme == .dark)
+    }
+
     func makeNSView(context: Context) -> NSScrollView {
+        syncThemeAppearance()
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
@@ -65,8 +75,13 @@ struct MarkdownEditor: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? NSTextView else { return }
 
+        syncThemeAppearance()
         applyTheme(to: textView)
 
+        // Always re-highlight on update so a theme switch re-colors the
+        // existing document. Only rewrite the storage when text content
+        // actually changed; otherwise re-apply attributes to the current
+        // storage in place.
         if textView.string != text {
             let selectedRanges = textView.selectedRanges
             let scrollOrigin = scrollView.contentView.bounds.origin
@@ -76,6 +91,14 @@ struct MarkdownEditor: NSViewRepresentable {
 
             textView.selectedRanges = selectedRanges
             scrollView.contentView.setBoundsOrigin(scrollOrigin)
+        } else if let storage = textView.textStorage {
+            let full = NSRange(location: 0, length: storage.length)
+            storage.beginEditing()
+            EditorHighlighter.applyHighlighting(to: storage, text: text)
+            storage.endEditing()
+            // Cursor position is preserved implicitly since we only touched
+            // attributes, not characters.
+            _ = full
         }
     }
 
@@ -145,8 +168,16 @@ final class EditorTheme {
     let h2Font = NSFont.monospacedSystemFont(ofSize: 15, weight: .bold)
     let h3Font = NSFont.monospacedSystemFont(ofSize: 14, weight: .semibold)
 
-    private var isDark: Bool {
-        NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    /// Explicitly set from SwiftUI via the NerdsUI palette. Falls back to
+    /// NSApp.effectiveAppearance if no override exists so existing callers
+    /// still get a sensible default. The override is critical when the app
+    /// runs a NerdsUI palette whose dark/light mode doesn't match the
+    /// system appearance (e.g. Nerds dark running under macOS Light Mode).
+    var isDarkOverride: Bool? = nil
+
+    var isDark: Bool {
+        if let isDarkOverride { return isDarkOverride }
+        return NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
     }
 
     // Background and editor chrome

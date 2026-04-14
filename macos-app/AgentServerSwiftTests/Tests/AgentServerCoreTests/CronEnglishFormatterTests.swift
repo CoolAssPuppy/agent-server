@@ -49,6 +49,17 @@ final class CronEnglishFormatterTests: XCTestCase {
 
     // Lenient parse: users sometimes write "0 7 * * 2 6" (space-separated
     // day list, non-canonical cron) instead of "0 7 * * 2,6".
+    func testDayOfWeekRange() {
+        XCTAssertEqual(
+            CronEnglishFormatter.describe("0 7 * * 2-6"),
+            "Tuesday–Saturday at 7:00 AM"
+        )
+        XCTAssertEqual(
+            CronEnglishFormatter.describe("0 9 * * 0-3"),
+            "Sunday–Wednesday at 9:00 AM"
+        )
+    }
+
     func testSpaceSeparatedDayOfWeekList() {
         XCTAssertEqual(
             CronEnglishFormatter.describe("0 7 * * 2 6"),
