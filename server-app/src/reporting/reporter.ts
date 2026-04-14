@@ -4,7 +4,8 @@ export type StatusState =
   | 'input_required'
   | 'completed'
   | 'failed'
-  | 'canceled';
+  | 'canceled'
+  | 'rejected';
 
 export type StatusEvent = {
   agent: string;
@@ -13,12 +14,13 @@ export type StatusEvent = {
   timestamp?: string;
   metadata?: Record<string, unknown>;
   result?: {
-    summary?: string;
-    accomplishments?: string[];
+    summary: string;
+    accomplishments: string[];
     observations?: string[];
     output?: Record<string, unknown>;
-    usage?: Record<string, unknown>;
-    model?: string;
+    usage: Record<string, unknown>;
+    model: string;
+    schema_valid?: boolean;
   };
   error?: {
     message: string;
@@ -80,6 +82,7 @@ export class TelemetryReporter {
     filesRead: string[];
     filesWritten: string[];
     commandsRun: string[];
+    model?: string;
   }): Promise<void> {
     console.log(`[telemetry] Sending completion for "${this.config.agentName}" to ${this.config.endpoint}`);
     this.stop();
@@ -93,13 +96,24 @@ export class TelemetryReporter {
     if (executionResult.filesRead.length > 0) {
       accomplishments.push(`Read ${executionResult.filesRead.length} file(s)`);
     }
+    // AgentResultSchema requires accomplishments.min(1). When a run produced
+    // no observable side-effects we still need one non-empty entry. (Fix 1)
+    if (accomplishments.length === 0) {
+      accomplishments.push(`Completed in ${executionResult.turnCount} turn(s)`);
+    }
+
+    const usage = this.normalizeUsage(executionResult.usage);
+    const model = executionResult.model
+      ?? (typeof executionResult.usage.model === 'string' ? executionResult.usage.model : undefined)
+      ?? 'unknown';
 
     await this.send({
       state: 'completed',
       result: {
         summary: executionResult.summary,
         accomplishments,
-        usage: executionResult.usage,
+        usage,
+        model,
         output: {
           turn_count: executionResult.turnCount,
           tools_used: executionResult.toolsUsed,
@@ -117,6 +131,40 @@ export class TelemetryReporter {
       state: 'failed',
       error: { message: error.message },
     });
+  }
+
+  async cancel(reason?: string, code?: string): Promise<void> {
+    this.stop();
+    await this.send({
+      state: 'canceled',
+      error: { message: reason ?? 'Canceled', ...(code ? { code } : {}) },
+    });
+  }
+
+  /**
+   * AgentResultSchema requires numeric input_tokens, output_tokens,
+   * total_tokens, and estimated_cost_usd. Older callers send only legacy
+   * counters. Coalesce to the required shape while keeping extra fields.
+   */
+  private normalizeUsage(raw: Record<string, unknown>): Record<string, unknown> {
+    const coerceNonNeg = (value: unknown): number => {
+      if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return value;
+      return 0;
+    };
+    const input = coerceNonNeg(raw.input_tokens);
+    const output = coerceNonNeg(raw.output_tokens);
+    const totalCandidate = raw.total_tokens;
+    const total = typeof totalCandidate === 'number' && Number.isFinite(totalCandidate)
+      ? totalCandidate
+      : input + output;
+    const cost = coerceNonNeg(raw.estimated_cost_usd);
+    return {
+      ...raw,
+      input_tokens: Math.trunc(input),
+      output_tokens: Math.trunc(output),
+      total_tokens: Math.trunc(total),
+      estimated_cost_usd: cost,
+    };
   }
 
   stop(): void {

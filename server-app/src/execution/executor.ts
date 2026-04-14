@@ -22,6 +22,13 @@ export type McpServerInfo = {
   error?: string;
 };
 
+export type ToolCallTrace = {
+  name: string;
+  input?: unknown;
+  output?: unknown;
+  duration_ms?: number;
+};
+
 export type ExecutionResult = {
   summary: string;
   output: Record<string, unknown>;
@@ -33,6 +40,11 @@ export type ExecutionResult = {
   commandsRun: string[];
   interaction?: InteractionRequest;
   mcpServers?: McpServerInfo[];
+  model?: string;
+  stopReason?: string;
+  durationMs?: number;
+  durationApiMs?: number;
+  toolCalls?: ToolCallTrace[];
 };
 
 export function parseStreamEvent(line: string): ClaudeStreamEvent | null {

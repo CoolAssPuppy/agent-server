@@ -18,6 +18,7 @@ export type Reporter = {
   progress: (message: string, metadata?: Record<string, unknown>) => Promise<void> | void;
   complete: (result: ExecutionResult) => Promise<void> | void;
   fail: (error: Error) => Promise<void> | void;
+  cancel?: (reason?: string, code?: string) => Promise<void> | void;
   stop: () => void;
 };
 
@@ -39,6 +40,23 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
   const { agent, lockDir, execute, createReporter, promptSuffix, conversationId, buildDecisionContext } = options;
 
   if (!acquireLock(lockDir, agent.id)) {
+    // Fix 4: Panel should still record that a concurrent invocation was
+    // rejected. Build a minimal reporter and emit a canceled status with
+    // `lock_contention` so the run appears in history instead of silently
+    // vanishing.
+    try {
+      const runId = randomUUID();
+      const reporter = options.createReporter(runId, agent.name, options.conversationId);
+      if (typeof reporter.cancel === 'function') {
+        await reporter.cancel('Another invocation of this agent is already running.', 'lock_contention');
+      } else {
+        await reporter.fail(new Error('lock_contention: another invocation is already running'));
+      }
+      reporter.stop();
+    } catch {
+      // Best-effort notification; never fail the parent just because the
+      // notification couldn't be delivered.
+    }
     return { status: 'skipped' };
   }
 
@@ -88,10 +106,25 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
     return { runId, status: 'completed', result };
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
+    if (isAbortError(error)) {
+      if (typeof reporter.cancel === 'function') {
+        await reporter.cancel(error.message || 'Canceled');
+      } else {
+        await reporter.fail(error);
+      }
+      reporter.stop();
+      return { runId, status: 'failed', error: error.message };
+    }
     await reporter.fail(error);
     reporter.stop();
     return { runId, status: 'failed', error: error.message };
   } finally {
     releaseLock(lockDir, agent.id);
   }
+}
+
+function isAbortError(error: Error): boolean {
+  if (error.name === 'AbortError') return true;
+  const message = error.message ?? '';
+  return /\babort/i.test(message);
 }

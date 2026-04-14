@@ -440,4 +440,63 @@ describe('runAgent', () => {
     expect(result.status).toBe('skipped');
     expect(result.runId).toBeUndefined();
   });
+
+  it('reports a canceled status with lock_contention code when agent is locked', async () => {
+    const lockDir = createTempDir('runner');
+    dirs.push(lockDir);
+
+    const { acquireLock } = await import('./lockfile.js');
+    acquireLock(lockDir, 'test-agent');
+
+    const cancel = vi.fn();
+
+    const result = await runAgent({
+      agent: makeAgent(),
+      lockDir,
+      execute: async () => makeExecutionResult(),
+      createReporter: () => ({
+        start: noop,
+        progress: noop,
+        complete: noop,
+        fail: noop,
+        cancel,
+        stop: () => {},
+      }),
+    });
+
+    expect(result.status).toBe('skipped');
+    expect(cancel).toHaveBeenCalledOnce();
+    const [reason, code] = cancel.mock.calls[0];
+    expect(code).toBe('lock_contention');
+    expect(reason).toMatch(/running/i);
+  });
+
+  it('routes AbortError through reporter.cancel instead of reporter.fail', async () => {
+    const lockDir = createTempDir('runner');
+    dirs.push(lockDir);
+
+    const fail = vi.fn();
+    const cancel = vi.fn();
+
+    const abort = new Error('Aborted');
+    abort.name = 'AbortError';
+
+    const result = await runAgent({
+      agent: makeAgent(),
+      lockDir,
+      execute: async () => { throw abort; },
+      createReporter: () => ({
+        start: noop,
+        progress: noop,
+        complete: noop,
+        fail,
+        cancel,
+        stop: () => {},
+      }),
+    });
+
+    expect(result.status).toBe('failed');
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(fail).not.toHaveBeenCalled();
+  });
 });

@@ -65,7 +65,18 @@ describe('TelemetryReporter', () => {
       'Ran 2 command(s)',
       'Read 3 file(s)',
     ]);
-    expect(body.result?.usage).toEqual({ turns: 5, files_read: 3, files_written: 1, commands_run: 2 });
+    expect(body.result?.usage).toEqual({
+      turns: 5,
+      files_read: 3,
+      files_written: 1,
+      commands_run: 2,
+      input_tokens: 0,
+      output_tokens: 0,
+      total_tokens: 0,
+      estimated_cost_usd: 0,
+    });
+    expect(body.result?.model).toBe('unknown');
+    expect(body.result?.accomplishments?.length ?? 0).toBeGreaterThan(0);
     expect(body.result?.output).toEqual({
       turn_count: 5,
       tools_used: ['Read', 'Write', 'Bash'],
@@ -404,6 +415,42 @@ describe('TelemetryReporter', () => {
     expect(mockFetch).toHaveBeenCalledTimes(3);
 
     reporter.stop();
+  });
+
+  it('sends a canceled event with the provided reason and code', async () => {
+    const mockFetch = createMockFetch();
+    const reporter = makeReporter({ fetch: mockFetch });
+
+    await reporter.start();
+    await reporter.cancel('Another run in progress', 'lock_contention');
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const body = JSON.parse(mockFetch.mock.calls[1][1].body) as StatusEvent;
+    expect(body.state).toBe('canceled');
+    expect(body.error?.message).toBe('Another run in progress');
+    expect(body.error?.code).toBe('lock_contention');
+  });
+
+  it('defaults accomplishments to non-empty when no side effects occurred', async () => {
+    const mockFetch = createMockFetch();
+    const reporter = makeReporter({ fetch: mockFetch });
+
+    await reporter.start();
+    await reporter.complete({
+      summary: 'No-op run',
+      output: {},
+      usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0, estimated_cost_usd: 0 },
+      turnCount: 2,
+      toolsUsed: [],
+      filesRead: [],
+      filesWritten: [],
+      commandsRun: [],
+      model: 'claude-haiku-4-5-20251001',
+    });
+
+    const body = JSON.parse(mockFetch.mock.calls[1][1].body) as StatusEvent;
+    expect(body.result?.accomplishments).toEqual(['Completed in 2 turn(s)']);
+    expect(body.result?.model).toBe('claude-haiku-4-5-20251001');
   });
 
   it('stops heartbeat when stop is called', async () => {

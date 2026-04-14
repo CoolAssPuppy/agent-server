@@ -451,6 +451,160 @@ describe('executeAgent with Agent SDK', () => {
     expect(result.summary).toBe('Done');
   });
 
+  it('captures final usage, cost, model, stop_reason, and durations from the result message', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createAssistantMessageFull({
+        text: 'working',
+        model: 'claude-sonnet-4-6',
+        usage: { input_tokens: 10, output_tokens: 5, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+      }),
+      createResultSuccess({
+        result: 'All done',
+        num_turns: 2,
+        stop_reason: 'end_turn',
+        total_cost_usd: 0.0123,
+        usage: { input_tokens: 100, output_tokens: 50, cache_creation_input_tokens: 3, cache_read_input_tokens: 7, server_tool_use_input_tokens: 0 },
+        modelUsage: { 'claude-sonnet-4-6': { inputTokens: 100, outputTokens: 50 } },
+        duration_ms: 1234,
+        duration_api_ms: 900,
+      }),
+    ]));
+
+    const reporter = createMockReporter();
+    const result = await executeAgent(createAgentConfig(), reporter);
+
+    expect(result.usage.input_tokens).toBe(100);
+    expect(result.usage.output_tokens).toBe(50);
+    expect(result.usage.total_tokens).toBe(150);
+    expect(result.usage.estimated_cost_usd).toBeCloseTo(0.0123, 6);
+    expect(result.usage.cache_read_input_tokens).toBe(7);
+    expect(result.usage.cache_creation_input_tokens).toBe(3);
+    expect(result.usage.stop_reason).toBe('end_turn');
+    expect(result.usage.duration_ms).toBe(1234);
+    expect(result.usage.duration_api_ms).toBe(900);
+    expect(result.model).toBe('claude-sonnet-4-6');
+  });
+
+  it('sums usage across multiple decision-resume segments', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+    const bus = new EventEmitter() as SseEventBus;
+
+    const decisionJson = JSON.stringify({
+      type: 'approve',
+      title: 'Go ahead?',
+      approve_label: 'Yes',
+    });
+
+    const fetchFn = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ decision_id: 'dec-xyz' }),
+    });
+
+    let queryCallCount = 0;
+    mockQuery.mockImplementation(() => {
+      queryCallCount++;
+      if (queryCallCount === 1) {
+        return createAsyncGenerator([
+          createAssistantMessageFull({
+            text: `Need decision.\n\n\`\`\`decision\n${decisionJson}\n\`\`\``,
+            model: 'claude-sonnet-4-6',
+            usage: { input_tokens: 30, output_tokens: 20, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+          }),
+        ]);
+      }
+      return createAsyncGenerator([
+        createAssistantMessage('Continuing'),
+        createResultSuccess({
+          result: 'Final',
+          num_turns: 3,
+          usage: { input_tokens: 70, output_tokens: 40, cache_creation_input_tokens: 5, cache_read_input_tokens: 11, server_tool_use_input_tokens: 0 },
+          total_cost_usd: 0.04,
+          modelUsage: { 'claude-sonnet-4-6': { inputTokens: 70, outputTokens: 40 } },
+        }),
+      ]);
+    });
+
+    const reporter = createMockReporter();
+    const resultPromise = executeAgent(createAgentConfig(), reporter, {
+      decisionContext: {
+        runId: 'run-resume',
+        panelUrl: 'https://p',
+        panelApiKey: 'k',
+        eventBus: bus,
+        fetch: fetchFn,
+      },
+    });
+
+    setTimeout(() => {
+      bus.emit('decision_resolved', {
+        id: 1,
+        type: 'decision_resolved',
+        decision_id: 'dec-xyz',
+        task_run_id: 'run-resume',
+        resolution: { action_id: 'approve' },
+      });
+    }, 20);
+
+    const result = await resultPromise;
+    expect(result.usage.input_tokens).toBe(100);
+    expect(result.usage.output_tokens).toBe(60);
+    expect(result.usage.total_tokens).toBe(160);
+    expect(result.usage.cache_read_input_tokens).toBe(11);
+    expect(result.usage.cache_creation_input_tokens).toBe(5);
+    expect(result.usage.estimated_cost_usd).toBeCloseTo(0.04, 6);
+    expect(result.turnCount).toBe(4);
+  });
+
+  it('emits per-turn tokens_delta and model in progress metadata', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createAssistantMessageFull({
+        text: 'Step 1',
+        model: 'claude-sonnet-4-6',
+        usage: { input_tokens: 10, output_tokens: 5, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+      }),
+      createResultSuccess({ result: 'Done', num_turns: 1 }),
+    ]));
+
+    const reporter = createMockReporter();
+    await executeAgent(createAgentConfig(), reporter);
+
+    expect(reporter.progress).toHaveBeenCalledWith(
+      'Step 1',
+      expect.objectContaining({
+        tokens_delta: { input: 10, output: 5 },
+        model: 'claude-sonnet-4-6',
+      }),
+    );
+  });
+
+  it('tracks per-tool-call duration via tool_use + tool_result pairing', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createAssistantMessageWithTools([
+        { type: 'tool_use', id: 'tool-1', name: 'Bash', input: { command: 'ls' } },
+      ]),
+      createUserMessageWithToolResult('tool-1', 'total 0'),
+      createAssistantMessage('done looking'),
+      createResultSuccess({ result: 'done', num_turns: 2 }),
+    ]));
+
+    const reporter = createMockReporter();
+    const result = await executeAgent(createAgentConfig(), reporter);
+
+    expect(result.toolCalls).toBeDefined();
+    const call = result.toolCalls!.find((c) => c.name === 'Bash');
+    expect(call).toBeDefined();
+    expect(call?.duration_ms).toBeGreaterThanOrEqual(0);
+    expect(call?.input).toEqual({ command: 'ls' });
+    expect(call?.output).toBe('total 0');
+  });
+
   it('returns default summary when result text is empty', async () => {
     const { executeAgent } = await import('./claude-code.js');
 
@@ -723,6 +877,41 @@ function createAssistantMessage(text: string) {
   };
 }
 
+function createAssistantMessageFull(options: {
+  text: string;
+  model: string;
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_creation_input_tokens: number;
+    cache_read_input_tokens: number;
+  };
+}) {
+  return {
+    type: 'assistant' as const,
+    message: {
+      content: [{ type: 'text' as const, text: options.text }],
+      model: options.model,
+      usage: options.usage,
+    },
+    parent_tool_use_id: null,
+    uuid: '00000000-0000-0000-0000-000000000005' as `${string}-${string}-${string}-${string}-${string}`,
+    session_id: 'session-1',
+  };
+}
+
+function createUserMessageWithToolResult(toolUseId: string, output: string) {
+  return {
+    type: 'user' as const,
+    message: {
+      content: [{ type: 'tool_result' as const, tool_use_id: toolUseId, content: output }],
+    },
+    parent_tool_use_id: null,
+    uuid: '00000000-0000-0000-0000-000000000006' as `${string}-${string}-${string}-${string}-${string}`,
+    session_id: 'session-1',
+  };
+}
+
 function createAssistantMessageWithTools(
   blocks: Array<{ type: string; id?: string; name?: string; input?: Record<string, unknown>; text?: string }>,
 ) {
@@ -740,19 +929,31 @@ function createAssistantMessageWithTools(
 function createResultSuccess(overrides: {
   result: string;
   num_turns: number;
+  stop_reason?: string;
+  total_cost_usd?: number;
+  duration_ms?: number;
+  duration_api_ms?: number;
+  usage?: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_creation_input_tokens: number;
+    cache_read_input_tokens: number;
+    server_tool_use_input_tokens?: number;
+  };
+  modelUsage?: Record<string, unknown>;
 }) {
   return {
     type: 'result' as const,
     subtype: 'success' as const,
-    duration_ms: 1000,
-    duration_api_ms: 800,
+    duration_ms: overrides.duration_ms ?? 1000,
+    duration_api_ms: overrides.duration_api_ms ?? 800,
     is_error: false,
     num_turns: overrides.num_turns,
     result: overrides.result,
-    stop_reason: 'end_turn',
-    total_cost_usd: 0.05,
-    usage: { input_tokens: 100, output_tokens: 50, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, server_tool_use_input_tokens: 0 },
-    modelUsage: {},
+    stop_reason: overrides.stop_reason ?? 'end_turn',
+    total_cost_usd: overrides.total_cost_usd ?? 0.05,
+    usage: overrides.usage ?? { input_tokens: 100, output_tokens: 50, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, server_tool_use_input_tokens: 0 },
+    modelUsage: overrides.modelUsage ?? {},
     permission_denials: [],
     uuid: '00000000-0000-0000-0000-000000000003' as `${string}-${string}-${string}-${string}-${string}`,
     session_id: 'session-1',

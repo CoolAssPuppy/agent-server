@@ -3,7 +3,13 @@ import type { Options, Query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentConfig } from '../agents/config.js';
 import { resolveEnvVars } from '../agents/config.js';
 import type { Reporter } from '../execution/runner.js';
-import { truncate, WRITE_TOOLS, type ExecutionResult, type McpServerInfo } from '../execution/executor.js';
+import {
+  truncate,
+  WRITE_TOOLS,
+  type ExecutionResult,
+  type McpServerInfo,
+  type ToolCallTrace,
+} from '../execution/executor.js';
 import { expandHome } from '../agents/file-watcher.js';
 import { parseInteractionBlock, parseDecisionBlock } from '../interaction/parser.js';
 import { buildCanUseTool } from '../execution/permissions.js';
@@ -51,6 +57,22 @@ export async function executeAgent(
   let currentPrompt = agent.prompt;
   const resumptionHistory: string[] = [];
 
+  // Accumulators that survive decision-resume segments (Fix 5).
+  let totalNumTurns = 0;
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let totalCacheReadTokens = 0;
+  let totalCacheCreationTokens = 0;
+  let totalCostUsd = 0;
+  let lastModel: string | undefined;
+  let lastStopReason: string | undefined;
+  let lastDurationMs: number | undefined;
+  let lastDurationApiMs: number | undefined;
+
+  // Per-run tool-call tracking for Fix 3. Key: tool_use id.
+  const toolStarts = new Map<string, { name: string; input: unknown; startedAt: number }>();
+  const completedToolCalls: ToolCallTrace[] = [];
+
   // Outer loop runs one SDK invocation per paused-and-resumed segment. Each
   // `query()` call emits an assistant stream; if a decision block appears
   // mid-stream, we pause, await resolution, and restart the SDK with the
@@ -63,14 +85,57 @@ export async function executeAgent(
 
     let decisionHandled = false;
     let resultPayload: ExecutionResult | undefined;
+    // Track cumulative usage reported within this segment by assistant
+    // messages. The SDK reports the segment's running totals on each
+    // assistant turn; if the segment is interrupted before a `result`
+    // message arrives (decision pause), this is the only source of truth
+    // for the tokens consumed so far.
+    let segmentAssistantInput = 0;
+    let segmentAssistantOutput = 0;
+    let segmentAssistantCacheRead = 0;
+    let segmentAssistantCacheCreation = 0;
+    let segmentHadResult = false;
+    let segmentTurnsFromAssistants = 0;
 
     for await (const message of stream) {
+      if (message.type === 'user') {
+        // Pair tool_use with tool_result to compute per-call duration (Fix 3).
+        const userContent = message.message?.content;
+        if (Array.isArray(userContent)) {
+          for (const block of userContent) {
+            if (
+              typeof block === 'object' &&
+              block !== null &&
+              'type' in block &&
+              (block as { type: unknown }).type === 'tool_result' &&
+              'tool_use_id' in block
+            ) {
+              const id = (block as { tool_use_id: unknown }).tool_use_id;
+              if (typeof id !== 'string') continue;
+              const started = toolStarts.get(id);
+              if (!started) continue;
+              const output = 'content' in block
+                ? (block as { content: unknown }).content
+                : undefined;
+              completedToolCalls.push({
+                name: started.name,
+                input: started.input,
+                output,
+                duration_ms: Math.max(0, performance.now() - started.startedAt),
+              });
+              toolStarts.delete(id);
+            }
+          }
+        }
+      }
+
       if (message.type === 'assistant') {
         turnCount++;
         const content = message.message?.content;
         if (!Array.isArray(content)) continue;
 
         const textParts: string[] = [];
+        const turnStartedAt = performance.now();
 
         for (const block of content) {
           if (block.type === 'text' && 'text' in block) {
@@ -83,6 +148,14 @@ export async function executeAgent(
             lastToolName = name;
 
             const input = ('input' in block ? block.input : {}) as Record<string, unknown>;
+            const toolUseId = 'id' in block && typeof block.id === 'string' ? block.id : null;
+            if (toolUseId) {
+              toolStarts.set(toolUseId, {
+                name,
+                input,
+                startedAt: turnStartedAt,
+              });
+            }
             const filePath = typeof input.file_path === 'string' ? input.file_path : null;
 
             if (name === 'Read' && filePath) {
@@ -99,19 +172,56 @@ export async function executeAgent(
           lastAssistantText = textParts.join('\n');
         }
 
+        // Per-turn usage + cost deltas (Fix 2). Track both cumulative
+        // segment totals (used as a fallback source for Fix 5 when a segment
+        // is interrupted without emitting a `result`) and per-turn deltas.
+        const assistantUsage = extractAssistantUsage(message);
+        const turnModel = extractAssistantModel(message);
+        if (turnModel) lastModel = turnModel;
+
+        let deltaInput = 0;
+        let deltaOutput = 0;
+        if (assistantUsage) {
+          deltaInput = Math.max(0, assistantUsage.inputTokens - segmentAssistantInput);
+          deltaOutput = Math.max(0, assistantUsage.outputTokens - segmentAssistantOutput);
+          segmentAssistantInput = Math.max(segmentAssistantInput, assistantUsage.inputTokens);
+          segmentAssistantOutput = Math.max(segmentAssistantOutput, assistantUsage.outputTokens);
+          segmentAssistantCacheRead = Math.max(segmentAssistantCacheRead, assistantUsage.cacheReadTokens);
+          segmentAssistantCacheCreation = Math.max(segmentAssistantCacheCreation, assistantUsage.cacheCreationTokens);
+        }
+        segmentTurnsFromAssistants += 1;
+
         const summary = textParts.length > 0
           ? truncate(textParts.join(' '))
           : lastToolName
             ? `Using tool: ${lastToolName}`
             : null;
 
+        const progressMetadata: Record<string, unknown> = {
+          turns_completed: turnCount,
+          tools_used: [...toolsUsed],
+          files_written: [...allFilesWritten],
+          commands_run: allCommandsRun.length,
+        };
+        if (assistantUsage) {
+          progressMetadata.tokens_delta = {
+            input: deltaInput,
+            output: deltaOutput,
+          };
+          // Per-turn cost is not exposed directly by the SDK assistant
+          // message. The final `result` message carries total_cost_usd which
+          // we already accumulate. Leaving cost_delta_usd undefined here is
+          // intentional -- downstream code handles a missing per-turn cost.
+        }
+        if (turnModel) {
+          progressMetadata.model = turnModel;
+        }
+        if (completedToolCalls.length > 0) {
+          progressMetadata.tool_calls = [...completedToolCalls];
+        }
+
         if (summary) {
-          void reporter.progress(summary, {
-            turns_completed: turnCount,
-            tools_used: [...toolsUsed],
-            files_written: [...allFilesWritten],
-            commands_run: allCommandsRun.length,
-          });
+          void reporter.progress(summary, progressMetadata);
         }
 
         if (extra?.decisionContext && textParts.length > 0) {
@@ -136,6 +246,33 @@ export async function executeAgent(
       }
 
       if (message.type === 'result') {
+        segmentHadResult = true;
+        // Accumulate usage across decision-resume segments (Fix 5). We must
+        // do this even for the non-success subtype so that a failure after
+        // a successful segment keeps the prior telemetry.
+        const usage = extractResultUsage(message);
+        totalInputTokens += usage.inputTokens;
+        totalOutputTokens += usage.outputTokens;
+        totalCacheReadTokens += usage.cacheReadTokens;
+        totalCacheCreationTokens += usage.cacheCreationTokens;
+        if (typeof message.total_cost_usd === 'number') {
+          totalCostUsd += message.total_cost_usd;
+        }
+        if (typeof message.num_turns === 'number') {
+          totalNumTurns += message.num_turns;
+        }
+        if (typeof message.stop_reason === 'string' && message.stop_reason) {
+          lastStopReason = message.stop_reason;
+        }
+        if (typeof message.duration_ms === 'number') {
+          lastDurationMs = (lastDurationMs ?? 0) + message.duration_ms;
+        }
+        if (typeof message.duration_api_ms === 'number') {
+          lastDurationApiMs = (lastDurationApiMs ?? 0) + message.duration_api_ms;
+        }
+        const resolvedModel = extractModelFromResult(message) ?? lastModel;
+        if (resolvedModel) lastModel = resolvedModel;
+
         if (message.subtype !== 'success') {
           const errors = 'errors' in message ? (message.errors as string[]) : [];
           throw new Error(errors.join('; ') || `Agent failed: ${message.subtype}`);
@@ -145,16 +282,37 @@ export async function executeAgent(
 
         resultPayload = buildResult({
           summary: resultText || 'Agent completed',
-          turnCount: message.num_turns,
+          turnCount: totalNumTurns,
           toolsUsed,
           allFilesRead,
           allFilesWritten,
           allCommandsRun,
           lastAssistantText,
           mcpServers,
+          totalInputTokens,
+          totalOutputTokens,
+          totalCacheReadTokens,
+          totalCacheCreationTokens,
+          totalCostUsd,
+          model: lastModel,
+          stopReason: lastStopReason,
+          durationMs: lastDurationMs,
+          durationApiMs: lastDurationApiMs,
+          toolCalls: completedToolCalls,
         });
         break;
       }
+    }
+
+    if (!segmentHadResult) {
+      // Segment ended without a final `result` (decision interrupt or
+      // stream ended). Fold observed assistant usage into the running
+      // totals so subsequent segments add on top.
+      totalInputTokens += segmentAssistantInput;
+      totalOutputTokens += segmentAssistantOutput;
+      totalCacheReadTokens = Math.max(totalCacheReadTokens, segmentAssistantCacheRead);
+      totalCacheCreationTokens = Math.max(totalCacheCreationTokens, segmentAssistantCacheCreation);
+      totalNumTurns += segmentTurnsFromAssistants;
     }
 
     if (resultPayload) return resultPayload;
@@ -169,8 +327,78 @@ export async function executeAgent(
       allCommandsRun,
       lastAssistantText,
       mcpServers,
+      totalInputTokens,
+      totalOutputTokens,
+      totalCacheReadTokens,
+      totalCacheCreationTokens,
+      totalCostUsd,
+      model: lastModel,
+      stopReason: lastStopReason,
+      durationMs: lastDurationMs,
+      durationApiMs: lastDurationApiMs,
+      toolCalls: completedToolCalls,
     });
   }
+}
+
+type AssistantUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+};
+
+function extractAssistantUsage(message: unknown): AssistantUsage | null {
+  if (typeof message !== 'object' || message === null) return null;
+  const msg = (message as { message?: unknown }).message;
+  if (typeof msg !== 'object' || msg === null) return null;
+  const usage = (msg as { usage?: unknown }).usage;
+  if (typeof usage !== 'object' || usage === null) return null;
+  const u = usage as Record<string, unknown>;
+  const toNum = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  return {
+    inputTokens: toNum(u.input_tokens),
+    outputTokens: toNum(u.output_tokens),
+    cacheReadTokens: toNum(u.cache_read_input_tokens),
+    cacheCreationTokens: toNum(u.cache_creation_input_tokens),
+  };
+}
+
+function extractAssistantModel(message: unknown): string | undefined {
+  if (typeof message !== 'object' || message === null) return undefined;
+  const msg = (message as { message?: unknown }).message;
+  if (typeof msg !== 'object' || msg === null) return undefined;
+  const model = (msg as { model?: unknown }).model;
+  return typeof model === 'string' && model.length > 0 ? model : undefined;
+}
+
+function extractResultUsage(message: unknown): AssistantUsage {
+  if (typeof message !== 'object' || message === null) {
+    return { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 };
+  }
+  const u = (message as { usage?: unknown }).usage;
+  if (typeof u !== 'object' || u === null) {
+    return { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 };
+  }
+  const obj = u as Record<string, unknown>;
+  const toNum = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  return {
+    inputTokens: toNum(obj.input_tokens),
+    outputTokens: toNum(obj.output_tokens),
+    cacheReadTokens: toNum(obj.cache_read_input_tokens),
+    cacheCreationTokens: toNum(obj.cache_creation_input_tokens),
+  };
+}
+
+function extractModelFromResult(message: unknown): string | undefined {
+  if (typeof message !== 'object' || message === null) return undefined;
+  const mu = (message as { modelUsage?: unknown }).modelUsage;
+  if (typeof mu !== 'object' || mu === null) return undefined;
+  // modelUsage is Record<modelName, {...}>; pick the first populated key.
+  for (const key of Object.keys(mu as Record<string, unknown>)) {
+    if (key) return key;
+  }
+  return undefined;
 }
 
 function buildResumptionPrompt(originalPrompt: string, history: string[]): string {
@@ -188,18 +416,44 @@ function buildResult(params: {
   allCommandsRun: string[];
   lastAssistantText: string;
   mcpServers: McpServerInfo[];
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCacheReadTokens: number;
+  totalCacheCreationTokens: number;
+  totalCostUsd: number;
+  model?: string;
+  stopReason?: string;
+  durationMs?: number;
+  durationApiMs?: number;
+  toolCalls: ToolCallTrace[];
 }): ExecutionResult {
   const interaction = parseInteractionBlock(params.lastAssistantText);
+  const totalTokens = params.totalInputTokens + params.totalOutputTokens;
+
+  const usage: Record<string, unknown> = {
+    // Legacy fields retained for backward compat with Panel queries.
+    turns: params.turnCount,
+    files_read: params.allFilesRead.size,
+    files_written: params.allFilesWritten.size,
+    commands_run: params.allCommandsRun.length,
+    // Rich usage (Fix 1 + Fix 5).
+    input_tokens: params.totalInputTokens,
+    output_tokens: params.totalOutputTokens,
+    total_tokens: totalTokens,
+    estimated_cost_usd: Number(params.totalCostUsd.toFixed(6)),
+    cache_read_input_tokens: params.totalCacheReadTokens,
+    cache_creation_input_tokens: params.totalCacheCreationTokens,
+    turn_count: params.turnCount,
+  };
+  if (params.stopReason) usage.stop_reason = params.stopReason;
+  if (typeof params.durationMs === 'number') usage.duration_ms = params.durationMs;
+  if (typeof params.durationApiMs === 'number') usage.duration_api_ms = params.durationApiMs;
+  if (params.model) usage.model = params.model;
 
   return {
     summary: params.summary,
     output: {},
-    usage: {
-      turns: params.turnCount,
-      files_read: params.allFilesRead.size,
-      files_written: params.allFilesWritten.size,
-      commands_run: params.allCommandsRun.length,
-    },
+    usage,
     turnCount: params.turnCount,
     toolsUsed: [...params.toolsUsed],
     filesRead: [...params.allFilesRead],
@@ -207,6 +461,11 @@ function buildResult(params: {
     commandsRun: params.allCommandsRun,
     interaction,
     mcpServers: params.mcpServers.length > 0 ? params.mcpServers : undefined,
+    model: params.model,
+    stopReason: params.stopReason,
+    durationMs: params.durationMs,
+    durationApiMs: params.durationApiMs,
+    toolCalls: params.toolCalls.length > 0 ? [...params.toolCalls] : undefined,
   };
 }
 
