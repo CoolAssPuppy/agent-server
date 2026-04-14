@@ -24,6 +24,7 @@ struct SettingsDrawer: View {
     @State private var editingKey: String? = nil
     @State private var invalidKeys: Set<String> = []
     @State private var saveError: String? = nil
+    @State private var selectedIndex: Int? = nil
     @State private var launchAtLogin: Bool = LaunchAtLoginManager.shared.isEnabled
     @State private var resumeAfterWake: Bool = true
     @State private var autoUpdates: Bool = true
@@ -158,15 +159,36 @@ struct SettingsDrawer: View {
     private var panelConnectionsCard: some View {
         SettingsCard(title: "Panel connections") {
             VStack(alignment: .leading, spacing: NSpacing.xs) {
-                headerRow
+                // Grid body: header + rows. Single outer surface with a
+                // divider between header and body and between rows. The +/-
+                // toolbar sits outside the grid at the bottom of the card.
+                VStack(spacing: 0) {
+                    headerRow
+                        .padding(.horizontal, NSpacing.sm)
+                        .padding(.vertical, 6)
+                    Divider().opacity(0.4)
 
-                VStack(spacing: NSpacing.xxs) {
-                    ForEach(Array(pairs.enumerated()), id: \.offset) { idx, pair in
-                        connectionRow(index: idx, pair: pair)
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            ForEach(Array(pairs.enumerated()), id: \.offset) { idx, pair in
+                                connectionRow(index: idx, pair: pair)
+                                    .padding(.horizontal, NSpacing.sm)
+                                    .padding(.vertical, 4)
+                                    .background(
+                                        selectedIndex == idx
+                                            ? theme.tokens.primary.opacity(0.10)
+                                            : Color.clear
+                                    )
+                                    .contentShape(Rectangle())
+                                    .onTapGesture { selectedIndex = idx }
+                                if idx < pairs.count - 1 {
+                                    Divider().opacity(0.25)
+                                }
+                            }
+                        }
                     }
-                    addConnectionButton
+                    .frame(maxHeight: 200)
                 }
-                .padding(NSpacing.xxs)
                 .background(
                     RoundedRectangle(cornerRadius: NRadius.sm)
                         .fill(theme.tokens.background)
@@ -175,6 +197,8 @@ struct SettingsDrawer: View {
                                 .stroke(theme.tokens.border, lineWidth: 1)
                         )
                 )
+
+                gridToolbar
 
                 if !invalidKeys.isEmpty {
                     Text("Keys must match `[A-Z][A-Z0-9_]*`.")
@@ -192,6 +216,61 @@ struct SettingsDrawer: View {
                         .foregroundStyle(theme.tokens.mutedForeground)
                 }
             }
+        }
+    }
+
+    /// +/- toolbar pinned under the grid. Mirrors the Finder/NSTableView
+    /// idiom: click a row to select, `-` removes it, `+` appends a new row.
+    private var gridToolbar: some View {
+        HStack(spacing: 0) {
+            Button(action: appendRow) {
+                Image(systemName: "plus")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(theme.tokens.foreground)
+                    .frame(width: 24, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Add connection")
+
+            Divider().frame(height: 14).opacity(0.4)
+
+            Button(action: removeSelectedRow) {
+                Image(systemName: "minus")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(
+                        selectedIndex == nil
+                            ? theme.tokens.mutedForeground.opacity(0.5)
+                            : theme.tokens.foreground
+                    )
+                    .frame(width: 24, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(selectedIndex == nil)
+            .help("Remove selected connection")
+
+            Spacer()
+        }
+        .background(
+            RoundedRectangle(cornerRadius: NRadius.xs)
+                .stroke(theme.tokens.border, lineWidth: 1)
+        )
+    }
+
+    private func appendRow() {
+        pairs.append(EnvPair(key: "", value: "", isSecret: false))
+        selectedIndex = pairs.count - 1
+        refreshValidation()
+    }
+
+    private func removeSelectedRow() {
+        guard let idx = selectedIndex, pairs.indices.contains(idx) else { return }
+        deleteRow(at: idx)
+        if pairs.isEmpty {
+            selectedIndex = nil
+        } else {
+            selectedIndex = min(idx, pairs.count - 1)
         }
     }
 
@@ -215,34 +294,10 @@ struct SettingsDrawer: View {
     private func connectionRow(index: Int, pair: EnvPair) -> some View {
         HStack(spacing: NSpacing.sm) {
             keyField(index: index, pair: pair)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, alignment: .leading)
             valueField(index: index, pair: pair)
-                .frame(maxWidth: .infinity)
-            Button {
-                deleteRow(at: index)
-            } label: {
-                Image(systemName: "minus")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                    .frame(width: 22, height: 22)
-                    .background(
-                        RoundedRectangle(cornerRadius: NRadius.xs)
-                            .fill(theme.tokens.background)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: NRadius.xs)
-                                    .stroke(theme.tokens.border, lineWidth: 1)
-                            )
-                    )
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Remove \(pair.key.isEmpty ? "row" : pair.key)")
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(NSpacing.xxs)
-        .background(
-            RoundedRectangle(cornerRadius: NRadius.xs)
-                .fill(theme.tokens.muted.opacity(0.5))
-        )
     }
 
     private func keyField(index: Int, pair: EnvPair) -> some View {
@@ -362,30 +417,6 @@ struct SettingsDrawer: View {
         }
     }
 
-    private var addConnectionButton: some View {
-        Button {
-            pairs.append(EnvPair(key: "", value: "", isSecret: false))
-            refreshValidation()
-        } label: {
-            HStack(spacing: NSpacing.xxs) {
-                Image(systemName: "plus")
-                    .font(.system(size: 10, weight: .bold))
-                Text("Add connection")
-                    .font(.system(size: 11, weight: .medium))
-            }
-            .foregroundStyle(theme.tokens.primary)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, NSpacing.xs)
-            .background(
-                RoundedRectangle(cornerRadius: NRadius.xs)
-                    .strokeBorder(
-                        theme.tokens.border,
-                        style: StrokeStyle(lineWidth: 1, dash: [4, 3])
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-    }
 
     private var updatesCard: some View {
         SettingsCard(title: "Updates") {
