@@ -193,7 +193,11 @@ struct MenuBarPopover: View {
     // MARK: - Bottom bar
 
     private var bottomBar: some View {
-        HStack {
+        HStack(spacing: NSpacing.xs) {
+            ThemeDotStrip()
+
+            Spacer()
+
             Button {
                 onOpenSettings?()
             } label: {
@@ -205,12 +209,6 @@ struct MenuBarPopover: View {
             }
             .buttonStyle(.plain)
             .help("Settings")
-
-            Spacer()
-
-            ThemeDotStrip()
-
-            Spacer()
 
             Button {
                 onQuit?()

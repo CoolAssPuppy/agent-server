@@ -52,6 +52,10 @@ struct Sidebar: View {
             Text("\(rows.count)")
                 .font(NTypography.caption)
                 .foregroundStyle(theme.tokens.mutedForeground)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(theme.tokens.muted)
+                .clipShape(Capsule())
         }
         .padding(.horizontal, NSpacing.lg)
         .padding(.vertical, NSpacing.md)

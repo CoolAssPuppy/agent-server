@@ -95,15 +95,25 @@ struct MainWindow: View {
     }
 
     @ViewBuilder
+    /// Settings drawer overlay. Dimmer + drawer are SEPARATE siblings of the
+    /// ZStack so each plays its own transition — the drawer slides down from
+    /// above, the dimmer fades in. A ~32pt top inset keeps the drawer clear
+    /// of the transparent titlebar's traffic lights.
     private var settingsDrawerLayer: some View {
-        if router.isSettingsOpen {
-            VStack(spacing: 0) {
-                SettingsDrawer(monitor: monitor, router: router)
-                    .transition(.move(edge: .top))
+        ZStack(alignment: .top) {
+            if router.isSettingsOpen {
                 Color.black.opacity(0.22)
                     .onTapGesture(perform: router.close)
+                    .transition(.opacity)
+
+                SettingsDrawer(monitor: monitor, router: router)
+                    .padding(.horizontal, NSpacing.lg)
+                    .padding(.top, 32)
+                    .transition(
+                        .move(edge: .top)
+                            .combined(with: .opacity)
+                    )
             }
-            .animation(.easeOut(duration: SettingsDrawer.slideDuration), value: router.isSettingsOpen)
         }
     }
 

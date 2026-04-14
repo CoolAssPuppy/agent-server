@@ -81,7 +81,12 @@ struct MarkdownEditor: NSViewRepresentable {
 
     private func applyTheme(to textView: NSTextView) {
         let theme = EditorTheme.shared
-        textView.backgroundColor = theme.backgroundColor
+        // Transparent so the SwiftUI card (theme.tokens.card) is the only
+        // surface rendered. The hardcoded theme.backgroundColor (#1e1e1e)
+        // was slightly different from theme.tokens.card (#1C1C1C), creating
+        // a faint edge inside the rounded card that read as a drop shadow.
+        textView.backgroundColor = .clear
+        textView.drawsBackground = false
         textView.textColor = theme.foregroundColor
         textView.insertionPointColor = theme.cursorColor
         textView.selectedTextAttributes = [

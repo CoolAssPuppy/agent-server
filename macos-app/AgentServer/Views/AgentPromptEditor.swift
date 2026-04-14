@@ -75,11 +75,11 @@ struct AgentPromptEditor: View {
         } else {
             MarkdownEditor(text: $model.body)
                 .frame(minHeight: 280)
-                .padding(12)
+                .padding(16)
                 .background(theme.tokens.card)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: 10)
                         .stroke(theme.tokens.border, lineWidth: 1)
                 )
         }

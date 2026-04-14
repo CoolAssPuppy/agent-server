@@ -345,7 +345,10 @@ extension AppDelegate {
     }
 
     @objc func showSettings() {
-        showSettings(deepLinkAgentId: nil)
+        // Single path: reveal the main window with the settings drawer down.
+        // The legacy standalone Settings window is deliberately NOT used —
+        // it competed with the drawer and flashed as a separate sheet.
+        openMainWindow(route: .settings)
     }
 
     private func showSettings(deepLinkAgentId: String?) {
