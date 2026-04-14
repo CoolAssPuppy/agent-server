@@ -17,6 +17,7 @@
 		286D0BA5C8914421646E03D9 /* MCPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FDC36BB13528F7FD3BE8F2C /* MCPServer.swift */; };
 		2CDA922300E92E5825F5EEB1 /* PanelClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FE442CAD3D55ADB3B5F89D7 /* PanelClient.swift */; };
 		35FDE3BEDFC10D02FAD60D3F /* DrawerRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A9B17FFF708C7E5834EAB27 /* DrawerRouter.swift */; };
+		35FDE3BEDFC10D02FAD60E01 /* DrawerDragDismissal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A9B17FFF708C7E5834EAC01 /* DrawerDragDismissal.swift */; };
 		382BDD6B5E296A886C55232C /* EventKitHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9098758BCD6B9EC571281A51 /* EventKitHandler.swift */; };
 		39740E464CDDEC9742EDB194 /* ConnectionsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 019F0C7D13F571CF359F3CB9 /* ConnectionsStore.swift */; };
 		3CB4D6BB18637F00B57B4B59 /* MenuBarDecisionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FD3C4BF1D811F05450C0CF2 /* MenuBarDecisionsViewModel.swift */; };
@@ -79,6 +80,7 @@
 		1166D983A336A4F217C9282E /* PanelRun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelRun.swift; sourceTree = "<group>"; };
 		1359015CD6B7782FF2A70E69 /* EventKitPermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitPermissionManager.swift; sourceTree = "<group>"; };
 		1A9B17FFF708C7E5834EAB27 /* DrawerRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawerRouter.swift; sourceTree = "<group>"; };
+		1A9B17FFF708C7E5834EAC01 /* DrawerDragDismissal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawerDragDismissal.swift; sourceTree = "<group>"; };
 		241EB59407AD998C9A023722 /* AgentDetailDrawer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentDetailDrawer.swift; sourceTree = "<group>"; };
 		2AEC874CD4B98C234CA70908 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		325C74DAF7BB5F1C25B3A733 /* SidebarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarViewModel.swift; sourceTree = "<group>"; };
@@ -279,6 +281,7 @@
 				019F0C7D13F571CF359F3CB9 /* ConnectionsStore.swift */,
 				B9E3A0BC90A75E1C817A3238 /* Decision.swift */,
 				1A9B17FFF708C7E5834EAB27 /* DrawerRouter.swift */,
+				1A9B17FFF708C7E5834EAC01 /* DrawerDragDismissal.swift */,
 				0FD3C4BF1D811F05450C0CF2 /* MenuBarDecisionsViewModel.swift */,
 				4A846AEE9153B33BA7E15DB9 /* RunDecisionsViewModel.swift */,
 				325C74DAF7BB5F1C25B3A733 /* SidebarViewModel.swift */,
@@ -472,6 +475,7 @@
 				39740E464CDDEC9742EDB194 /* ConnectionsStore.swift in Sources */,
 				59831E5595B33F9E1EF1F7D3 /* Decision.swift in Sources */,
 				35FDE3BEDFC10D02FAD60D3F /* DrawerRouter.swift in Sources */,
+				35FDE3BEDFC10D02FAD60E01 /* DrawerDragDismissal.swift in Sources */,
 				87780D46FC7AA630FC93521B /* EnvEditorView.swift in Sources */,
 				EE292187B9B2FC34A554F88C /* EnvFile.swift in Sources */,
 				A0D0411E2B0DE47445503404 /* EventKitPermissionManager.swift in Sources */,

@@ -1,5 +1,6 @@
 import SwiftUI
 import NerdsUI
+import AppKit
 
 /// Slide-in drawer that overlays the main pane from the left edge of the main
 /// area (x=240). Width 780, full remaining height. Contains `Definition` and
@@ -11,9 +12,11 @@ struct AgentDetailDrawer: View {
 
     @Environment(\.nTheme) private var theme
     @State private var tab: Tab = .definition
+    @State private var dragOffset: CGFloat = 0
 
     static let width: CGFloat = 780
     static let slideDuration: Double = 0.22
+    static let dismissThreshold: CGFloat = 80
 
     enum Tab: String, CaseIterable {
         case definition = "Definition"
@@ -25,16 +28,77 @@ struct AgentDetailDrawer: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider().opacity(0.3)
-            content
+        ZStack(alignment: .trailing) {
+            VStack(spacing: 0) {
+                header
+                Divider().opacity(0.3)
+                content
+            }
+
+            grabBar
         }
         .frame(width: Self.width)
         .frame(maxHeight: .infinity)
         .background(theme.tokens.background)
         .overlay(leadingBorder, alignment: .leading)
         .shadow(color: Color.black.opacity(0.25), radius: 20, x: -8, y: 0)
+        .offset(x: dragOffset)
+    }
+
+    /// Vertical 4pt grab bar glued to the right edge. Dragging it leftward
+    /// follows the drawer; release past `dismissThreshold` closes.
+    private var grabBar: some View {
+        ZStack {
+            Rectangle()
+                .fill(theme.tokens.border.opacity(0.5))
+                .frame(width: 4)
+                .frame(maxHeight: .infinity)
+
+            // Three stacked dots as an affordance so the bar reads as a handle.
+            VStack(spacing: 4) {
+                ForEach(0..<3, id: \.self) { _ in
+                    Circle()
+                        .fill(theme.tokens.mutedForeground.opacity(0.6))
+                        .frame(width: 3, height: 3)
+                }
+            }
+        }
+        .frame(width: 12)
+        .contentShape(Rectangle())
+        .onHover { inside in
+            if inside {
+                NSCursor.resizeLeftRight.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+        .gesture(grabBarDragGesture)
+    }
+
+    private var grabBarDragGesture: some Gesture {
+        DragGesture()
+            .onChanged { value in
+                // Clamp: only allow leftward movement, bounded by drawer width.
+                let raw = value.translation.width
+                dragOffset = max(-Self.width, min(0, raw))
+            }
+            .onEnded { value in
+                let translation = value.translation.width
+                if shouldDismissOnRelease(
+                    translation: translation,
+                    threshold: Self.dismissThreshold,
+                    axis: .horizontalLeading
+                ) {
+                    withAnimation(.easeOut(duration: Self.slideDuration)) {
+                        dragOffset = -Self.width
+                    }
+                    router.close()
+                } else {
+                    withAnimation(.easeOut(duration: 0.18)) {
+                        dragOffset = 0
+                    }
+                }
+            }
     }
 
     private var leadingBorder: some View {
@@ -45,6 +109,17 @@ struct AgentDetailDrawer: View {
 
     private var header: some View {
         HStack(spacing: NSpacing.md) {
+            Button(action: router.close) {
+                Image(systemName: "chevron.left")
+                    .font(NTypography.bodyMedium)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut("w", modifiers: .command)
+            .help("Close drawer (⌘W)")
+
             VStack(alignment: .leading, spacing: NSpacing.xxxs) {
                 Text(agent?.name ?? agentId)
                     .font(NTypography.headlineMedium)
@@ -60,17 +135,6 @@ struct AgentDetailDrawer: View {
             Spacer()
 
             tabs
-
-            Button(action: router.close) {
-                Image(systemName: "arrow.right")
-                    .font(NTypography.bodyMedium)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                    .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcut("w", modifiers: .command)
-            .help("Close drawer (⌘W)")
         }
         .padding(.horizontal, NSpacing.xl)
         .padding(.vertical, NSpacing.md)
