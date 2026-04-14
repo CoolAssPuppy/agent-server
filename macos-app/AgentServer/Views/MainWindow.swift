@@ -75,23 +75,24 @@ struct MainWindow: View {
         }
     }
 
-    /// Detail drawer: left-edge slide. Animation modifier is OUTSIDE the
-    /// conditional so SwiftUI observes the state flip on the container and
-    /// drives the child's transition.
+    /// Detail drawer: left-edge slide. Layout HStack is ALWAYS present;
+    /// only the drawer child toggles. If the HStack were itself conditional,
+    /// SwiftUI would apply a default .opacity transition to it and the
+    /// drawer's .move(edge: .leading) would never fire.
     private var detailDrawerLayer: some View {
-        ZStack(alignment: .topLeading) {
-            if case .detail(let agentId) = router.open {
-                HStack(spacing: 0) {
-                    Color.clear.frame(width: Sidebar.width)
+        HStack(spacing: 0) {
+            Color.clear.frame(width: Sidebar.width)
+            Group {
+                if case .detail(let agentId) = router.open {
                     AgentDetailDrawer(
                         monitor: monitor,
                         router: router,
                         agentId: agentId
                     )
                     .transition(.move(edge: .leading))
-                    Spacer()
                 }
             }
+            Spacer()
         }
         .animation(
             .easeOut(duration: AgentDetailDrawer.slideDuration),
@@ -99,22 +100,28 @@ struct MainWindow: View {
         )
     }
 
-    /// Settings drawer: top-edge slide over the main pane. The window's
-    /// `fullSizeContentView` makes the content area include the titlebar, so
-    /// the drawer starts 48pt down to clear the traffic lights before its
-    /// rounded top edge appears.
+    /// Settings drawer: top-edge slide over the main pane. Dimmer + drawer
+    /// are siblings in an always-present ZStack; only the drawer's
+    /// conditional child toggles. Same reasoning as detailDrawerLayer —
+    /// keeping the container present prevents SwiftUI from hijacking the
+    /// transition with its default .opacity.
     private var settingsDrawerLayer: some View {
         ZStack(alignment: .top) {
-            if router.isSettingsOpen {
-                Color.black.opacity(0.22)
-                    .onTapGesture(perform: router.close)
-                    .transition(.opacity)
-
-                SettingsDrawer(monitor: monitor, router: router)
-                    .padding(.top, 56)
-                    .transition(
-                        .move(edge: .top).combined(with: .opacity)
-                    )
+            Group {
+                if router.isSettingsOpen {
+                    Color.black.opacity(0.22)
+                        .onTapGesture(perform: router.close)
+                        .transition(.opacity)
+                }
+            }
+            Group {
+                if router.isSettingsOpen {
+                    SettingsDrawer(monitor: monitor, router: router)
+                        .padding(.top, 56)
+                        .transition(
+                            .move(edge: .top).combined(with: .opacity)
+                        )
+                }
             }
         }
         .animation(

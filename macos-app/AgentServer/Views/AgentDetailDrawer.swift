@@ -41,6 +41,11 @@ struct AgentDetailDrawer: View {
         .frame(maxHeight: .infinity)
         .background(theme.tokens.background)
         .overlay(leadingBorder, alignment: .leading)
+        // Rasterize the whole drawer as one layer BEFORE the shadow. Without
+        // this, SwiftUI draws the shadow per opaque subview inside the
+        // drawer (section containers, the markdown card), producing visible
+        // inner drop-shadows that shouldn't be there.
+        .compositingGroup()
         .shadow(color: Color.black.opacity(0.25), radius: 20, x: -8, y: 0)
         .offset(x: dragOffset)
     }
