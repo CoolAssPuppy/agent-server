@@ -5,6 +5,9 @@ import Foundation
 final class StatusMonitor: ObservableObject {
     @Published private(set) var agents: [Agent] = []
     @Published private(set) var activeRuns: [Run] = []
+    /// Most recent completed/failed run per agent. Drives the sidebar's
+    /// "failed last run" red indicator.
+    @Published private(set) var lastRunByAgent: [String: Run] = [:]
     @Published private(set) var isServerReachable = false
     @Published private(set) var staleRunCount: Int = 0
     @Published private(set) var pendingDecisions: [Decision] = []
@@ -119,6 +122,19 @@ final class StatusMonitor: ObservableObject {
 
                 self.previousActiveRunIds = Set(currentActiveRuns.map { $0.runId })
                 self.activeRuns = currentActiveRuns
+
+                // Latest TERMINAL run per agent (for sidebar failed/succeeded
+                // indicator). Running runs are excluded so the icon reflects
+                // the previous outcome, not the in-flight attempt.
+                var latest: [String: Run] = [:]
+                for run in fetchedRuns where !run.isActive {
+                    if let existing = latest[run.agentId] {
+                        if run.startedAt > existing.startedAt { latest[run.agentId] = run }
+                    } else {
+                        latest[run.agentId] = run
+                    }
+                }
+                self.lastRunByAgent = latest
             } catch {
                 self.isServerReachable = false
                 self.agents = []

@@ -16,12 +16,15 @@ struct Sidebar: View {
 
     private var rows: [SidebarRow] {
         let runningIds = Set(monitor.activeRuns.map(\.agentId))
+        let lastRuns = monitor.lastRunByAgent
         let agents = monitor.agents.map { agent in
             SidebarAgent(
                 id: agent.id,
                 slug: agent.id,
                 name: agent.name,
-                description: agent.description
+                description: agent.description,
+                kind: SidebarKindBridge.from(agent.kind),
+                lastRunFailed: lastRuns[agent.id]?.status == .failed
             )
         }
         return SidebarSort.sortedRows(
@@ -157,17 +160,22 @@ private struct SidebarRowView: View {
         .onTapGesture(perform: onSelect)
     }
 
+    /// Type-specific SF Symbol instead of a neutral dot. Color encodes state:
+    /// green = currently running, red = last run failed, primary-gold = pending
+    /// decision, muted = idle.
     private var statusDot: some View {
-        Circle()
-            .fill(dotColor)
-            .frame(width: 8, height: 8)
+        Image(systemName: row.kind.iconName)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(iconColor)
+            .frame(width: 14, height: 14)
     }
 
-    private var dotColor: Color {
+    private var iconColor: Color {
         switch row.state {
-        case .idle: return theme.tokens.mutedForeground.opacity(0.6)
+        case .idle: return theme.tokens.mutedForeground.opacity(0.7)
         case .needsYou: return theme.tokens.primary
         case .running: return Color.green
+        case .failed: return Color.red
         }
     }
 
@@ -185,6 +193,22 @@ private struct SidebarRowView: View {
         if isSelected {
             RoundedRectangle(cornerRadius: NRadius.sm)
                 .stroke(theme.tokens.primary.opacity(0.35), lineWidth: 1)
+        }
+    }
+}
+
+// MARK: - Kind bridge
+
+/// Bridges the app-target's `AgentKind` enum (with NSColor + view logic)
+/// to the framework-free `SidebarRow.Kind` used by the view model.
+enum SidebarKindBridge {
+    static func from(_ kind: AgentKind) -> SidebarRow.Kind {
+        switch kind {
+        case .scheduled: return .scheduled
+        case .interactive: return .interactive
+        case .watcher: return .watcher
+        case .chained: return .chained
+        case .onDemand: return .onDemand
         }
     }
 }

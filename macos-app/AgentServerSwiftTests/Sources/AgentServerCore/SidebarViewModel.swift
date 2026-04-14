@@ -7,11 +7,34 @@ struct SidebarRow: Equatable, Identifiable {
         case idle
         case running
         case needsYou
+        case failed
+    }
+
+    /// Trigger type that determines which SF Symbol to render for the row.
+    /// Mirrors AgentModel.AgentKind but lives in AgentServerCore so this
+    /// model stays framework-free.
+    enum Kind: Equatable {
+        case scheduled
+        case interactive
+        case watcher
+        case chained
+        case onDemand
+
+        public var iconName: String {
+            switch self {
+            case .scheduled: return "clock"
+            case .interactive: return "bubble.left.and.bubble.right"
+            case .watcher: return "eye"
+            case .chained: return "link"
+            case .onDemand: return "play.circle"
+            }
+        }
     }
 
     let id: String
     let name: String
     let description: String?
+    let kind: Kind
     let state: State
     let pendingDecisionCount: Int
 }
@@ -23,6 +46,8 @@ struct SidebarAgent: Equatable {
     let slug: String
     let name: String
     let description: String?
+    let kind: SidebarRow.Kind
+    let lastRunFailed: Bool
 }
 
 // MARK: - Sort & state derivation
@@ -43,12 +68,14 @@ enum SidebarSort {
             let state: SidebarRow.State = {
                 if isRunning { return .running }
                 if count > 0 { return .needsYou }
+                if agent.lastRunFailed { return .failed }
                 return .idle
             }()
             return SidebarRow(
                 id: agent.id,
                 name: agent.name,
                 description: agent.description,
+                kind: agent.kind,
                 state: state,
                 pendingDecisionCount: count
             )

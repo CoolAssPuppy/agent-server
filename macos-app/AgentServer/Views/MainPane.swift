@@ -25,7 +25,12 @@ struct MainPane: View {
                     greeting
                     cardsGrid
                 }
-                .padding(NSpacing.xxl)
+                // Match the sidebar's header top padding (NSpacing.md) so
+                // the greeting sits on the same horizontal line as the
+                // "Agents" header. Sides use NSpacing.xxl for breathing room.
+                .padding(.horizontal, NSpacing.xxl)
+                .padding(.top, NSpacing.md)
+                .padding(.bottom, NSpacing.xxl)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             footer
@@ -195,7 +200,7 @@ private struct MyTasksTodayCard: View {
 
     var body: some View {
         MainPaneCard(
-            title: "My tasks today",
+            title: "Tasks planned today",
             subtitle: nil
         ) {
             let scheduled = agents.filter { $0.isScheduled }

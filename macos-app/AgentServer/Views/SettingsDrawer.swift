@@ -115,10 +115,31 @@ struct SettingsDrawer: View {
             Text("© 2026 Strategic Nerds, Inc. · Made with love in Lisbon, Portugal.")
                 .font(NTypography.captionSmall)
                 .foregroundStyle(theme.tokens.mutedForeground)
+
             Spacer()
+
+            // Tip jar — bottom right. Clicking opens Venmo.
+            Button(action: openVenmo) {
+                HStack(spacing: 4) {
+                    Text("Don't forget to tip your developer. Venmo ")
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                    Text("@coolasspuppy")
+                        .foregroundStyle(theme.tokens.primary)
+                        .underline()
+                }
+                .font(NTypography.captionSmall)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Open Venmo tip link")
         }
         .padding(.horizontal, NSpacing.xxl)
         .padding(.vertical, NSpacing.md)
+    }
+
+    private func openVenmo() {
+        guard let url = URL(string: "https://venmo.com/u/coolasspuppy") else { return }
+        NSWorkspace.shared.open(url)
     }
 
     // MARK: - Cards
@@ -286,9 +307,7 @@ struct SettingsDrawer: View {
                 .tracking(0.6)
                 .foregroundStyle(theme.tokens.mutedForeground)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Color.clear.frame(width: 22, height: 1)
         }
-        .padding(.horizontal, NSpacing.xs)
     }
 
     private func connectionRow(index: Int, pair: EnvPair) -> some View {
