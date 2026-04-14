@@ -8,7 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let popover = NSPopover()
     private var settingsWindow: NSWindow?
     private var aboutWindow: NSWindow?
-    private let monitor = StatusMonitor()
+    let monitor = StatusMonitor()
     private let serverProcess = ServerProcessManager()
     private let notificationManager = NotificationManager()
     private let eventKitPermissionManager = EventKitPermissionManager()

@@ -1,0 +1,54 @@
+import XCTest
+@testable import AgentServerCore
+
+final class DrawerRouterTests: XCTestCase {
+
+    func testStartsClosed() {
+        let router = DrawerRouter()
+        XCTAssertNil(router.open)
+        XCTAssertFalse(router.isDetailOpen)
+        XCTAssertFalse(router.isSettingsOpen)
+    }
+
+    func testOpenDetailSetsState() {
+        let router = DrawerRouter()
+        router.openDetail(agentId: "agent-1")
+        XCTAssertEqual(router.open, .detail(agentId: "agent-1"))
+        XCTAssertEqual(router.openAgentId, "agent-1")
+    }
+
+    func testOpeningSettingsClosesDetail() {
+        let router = DrawerRouter(open: .detail(agentId: "agent-1"))
+        router.openSettings()
+        XCTAssertTrue(router.isSettingsOpen)
+        XCTAssertFalse(router.isDetailOpen)
+    }
+
+    func testOpeningDetailClosesSettings() {
+        let router = DrawerRouter(open: .settings)
+        router.openDetail(agentId: "agent-2")
+        XCTAssertTrue(router.isDetailOpen)
+        XCTAssertFalse(router.isSettingsOpen)
+        XCTAssertEqual(router.openAgentId, "agent-2")
+    }
+
+    func testReSelectingSameAgentClosesDetail() {
+        let router = DrawerRouter()
+        router.openDetail(agentId: "agent-1")
+        router.openDetail(agentId: "agent-1")
+        XCTAssertNil(router.open)
+    }
+
+    func testSelectingDifferentAgentSwapsContent() {
+        let router = DrawerRouter()
+        router.openDetail(agentId: "agent-1")
+        router.openDetail(agentId: "agent-2")
+        XCTAssertEqual(router.openAgentId, "agent-2")
+    }
+
+    func testCloseReturnsToNilState() {
+        let router = DrawerRouter(open: .settings)
+        router.close()
+        XCTAssertNil(router.open)
+    }
+}

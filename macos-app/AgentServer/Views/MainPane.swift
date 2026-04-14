@@ -1,0 +1,249 @@
+import SwiftUI
+import NerdsUI
+
+/// Main window content pane. Mirrors the Panel Home layout: greeting line
+/// followed by a 2×2 grid of cards. No alert banner — the `Decisions (pending)`
+/// card is the single source of truth for pending-decision UI.
+struct MainPane: View {
+    @ObservedObject var monitor: StatusMonitor
+    @ObservedObject var router: DrawerRouter
+
+    @Environment(\.nTheme) private var theme
+
+    private var decisionsCount: Int {
+        monitor.pendingDecisions.filter(\.isPending).count
+    }
+
+    private var runningCount: Int {
+        monitor.activeRuns.count
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: NSpacing.xl) {
+                greeting
+                cardsGrid
+            }
+            .padding(NSpacing.xxl)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(theme.tokens.background)
+    }
+
+    private var greeting: some View {
+        VStack(alignment: .leading, spacing: NSpacing.xs) {
+            Text(greetingCopy)
+                .font(NTypography.headlineLarge)
+                .foregroundStyle(theme.tokens.foreground)
+            Text(subtitleCopy)
+                .font(NTypography.bodyMedium)
+                .foregroundStyle(theme.tokens.mutedForeground)
+        }
+    }
+
+    private var greetingCopy: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        switch hour {
+        case 5..<12: return "Good morning."
+        case 12..<17: return "Good afternoon."
+        case 17..<22: return "Good evening."
+        default: return "Still up?"
+        }
+    }
+
+    private var subtitleCopy: String {
+        var parts: [String] = []
+        if decisionsCount > 0 {
+            parts.append("\(decisionsCount) decision\(decisionsCount == 1 ? "" : "s") waiting")
+        }
+        if runningCount > 0 {
+            parts.append("\(runningCount) agent\(runningCount == 1 ? "" : "s") running")
+        }
+        return parts.isEmpty ? "All quiet." : parts.joined(separator: " · ")
+    }
+
+    private var cardsGrid: some View {
+        LazyVGrid(
+            columns: [
+                GridItem(.flexible(), spacing: NSpacing.lg),
+                GridItem(.flexible(), spacing: NSpacing.lg),
+            ],
+            spacing: NSpacing.lg
+        ) {
+            DecisionsCard(decisions: monitor.pendingDecisions.filter(\.isPending))
+            MyTasksTodayCard(agents: monitor.agents)
+            ArtifactsCard()
+            FeedCard(runs: monitor.activeRuns)
+        }
+    }
+}
+
+// MARK: - Cards
+
+private struct MainPaneCard<Content: View>: View {
+    let title: String
+    let subtitle: String?
+    @ViewBuilder let content: () -> Content
+
+    @Environment(\.nTheme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: NSpacing.sm) {
+            HStack {
+                Text(title)
+                    .font(NTypography.titleSmall)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(theme.tokens.foreground)
+                Spacer()
+                if let subtitle {
+                    Text(subtitle)
+                        .font(NTypography.caption)
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                }
+            }
+            content()
+            Spacer(minLength: 0)
+        }
+        .padding(NSpacing.lg)
+        .frame(maxWidth: .infinity, minHeight: 200, alignment: .topLeading)
+        .background(theme.tokens.card)
+        .overlay(
+            RoundedRectangle(cornerRadius: NRadius.md)
+                .stroke(theme.tokens.border, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
+    }
+}
+
+private struct DecisionsCard: View {
+    let decisions: [Decision]
+
+    @Environment(\.nTheme) private var theme
+
+    var body: some View {
+        MainPaneCard(
+            title: "Decisions",
+            subtitle: "\(decisions.count) pending"
+        ) {
+            if decisions.isEmpty {
+                emptyState
+            } else {
+                VStack(alignment: .leading, spacing: NSpacing.xs) {
+                    ForEach(decisions.prefix(4)) { decision in
+                        decisionRow(decision)
+                    }
+                }
+            }
+        }
+    }
+
+    private var emptyState: some View {
+        Text("No decisions waiting.")
+            .font(NTypography.caption)
+            .foregroundStyle(theme.tokens.mutedForeground)
+    }
+
+    private func decisionRow(_ decision: Decision) -> some View {
+        HStack(spacing: NSpacing.sm) {
+            Circle()
+                .fill(theme.tokens.primary)
+                .frame(width: 6, height: 6)
+            Text(decision.title)
+                .font(NTypography.bodySmall)
+                .foregroundStyle(theme.tokens.foreground)
+                .lineLimit(1)
+            Spacer()
+            Text(decision.relativeCreatedAt)
+                .font(NTypography.caption)
+                .foregroundStyle(theme.tokens.mutedForeground)
+        }
+    }
+}
+
+private struct MyTasksTodayCard: View {
+    let agents: [Agent]
+
+    @Environment(\.nTheme) private var theme
+
+    var body: some View {
+        MainPaneCard(
+            title: "My tasks today",
+            subtitle: nil
+        ) {
+            let scheduled = agents.filter { $0.isScheduled }
+            if scheduled.isEmpty {
+                Text("Nothing scheduled.")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            } else {
+                VStack(alignment: .leading, spacing: NSpacing.xs) {
+                    ForEach(scheduled.prefix(4)) { agent in
+                        HStack(spacing: NSpacing.sm) {
+                            Image(systemName: "clock")
+                                .font(.system(size: NIconSize.sm))
+                                .foregroundStyle(theme.tokens.mutedForeground)
+                            Text(agent.name)
+                                .font(NTypography.bodySmall)
+                                .foregroundStyle(theme.tokens.foreground)
+                                .lineLimit(1)
+                            Spacer()
+                            Text(agent.scheduleDisplay)
+                                .font(NTypography.caption)
+                                .foregroundStyle(theme.tokens.mutedForeground)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct ArtifactsCard: View {
+    @Environment(\.nTheme) private var theme
+
+    var body: some View {
+        MainPaneCard(title: "Artifacts", subtitle: nil) {
+            Text("No artifacts yet.")
+                .font(NTypography.caption)
+                .foregroundStyle(theme.tokens.mutedForeground)
+        }
+    }
+}
+
+private struct FeedCard: View {
+    let runs: [Run]
+
+    @Environment(\.nTheme) private var theme
+
+    var body: some View {
+        MainPaneCard(
+            title: "Feed",
+            subtitle: "last \(min(runs.count, 10))"
+        ) {
+            if runs.isEmpty {
+                Text("No recent activity.")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            } else {
+                VStack(alignment: .leading, spacing: NSpacing.xs) {
+                    ForEach(runs.prefix(10), id: \.runId) { run in
+                        HStack(spacing: NSpacing.sm) {
+                            Circle()
+                                .fill(Color.green)
+                                .frame(width: 6, height: 6)
+                            Text(run.agentId)
+                                .font(NTypography.bodySmall)
+                                .foregroundStyle(theme.tokens.foreground)
+                                .lineLimit(1)
+                            Spacer()
+                            Text(run.runId.prefix(8))
+                                .font(NTypography.caption)
+                                .foregroundStyle(theme.tokens.mutedForeground)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
