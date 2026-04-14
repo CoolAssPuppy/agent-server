@@ -5,7 +5,6 @@ struct MenuBarPopover: View {
     @ObservedObject var monitor: StatusMonitor
     @EnvironmentObject var themeManager: ThemeManager
     var onOpenSettings: ((String?) -> Void)?
-    var onOpenMainWindow: (() -> Void)?
     var onQuit: (() -> Void)?
 
     @Environment(\.nTheme) private var theme
@@ -179,18 +178,6 @@ struct MenuBarPopover: View {
             }
             .buttonStyle(.plain)
             .help("Settings")
-
-            Button {
-                onOpenMainWindow?()
-            } label: {
-                Image(systemName: "macwindow")
-                    .font(NTypography.bodySmall)
-                    .foregroundStyle(theme.tokens.foreground.opacity(0.4))
-                    .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Open window")
 
             Spacer()
 
