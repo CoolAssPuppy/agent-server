@@ -6,6 +6,8 @@ import type { NotificationData } from '../interaction/notification.js';
 import type { Channel, ChannelReply, ReplyCallback } from './channel.js';
 import { formatTelegramNotification } from './telegram-formatter.js';
 import { sanitizeText } from '../server/security-utils.js';
+import { TelegramDecisionBot } from './telegram-decision-bot.js';
+import type { Decision } from './telegram-decision.js';
 
 type TelegramApi = {
   sendMessage: (chatId: number, text: string, options?: Record<string, unknown>) => Promise<{ message_id: number }>;
@@ -261,6 +263,16 @@ async function saveChatId(path: string, chatId: number): Promise<void> {
 type CreateTelegramChannelOptions = {
   botToken: string;
   chatIdPath: string;
+  decisions?: {
+    panelUrl: string;
+    apiKey: string;
+    storagePath: string;
+  };
+};
+
+export type TelegramChannelWithDecisions = TelegramChannel & {
+  postDecision: (decision: Decision) => Promise<number | undefined>;
+  onExternalResolution: TelegramDecisionBot['onExternalResolution'];
 };
 
 export async function createTelegramChannel(
@@ -293,6 +305,20 @@ export async function createTelegramChannel(
     await ctx.reply('Agent Server connected. You will receive interaction requests here.');
   });
 
+  const decisionBot = options.decisions
+    ? new TelegramDecisionBot({
+        api: {
+          sendMessage: (cId, text, opts) => bot.api.sendMessage(cId, text, opts as Record<string, unknown> | undefined),
+          editMessageText: (cId, msgId, _inlineId, text) => bot.api.editMessageText(cId, msgId, text),
+          editMessageReplyMarkup: (cId, msgId) => bot.api.editMessageReplyMarkup(cId, msgId),
+        },
+        chatId,
+        panelUrl: options.decisions.panelUrl,
+        apiKey: options.decisions.apiKey,
+        storagePath: options.decisions.storagePath,
+      })
+    : undefined;
+
   bot.on('callback_query:data', async (ctx) => {
     const currentChatId = channel.getChatId();
     if (!currentChatId || ctx.chat?.id !== currentChatId) {
@@ -301,6 +327,18 @@ export async function createTelegramChannel(
     }
 
     const data = ctx.callbackQuery.data;
+
+    if (decisionBot && data.startsWith('dec:')) {
+      const result = await decisionBot.handleCallback(data);
+      if (result?.forceReply) {
+        await ctx.reply('Type your answer:', {
+          reply_markup: { force_reply: true, input_field_placeholder: result.placeholder },
+        });
+      }
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
     const parsed = parseCallbackData(data);
     if (!parsed) {
       await ctx.answerCallbackQuery();
@@ -311,10 +349,14 @@ export async function createTelegramChannel(
     await ctx.answerCallbackQuery();
   });
 
-  bot.on('message:text', (ctx) => {
+  bot.on('message:text', async (ctx) => {
     const currentChatId = channel.getChatId();
     if (!currentChatId || ctx.chat.id !== currentChatId) {
       return;
+    }
+
+    if (decisionBot) {
+      await decisionBot.handleTextMessage({ chatId: ctx.chat.id, text: ctx.message.text });
     }
 
     const lastId = channel.getLastPendingInteractionId();
@@ -325,6 +367,12 @@ export async function createTelegramChannel(
 
     channel.handleIncomingMessage(ctx.message.text);
   });
+
+  if (decisionBot) {
+    const enriched = channel as TelegramChannelWithDecisions;
+    enriched.postDecision = (d) => decisionBot.postDecision(d);
+    enriched.onExternalResolution = (e) => decisionBot.onExternalResolution(e);
+  }
 
   return channel;
 }
