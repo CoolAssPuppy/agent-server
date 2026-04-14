@@ -13,6 +13,11 @@ enum Drawer: Equatable {
 /// may be open at a time; `open(_:)` and the convenience mutators enforce
 /// that invariant with a single published property.
 final class DrawerRouter: ObservableObject {
+    /// Process-wide singleton. The menubar popover and the main window use
+    /// the same instance so clicking the gear or an agent row in the popover
+    /// routes into the main window's drawer layer.
+    static let shared = DrawerRouter()
+
     @Published private(set) var open: Drawer?
 
     init(open: Drawer? = nil) {
@@ -31,6 +36,12 @@ final class DrawerRouter: ObservableObject {
 
     func openSettings() {
         open = .settings
+    }
+
+    /// Sets the router to a specific drawer in one step. Used by AppDelegate
+    /// when the popover routes into the main window.
+    func routeTo(_ drawer: Drawer) {
+        open = drawer
     }
 
     // MARK: Closing

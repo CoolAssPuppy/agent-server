@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let popover = NSPopover()
     private var settingsWindow: NSWindow?
     private var aboutWindow: NSWindow?
+    private var mainWindow: NSWindow?
     let monitor = StatusMonitor()
     private let serverProcess = ServerProcessManager()
     private let notificationManager = NotificationManager()
@@ -18,11 +19,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var eventMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Agent Server is a windowed app per the v2 Paper mocks (3E9-1). The
-        // menubar popover is a secondary quick-access surface, not the primary
-        // UI. Keep activation policy at .regular so the MainWindow shows up in
-        // the Dock and isn't dismissed when other apps take focus.
-        NSApp.setActivationPolicy(.regular)
+        // Agent Server is a menubar-only app. The main window (MainWindow +
+        // drawers) is created imperatively when the user clicks the settings
+        // gear or an agent row in the popover — see openMainWindow(route:).
+        NSApp.setActivationPolicy(.accessory)
         setupMainMenu()
         setupStatusItem()
         setupPopover()
@@ -190,7 +190,8 @@ private extension AppDelegate {
     func setupPopover() {
         let popoverView = MenuBarPopover(
             monitor: monitor,
-            onOpenSettings: { [weak self] agentId in self?.openSettingsForAgent(agentId) },
+            onOpenSettings: { [weak self] in self?.openMainWindow(route: .settings) },
+            onOpenAgent: { [weak self] agentId in self?.openMainWindow(route: .detail(agentId: agentId)) },
             onQuit: { NSApp.terminate(nil) }
         )
         .environmentObject(themeManager)
@@ -262,6 +263,50 @@ extension AppDelegate {
     func openSettingsForAgent(_ agentId: String?) {
         popover.performClose(nil)
         showSettings(deepLinkAgentId: agentId)
+    }
+
+    /// Brings the main window to front with the requested drawer (settings or
+    /// a specific agent detail) open. Called from the popover's gear button
+    /// and agent row taps. Creates the NSWindow lazily on first use.
+    func openMainWindow(route: Drawer) {
+        popover.performClose(nil)
+        DrawerRouter.shared.routeTo(route)
+
+        Task { @MainActor in
+            // Give the popover time to collapse before activating the app.
+            try? await Task.sleep(for: .milliseconds(60))
+
+            // Briefly switch to .regular so the window can become key and
+            // Dock icon appears while the window is open. Revert to
+            // .accessory when the user closes the window (see windowWillClose).
+            NSApp.setActivationPolicy(.regular)
+            NSApp.activate(ignoringOtherApps: true)
+
+            if let window = mainWindow {
+                window.makeKeyAndOrderFront(nil)
+                return
+            }
+
+            let content = MainWindow(monitor: monitor)
+                .environmentObject(themeManager)
+
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 1200, height: 820),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+                backing: .buffered,
+                defer: false
+            )
+            window.identifier = NSUserInterfaceItemIdentifier("main")
+            window.title = "Agent Server"
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+            window.isReleasedWhenClosed = false
+            window.center()
+            window.delegate = self
+            window.contentViewController = NSHostingController(rootView: content)
+            mainWindow = window
+            window.makeKeyAndOrderFront(nil)
+        }
     }
 
     @objc func showSettings() {
@@ -366,7 +411,14 @@ extension AppDelegate: NSWindowDelegate {
 
         if window == settingsWindow {
             settingsWindow = nil
-            // Stay .regular — the main window is the primary UI.
+            return
+        }
+
+        if window == mainWindow {
+            mainWindow = nil
+            DrawerRouter.shared.close()
+            // Flip back to menubar-only; no open windows remain.
+            NSApp.setActivationPolicy(.accessory)
         }
     }
 }

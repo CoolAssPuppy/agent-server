@@ -8,7 +8,7 @@ import AppKit
 /// governed by `DrawerRouter`.
 struct MainWindow: View {
     @ObservedObject var monitor: StatusMonitor
-    @StateObject private var router = DrawerRouter()
+    @ObservedObject private var router = DrawerRouter.shared
     @EnvironmentObject var themeManager: ThemeManager
 
     private var isDark: Bool { themeManager.currentTheme.palette.isDark }

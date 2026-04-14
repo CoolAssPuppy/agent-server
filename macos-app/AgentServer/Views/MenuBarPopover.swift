@@ -4,7 +4,12 @@ import NerdsUI
 struct MenuBarPopover: View {
     @ObservedObject var monitor: StatusMonitor
     @EnvironmentObject var themeManager: ThemeManager
-    var onOpenSettings: ((String?) -> Void)?
+    /// Fires when the user clicks the gear icon. Opens the main window with
+    /// the settings drawer down (3NT-1).
+    var onOpenSettings: (() -> Void)?
+    /// Fires when the user clicks an agent row. Opens the main window with
+    /// the detail drawer for that agent (3I6-1).
+    var onOpenAgent: ((String) -> Void)?
     var onQuit: (() -> Void)?
 
     @Environment(\.nTheme) private var theme
@@ -122,7 +127,7 @@ struct MenuBarPopover: View {
                         )
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            onOpenSettings?(agent.id)
+                            onOpenAgent?(agent.id)
                         }
 
                         if agent.id != sortedAgents.last?.id {
@@ -168,7 +173,7 @@ struct MenuBarPopover: View {
     private var bottomBar: some View {
         HStack {
             Button {
-                onOpenSettings?(nil)
+                onOpenSettings?()
             } label: {
                 Image(systemName: "gearshape")
                     .font(NTypography.bodySmall)
