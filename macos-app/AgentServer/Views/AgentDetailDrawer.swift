@@ -231,43 +231,12 @@ struct AgentDetailDrawer: View {
     }
 
     private var runsView: some View {
-        let runs = monitor.activeRuns.filter { $0.agentId == agentId }
-        return ScrollView {
-            VStack(alignment: .leading, spacing: NSpacing.sm) {
-                if runs.isEmpty {
-                    Text("No active runs.")
-                        .font(NTypography.bodyMedium)
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                } else {
-                    ForEach(runs, id: \.runId) { run in
-                        runRow(run)
-                    }
-                }
-            }
-            .padding(NSpacing.xl)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
+        // Full AgentRunsView (list + RunDetailView) instead of the old
+        // active-runs-only stub that rendered 'No active runs.' when
+        // nothing was in-flight.
+        AgentRunsView(agentId: agentId, monitor: monitor)
     }
 
-    private func runRow(_ run: Run) -> some View {
-        HStack(spacing: NSpacing.md) {
-            Circle()
-                .fill(run.status.displayColor)
-                .frame(width: 8, height: 8)
-            VStack(alignment: .leading, spacing: NSpacing.xxxs) {
-                Text(run.runId)
-                    .font(NTypography.bodySmall)
-                    .foregroundStyle(theme.tokens.foreground)
-                Text(run.status.displayLabel)
-                    .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-            }
-            Spacer()
-        }
-        .padding(NSpacing.sm)
-        .background(theme.tokens.card)
-        .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
-    }
 
     @ViewBuilder
     private func section<Content: View>(
