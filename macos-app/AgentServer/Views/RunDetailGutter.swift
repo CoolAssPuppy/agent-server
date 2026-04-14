@@ -60,7 +60,7 @@ struct DetailsTabView: View {
                 }
 
                 if let cost = run.estimatedCostUsd, cost > 0 {
-                    infoCell(label: "Cost", value: formatCost(cost))
+                    infoCell(label: "Cost", value: formatCost(cost), tooltip: InfoTooltip.costExplanation)
                 }
 
                 if run.conversationId != nil {
@@ -70,11 +70,16 @@ struct DetailsTabView: View {
         }
     }
 
-    private func infoCell(label: String, value: String) -> some View {
+    private func infoCell(label: String, value: String, tooltip: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: NSpacing.xxxs) {
-            Text(label)
-                .font(NTypography.captionSmall)
-                .foregroundStyle(theme.tokens.mutedForeground)
+            HStack(spacing: NSpacing.xxs) {
+                Text(label)
+                    .font(NTypography.captionSmall)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                if let tooltip {
+                    InfoTooltip(text: tooltip)
+                }
+            }
             Text(value)
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(theme.tokens.foreground)

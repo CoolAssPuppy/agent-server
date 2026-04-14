@@ -401,17 +401,22 @@ struct OutputTabView: View {
                     tokenStat(label: "Total", value: formatTokenCount(total), color: theme.tokens.foreground)
                 }
                 if let cost = run.estimatedCostUsd, cost > 0 {
-                    tokenStat(label: "Cost", value: formatCost(cost), color: .green)
+                    tokenStat(label: "Cost", value: formatCost(cost), color: .green, tooltip: InfoTooltip.costExplanation)
                 }
             }
         }
     }
 
-    private func tokenStat(label: String, value: String, color: Color) -> some View {
+    private func tokenStat(label: String, value: String, color: Color, tooltip: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: NSpacing.xxxs) {
-            Text(label)
-                .font(NTypography.caption)
-                .foregroundStyle(theme.tokens.mutedForeground)
+            HStack(spacing: NSpacing.xxs) {
+                Text(label)
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                if let tooltip {
+                    InfoTooltip(text: tooltip)
+                }
+            }
             Text(value)
                 .font(.system(.subheadline, design: .monospaced, weight: .medium))
                 .foregroundStyle(color)
