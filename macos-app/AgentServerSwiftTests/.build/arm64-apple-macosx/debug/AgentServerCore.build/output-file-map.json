@@ -1,0 +1,12 @@
+{
+  "": {
+    "swift-dependencies": "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/primary.swiftdeps"
+  },
+  "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Sources/AgentServerCore/Decision.swift": {
+    "dependencies": "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/Decision.d",
+    "object": "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/Decision.swift.o",
+    "swiftmodule": "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/Decision~partial.swiftmodule",
+    "swift-dependencies": "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/Decision.swiftdeps",
+    "diagnostics": "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/Decision.dia"
+  }
+}

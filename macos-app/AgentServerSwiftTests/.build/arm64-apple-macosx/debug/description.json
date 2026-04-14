@@ -1,0 +1,640 @@
+{
+  "builtTestProducts" : [
+    {
+      "binaryPath" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerSwiftTestsPackageTests.xctest/Contents/MacOS/AgentServerSwiftTestsPackageTests",
+      "packagePath" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests",
+      "productName" : "AgentServerSwiftTestsPackageTests"
+    }
+  ],
+  "copyCommands" : {
+
+  },
+  "explicitTargetDependencyImportCheckingMode" : {
+    "none" : {
+
+    }
+  },
+  "generatedSourceTargetSet" : [
+
+  ],
+  "pluginDescriptions" : [
+
+  ],
+  "swiftCommands" : {
+    "C.AgentServerCore-arm64-apple-macosx-debug.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/sources",
+      "importPath" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Sources/AgentServerCore/Decision.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "AgentServerCore",
+      "moduleOutputPath" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/Modules/AgentServerCore.swiftmodule",
+      "objects" : [
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/Decision.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx14.0",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/index/store",
+        "-Onone",
+        "-enable-testing",
+        "-j10",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-emit-objc-header",
+        "-emit-objc-header-path",
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/include/AgentServerCore-Swift.h",
+        "-swift-version",
+        "5",
+        "-plugin-path",
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.4.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.4.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "agentserverswifttests"
+      ],
+      "outputFileMapPath" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/Decision.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/Modules/AgentServerCore.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Sources/AgentServerCore/Decision.swift"
+      ],
+      "tempsPath" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build",
+      "wholeModuleOptimization" : false
+    },
+    "C.AgentServerCoreTests-arm64-apple-macosx-debug.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCoreTests.build/sources",
+      "importPath" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Tests/AgentServerCoreTests/AgentDetailDecisionsTabTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Tests/AgentServerCoreTests/AgentsListBadgeTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Tests/AgentServerCoreTests/DecisionMenuBarTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/Modules/AgentServerCore.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCoreTests.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "AgentServerCoreTests",
+      "moduleOutputPath" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/Modules/AgentServerCoreTests.swiftmodule",
+      "objects" : [
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCoreTests.build/AgentDetailDecisionsTabTests.swift.o",
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCoreTests.build/AgentsListBadgeTests.swift.o",
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCoreTests.build/DecisionMenuBarTests.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx14.0",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/index/store",
+        "-Onone",
+        "-enable-testing",
+        "-Xfrontend",
+        "-enable-cross-import-overlays",
+        "-j10",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-swift-version",
+        "5",
+        "-plugin-path",
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.4.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.4.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "agentserverswifttests"
+      ],
+      "outputFileMapPath" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCoreTests.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCoreTests.build/AgentDetailDecisionsTabTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCoreTests.build/AgentsListBadgeTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCoreTests.build/DecisionMenuBarTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/Modules/AgentServerCoreTests.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Tests/AgentServerCoreTests/AgentDetailDecisionsTabTests.swift",
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Tests/AgentServerCoreTests/AgentsListBadgeTests.swift",
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Tests/AgentServerCoreTests/DecisionMenuBarTests.swift"
+      ],
+      "tempsPath" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCoreTests.build",
+      "wholeModuleOptimization" : false
+    },
+    "C.AgentServerSwiftTestsPackageTests-arm64-apple-macosx-debug.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerSwiftTestsPackageTests.build/sources",
+      "importPath" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerSwiftTestsPackageTests.derived/runner.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/Modules/AgentServerCoreTests.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerSwiftTestsPackageTests.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "AgentServerSwiftTestsPackageTests",
+      "moduleOutputPath" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/Modules/AgentServerSwiftTestsPackageTests.swiftmodule",
+      "objects" : [
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerSwiftTestsPackageTests.build/runner.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx14.0",
+        "-incremental",
+        "-enable-batch-mode",
+        "-serialize-diagnostics",
+        "-index-store-path",
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/index/store",
+        "-Onone",
+        "-enable-testing",
+        "-Xfrontend",
+        "-enable-cross-import-overlays",
+        "-j10",
+        "-DSWIFT_PACKAGE",
+        "-DDEBUG",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-emit-objc-header",
+        "-emit-objc-header-path",
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerSwiftTestsPackageTests.build/include/AgentServerSwiftTestsPackageTests-Swift.h",
+        "-plugin-path",
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.4.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.4.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "agentserverswifttests"
+      ],
+      "outputFileMapPath" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerSwiftTestsPackageTests.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerSwiftTestsPackageTests.build/runner.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/Modules/AgentServerSwiftTestsPackageTests.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerSwiftTestsPackageTests.derived/runner.swift"
+      ],
+      "tempsPath" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerSwiftTestsPackageTests.build",
+      "wholeModuleOptimization" : false
+    }
+  },
+  "swiftFrontendCommands" : {
+
+  },
+  "swiftTargetScanArgs" : {
+    "AgentServerCore" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "AgentServerCore",
+      "-package-name",
+      "agentserverswifttests",
+      "-c",
+      "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Sources/AgentServerCore/Decision.swift",
+      "-I",
+      "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/Modules",
+      "-target",
+      "arm64-apple-macosx14.0",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/index/store",
+      "-Onone",
+      "-enable-testing",
+      "-j10",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-emit-objc-header",
+      "-emit-objc-header-path",
+      "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/include/AgentServerCore-Swift.h",
+      "-swift-version",
+      "5",
+      "-plugin-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.4.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.4.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "agentserverswifttests",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ],
+    "AgentServerCoreTests" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "AgentServerCoreTests",
+      "-package-name",
+      "agentserverswifttests",
+      "-c",
+      "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Tests/AgentServerCoreTests/AgentDetailDecisionsTabTests.swift",
+      "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Tests/AgentServerCoreTests/AgentsListBadgeTests.swift",
+      "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Tests/AgentServerCoreTests/DecisionMenuBarTests.swift",
+      "-I",
+      "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/Modules",
+      "-target",
+      "arm64-apple-macosx14.0",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/index/store",
+      "-Onone",
+      "-enable-testing",
+      "-Xfrontend",
+      "-enable-cross-import-overlays",
+      "-j10",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-swift-version",
+      "5",
+      "-plugin-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.4.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.4.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "agentserverswifttests",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ],
+    "AgentServerSwiftTestsPackageTests" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "AgentServerSwiftTestsPackageTests",
+      "-package-name",
+      "agentserverswifttests",
+      "-c",
+      "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerSwiftTestsPackageTests.derived/runner.swift",
+      "-I",
+      "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/Modules",
+      "-target",
+      "arm64-apple-macosx14.0",
+      "-incremental",
+      "-enable-batch-mode",
+      "-serialize-diagnostics",
+      "-index-store-path",
+      "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/index/store",
+      "-Onone",
+      "-enable-testing",
+      "-Xfrontend",
+      "-enable-cross-import-overlays",
+      "-j10",
+      "-DSWIFT_PACKAGE",
+      "-DDEBUG",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-emit-objc-header",
+      "-emit-objc-header-path",
+      "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerSwiftTestsPackageTests.build/include/AgentServerSwiftTestsPackageTests-Swift.h",
+      "-plugin-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.4.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.4.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "agentserverswifttests",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ]
+  },
+  "targetDependencyMap" : {
+    "AgentServerCore" : [
+
+    ],
+    "AgentServerCoreTests" : [
+      "AgentServerCore"
+    ],
+    "AgentServerSwiftTestsPackageTests" : [
+      "AgentServerCoreTests",
+      "AgentServerCore"
+    ]
+  },
+  "testDiscoveryCommands" : {
+
+  },
+  "testEntryPointCommands" : {
+    "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerSwiftTestsPackageTests.derived/runner.swift" : {
+      "inputs" : [
+
+      ],
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerSwiftTestsPackageTests.derived/runner.swift"
+        }
+      ]
+    }
+  },
+  "traitConfiguration" : {
+    "default" : {
+
+    }
+  },
+  "writeCommands" : {
+    "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Sources/AgentServerCore/Decision.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/sources"
+    },
+    "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCoreTests.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Tests/AgentServerCoreTests/AgentDetailDecisionsTabTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Tests/AgentServerCoreTests/AgentsListBadgeTests.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Tests/AgentServerCoreTests/DecisionMenuBarTests.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCoreTests.build/sources"
+    },
+    "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerSwiftTestsPackageTests.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerSwiftTestsPackageTests.derived/runner.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerSwiftTestsPackageTests.build/sources"
+    },
+    "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerSwiftTestsPackageTests.product/Objects.LinkFileList" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<link-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/Decision.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCoreTests.build/AgentDetailDecisionsTabTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCoreTests.build/AgentsListBadgeTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCoreTests.build/DecisionMenuBarTests.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerSwiftTestsPackageTests.build/runner.swift.o"
+        }
+      ],
+      "outputFilePath" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerSwiftTestsPackageTests.product/Objects.LinkFileList"
+    },
+    "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt" : {
+      "alwaysOutOfDate" : true,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<swift-get-version>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+        }
+      ],
+      "outputFilePath" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+    }
+  }
+}
