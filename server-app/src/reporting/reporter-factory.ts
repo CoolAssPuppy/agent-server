@@ -7,6 +7,7 @@ const noopReporter: Reporter = {
   progress: async () => {},
   complete: async () => {},
   fail: async () => {},
+  cancel: async () => {},
   stop: () => {},
 };
 
