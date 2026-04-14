@@ -28,7 +28,19 @@
       "inputs" : [
         {
           "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Sources/AgentServerCore/AgentsListBadgeViewModel.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Sources/AgentServerCore/Decision.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Sources/AgentServerCore/MenuBarDecisionsViewModel.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Sources/AgentServerCore/RunDecisionsViewModel.swift"
         },
         {
           "kind" : "file",
@@ -43,7 +55,10 @@
       "moduleName" : "AgentServerCore",
       "moduleOutputPath" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/Modules/AgentServerCore.swiftmodule",
       "objects" : [
-        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/Decision.swift.o"
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/AgentsListBadgeViewModel.swift.o",
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/Decision.swift.o",
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/MenuBarDecisionsViewModel.swift.o",
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/RunDecisionsViewModel.swift.o"
       ],
       "otherArguments" : [
         "-target",
@@ -98,7 +113,19 @@
       "outputs" : [
         {
           "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/AgentsListBadgeViewModel.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/Decision.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/MenuBarDecisionsViewModel.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/RunDecisionsViewModel.swift.o"
         },
         {
           "kind" : "file",
@@ -107,7 +134,10 @@
       ],
       "prepareForIndexing" : false,
       "sources" : [
-        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Sources/AgentServerCore/Decision.swift"
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Sources/AgentServerCore/AgentsListBadgeViewModel.swift",
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Sources/AgentServerCore/Decision.swift",
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Sources/AgentServerCore/MenuBarDecisionsViewModel.swift",
+        "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Sources/AgentServerCore/RunDecisionsViewModel.swift"
       ],
       "tempsPath" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build",
       "wholeModuleOptimization" : false
@@ -333,7 +363,10 @@
       "-package-name",
       "agentserverswifttests",
       "-c",
+      "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Sources/AgentServerCore/AgentsListBadgeViewModel.swift",
       "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Sources/AgentServerCore/Decision.swift",
+      "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Sources/AgentServerCore/MenuBarDecisionsViewModel.swift",
+      "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Sources/AgentServerCore/RunDecisionsViewModel.swift",
       "-I",
       "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/Modules",
       "-target",
@@ -551,7 +584,19 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Sources/AgentServerCore/AgentsListBadgeViewModel.swift"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Sources/AgentServerCore/Decision.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Sources/AgentServerCore/MenuBarDecisionsViewModel.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/Sources/AgentServerCore/RunDecisionsViewModel.swift"
         }
       ],
       "outputFilePath" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/sources"
@@ -601,7 +646,19 @@
         },
         {
           "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/AgentsListBadgeViewModel.swift.o"
+        },
+        {
+          "kind" : "file",
           "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/Decision.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/MenuBarDecisionsViewModel.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/prashant/Developer/saas-apps/agents/agent-server/.worktrees/chunk-10/macos-app/AgentServerSwiftTests/.build/arm64-apple-macosx/debug/AgentServerCore.build/RunDecisionsViewModel.swift.o"
         },
         {
           "kind" : "file",

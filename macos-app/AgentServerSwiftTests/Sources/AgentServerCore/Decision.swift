@@ -116,7 +116,7 @@ struct DecisionResolution: Codable, Hashable {
 
 // MARK: - Resolve request bodies (Encodable only)
 
-enum DecisionResolveBody: Encodable {
+enum DecisionResolveBody: Encodable, Hashable {
     case approve(approved: Bool, notes: String?)
     case pick(optionId: String?, notes: String?)
     case answer(text: String, notes: String?)
