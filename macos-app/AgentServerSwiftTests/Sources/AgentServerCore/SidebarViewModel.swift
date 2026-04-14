@@ -34,6 +34,10 @@ struct SidebarRow: Equatable, Identifiable {
     let id: String
     let name: String
     let description: String?
+    /// Humanized schedule label for this agent (e.g. "Daily at 9:00 AM")
+    /// when the agent has a cron; nil otherwise. Rendered under the
+    /// description in a smaller font by the sidebar + popover rows.
+    let scheduleLabel: String?
     let kind: Kind
     let state: State
     let pendingDecisionCount: Int
@@ -46,6 +50,7 @@ struct SidebarAgent: Equatable {
     let slug: String
     let name: String
     let description: String?
+    let scheduleLabel: String?
     let kind: SidebarRow.Kind
     let lastRunFailed: Bool
 }
@@ -75,6 +80,7 @@ enum SidebarSort {
                 id: agent.id,
                 name: agent.name,
                 description: agent.description,
+                scheduleLabel: agent.scheduleLabel,
                 kind: agent.kind,
                 state: state,
                 pendingDecisionCount: count

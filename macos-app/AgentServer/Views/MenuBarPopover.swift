@@ -274,11 +274,11 @@ private struct PopoverAgentRow: View {
     @Environment(\.nTheme) private var theme
 
     var body: some View {
-        HStack(alignment: .center, spacing: NSpacing.md) {
+        HStack(alignment: .top, spacing: NSpacing.md) {
             iconWell
                 .frame(width: 26, height: 26)
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(agent.name)
                     .font(.system(size: 13))
                     .foregroundStyle(theme.tokens.foreground)
@@ -288,19 +288,20 @@ private struct PopoverAgentRow: View {
                     Text(sub)
                         .font(.system(size: 11))
                         .foregroundStyle(theme.tokens.mutedForeground)
+                        .lineLimit(2)
+                }
+
+                // Timing under the description (same treatment as the
+                // main window sidebar). Smaller, more muted.
+                if let trailingText, !trailingText.isEmpty {
+                    Text(trailingText)
+                        .font(.system(size: 10))
+                        .foregroundStyle(theme.tokens.mutedForeground.opacity(0.8))
                         .lineLimit(1)
                 }
             }
 
-            Spacer(minLength: NSpacing.xs)
-
-            if let trailingText, !trailingText.isEmpty {
-                Text(trailingText)
-                    .font(.system(size: 11))
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-            }
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, NSpacing.lg)
         .padding(.vertical, 7)
@@ -312,15 +313,15 @@ private struct PopoverAgentRow: View {
         case .running:
             ZStack {
                 RoundedRectangle(cornerRadius: NRadius.sm)
-                    .fill(Color.blue.opacity(0.12))
-                PulsingDot(color: .blue)
+                    .fill(Color.green.opacity(0.15))
+                PulsingIcon(systemName: agent.kind.icon, size: 12, color: Color.green)
             }
         case .scheduled:
             ZStack {
                 RoundedRectangle(cornerRadius: NRadius.sm)
                     .fill(theme.tokens.muted)
                 Image(systemName: agent.kind.icon)
-                    .font(.system(size: 11))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(theme.tokens.mutedForeground)
             }
         }

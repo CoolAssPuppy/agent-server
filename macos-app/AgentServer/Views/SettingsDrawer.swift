@@ -69,8 +69,7 @@ struct SettingsDrawer: View {
     private var header: some View {
         HStack(alignment: .top) {
             Text("Settings")
-                .font(NTypography.titleLarge)
-                .fontWeight(.semibold)
+                .font(NTypography.headlineLarge)
                 .foregroundStyle(theme.tokens.foreground)
                 .padding(.top, NSpacing.xs)
 

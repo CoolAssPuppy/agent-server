@@ -168,6 +168,29 @@ struct PulsingDot: View {
     }
 }
 
+/// SF Symbol with a lightly pulsing green glow. Used on agent rows (menubar
+/// popover + sidebar) when the agent is currently running. The symbol name
+/// encodes agent type; the glow signals live activity.
+struct PulsingIcon: View {
+    let systemName: String
+    let size: CGFloat
+    let color: Color
+    @State private var isPulsing = false
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: size, weight: .semibold))
+            .foregroundStyle(color)
+            .shadow(color: color.opacity(isPulsing ? 0.8 : 0.3), radius: isPulsing ? 6 : 2)
+            .opacity(isPulsing ? 1.0 : 0.75)
+            .animation(
+                .easeInOut(duration: 1.2).repeatForever(autoreverses: true),
+                value: isPulsing
+            )
+            .onAppear { isPulsing = true }
+    }
+}
+
 // MARK: - Formatting helpers
 
 func formatToolName(_ name: String) -> String {

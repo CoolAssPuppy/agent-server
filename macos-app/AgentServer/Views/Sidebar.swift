@@ -23,6 +23,7 @@ struct Sidebar: View {
                 slug: agent.id,
                 name: agent.name,
                 description: agent.description,
+                scheduleLabel: agent.schedule.map { CronEnglishFormatter.describe($0) },
                 kind: SidebarKindBridge.from(agent.kind),
                 lastRunFailed: lastRuns[agent.id]?.status == .failed
             )
@@ -49,7 +50,7 @@ struct Sidebar: View {
     private var header: some View {
         HStack {
             Text("Agents")
-                .font(NTypography.headlineSmall)
+                .font(NTypography.headlineLarge)
                 .foregroundStyle(theme.tokens.foreground)
             Spacer()
             Text("\(rows.count)")
@@ -149,6 +150,12 @@ private struct SidebarRowView: View {
                         .lineLimit(3)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                if let schedule = row.scheduleLabel, !schedule.isEmpty {
+                    Text(schedule)
+                        .font(NTypography.captionSmall)
+                        .foregroundStyle(theme.tokens.mutedForeground.opacity(0.8))
+                        .lineLimit(1)
+                }
             }
         }
         .padding(.horizontal, NSpacing.sm)
@@ -162,12 +169,19 @@ private struct SidebarRowView: View {
 
     /// Type-specific SF Symbol instead of a neutral dot. Color encodes state:
     /// green = currently running, red = last run failed, primary-gold = pending
-    /// decision, muted = idle.
+    /// decision, muted = idle. When running, the icon lightly pulses + glows
+    /// so a live agent reads as obviously different from a static one.
+    @ViewBuilder
     private var statusDot: some View {
-        Image(systemName: row.kind.iconName)
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(iconColor)
-            .frame(width: 14, height: 14)
+        if row.state == .running {
+            PulsingIcon(systemName: row.kind.iconName, size: 12, color: Color.green)
+                .frame(width: 14, height: 14)
+        } else {
+            Image(systemName: row.kind.iconName)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(iconColor)
+                .frame(width: 14, height: 14)
+        }
     }
 
     private var iconColor: Color {
