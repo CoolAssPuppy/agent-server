@@ -111,8 +111,7 @@ struct MainWindow: View {
                     .transition(.opacity)
 
                 SettingsDrawer(monitor: monitor, router: router)
-                    .padding(.horizontal, NSpacing.lg)
-                    .padding(.top, 48)
+                    .padding(.top, 56)
                     .transition(
                         .move(edge: .top).combined(with: .opacity)
                     )

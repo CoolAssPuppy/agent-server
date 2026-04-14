@@ -45,15 +45,11 @@ struct SettingsDrawer: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: Self.height)
-        .background(theme.tokens.background)
+        // Distinct surface color (not main pane background) so the drawer
+        // reads as a separate layer sliding down over the content.
+        .background(theme.tokens.card)
         .clipShape(BottomRoundedRectangle(radius: NRadius.md))
-        .overlay(alignment: .top) {
-            // Pill handle that peeks above the drawer, mirroring 3NT-1.
-            Capsule()
-                .fill(theme.tokens.mutedForeground.opacity(0.25))
-                .frame(width: 48, height: 4)
-                .padding(.top, NSpacing.sm)
-        }
+        .shadow(color: Color.black.opacity(0.25), radius: 16, x: 0, y: 6)
         .padding(.horizontal, NSpacing.lg)
         .onKeyPress(.escape) {
             router.close()
