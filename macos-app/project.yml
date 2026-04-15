@@ -11,6 +11,9 @@ packages:
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
     from: "2.6.0"
+  PostHog:
+    url: https://github.com/PostHog/posthog-ios
+    from: "3.0.0"
 
 settings:
   base:
@@ -41,6 +44,7 @@ targets:
     dependencies:
       - package: NerdsUI
       - package: Sparkle
+      - package: PostHog
       - target: AgentServerEventKit
         embed: false
         link: false

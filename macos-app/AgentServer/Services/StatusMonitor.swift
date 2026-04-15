@@ -32,6 +32,11 @@ final class StatusMonitor: ObservableObject {
     private static let restartThreshold = 3
     private var previousServerStartedAt: String?
     private var previousActiveRunIds: Set<String> = []
+    /// Last-seen terminal status per runId, used to emit run_completed /
+    /// run_failed exactly once as runs transition from active to terminal.
+    private var reportedTerminalRuns: Set<String> = []
+    private var reportedDecisionIds: Set<String> = []
+    private var reportedAgentIds: Set<String> = []
 
     func setServerProcess(_ manager: ServerProcessManager) {
         self.serverProcess = manager
@@ -76,6 +81,11 @@ final class StatusMonitor: ObservableObject {
             guard let self else { return }
             do {
                 let decisions = try await panelClient.fetchPendingDecisions()
+                let ids = Set(decisions.map { $0.id })
+                for newDecision in ids.subtracting(self.reportedDecisionIds) {
+                    Telemetry.capture("decision_emitted", properties: ["decision_id": newDecision])
+                }
+                self.reportedDecisionIds = ids
                 self.pendingDecisions = decisions
             } catch {
                 // Silently ignore — keep previous list until next poll succeeds.
@@ -84,6 +94,7 @@ final class StatusMonitor: ObservableObject {
     }
 
     func resolveDecision(id: String, body: DecisionResolveBody) {
+        Telemetry.capture("decision_resolved", properties: ["decision_id": id])
         // Optimistic removal.
         pendingDecisions.removeAll { $0.id == id }
         guard let panelClient else { return }
@@ -124,9 +135,32 @@ final class StatusMonitor: ObservableObject {
                     self.previousServerStartedAt = serverStartedAt
                 }
 
-                self.previousActiveRunIds = Set(currentActiveRuns.map { $0.runId })
+                let newActiveIds = Set(currentActiveRuns.map { $0.runId })
+                for newlyStarted in newActiveIds.subtracting(self.previousActiveRunIds) {
+                    Telemetry.capture("run_started", properties: ["run_id": newlyStarted])
+                }
+                self.previousActiveRunIds = newActiveIds
                 self.activeRuns = currentActiveRuns
                 self.recentRuns = fetchedRuns.sorted { $0.startedAt > $1.startedAt }
+
+                for run in fetchedRuns where !run.isActive {
+                    guard !self.reportedTerminalRuns.contains(run.runId) else { continue }
+                    self.reportedTerminalRuns.insert(run.runId)
+                    switch run.status {
+                    case .completed:
+                        Telemetry.capture("run_completed", properties: ["run_id": run.runId])
+                    case .failed:
+                        Telemetry.capture("run_failed", properties: ["run_id": run.runId])
+                    case .running, .skipped:
+                        break
+                    }
+                }
+
+                let agentIds = Set(fetchedAgents.map { $0.id })
+                for newAgent in agentIds.subtracting(self.reportedAgentIds) {
+                    Telemetry.capture("agent_discovered", properties: ["agent_id": newAgent])
+                }
+                self.reportedAgentIds = agentIds
 
                 // Latest TERMINAL run per agent (for sidebar failed/succeeded
                 // indicator). Running runs are excluded so the icon reflects

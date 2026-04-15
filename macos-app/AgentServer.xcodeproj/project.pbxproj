@@ -14,6 +14,7 @@
 		173E55A9502E299FAE71C651 /* AgentPromptEditorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4809143EC5D2EAB2A2978E1C /* AgentPromptEditorModel.swift */; };
 		1E5DAD909924982752591F2E /* MarkdownEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B514CCB37C240E8BC2D16DAE /* MarkdownEditor.swift */; };
 		1FC99E63F164FA6DF9287E79 /* RunHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF167864F821C8B9892C0849 /* RunHelpers.swift */; };
+		23394ED16161D7DA0D4AB3CA /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = A85344D20A89302F52B98142 /* PostHog */; };
 		24C3E239750CE16796D6085C /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACF4DF2407A9787F480AEEE7 /* NotificationManager.swift */; };
 		2782A750DB42F7DB36908C45 /* AgentDetailDrawer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 241EB59407AD998C9A023722 /* AgentDetailDrawer.swift */; };
 		286D0BA5C8914421646E03D9 /* MCPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FDC36BB13528F7FD3BE8F2C /* MCPServer.swift */; };
@@ -25,6 +26,7 @@
 		402A405B3479B305B7628FD1 /* AgentPromptEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F37B3E34ADA80C40AD95CDD /* AgentPromptEditor.swift */; };
 		470120920161412825893DBC /* StatusMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DF962BADEAC09F5A5F46093 /* StatusMonitor.swift */; };
 		519B2C93BA543F3811D53C8E /* AgentServerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBA361A75AD13345528DB75F /* AgentServerApp.swift */; };
+		5566EB106B664A891B221E52 /* Info.plist.example in Resources */ = {isa = PBXBuildFile; fileRef = 8820C4A9F5B4B9595EDFC80C /* Info.plist.example */; };
 		59592B3D24D39DD5E4D21714 /* NerdsUI in Frameworks */ = {isa = PBXBuildFile; productRef = 2A1CF52BEE1D8E2E8804D3C5 /* NerdsUI */; };
 		59831E5595B33F9E1EF1F7D3 /* Decision.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E3A0BC90A75E1C817A3238 /* Decision.swift */; };
 		5E2D43B8D9860050C5944FCA /* RunDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A520B1763B663153CBBA3F1B /* RunDetailView.swift */; };
@@ -36,6 +38,7 @@
 		75ACE5919755E3B0BF2CDC90 /* MainPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = B21BEF5E401D5885B7088847 /* MainPane.swift */; };
 		7A01C939E76AF850AAD3EC4E /* PanelRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1166D983A336A4F217C9282E /* PanelRun.swift */; };
 		7B15DE5C3DAF31547879B22E /* DrawerDragDismissal.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9BC93C3FF41E699B85E8B5A /* DrawerDragDismissal.swift */; };
+		83DD619B99906B7FDB630086 /* Telemetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03E63276DE8706E5739FA6B7 /* Telemetry.swift */; };
 		87780D46FC7AA630FC93521B /* EnvEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE2D05889A0359D1B96434A4 /* EnvEditorView.swift */; };
 		8931C92E49FA360813268002 /* SettingsTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55DE0475DCC49D002DA3AECF /* SettingsTabView.swift */; };
 		8952BBEC6C2E7723B78B683A /* AgentModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE7640067645F8E1352BCE04 /* AgentModel.swift */; };
@@ -83,6 +86,7 @@
 /* Begin PBXFileReference section */
 		0136765C94481AB61536D483 /* CronEnglishFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CronEnglishFormatter.swift; sourceTree = "<group>"; };
 		019F0C7D13F571CF359F3CB9 /* ConnectionsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionsStore.swift; sourceTree = "<group>"; };
+		03E63276DE8706E5739FA6B7 /* Telemetry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Telemetry.swift; sourceTree = "<group>"; };
 		061AB904031536A4DEDD6795 /* Sidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sidebar.swift; sourceTree = "<group>"; };
 		0FD3C4BF1D811F05450C0CF2 /* MenuBarDecisionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarDecisionsViewModel.swift; sourceTree = "<group>"; };
 		1166D983A336A4F217C9282E /* PanelRun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelRun.swift; sourceTree = "<group>"; };
@@ -116,6 +120,7 @@
 		6DF962BADEAC09F5A5F46093 /* StatusMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusMonitor.swift; sourceTree = "<group>"; };
 		76D1FBFD51A44407DC395C7F /* AgentServerClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentServerClient.swift; sourceTree = "<group>"; };
 		7B8C3600FDBE09650A796C7E /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		8820C4A9F5B4B9595EDFC80C /* Info.plist.example */ = {isa = PBXFileReference; path = Info.plist.example; sourceTree = "<group>"; };
 		8A39F8EC44F73E7FD02BB9B6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		8ADE39E580F94F63F2070A8B /* AgentFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentFile.swift; sourceTree = "<group>"; };
 		8F37B3E34ADA80C40AD95CDD /* AgentPromptEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPromptEditor.swift; sourceTree = "<group>"; };
@@ -155,6 +160,7 @@
 			files = (
 				59592B3D24D39DD5E4D21714 /* NerdsUI in Frameworks */,
 				A28CA94D429588ECB1C9DBE9 /* Sparkle in Frameworks */,
+				23394ED16161D7DA0D4AB3CA /* PostHog in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -224,6 +230,7 @@
 				4FE442CAD3D55ADB3B5F89D7 /* PanelClient.swift */,
 				3FA7DF74260188E7ABD701D6 /* ServerProcessManager.swift */,
 				6DF962BADEAC09F5A5F46093 /* StatusMonitor.swift */,
+				03E63276DE8706E5739FA6B7 /* Telemetry.swift */,
 				A1C244E8EFAB9899352ECD2C /* UpdaterManager.swift */,
 			);
 			path = Services;
@@ -235,6 +242,7 @@
 				4ADB33D19CFCCCE6AC45B049 /* AgentServer.entitlements */,
 				ED303774162FECB5D22909C1 /* Assets.xcassets */,
 				2AEC874CD4B98C234CA70908 /* Info.plist */,
+				8820C4A9F5B4B9595EDFC80C /* Info.plist.example */,
 				652CC27383D083CB6A53C94C /* App */,
 				0483F380937FFF8BB5772090 /* Models */,
 				950A65B0FF36153430C1D2B2 /* Services */,
@@ -361,6 +369,7 @@
 			packageProductDependencies = (
 				2A1CF52BEE1D8E2E8804D3C5 /* NerdsUI */,
 				58B105279D910EF305E7E4BE /* Sparkle */,
+				A85344D20A89302F52B98142 /* PostHog */,
 			);
 			productName = AgentServer;
 			productReference = BF267E78CF53DB3D651E8D62 /* AgentServer.app */;
@@ -395,6 +404,7 @@
 			mainGroup = 6E25A08092543BB4B04696F4;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				C841370E8698BA4281C2B22F /* XCRemoteSwiftPackageReference "posthog-ios" */,
 				0793D742AA9538F857ADBE9E /* XCRemoteSwiftPackageReference "Sparkle" */,
 				36DFF1AE84418537001A2BBE /* XCLocalSwiftPackageReference "../../../../nerdsui/swift" */,
 			);
@@ -415,6 +425,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A3AD8E3C9F02AE053611EE52 /* Assets.xcassets in Resources */,
+				5566EB106B664A891B221E52 /* Info.plist.example in Resources */,
 				91E11BD741066906FB70BE46 /* dist in Resources */,
 				8FCB715D7BFE32EFB9E8DBBD /* node_modules in Resources */,
 				142B004902E78A73CD4D174B /* package.json in Resources */,
@@ -530,6 +541,7 @@
 				DC44EC489F4D3D76F454181F /* Sidebar.swift in Sources */,
 				ADEA864A419BCB76C61FD5DB /* SidebarViewModel.swift in Sources */,
 				470120920161412825893DBC /* StatusMonitor.swift in Sources */,
+				83DD619B99906B7FDB630086 /* Telemetry.swift in Sources */,
 				6DC305D1685AE6EBD82B7427 /* UpdaterManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -794,6 +806,14 @@
 				minimumVersion = 2.6.0;
 			};
 		};
+		C841370E8698BA4281C2B22F /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/PostHog/posthog-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -805,6 +825,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 0793D742AA9538F857ADBE9E /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
+		};
+		A85344D20A89302F52B98142 /* PostHog */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C841370E8698BA4281C2B22F /* XCRemoteSwiftPackageReference "posthog-ios" */;
+			productName = PostHog;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

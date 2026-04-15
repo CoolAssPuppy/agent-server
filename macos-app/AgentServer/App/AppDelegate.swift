@@ -23,6 +23,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // drawers) is created imperatively when the user clicks the settings
         // gear or an agent row in the popover — see openMainWindow(route:).
         NSApp.setActivationPolicy(.accessory)
+        Telemetry.setup()
+        Telemetry.capture("app_launched")
         setupMainMenu()
         setupStatusItem()
         setupPopover()
