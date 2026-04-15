@@ -270,7 +270,12 @@ struct AgentDetailDrawer: View {
     }
 
     private func computeAgentStats(for agent: Agent) -> AgentStatsValues {
-        let runs = monitor.recentRuns.filter { $0.agentId == agent.id }
+        // Runs seeded from the panel use panel's task_id (UUID) as agentId —
+        // that won't match the local slug. Fall back to matching by agent
+        // display name so history shows up regardless of the id keyspace.
+        let runs = monitor.recentRuns.filter {
+            $0.agentId == agent.id || $0.agentName == agent.name
+        }
         let total = runs.count
         let terminal = runs.filter { $0.status != .running }
         let completed = terminal.filter { $0.status == .completed }
