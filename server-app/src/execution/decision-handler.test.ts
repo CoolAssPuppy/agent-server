@@ -208,18 +208,17 @@ describe('runDecisionCycle', () => {
     }
   });
 
-  it('returns timeout and posts failed state when resolution never arrives', async () => {
+  it('returns timeout without posting a failed state (runner handles failure via reporter)', async () => {
     const { runDecisionCycle } = await import('./decision-handler.js');
     const bus = makeBus();
     const fetchFn = vi.fn()
-      // first call: postDecision
+      // only call: postDecision. No second POST — the runner/reporter is
+      // responsible for the terminal failed event to avoid double-terminal.
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
         json: async () => ({ decision_id: 'dec-T' }),
-      })
-      // second call: postRunFailed
-      .mockResolvedValueOnce({ ok: true, status: 200 });
+      });
 
     const decision: DecisionInput = {
       type: 'approve',
@@ -228,8 +227,6 @@ describe('runDecisionCycle', () => {
       due_at: new Date(Date.now() - 10 * 60_000).toISOString(), // far past → clamped to 1ms timeout
     };
 
-    // Force immediate timeout by passing a tiny timeout via due_at in the past
-    // (computed timeout will be negative, clamped to 1ms).
     const outcome = await runDecisionCycle(decision, {
       runId: 'r1',
       panelUrl: 'https://p',
@@ -239,10 +236,9 @@ describe('runDecisionCycle', () => {
     });
 
     expect(outcome.status).toBe('timeout');
-    expect(fetchFn).toHaveBeenCalledTimes(2);
-    const secondCallBody = JSON.parse(fetchFn.mock.calls[1][1].body);
-    expect(secondCallBody.state).toBe('failed');
-    expect(secondCallBody.error_message).toBe('Decision timed out');
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    const firstCallBody = JSON.parse(fetchFn.mock.calls[0][1].body);
+    expect(firstCallBody.state).toBe('input_required');
   });
 });
 

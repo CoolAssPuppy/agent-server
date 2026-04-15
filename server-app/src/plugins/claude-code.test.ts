@@ -407,8 +407,7 @@ describe('executeAgent with Agent SDK', () => {
         ok: true,
         status: 200,
         json: async () => ({ decision_id: 'dec-t' }),
-      })
-      .mockResolvedValueOnce({ ok: true, status: 200 });
+      });
 
     mockQuery.mockReturnValue(createAsyncGenerator([
       createAssistantMessage(`Need approval.\n\n\`\`\`decision\n${decisionJson}\n\`\`\``),
@@ -428,9 +427,13 @@ describe('executeAgent with Agent SDK', () => {
       }),
     ).rejects.toThrow('Decision timed out');
 
-    expect(fetchFn).toHaveBeenCalledTimes(2);
-    const failedBody = JSON.parse(fetchFn.mock.calls[1][1].body);
-    expect(failedBody.state).toBe('failed');
+    // Only the initial postDecision POST is made from the decision-handler.
+    // The terminal 'failed' state is the runner/reporter's responsibility
+    // (unified terminal-POST retry path). This prevents the historical
+    // double-terminal bug on decision timeout.
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    const decisionBody = JSON.parse(fetchFn.mock.calls[0][1].body);
+    expect(decisionBody.state).toBe('input_required');
   });
 
   it('ignores decision blocks when no decisionContext is provided (backward compat)', async () => {

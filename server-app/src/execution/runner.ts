@@ -53,9 +53,14 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
         await reporter.fail(new Error('lock_contention: another invocation is already running'));
       }
       reporter.stop();
-    } catch {
+    } catch (err) {
       // Best-effort notification; never fail the parent just because the
-      // notification couldn't be delivered.
+      // notification couldn't be delivered. Log so we don't silently drop the
+      // reason a run "vanished" when debugging lock contention.
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[runner] Failed to emit lock_contention notification for agent=${agent.id} name=${agent.name}: ${message}`,
+      );
     }
     return { status: 'skipped' };
   }

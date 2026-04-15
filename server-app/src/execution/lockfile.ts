@@ -44,8 +44,14 @@ export function releaseLock(lockDir: string, agentId: string): void {
   const path = lockPath(lockDir, agentId);
   try {
     unlinkSync(path);
-  } catch {
-    // Lock file already gone
+  } catch (err) {
+    // ENOENT is expected (lock already removed). Anything else could leave a
+    // stale lock that blocks future runs, so surface it at warn level.
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== 'ENOENT') {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`[lockfile] releaseLock(${agentId}) failed to unlink ${path}: ${message}`);
+    }
   }
 }
 

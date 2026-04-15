@@ -269,13 +269,9 @@ export async function runDecisionCycle(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (message === 'Decision timed out') {
-      await postRunFailed({
-        runId: context.runId,
-        errorMessage: 'Decision timed out',
-        panelUrl: context.panelUrl,
-        panelApiKey: context.panelApiKey,
-        fetch: context.fetch,
-      });
+      // Do not POST failed state here. The caller (plugin) throws and the
+      // runner reports the failure via reporter.fail(), which uses the unified
+      // terminal-POST retry path. Posting here would cause a double-terminal.
       return { status: 'timeout' };
     }
     throw err;

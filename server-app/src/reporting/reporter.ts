@@ -59,6 +59,7 @@ export class TelemetryReporter {
     conversationId?: string;
   };
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private terminalSent = false;
 
   constructor(config: ReporterConfig) {
     this.config = {
@@ -88,6 +89,11 @@ export class TelemetryReporter {
     commandsRun: string[];
     model?: string;
   }): Promise<void> {
+    if (this.terminalSent) {
+      console.warn(`[telemetry] complete() called after terminal already sent for run=${this.config.runId}; ignoring`);
+      return;
+    }
+    this.terminalSent = true;
     console.log(`[telemetry] Sending completion for "${this.config.agentName}" to ${this.config.endpoint}`);
     const accomplishments: string[] = [];
     if (executionResult.filesWritten.length > 0) {
@@ -133,6 +139,11 @@ export class TelemetryReporter {
   }
 
   async fail(error: Error): Promise<void> {
+    if (this.terminalSent) {
+      console.warn(`[telemetry] fail() called after terminal already sent for run=${this.config.runId}; ignoring (error=${error.message})`);
+      return;
+    }
+    this.terminalSent = true;
     try {
       await this.send({
         state: 'failed',
@@ -144,6 +155,11 @@ export class TelemetryReporter {
   }
 
   async cancel(reason?: string, code?: string): Promise<void> {
+    if (this.terminalSent) {
+      console.warn(`[telemetry] cancel() called after terminal already sent for run=${this.config.runId}; ignoring (reason=${reason ?? 'Canceled'})`);
+      return;
+    }
+    this.terminalSent = true;
     try {
       await this.send({
         state: 'canceled',
