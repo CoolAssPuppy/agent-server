@@ -256,9 +256,44 @@ private struct MyTasksTodayCard: View {
 private struct ArtifactRow: Identifiable {
     let id: String
     let label: String
+    let title: String?
     let agentName: String
     let runStartedAt: Date
     let url: URL?
+}
+
+/// Attempts to infer a human-readable title from a URL's path. Known services
+/// (Notion, Linear, Google Docs) often embed a readable slug as the last path
+/// segment, followed by an ID. Strips trailing hex/numeric IDs and converts
+/// hyphens to spaces. Returns nil if nothing usable can be extracted.
+private func inferTitleFromURL(_ url: URL) -> String? {
+    let segments = url.pathComponents.filter { $0 != "/" && !$0.isEmpty }
+    guard let last = segments.last else { return nil }
+
+    // Strip a trailing ID segment after the last hyphen when it looks like an
+    // ID (hex/numeric or >= 16 chars of no-space alphanumerics).
+    var slug = last
+    if let dash = slug.lastIndex(of: "-") {
+        let tail = slug[slug.index(after: dash)...]
+        let looksLikeId = tail.count >= 16 ||
+            tail.allSatisfy { $0.isHexDigit } ||
+            tail.allSatisfy { $0.isNumber }
+        if looksLikeId {
+            slug = String(slug[..<dash])
+        }
+    }
+
+    // Reject bare IDs with no words.
+    let hasLetter = slug.contains { $0.isLetter }
+    guard hasLetter, slug.count >= 2 else { return nil }
+
+    let spaced = slug.replacingOccurrences(of: "-", with: " ")
+        .replacingOccurrences(of: "_", with: " ")
+        .trimmingCharacters(in: .whitespaces)
+    guard !spaced.isEmpty else { return nil }
+
+    // Capitalize first letter only (leave rest as-is for proper nouns).
+    return spaced.prefix(1).uppercased() + spaced.dropFirst()
 }
 
 /// Aggregates links + filesWritten across recent runs and renders the
@@ -278,9 +313,12 @@ private func extractArtifacts(runs: [Run], agents: [Agent], limit: Int) -> [Arti
             let range = NSRange(summary.startIndex..<summary.endIndex, in: summary)
             detector?.enumerateMatches(in: summary, range: range) { match, _, _ in
                 if let url = match?.url {
+                    let inferred = inferTitleFromURL(url)
+                    let primary = inferred ?? owner
                     rows.append(ArtifactRow(
                         id: "\(run.runId):\(url.absoluteString)",
-                        label: url.host ?? url.absoluteString,
+                        label: primary,
+                        title: url.absoluteString,
                         agentName: owner,
                         runStartedAt: run.startedAt,
                         url: url
@@ -295,6 +333,7 @@ private func extractArtifacts(runs: [Run], agents: [Agent], limit: Int) -> [Arti
             rows.append(ArtifactRow(
                 id: "\(run.runId):\(file)",
                 label: leaf,
+                title: nil,
                 agentName: owner,
                 runStartedAt: run.startedAt,
                 url: URL(fileURLWithPath: file)
@@ -338,10 +377,13 @@ private struct ArtifactsCard: View {
                     .font(NTypography.bodySmall)
                     .foregroundStyle(theme.tokens.foreground)
                     .lineLimit(1)
-                Text(item.agentName)
-                    .font(NTypography.captionSmall)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                    .lineLimit(1)
+                if let secondary = item.title {
+                    Text(secondary)
+                        .font(NTypography.captionSmall)
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
             }
             Spacer()
         }
