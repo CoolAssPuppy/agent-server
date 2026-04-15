@@ -77,7 +77,7 @@ struct MenuBarPopover: View {
         Button {
             onOpenHome?()
         } label: {
-            HStack {
+            HStack(spacing: NSpacing.sm) {
                 Text("Agent Server")
                     .font(.system(size: 15))
                     .tracking(-0.15)
@@ -85,9 +85,23 @@ struct MenuBarPopover: View {
 
                 Spacer()
 
+                if !monitor.activeRuns.isEmpty {
+                    // Live run indicator — pulsing so it reads as different
+                    // from the static server-status dot.
+                    HStack(spacing: NSpacing.xxs) {
+                        PulsingDot(color: .green)
+                            .frame(width: 8, height: 8)
+                        Text("\(monitor.activeRuns.count) running")
+                            .font(NTypography.captionSmall)
+                            .foregroundStyle(theme.tokens.mutedForeground)
+                    }
+                    .help("\(monitor.activeRuns.count) agent run(s) in progress")
+                }
+
                 Circle()
                     .fill(monitor.isServerReachable ? Color.green : Color.red)
                     .frame(width: 8, height: 8)
+                    .help(monitor.isServerReachable ? "Server reachable" : "Server offline")
             }
             .contentShape(Rectangle())
         }
