@@ -41,6 +41,9 @@ struct SidebarRow: Equatable, Identifiable {
     let kind: Kind
     let state: State
     let pendingDecisionCount: Int
+    /// Whether this agent's frontmatter has `enabled: true`. Sidebar rows
+    /// render a muted "Disabled" pill when false.
+    let isEnabled: Bool
 }
 
 // MARK: - Sidebar input
@@ -53,6 +56,7 @@ struct SidebarAgent: Equatable {
     let scheduleLabel: String?
     let kind: SidebarRow.Kind
     let lastRunFailed: Bool
+    let isEnabled: Bool
 }
 
 // MARK: - Sort & state derivation
@@ -83,7 +87,8 @@ enum SidebarSort {
                 scheduleLabel: agent.scheduleLabel,
                 kind: agent.kind,
                 state: state,
-                pendingDecisionCount: count
+                pendingDecisionCount: count,
+                isEnabled: agent.isEnabled
             )
         }
 

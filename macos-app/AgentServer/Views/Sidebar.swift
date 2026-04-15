@@ -11,6 +11,7 @@ struct Sidebar: View {
     var onNewAgent: () -> Void
 
     @Environment(\.nTheme) private var theme
+    @State private var showNewAgentSheet = false
 
     static let width: CGFloat = 240
 
@@ -25,7 +26,8 @@ struct Sidebar: View {
                 description: agent.description,
                 scheduleLabel: agent.schedule.map { CronEnglishFormatter.describe($0) },
                 kind: SidebarKindBridge.from(agent.kind),
-                lastRunFailed: lastRuns[agent.id]?.status == .failed
+                lastRunFailed: lastRuns[agent.id]?.status == .failed,
+                isEnabled: agent.enabled
             )
         }
         return SidebarSort.sortedRows(
@@ -39,12 +41,21 @@ struct Sidebar: View {
         VStack(spacing: 0) {
             header
             Divider().opacity(0.3)
+            if monitor.staleRunCount > 0 {
+                staleRunsBanner
+                Divider().opacity(0.3)
+            }
             list
             Divider().opacity(0.3)
             footer
         }
         .frame(width: Self.width)
         .background(theme.tokens.background)
+        .sheet(isPresented: $showNewAgentSheet) {
+            NewAgentSheet(isPresented: $showNewAgentSheet) { _ in
+                monitor.poll()
+            }
+        }
     }
 
     private var header: some View {
@@ -67,21 +78,70 @@ struct Sidebar: View {
 
     private var list: some View {
         ScrollView {
-            LazyVStack(spacing: NSpacing.xxxs) {
-                ForEach(rows) { row in
-                    SidebarRowView(
-                        row: row,
-                        isSelected: router.openAgentId == row.id,
-                        onSelect: { router.openDetail(agentId: row.id) }
-                    )
-                    .animation(.easeOut(duration: 0.28), value: row.state)
+            if rows.isEmpty {
+                emptyListState
+            } else {
+                LazyVStack(spacing: NSpacing.xxxs) {
+                    ForEach(rows) { row in
+                        SidebarRowView(
+                            row: row,
+                            isSelected: router.openAgentId == row.id,
+                            onSelect: { router.openDetail(agentId: row.id) }
+                        )
+                        .animation(.easeOut(duration: 0.28), value: row.state)
+                    }
                 }
+                .padding(.horizontal, NSpacing.xs)
+                .padding(.vertical, NSpacing.xs)
+                .animation(.easeOut(duration: 0.28), value: rows.map(\.id))
             }
-            .padding(.horizontal, NSpacing.xs)
-            .padding(.vertical, NSpacing.xs)
-            .animation(.easeOut(duration: 0.28), value: rows.map(\.id))
         }
         .frame(maxHeight: .infinity)
+    }
+
+    /// Yellow banner that appears when the daemon restarts mid-run,
+    /// leaving runs in a 'stale' state. One tap clears them via
+    /// StatusMonitor.cleanupStaleRuns (RPC into the local server).
+    private var staleRunsBanner: some View {
+        HStack(spacing: NSpacing.xs) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.yellow)
+                .font(.system(size: 11))
+            Text("\(monitor.staleRunCount) stale run\(monitor.staleRunCount == 1 ? "" : "s")")
+                .font(NTypography.caption)
+                .foregroundStyle(theme.tokens.foreground)
+            Spacer()
+            Button("Clean up") { monitor.cleanupStaleRuns() }
+                .buttonStyle(.borderless)
+                .font(NTypography.caption)
+        }
+        .padding(.horizontal, NSpacing.lg)
+        .padding(.vertical, NSpacing.xs)
+        .background(Color.yellow.opacity(0.1))
+    }
+
+    /// Empty-list state when the server reports zero agents. Not shown
+    /// when the server is unreachable — StatusMonitor holds `agents = []`
+    /// in that case too, but we distinguish via `isServerReachable`.
+    private var emptyListState: some View {
+        VStack(spacing: NSpacing.sm) {
+            Image(systemName: monitor.isServerReachable ? "tray" : "bolt.horizontal.circle")
+                .font(.system(size: 28))
+                .foregroundStyle(theme.tokens.mutedForeground.opacity(0.5))
+            Text(monitor.isServerReachable ? "No agents yet" : "Server offline")
+                .font(NTypography.bodyMedium)
+                .foregroundStyle(theme.tokens.mutedForeground)
+            Text(monitor.isServerReachable
+                 ? "Drop a markdown file into ~/.agent-server/agents to add one."
+                 : "Start the agent server daemon to see your agents.")
+                .font(NTypography.captionSmall)
+                .foregroundStyle(theme.tokens.mutedForeground.opacity(0.8))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, NSpacing.lg)
+        .padding(.vertical, NSpacing.xl)
     }
 
     private var footer: some View {
@@ -95,7 +155,14 @@ struct Sidebar: View {
 
             Spacer()
 
-            Button(action: onNewAgent) {
+            // `onNewAgent` callback is kept on the view so callers can
+            // intercept (e.g., open the agents folder), but the default
+            // behavior now presents the NewAgentSheet template flow from
+            // the legacy UI. Tap → sheet, user fills in details, onCreate
+            // → we re-poll monitor so the new agent appears in the list.
+            Button {
+                showNewAgentSheet = true
+            } label: {
                 Label("New agent", systemImage: "plus")
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.primary)
@@ -137,6 +204,16 @@ private struct SidebarRowView: View {
                             .padding(.horizontal, NSpacing.xs)
                             .padding(.vertical, 1)
                             .background(theme.tokens.primary)
+                            .clipShape(Capsule())
+                    }
+
+                    if !row.isEnabled {
+                        Text("Disabled")
+                            .font(NTypography.badge)
+                            .foregroundStyle(theme.tokens.mutedForeground)
+                            .padding(.horizontal, NSpacing.xs)
+                            .padding(.vertical, 1)
+                            .background(theme.tokens.muted)
                             .clipShape(Capsule())
                     }
 

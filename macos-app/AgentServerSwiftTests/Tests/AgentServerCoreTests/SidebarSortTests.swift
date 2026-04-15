@@ -11,7 +11,8 @@ final class SidebarSortTests: XCTestCase {
             description: nil,
             scheduleLabel: nil,
             kind: .scheduled,
-            lastRunFailed: false
+            lastRunFailed: false,
+            isEnabled: true
         )
     }
 
@@ -67,7 +68,7 @@ final class SidebarSortTests: XCTestCase {
         )
 
         let rows = SidebarSort.sortedRows(
-            agents: [SidebarAgent(id: "f", slug: "finance", name: "Finance", description: nil, scheduleLabel: nil, kind: .scheduled, lastRunFailed: false)],
+            agents: [SidebarAgent(id: "f", slug: "finance", name: "Finance", description: nil, scheduleLabel: nil, kind: .scheduled, lastRunFailed: false, isEnabled: true)],
             runningAgentIds: [],
             pendingDecisions: [decision]
         )
@@ -96,7 +97,7 @@ final class SidebarSortTests: XCTestCase {
         )
 
         let rows = SidebarSort.sortedRows(
-            agents: [SidebarAgent(id: "f", slug: "finance", name: "Finance", description: nil, scheduleLabel: nil, kind: .scheduled, lastRunFailed: false)],
+            agents: [SidebarAgent(id: "f", slug: "finance", name: "Finance", description: nil, scheduleLabel: nil, kind: .scheduled, lastRunFailed: false, isEnabled: true)],
             runningAgentIds: ["f"],
             pendingDecisions: [decision]
         )

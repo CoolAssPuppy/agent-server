@@ -182,6 +182,7 @@ struct AgentDetailDrawer: View {
         ScrollView {
             VStack(alignment: .leading, spacing: NSpacing.lg) {
                 if let agent {
+                    runNowRow(for: agent)
                     section(title: "Trigger") {
                         Text(agent.kind.label)
                             .font(NTypography.bodySmall)
@@ -240,7 +241,49 @@ struct AgentDetailDrawer: View {
     }
 
 
+    /// Primary action row at the top of the definition view. Big gold
+    /// Run button triggers the agent, disabled while it's actively running.
     @ViewBuilder
+    private func runNowRow(for agent: Agent) -> some View {
+        let running = monitor.activeRuns.contains { $0.agentId == agent.id }
+        HStack(spacing: NSpacing.sm) {
+            Button {
+                monitor.triggerRun(agentId: agent.id)
+            } label: {
+                HStack(spacing: NSpacing.xs) {
+                    if running {
+                        ProgressView().controlSize(.mini).tint(theme.tokens.primaryForeground)
+                    } else {
+                        Image(systemName: "play.fill")
+                    }
+                    Text(running ? "Running…" : "Run now")
+                        .font(NTypography.bodyMedium)
+                        .fontWeight(.semibold)
+                }
+                .padding(.horizontal, NSpacing.md)
+                .padding(.vertical, NSpacing.xs)
+                .foregroundStyle(theme.tokens.primaryForeground)
+                .background(
+                    RoundedRectangle(cornerRadius: NRadius.sm)
+                        .fill(theme.tokens.primary)
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(running || !agent.enabled)
+
+            if !agent.enabled {
+                Text("Disabled")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .padding(.horizontal, NSpacing.xs)
+                    .padding(.vertical, 2)
+                    .background(theme.tokens.muted)
+                    .clipShape(Capsule())
+            }
+            Spacer()
+        }
+    }
+
     private func section<Content: View>(
         title: String,
         @ViewBuilder content: () -> Content
