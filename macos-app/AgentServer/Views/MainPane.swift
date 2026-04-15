@@ -337,11 +337,10 @@ private func iconForArtifactURL(_ url: URL?) -> String {
     return "link"
 }
 
-/// Aggregates artifacts (documents the agent produced) across recent runs and
-/// renders the latest ~8. We rely on `filesWritten` only — URLs mentioned in
-/// run summaries are frequently things the agent READ (analyzed), not CREATED,
-/// so surfacing them here misrepresents what the agent actually produced.
-private func extractArtifacts(runs: [Run], agents: [Agent], limit: Int) -> [ArtifactRow] {
+/// Local-first artifact extraction: produce a row per `filesWritten` entry
+/// across recent runs. Panel-sourced URLs / artifact-table rows are merged on
+/// top of this (not into it) so local wins any time the daemon has an answer.
+private func extractLocalArtifacts(runs: [Run], agents: [Agent]) -> [ArtifactRow] {
     let agentNameById: [String: String] = Dictionary(uniqueKeysWithValues: agents.map { ($0.id, $0.name) })
     var rows: [ArtifactRow] = []
 
@@ -360,7 +359,38 @@ private func extractArtifacts(runs: [Run], agents: [Agent], limit: Int) -> [Arti
         }
     }
 
-    return Array(rows.prefix(limit))
+    return rows
+}
+
+/// Translate a panel-provided artifact into the local row shape. `kind ==
+/// "artifact"` means a persisted file / upload and we surface the filename;
+/// `kind == "link"` means a URL extracted by the panel from logs or run
+/// summaries (authoritative — we do NOT re-extract client-side).
+private func panelArtifactToRow(_ artifact: PanelArtifact) -> ArtifactRow? {
+    let created = artifact.createdAt ?? Date()
+    if artifact.kind == "link" {
+        guard let urlString = artifact.url, let url = URL(string: urlString) else {
+            return nil
+        }
+        let label = artifact.title ?? url.host ?? urlString
+        return ArtifactRow(
+            id: "panel-link:\(urlString)",
+            label: label,
+            title: artifact.agentName,
+            agentName: artifact.agentName,
+            runStartedAt: created,
+            url: url
+        )
+    }
+    let filename = artifact.filename ?? "Artifact"
+    return ArtifactRow(
+        id: "panel-artifact:\(artifact.id)",
+        label: filename,
+        title: artifact.agentName,
+        agentName: artifact.agentName,
+        runStartedAt: created,
+        url: artifact.url.flatMap(URL.init(string:))
+    )
 }
 
 private struct ArtifactsCard: View {
@@ -369,23 +399,60 @@ private struct ArtifactsCard: View {
 
     @Environment(\.nTheme) private var theme
     @State private var window: MainPaneWindow = .threeDays
+    @State private var panelArtifacts: [PanelArtifact] = []
+    @State private var panelFetchedOnce = false
 
-    private var filtered: [Run] {
+    private let panelClient = PanelClient.fromEnv()
+
+    private var filteredRuns: [Run] {
         let cutoff = Date().addingTimeInterval(-window.seconds)
         return runs.filter { $0.startedAt >= cutoff }
     }
 
+    /// Merge local `filesWritten` rows with panel artifacts. Local-first:
+    /// - File artifacts dedupe on `run.runId + path`.
+    /// - URL artifacts dedupe on the absolute URL string.
+    /// Local rows always win on conflict so the offline/daemon path is
+    /// authoritative whenever it has data.
+    private var mergedRows: [ArtifactRow] {
+        let localRows = extractLocalArtifacts(runs: filteredRuns, agents: agents)
+
+        var seenFileKeys = Set<String>()
+        var seenUrls = Set<String>()
+        for row in localRows {
+            seenFileKeys.insert(row.id)
+            if let url = row.url?.absoluteString { seenUrls.insert(url) }
+        }
+
+        var merged = localRows
+        let cutoff = Date().addingTimeInterval(-window.seconds)
+        for artifact in panelArtifacts {
+            let ts = artifact.createdAt ?? Date()
+            if ts < cutoff { continue }
+            guard let row = panelArtifactToRow(artifact) else { continue }
+            if let url = row.url?.absoluteString {
+                if seenUrls.contains(url) { continue }
+                seenUrls.insert(url)
+            } else {
+                if seenFileKeys.contains(row.id) { continue }
+                seenFileKeys.insert(row.id)
+            }
+            merged.append(row)
+        }
+
+        merged.sort { $0.runStartedAt > $1.runStartedAt }
+        return Array(merged.prefix(8))
+    }
+
     var body: some View {
-        let items = extractArtifacts(runs: filtered, agents: agents, limit: 8)
         MainPaneCard(
             title: "Artifacts",
             subtitle: nil,
             accessory: { MainPaneWindowPicker(selection: $window) }
         ) {
+            let items = mergedRows
             if items.isEmpty {
-                Text("No artifacts yet.")
-                    .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.mutedForeground)
+                emptyState
             } else {
                 VStack(alignment: .leading, spacing: NSpacing.xs) {
                     ForEach(items) { item in
@@ -393,6 +460,40 @@ private struct ArtifactsCard: View {
                     }
                 }
             }
+        }
+        .task { await refreshPanelArtifacts() }
+        .onChange(of: window) { _, _ in
+            Task { await refreshPanelArtifacts() }
+        }
+        .onChange(of: runs.count) { _, _ in
+            Task { await refreshPanelArtifacts() }
+        }
+    }
+
+    @ViewBuilder
+    private var emptyState: some View {
+        VStack(alignment: .leading, spacing: NSpacing.xxs) {
+            Text("No artifacts yet.")
+                .font(NTypography.caption)
+                .foregroundStyle(theme.tokens.mutedForeground)
+            if panelClient == nil {
+                Text("Configure Agent Panel to see artifacts from all runs.")
+                    .font(NTypography.captionSmall)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .lineLimit(2)
+            }
+        }
+    }
+
+    private func refreshPanelArtifacts() async {
+        guard let panelClient else {
+            panelFetchedOnce = true
+            return
+        }
+        let fetched = await panelClient.fetchArtifacts(windowDays: window.rawValue)
+        await MainActor.run {
+            self.panelArtifacts = fetched
+            self.panelFetchedOnce = true
         }
     }
 

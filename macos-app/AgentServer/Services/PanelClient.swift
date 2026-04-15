@@ -95,6 +95,37 @@ actor PanelClient {
         return parsed.runs
     }
 
+    // MARK: - Artifacts
+
+    /// Fetch the merged artifacts feed from the panel for a given window of
+    /// days (3 / 7 / 30 typical). 404-tolerant and offline-tolerant — if the
+    /// route is missing or unreachable we return `[]` so local-first rendering
+    /// keeps working.
+    func fetchArtifacts(windowDays: Int) async -> [PanelArtifact] {
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("/api/artifacts"),
+            resolvingAgainstBaseURL: false
+        )
+        components?.queryItems = [
+            URLQueryItem(name: "window", value: String(windowDays)),
+        ]
+        guard let url = components?.url else { return [] }
+
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse else { return [] }
+            if http.statusCode == 404 { return [] }
+            guard (200...299).contains(http.statusCode) else { return [] }
+            let parsed = try decoder.decode(PanelArtifactsResponse.self, from: data)
+            return parsed.artifacts
+        } catch {
+            return []
+        }
+    }
+
     // MARK: - Decisions
 
     func fetchPendingDecisions() async throws -> [Decision] {

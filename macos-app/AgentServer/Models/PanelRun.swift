@@ -146,6 +146,36 @@ enum PanelLogValue: Decodable {
     }
 }
 
+// MARK: - Artifacts
+
+struct PanelArtifactsResponse: Decodable {
+    let artifacts: [PanelArtifact]
+}
+
+/// Artifact feed item from `GET /api/artifacts`. Mirrors the shape the web
+/// Home Artifacts panel uses: either a persisted artifacts-table row (kind
+/// == "artifact") or a URL extracted from logs / run summaries (kind ==
+/// "link"). Panel's extraction is authoritative; the macOS client must not
+/// re-run its own URL extraction over run summaries.
+struct PanelArtifact: Decodable, Identifiable {
+    let id: String
+    let kind: String
+    let filename: String?
+    let url: String?
+    let service: String?
+    let createdAt: Date?
+    let agentSlug: String
+    let agentName: String
+    let title: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, kind, filename, url, service, title
+        case createdAt = "created_at"
+        case agentSlug = "agent_slug"
+        case agentName = "agent_name"
+    }
+}
+
 // MARK: - Run output
 
 struct PanelRunOutput: Decodable {
