@@ -6,6 +6,24 @@
     <description>Agent Server updates</description>
     <language>en</language>
     <item>
+      <title>Version 2.0.0</title>
+      <pubDate>Tue, 14 Apr 2026 23:03:07 +0000</pubDate>
+      <sparkle:version>7</sparkle:version>
+      <sparkle:shortVersionString>2.0.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Fresh new user interface.</li><li>Support for Decisions — agents can now pause mid-run to ask you for permission to continue or information they need to proceed.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://hlwjnusdotqtmtwrjidu.supabase.co/storage/v1/object/public/downloads/AgentServer-2.0.0.dmg"
+        sparkle:edSignature="+iizeLt4N93g020JXPvKiv7/MwHcxKlWUDAODnuHo17VWPs16fkyQfCj1VDgctttXeTyp2KqGVOU2k4F24VpBA=="
+        length="30883866"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
       <title>Version 1.0.4</title>
       <pubDate>Mon, 13 Apr 2026 13:11:21 +0000</pubDate>
       <sparkle:version>6</sparkle:version>
