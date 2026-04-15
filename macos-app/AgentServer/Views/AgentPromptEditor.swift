@@ -21,6 +21,7 @@ struct AgentPromptEditor: View {
             editor
             saveBar
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { model.loadIfNeeded() }
         .overlay(alignment: .bottomTrailing) {
             if model.showSavedToast {
@@ -78,7 +79,7 @@ struct AgentPromptEditor: View {
             // instead of pushing the drawer layout to match the document
             // length.
             MarkdownEditor(text: $model.body)
-                .frame(height: 240)
+                .frame(minHeight: 240, maxHeight: .infinity)
                 .padding(16)
                 .background(
                     RoundedRectangle(cornerRadius: 10)

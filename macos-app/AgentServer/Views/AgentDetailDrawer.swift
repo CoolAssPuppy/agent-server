@@ -179,21 +179,23 @@ struct AgentDetailDrawer: View {
     }
 
     private var definitionView: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: NSpacing.lg) {
-                if let agent {
-                    runNowRow(for: agent)
-                    triggerScheduleToolsRow(for: agent)
-                    promptSection(for: agent)
-                } else {
-                    Text("Agent not found.")
-                        .font(NTypography.bodyMedium)
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                }
+        // Non-scrolling vertical stack so the markdown editor can grow to fill
+        // the remaining drawer height. runNow + trigger/schedule/tools stay
+        // pinned at the top; the prompt section expands to bottom with padding.
+        VStack(alignment: .leading, spacing: NSpacing.lg) {
+            if let agent {
+                runNowRow(for: agent)
+                triggerScheduleToolsRow(for: agent)
+                promptSection(for: agent)
+                    .frame(maxHeight: .infinity)
+            } else {
+                Text("Agent not found.")
+                    .font(NTypography.bodyMedium)
+                    .foregroundStyle(theme.tokens.mutedForeground)
             }
-            .padding(NSpacing.xl)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .padding(NSpacing.xl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     /// Three-column header row: Trigger · Schedule · Tools. Dividers between
@@ -259,13 +261,19 @@ struct AgentDetailDrawer: View {
             if let fileURL {
                 AgentPromptEditor(fileURL: fileURL)
                     .id(fileURL)
+                    .frame(maxHeight: .infinity)
             } else {
-                Text(agent.prompt)
-                    .font(NTypography.bodySmall)
-                    .foregroundStyle(theme.tokens.foreground)
-                    .fixedSize(horizontal: false, vertical: true)
+                ScrollView {
+                    Text(agent.prompt)
+                        .font(NTypography.bodySmall)
+                        .foregroundStyle(theme.tokens.foreground)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: .infinity)
             }
         }
+        .frame(maxHeight: .infinity)
     }
 
     private var runsView: some View {

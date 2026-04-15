@@ -30,9 +30,7 @@ struct InformationTabView: View {
                     observationsSection
                 }
 
-                if let error = run.error, !error.isEmpty {
-                    errorSection(error)
-                }
+                // Error is shown in the banner above the tabs, don't duplicate.
 
                 identifiersSection
 
