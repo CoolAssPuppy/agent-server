@@ -37,6 +37,12 @@ final class StatusMonitor: ObservableObject {
     private var reportedTerminalRuns: Set<String> = []
     private var reportedDecisionIds: Set<String> = []
     private var reportedAgentIds: Set<String> = []
+    /// True after the very first poll completes. We use this to suppress
+    /// telemetry on the initial snapshot — otherwise every daemon restart
+    /// would re-fire run_completed / run_failed / agent_discovered for the
+    /// entire seeded history.
+    private var hasDoneInitialPoll = false
+    private var hasDoneInitialDecisionsPoll = false
 
     func setServerProcess(_ manager: ServerProcessManager) {
         self.serverProcess = manager
@@ -82,10 +88,13 @@ final class StatusMonitor: ObservableObject {
             do {
                 let decisions = try await panelClient.fetchPendingDecisions()
                 let ids = Set(decisions.map { $0.id })
-                for newDecision in ids.subtracting(self.reportedDecisionIds) {
-                    Telemetry.capture("decision_emitted", properties: ["decision_id": newDecision])
+                if self.hasDoneInitialDecisionsPoll {
+                    for newDecision in ids.subtracting(self.reportedDecisionIds) {
+                        Telemetry.capture("decision_emitted", properties: ["decision_id": newDecision])
+                    }
                 }
                 self.reportedDecisionIds = ids
+                self.hasDoneInitialDecisionsPoll = true
                 self.pendingDecisions = decisions
             } catch {
                 // Silently ignore — keep previous list until next poll succeeds.
@@ -136,8 +145,10 @@ final class StatusMonitor: ObservableObject {
                 }
 
                 let newActiveIds = Set(currentActiveRuns.map { $0.runId })
-                for newlyStarted in newActiveIds.subtracting(self.previousActiveRunIds) {
-                    Telemetry.capture("run_started", properties: ["run_id": newlyStarted])
+                if self.hasDoneInitialPoll {
+                    for newlyStarted in newActiveIds.subtracting(self.previousActiveRunIds) {
+                        Telemetry.capture("run_started", properties: ["run_id": newlyStarted])
+                    }
                 }
                 self.previousActiveRunIds = newActiveIds
                 self.activeRuns = currentActiveRuns
@@ -146,6 +157,11 @@ final class StatusMonitor: ObservableObject {
                 for run in fetchedRuns where !run.isActive {
                     guard !self.reportedTerminalRuns.contains(run.runId) else { continue }
                     self.reportedTerminalRuns.insert(run.runId)
+                    // Suppress telemetry on the first poll — those are runs
+                    // seeded from panel history, not events that just happened
+                    // on this daemon. Only emit for transitions observed in
+                    // subsequent polls.
+                    guard self.hasDoneInitialPoll else { continue }
                     switch run.status {
                     case .completed:
                         Telemetry.capture("run_completed", properties: ["run_id": run.runId])
@@ -157,10 +173,13 @@ final class StatusMonitor: ObservableObject {
                 }
 
                 let agentIds = Set(fetchedAgents.map { $0.id })
-                for newAgent in agentIds.subtracting(self.reportedAgentIds) {
-                    Telemetry.capture("agent_discovered", properties: ["agent_id": newAgent])
+                if self.hasDoneInitialPoll {
+                    for newAgent in agentIds.subtracting(self.reportedAgentIds) {
+                        Telemetry.capture("agent_discovered", properties: ["agent_id": newAgent])
+                    }
                 }
                 self.reportedAgentIds = agentIds
+                self.hasDoneInitialPoll = true
 
                 // Latest TERMINAL run per agent (for sidebar failed/succeeded
                 // indicator). Running runs are excluded so the icon reflects
