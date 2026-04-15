@@ -50,6 +50,7 @@ struct Sidebar: View {
             footer
         }
         .frame(width: Self.width)
+        .frame(maxHeight: .infinity)
         .background(theme.tokens.background)
         .sheet(isPresented: $showNewAgentSheet) {
             NewAgentSheet(isPresented: $showNewAgentSheet) { _ in

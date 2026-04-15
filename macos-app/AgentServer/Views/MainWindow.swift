@@ -25,6 +25,7 @@ struct MainWindow: View {
                 Divider().opacity(0.3)
                 MainPane(monitor: monitor, router: router)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             mainPaneDimOverlay
 
