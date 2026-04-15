@@ -29,7 +29,10 @@ export const ServerConfigSchema = z.object({
   panelUrl: z.string().url().optional(),
   panelApiKey: z.string().optional(),
   checkIntervalMs: z.number().int().positive().default(60_000),
-  heartbeatMs: z.number().int().positive().default(30_000),
+  // Panel-side stale threshold is 90s. 20s gives ~4.5x buffer so a single
+  // dropped heartbeat (wifi roam, VPN reconnect) does not cause a false
+  // stale-failure on the panel.
+  heartbeatMs: z.number().int().positive().default(20_000),
   port: z.number().int().positive().default(47821),
   host: z.string().default('127.0.0.1'),
   telegramBotToken: z.string().optional(),

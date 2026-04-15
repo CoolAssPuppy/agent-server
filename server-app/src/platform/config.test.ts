@@ -11,7 +11,7 @@ describe('loadConfig', () => {
     expect(config.agentsDir).toBe(join(homedir(), '.agent-server', 'agents'));
     expect(config.lockDir).toBe(join(homedir(), '.agent-server', 'locks'));
     expect(config.checkIntervalMs).toBe(60_000);
-    expect(config.heartbeatMs).toBe(30_000);
+    expect(config.heartbeatMs).toBe(20_000);
     expect(config.port).toBe(47821);
     expect(config.host).toBe('127.0.0.1');
     expect(config.panelUrl).toBeUndefined();
