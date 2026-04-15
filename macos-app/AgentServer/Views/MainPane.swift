@@ -22,16 +22,19 @@ struct MainPane: View {
         // Non-scrolling main pane. Greeting + 2×2 card grid fill the window.
         // The Artifacts and Feed cards handle their own internal scroll when
         // content overflows, so the main window never needs a chrome scroller.
-        VStack(alignment: .leading, spacing: NSpacing.xl) {
-            greeting
-            cardsGrid
-                .frame(maxHeight: .infinity)
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: NSpacing.xl) {
+                greeting
+                cardsGrid
+                    .frame(maxHeight: .infinity)
+            }
+            .padding(.horizontal, NSpacing.xxl)
+            .padding(.top, NSpacing.xxl)
+            .padding(.bottom, NSpacing.md)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            footer
         }
-        .padding(.horizontal, NSpacing.xxl)
-        .padding(.top, NSpacing.xxl)
-        .padding(.bottom, NSpacing.md)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .safeAreaInset(edge: .bottom, spacing: 0) { footer }
         .background(theme.tokens.background)
     }
 
