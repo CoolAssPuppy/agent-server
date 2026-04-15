@@ -205,6 +205,14 @@ function createInvokeRun(config: ServerConfig): InvokeRun {
   };
 }
 
+/**
+ * @deprecated Use `startServer` from './server.js' instead. The production CLI
+ * entry (`cli.ts`) already uses `startServer`, which composes the local HTTP
+ * API, scheduler, file watchers, SSE trigger/decision channel, ScheduleSync,
+ * pending-terminal replay, and graceful shutdown. This function is retained
+ * only to avoid breaking external importers; it will be removed in a future
+ * release.
+ */
 export function startDaemon(config: ServerConfig): { stop: () => void } {
   console.log('Agent Server starting...');
   console.log(`  Agents: ${config.agentsDir}`);
@@ -216,7 +224,7 @@ export function startDaemon(config: ServerConfig): { stop: () => void } {
   }
   console.log('');
 
-  void replayPendingTerminals();
+  void replayPendingTerminals({ getApiKey: () => config.panelApiKey });
 
   void runDueAgents(config);
 

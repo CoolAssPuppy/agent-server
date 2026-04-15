@@ -1,6 +1,6 @@
 import { serve } from '@hono/node-server';
 import { createNodeWebSocket } from '@hono/node-ws';
-import { hostname } from 'os';
+import { hostname, homedir } from 'os';
 import { join } from 'path';
 import type { ServerConfig } from '../platform/config.js';
 import type { AgentConfig } from '../agents/config.js';
@@ -13,6 +13,11 @@ import { executeAgent } from '../plugins/claude-code.js';
 import { ExecutorRegistry } from '../execution/executor-registry.js';
 import { createReporter } from '../reporting/reporter-factory.js';
 import { createPanelClient } from '../reporting/panel-client.js';
+import { replayPendingTerminals } from '../reporting/reporter.js';
+import { ScheduleSync } from '../reporting/sync-schedule.js';
+import { SseClient } from '../reporting/sse-client.js';
+import { TriggerHandler } from '../execution/trigger-handler.js';
+import type { DecisionContext } from '../execution/decision-handler.js';
 import { shouldRun, hasMissedRun } from '../agents/scheduler.js';
 import { evaluateTriggers } from '../agents/triggers.js';
 import { FileWatcher, extractWatchConfigs } from '../agents/file-watcher.js';
@@ -29,8 +34,20 @@ import { ProgressBroadcaster, type ProgressEvent } from './websocket.js';
 import { sanitizeProgressEvent, sanitizeText } from './security-utils.js';
 
 export type ServerInstance = {
-  stop: () => void;
+  stop: () => Promise<void> | void;
 };
+
+/**
+ * Periodic replay of persisted pending-terminal events. Long-lived daemons
+ * that suffer a panel outage will eventually drain the queue without needing
+ * a restart.
+ */
+const PENDING_REPLAY_INTERVAL_MS = 10 * 60 * 1000;
+
+/** Max time to wait for active runs to emit terminals on shutdown. */
+const SHUTDOWN_DRAIN_TIMEOUT_MS = 10_000;
+/** Per-run wait inside the overall drain budget. */
+const SHUTDOWN_PER_RUN_TIMEOUT_MS = 3_000;
 
 const TIMEOUT_PATTERN = /^(\d+)(m|h)$/;
 const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
@@ -155,8 +172,52 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   executorRegistry.setDefault('claude-code');
 
   const activeControllers = new Map<string, AbortController>();
+  // Resolvers that fire when the reporter wrapper observes a terminal event
+  // for a run. Used by shutdown() to wait until the panel has been notified.
+  const terminalWaiters = new Map<string, Promise<void>>();
+  const terminalResolvers = new Map<string, () => void>();
   const broadcaster = new ProgressBroadcaster();
   let wsClientCount = 0;
+
+  // ---------------------------------------------------------------------------
+  // Panel SSE wiring (run triggers + decision resolutions + schedule sync)
+  //
+  // When panelUrl + panelApiKey are both configured we open a persistent SSE
+  // connection to the panel. This receives:
+  //   - run_trigger events (manual panel-initiated runs)
+  //   - decision_resolved events (resume paused runs)
+  //   - agent_file_poke events (panel asks us to resync the agent catalog)
+  //
+  // ScheduleSync keeps the panel's view of each agent's next_run_at current.
+  // TriggerHandler bridges run_trigger events into the local triggerRun path
+  // so concurrency caps and RunStore bookkeeping stay consistent.
+  // ---------------------------------------------------------------------------
+  const panelConfigured = Boolean(config.panelUrl && config.panelApiKey);
+  const scheduleSync = panelConfigured
+    ? new ScheduleSync({
+        agentsDir: config.agentsDir,
+        panelUrl: config.panelUrl!,
+        panelApiKey: config.panelApiKey!,
+      })
+    : undefined;
+  const sseClient = panelConfigured
+    ? new SseClient({
+        panelUrl: config.panelUrl!,
+        panelApiKey: config.panelApiKey!,
+        cursorPath: join(homedir(), '.agent-server', 'sse-cursor'),
+      })
+    : undefined;
+
+  function buildDecisionContext(runId: string): DecisionContext | undefined {
+    if (!sseClient || !config.panelUrl || !config.panelApiKey) return undefined;
+    return {
+      runId,
+      panelUrl: config.panelUrl,
+      panelApiKey: config.panelApiKey,
+      eventBus: sseClient.events,
+      conversationDir: join(homedir(), '.agent-server', 'runs'),
+    };
+  }
 
   async function handleInteractionResult(
     runId: string,
@@ -235,6 +296,9 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     const runId = randomUUID();
     const abortController = new AbortController();
     activeControllers.set(runId, abortController);
+    terminalWaiters.set(runId, new Promise<void>((resolve) => {
+      terminalResolvers.set(runId, resolve);
+    }));
 
     const now = new Date();
     store.add({
@@ -262,6 +326,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     runAgent({
       agent,
       lockDir: config.lockDir,
+      buildDecisionContext,
       execute: async (a, reporter) => {
         const wrappedReporter: Reporter = {
           start: () => reporter.start(),
@@ -324,6 +389,9 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       promptSuffix,
     }).then((result) => {
       activeControllers.delete(runId);
+      terminalResolvers.get(runId)?.();
+      terminalResolvers.delete(runId);
+      terminalWaiters.delete(runId);
       if (result.status === 'skipped') {
         store.update(runId, {
           status: 'skipped',
@@ -350,6 +418,9 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       }
     }).catch((err) => {
       activeControllers.delete(runId);
+      terminalResolvers.get(runId)?.();
+      terminalResolvers.delete(runId);
+      terminalWaiters.delete(runId);
       const errorMsg = err instanceof Error ? err.message : String(err);
       store.update(runId, {
         status: 'failed',
@@ -382,13 +453,11 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     const controller = activeControllers.get(runId);
     if (!controller) return false;
 
+    // Abort only — the runner's finally block invokes reporter.cancel(),
+    // which posts the canonical `canceled` state to the panel. The `.then()`
+    // continuation then updates the local RunStore. Writing `failed` here
+    // would double-write and report a different status than the panel sees.
     controller.abort();
-    activeControllers.delete(runId);
-    store.update(runId, {
-      status: 'failed',
-      completedAt: new Date(),
-      error: 'Cancelled by user',
-    });
     return true;
   }
 
@@ -492,6 +561,53 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       }
     });
   }
+
+  // Drain any terminal events that never reached the panel during a prior
+  // daemon lifetime (network blip, crash, forced shutdown). Without this,
+  // runs completed by the last daemon will sit as `working` on the panel
+  // until the stale-sweep reclassifies them as failed.
+  const replayKey = config.panelApiKey;
+  const replayFn = (): Promise<void> => replayPendingTerminals({
+    getApiKey: () => replayKey,
+  });
+  if (replayKey) {
+    void replayFn();
+  }
+  const pendingReplayInterval = replayKey
+    ? setInterval(() => { void replayFn(); }, PENDING_REPLAY_INTERVAL_MS)
+    : null;
+
+  // Bridge panel SSE run_trigger events into the local triggerRun path so
+  // the concurrency cap, RunStore, and activeControllers bookkeeping stay
+  // consistent with the scheduler-driven and HTTP-API-driven paths.
+  const triggerHandler = panelConfigured && sseClient
+    ? new TriggerHandler({
+        agentsDir: config.agentsDir,
+        panelUrl: config.panelUrl!,
+        panelApiKey: config.panelApiKey!,
+        sseEvents: sseClient.events,
+        invokeRun: async ({ agent, promptSuffix, onRunStart }) => {
+          try {
+            const runId = triggerRunForAgent(agent, { promptSuffix });
+            await onRunStart(runId);
+            // TriggerHandler expects to report a terminal state to the panel
+            // after invokeRun resolves; wait for this run's terminal waiter.
+            await terminalWaiters.get(runId);
+            const stored = store.get(runId);
+            if (!stored) return { status: 'failed', error: 'run record disappeared' };
+            if (stored.status === 'completed') return { runId, status: 'completed' };
+            return { runId, status: 'failed', error: stored.error };
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            return { status: 'failed', error: message };
+          }
+        },
+      })
+    : undefined;
+
+  if (scheduleSync) void scheduleSync.start();
+  if (triggerHandler) triggerHandler.start();
+  if (sseClient) void sseClient.start();
 
   void runDueAgents();
   const interval = setInterval(() => {
@@ -667,11 +783,40 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     }
   }, 60_000);
 
+  async function drainActiveRuns(): Promise<void> {
+    const runIds = [...activeControllers.keys()];
+    if (runIds.length === 0) return;
+
+    console.log(`[shutdown] Aborting ${runIds.length} active run(s); draining terminals`);
+    for (const [, controller] of activeControllers) {
+      try { controller.abort(); } catch { /* ignore */ }
+    }
+
+    const waiters = runIds
+      .map((id) => terminalWaiters.get(id))
+      .filter((p): p is Promise<void> => Boolean(p));
+
+    const perRun = waiters.map((p) => Promise.race([
+      p,
+      new Promise<void>((resolve) => setTimeout(resolve, SHUTDOWN_PER_RUN_TIMEOUT_MS)),
+    ]));
+
+    await Promise.race([
+      Promise.all(perRun),
+      new Promise<void>((resolve) => setTimeout(resolve, SHUTDOWN_DRAIN_TIMEOUT_MS)),
+    ]);
+  }
+
   return {
-    stop: () => {
+    stop: async () => {
       clearInterval(interval);
       clearInterval(expiryInterval);
       if (staleSweepInterval) clearInterval(staleSweepInterval);
+      if (pendingReplayInterval) clearInterval(pendingReplayInterval);
+      scheduleSync?.stop();
+      triggerHandler?.stop();
+      sseClient?.stop();
+      await drainActiveRuns();
       httpServer.close();
       void fileWatcherPromise.then((w) => w?.stop());
       void telegramPromise.then(() => channelDispatcher.stopAll());

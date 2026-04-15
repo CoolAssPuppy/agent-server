@@ -42,6 +42,8 @@ type ReporterConfig = {
   heartbeatMs?: number;
   serverId?: string;
   conversationId?: string;
+  /** Override the pending-terminals directory (tests only). */
+  pendingTerminalsDir?: string;
 };
 
 const DEFAULT_HEARTBEAT_MS = 30_000;
@@ -51,15 +53,27 @@ const TERMINAL_RETRY_BASE_MS = 500;
 const DEFERRED_RETRY_COUNT = 5;
 const DEFERRED_RETRY_BASE_MS = 5_000;
 
+/**
+ * HTTP status 409 from the panel means "run is already in a terminal state".
+ * The panel has the information; retrying accomplishes nothing. Treat as success
+ * everywhere (main send loop, deferred retries, replay).
+ */
+function isTerminalAcceptedStatus(response: { ok: boolean; status: number }): boolean {
+  return response.ok || response.status === 409;
+}
+
 export class TelemetryReporter {
-  private readonly config: Required<Omit<ReporterConfig, 'fetch' | 'heartbeatMs' | 'serverId' | 'conversationId'>> & {
+  private readonly config: Required<Omit<ReporterConfig, 'fetch' | 'heartbeatMs' | 'serverId' | 'conversationId' | 'pendingTerminalsDir'>> & {
     fetch: typeof globalThis.fetch;
     heartbeatMs: number;
     serverId?: string;
     conversationId?: string;
+    pendingTerminalsDir?: string;
   };
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private deferredRetryTimer: ReturnType<typeof setTimeout> | null = null;
   private terminalSent = false;
+  private stopped = false;
 
   constructor(config: ReporterConfig) {
     this.config = {
@@ -134,7 +148,11 @@ export class TelemetryReporter {
         },
       });
     } finally {
-      this.stop();
+      // Stop the heartbeat only. Deferred retries (if any were scheduled)
+      // continue in the background with .unref()'d timers so that a late
+      // panel recovery still gets the terminal event. Full teardown happens
+      // in the explicit .stop() call from the runner.
+      this.stopHeartbeat();
     }
   }
 
@@ -150,7 +168,7 @@ export class TelemetryReporter {
         error: { message: error.message },
       });
     } finally {
-      this.stop();
+      this.stopHeartbeat();
     }
   }
 
@@ -166,7 +184,7 @@ export class TelemetryReporter {
         error: { message: reason ?? 'Canceled', ...(code ? { code } : {}) },
       });
     } finally {
-      this.stop();
+      this.stopHeartbeat();
     }
   }
 
@@ -197,6 +215,15 @@ export class TelemetryReporter {
   }
 
   stop(): void {
+    this.stopped = true;
+    this.stopHeartbeat();
+    if (this.deferredRetryTimer) {
+      clearTimeout(this.deferredRetryTimer);
+      this.deferredRetryTimer = null;
+    }
+  }
+
+  private stopHeartbeat(): void {
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
@@ -239,8 +266,8 @@ export class TelemetryReporter {
           },
           body: JSON.stringify(body),
         });
-        if (response.ok) {
-          console.log(`[telemetry] Successfully sent ${event.state} event for "${this.config.agentName}"`);
+        if (isTerminalAcceptedStatus(response)) {
+          console.log(`[telemetry] Successfully sent ${event.state} event for "${this.config.agentName}" (${response.status})`);
           return;
         }
 
@@ -262,20 +289,22 @@ export class TelemetryReporter {
   }
 
   private scheduleDeferredRetry(body: StatusEvent, attempt = 1): void {
+    if (this.stopped) return;
     if (attempt > DEFERRED_RETRY_COUNT) {
       console.error(`[telemetry] Abandoned ${body.state} event for "${this.config.agentName}" after all retries; persisting for replay`);
       void persistPendingTerminal({
         runId: this.config.runId,
         endpoint: this.config.endpoint,
-        apiKey: this.config.apiKey,
         body,
-      });
+      }, this.config.pendingTerminalsDir);
       return;
     }
 
     const delayMs = DEFERRED_RETRY_BASE_MS * 2 ** (attempt - 1);
 
-    setTimeout(async () => {
+    const timer = setTimeout(async () => {
+      this.deferredRetryTimer = null;
+      if (this.stopped) return;
       try {
         const response = await this.config.fetch(this.config.endpoint, {
           method: 'POST',
@@ -285,7 +314,7 @@ export class TelemetryReporter {
           },
           body: JSON.stringify(body),
         });
-        if (response.ok) return;
+        if (isTerminalAcceptedStatus(response)) return;
         console.error(`[telemetry] Deferred retry ${attempt} for ${body.state}: ${response.status}`);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -293,35 +322,64 @@ export class TelemetryReporter {
       }
       this.scheduleDeferredRetry(body, attempt + 1);
     }, delayMs);
+
+    // Don't block process exit on deferred retries. The pending-terminal file
+    // (written when all retries exhaust) is the durable fallback.
+    if (typeof timer.unref === 'function') timer.unref();
+    this.deferredRetryTimer = timer;
   }
 }
 
+/**
+ * Persisted pending-terminal shape. The API key is intentionally NOT stored
+ * here — pending-terminal files live in `~/.agent-server/pending-terminals/`
+ * which any process running as the user can read. The key is re-read from
+ * config at replay time.
+ */
 type PendingTerminal = {
   runId: string;
   endpoint: string;
-  apiKey: string;
   body: StatusEvent;
 };
 
+/**
+ * Legacy shape (pre-2026-04) that included the API key. Replay accepts this
+ * shape for backwards compatibility but strips the field from new writes.
+ */
+type LegacyPendingTerminal = PendingTerminal & { apiKey?: string };
+
 export const PENDING_TERMINALS_DIR = join(homedir(), '.agent-server', 'pending-terminals');
 
-async function persistPendingTerminal(entry: PendingTerminal): Promise<void> {
+async function persistPendingTerminal(entry: PendingTerminal, dir?: string): Promise<void> {
+  const targetDir = dir ?? PENDING_TERMINALS_DIR;
   try {
-    await mkdir(PENDING_TERMINALS_DIR, { recursive: true });
-    const file = join(PENDING_TERMINALS_DIR, `${entry.runId}.json`);
-    await writeFile(file, JSON.stringify(entry), 'utf8');
+    await mkdir(targetDir, { recursive: true });
+    const file = join(targetDir, `${entry.runId}.json`);
+    // 0600 — only the current user can read. These files contain the panel
+    // endpoint and the full terminal payload including run output.
+    await writeFile(file, JSON.stringify(entry), { encoding: 'utf8', mode: 0o600 });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[telemetry] Failed to persist pending terminal for ${entry.runId}: ${message}`);
   }
 }
 
+export type ReplayOptions = {
+  fetchImpl?: typeof globalThis.fetch;
+  /** Resolve the current panel API key. Required; replay is a no-op if it returns undefined. */
+  getApiKey?: () => string | undefined;
+};
+
 export async function replayPendingTerminals(
-  fetchImpl: typeof globalThis.fetch = globalThis.fetch,
+  options: ReplayOptions = {},
+  dir: string = PENDING_TERMINALS_DIR,
 ): Promise<void> {
+  const fetchImpl = options.fetchImpl ?? globalThis.fetch;
+  const getApiKey = options.getApiKey;
+
   let files: string[];
   try {
-    files = await readdir(PENDING_TERMINALS_DIR);
+    files = await readdir(dir);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return;
     const message = err instanceof Error ? err.message : String(err);
@@ -331,20 +389,26 @@ export async function replayPendingTerminals(
 
   for (const name of files) {
     if (!name.endsWith('.json')) continue;
-    const path = join(PENDING_TERMINALS_DIR, name);
+    const path = join(dir, name);
     try {
       const raw = await readFile(path, 'utf8');
-      const entry = JSON.parse(raw) as PendingTerminal;
+      const entry = JSON.parse(raw) as LegacyPendingTerminal;
+      // Prefer current config API key; fall back to legacy embedded key for
+      // forward-migration of old files written before the security fix.
+      const apiKey = getApiKey?.() ?? entry.apiKey;
+      if (!apiKey) {
+        console.error(`[telemetry] Cannot replay ${entry.runId}: no API key available (set AGENT_SERVER_PANEL_API_KEY)`);
+        continue;
+      }
       const response = await fetchImpl(entry.endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${entry.apiKey}`,
+          'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify(entry.body),
       });
-      // Treat 2xx and 409 (already terminal) as success — the panel has the state.
-      if (response.ok || response.status === 409) {
+      if (isTerminalAcceptedStatus(response)) {
         await unlink(path);
         console.log(`[telemetry] Replayed pending terminal ${entry.runId} (${response.status})`);
       } else {

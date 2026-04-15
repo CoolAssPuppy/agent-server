@@ -453,6 +453,63 @@ describe('TelemetryReporter', () => {
     expect(body.result?.model).toBe('claude-haiku-4-5-20251001');
   });
 
+  it('treats 409 from the panel as terminal success (no retry)', async () => {
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 200 })   // start
+      .mockResolvedValueOnce({ ok: false, status: 409 }); // complete already-terminal
+
+    const reporter = makeReporter({ fetch: mockFetch });
+    await reporter.start();
+
+    const completePromise = reporter.complete({
+      summary: 'Done',
+      output: {},
+      usage: {},
+      turnCount: 1,
+      toolsUsed: [],
+      filesRead: [],
+      filesWritten: [],
+      commandsRun: [],
+    });
+    // Advance in case a retry was (wrongly) scheduled.
+    await vi.advanceTimersByTimeAsync(5000);
+    await completePromise;
+
+    // Exactly 2 calls: start + complete. No retry despite non-2xx.
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears any pending deferred retry timer when stop() is called', async () => {
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 200 })   // start
+      .mockRejectedValue(new Error('always fails'));      // everything else
+
+    const reporter = makeReporter({ fetch: mockFetch });
+    await reporter.start();
+
+    const completePromise = reporter.complete({
+      summary: 'Done',
+      output: {},
+      usage: {},
+      turnCount: 1,
+      toolsUsed: [],
+      filesRead: [],
+      filesWritten: [],
+      commandsRun: [],
+    });
+    await vi.advanceTimersByTimeAsync(3000);
+    await completePromise;
+
+    // After immediate retries: 1 start + 3 complete attempts = 4.
+    expect(mockFetch).toHaveBeenCalledTimes(4);
+
+    // External cleanup — no further deferred retries should fire.
+    reporter.stop();
+
+    await vi.advanceTimersByTimeAsync(200_000);
+    expect(mockFetch).toHaveBeenCalledTimes(4);
+  });
+
   it('stops heartbeat when stop is called', async () => {
     const mockFetch = createMockFetch();
     const reporter = makeReporter({ fetch: mockFetch, heartbeatMs: 1000 });

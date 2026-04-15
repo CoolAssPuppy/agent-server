@@ -35,15 +35,33 @@ program
     initAgentServer(baseDir);
 
     const config = loadConfig();
+
+    // Mirror console output to a rotated file sink so users can diagnose
+    // stuck runs without relying on the parent process to preserve stdout.
+    // Safe to run regardless of how the daemon was launched (launchd, GUI
+    // app child, manual shell).
+    // Lazy-loaded so tests that import CLI symbols don't trigger FS work.
+    void import('./platform/file-logger.js').then(({ startFileLogger }) => {
+      startFileLogger({ logsDir: config.logsDir });
+    });
+
     const server = startServer(config, { anthropicApiKey });
 
-    const shutdown = () => {
-      server.stop();
-      process.exit(0);
+    let shuttingDown = false;
+    const shutdown = async (): Promise<void> => {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      try {
+        await server.stop();
+      } catch (err) {
+        console.error('[shutdown] error:', err);
+      } finally {
+        process.exit(0);
+      }
     };
 
-    process.on('SIGINT', shutdown);
-    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', () => { void shutdown(); });
+    process.on('SIGTERM', () => { void shutdown(); });
   });
 
 program
