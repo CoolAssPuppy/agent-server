@@ -262,38 +262,24 @@ private struct ArtifactRow: Identifiable {
     let url: URL?
 }
 
-/// Attempts to infer a human-readable title from a URL's path. Known services
-/// (Notion, Linear, Google Docs) often embed a readable slug as the last path
-/// segment, followed by an ID. Strips trailing hex/numeric IDs and converts
-/// hyphens to spaces. Returns nil if nothing usable can be extracted.
-private func inferTitleFromURL(_ url: URL) -> String? {
-    let segments = url.pathComponents.filter { $0 != "/" && !$0.isEmpty }
-    guard let last = segments.last else { return nil }
-
-    // Strip a trailing ID segment after the last hyphen when it looks like an
-    // ID (hex/numeric or >= 16 chars of no-space alphanumerics).
-    var slug = last
-    if let dash = slug.lastIndex(of: "-") {
-        let tail = slug[slug.index(after: dash)...]
-        let looksLikeId = tail.count >= 16 ||
-            tail.allSatisfy { $0.isHexDigit } ||
-            tail.allSatisfy { $0.isNumber }
-        if looksLikeId {
-            slug = String(slug[..<dash])
-        }
-    }
-
-    // Reject bare IDs with no words.
-    let hasLetter = slug.contains { $0.isLetter }
-    guard hasLetter, slug.count >= 2 else { return nil }
-
-    let spaced = slug.replacingOccurrences(of: "-", with: " ")
-        .replacingOccurrences(of: "_", with: " ")
-        .trimmingCharacters(in: .whitespaces)
-    guard !spaced.isEmpty else { return nil }
-
-    // Capitalize first letter only (leave rest as-is for proper nouns).
-    return spaced.prefix(1).uppercased() + spaced.dropFirst()
+/// Returns an SF Symbol name for the host backing this URL. We don't have
+/// AppKit-renderable brand icons inside the daemon, but SF Symbols cover the
+/// common cases well enough for a sidebar card. Falls back to a generic doc
+/// icon when the host isn't recognized.
+private func iconForArtifactURL(_ url: URL?) -> String {
+    guard let host = url?.host?.lowercased() else { return "doc.text" }
+    if host.contains("notion.so") || host.contains("notion.site") { return "n.square" }
+    if host.contains("linear.app") { return "checklist" }
+    if host.contains("github.com") { return "chevron.left.forwardslash.chevron.right" }
+    if host.contains("slack.com") { return "number" }
+    if host.contains("docs.google.com") { return "doc.text.fill" }
+    if host.contains("sheets.google.com") { return "tablecells.fill" }
+    if host.contains("slides.google.com") { return "rectangle.on.rectangle.fill" }
+    if host.contains("figma.com") { return "paintbrush.pointed.fill" }
+    if host.contains("atlassian") { return "j.square" }
+    if host.contains("asana.com") { return "a.square" }
+    if host.contains("trello.com") { return "rectangle.stack.fill" }
+    return "link"
 }
 
 /// Aggregates links + filesWritten across recent runs and renders the
@@ -313,11 +299,13 @@ private func extractArtifacts(runs: [Run], agents: [Agent], limit: Int) -> [Arti
             let range = NSRange(summary.startIndex..<summary.endIndex, in: summary)
             detector?.enumerateMatches(in: summary, range: range) { match, _, _ in
                 if let url = match?.url {
-                    let inferred = inferTitleFromURL(url)
-                    let primary = inferred ?? owner
+                    // Document titles aren't reachable from a URL alone (every
+                    // service requires authenticated API access). Use the
+                    // agent's name as the primary label and put the URL on the
+                    // secondary line.
                     rows.append(ArtifactRow(
                         id: "\(run.runId):\(url.absoluteString)",
-                        label: primary,
+                        label: owner,
                         title: url.absoluteString,
                         agentName: owner,
                         runStartedAt: run.startedAt,
@@ -369,7 +357,7 @@ private struct ArtifactsCard: View {
 
     private func artifactRow(_ item: ArtifactRow) -> some View {
         HStack(spacing: NSpacing.sm) {
-            Image(systemName: "doc.text")
+            Image(systemName: iconForArtifactURL(item.url))
                 .font(.system(size: 11))
                 .foregroundStyle(theme.tokens.mutedForeground)
             VStack(alignment: .leading, spacing: 1) {
