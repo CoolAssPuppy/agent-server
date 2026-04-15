@@ -28,6 +28,7 @@ struct SettingsDrawer: View {
     @State private var launchAtLogin: Bool = LaunchAtLoginManager.shared.isEnabled
     @State private var resumeAfterWake: Bool = true
     @State private var autoUpdates: Bool = true
+    @State private var telemetryOptIn: Bool = Telemetry.isOptedIn
     @State private var didLoad: Bool = false
 
     static let height: CGFloat = 500
@@ -151,6 +152,11 @@ struct SettingsDrawer: View {
                 }
 
             settingsToggle("Resume scheduled agents after wake", isOn: $resumeAfterWake)
+
+            settingsToggle("Help improve Agent Server", isOn: $telemetryOptIn)
+                .onChange(of: telemetryOptIn) { _, newValue in
+                    Telemetry.setOptedIn(newValue)
+                }
 
             settingsRow(label: "Agents folder") {
                 Text(agentsFolderDisplay)
