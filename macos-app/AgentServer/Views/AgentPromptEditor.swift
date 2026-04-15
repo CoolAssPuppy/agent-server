@@ -23,23 +23,6 @@ struct AgentPromptEditor: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { model.loadIfNeeded() }
-        .overlay(alignment: .bottomTrailing) {
-            if model.showSavedToast {
-                Text("Saved")
-                    .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.foreground)
-                    .padding(.horizontal, NSpacing.md)
-                    .padding(.vertical, NSpacing.xs)
-                    .background(theme.tokens.card)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: NRadius.sm)
-                            .stroke(theme.tokens.border, lineWidth: 1)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
-                    .padding(NSpacing.md)
-                    .transition(.opacity)
-            }
-        }
     }
 
     private var header: some View {
@@ -113,6 +96,11 @@ struct AgentPromptEditor: View {
                 Text(saveError)
                     .font(NTypography.caption)
                     .foregroundStyle(.red)
+            } else if model.showSavedToast {
+                Text("Saved")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .transition(.opacity)
             }
 
             Spacer()
