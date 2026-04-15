@@ -105,7 +105,10 @@ struct SettingsDrawer: View {
         HStack(alignment: .top, spacing: NSpacing.lg) {
             generalCard
             panelConnectionsCard
-            updatesCard
+            VStack(spacing: NSpacing.lg) {
+                updatesCard
+                contactCard
+            }
         }
         .padding(.horizontal, NSpacing.xxl)
     }
@@ -115,31 +118,10 @@ struct SettingsDrawer: View {
             Text("© 2026 Strategic Nerds, Inc. · Made with love in Lisbon, Portugal.")
                 .font(NTypography.captionSmall)
                 .foregroundStyle(theme.tokens.mutedForeground)
-
             Spacer()
-
-            // Tip jar — bottom right. Clicking opens Venmo.
-            Button(action: openVenmo) {
-                HStack(spacing: 4) {
-                    Text("Don't forget to tip your developer. Venmo ")
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                    Text("@coolasspuppy")
-                        .foregroundStyle(theme.tokens.primary)
-                        .underline()
-                }
-                .font(NTypography.captionSmall)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Open Venmo tip link")
         }
         .padding(.horizontal, NSpacing.xxl)
         .padding(.vertical, NSpacing.md)
-    }
-
-    private func openVenmo() {
-        guard let url = URL(string: "https://venmo.com/u/coolasspuppy") else { return }
-        NSWorkspace.shared.open(url)
     }
 
     // MARK: - Cards
@@ -477,6 +459,65 @@ struct SettingsDrawer: View {
                     )
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    private var contactCard: some View {
+        SettingsCard(title: "Contact") {
+            VStack(alignment: .leading, spacing: NSpacing.sm) {
+                HStack(alignment: .center, spacing: NSpacing.xs) {
+                    Image(systemName: "ladybug.fill")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 14, height: 14)
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                    Link("bugs@agentpanel.dev",
+                         destination: URL(string: "mailto:bugs@agentpanel.dev")!)
+                        .font(.system(size: 12))
+                        .foregroundStyle(theme.tokens.primary)
+                }
+
+                Link(destination: URL(string: "https://github.com/coolasspuppy/agent-server")!) {
+                    HStack(alignment: .center, spacing: NSpacing.xs) {
+                        Image("GitHubMark")
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 14, height: 14)
+                            .foregroundStyle(theme.tokens.mutedForeground)
+                        Text("coolasspuppy/agent-server")
+                            .font(.system(size: 12))
+                            .foregroundStyle(theme.tokens.primary)
+                    }
+                }
+
+                Link(destination: URL(string: "https://www.agentpanel.dev")!) {
+                    HStack(alignment: .center, spacing: NSpacing.xs) {
+                        Image("MenuBarIcon")
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 14, height: 14)
+                            .foregroundStyle(theme.tokens.mutedForeground)
+                        Text("Get Agent Panel")
+                            .font(.system(size: 12))
+                            .foregroundStyle(theme.tokens.primary)
+                    }
+                }
+
+                Link(destination: URL(string: "https://venmo.com/u/coolasspuppy")!) {
+                    HStack(alignment: .center, spacing: NSpacing.xs) {
+                        Image(systemName: "cup.and.saucer.fill")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 14, height: 14)
+                            .foregroundStyle(theme.tokens.mutedForeground)
+                        Text("Buy me coffee.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(theme.tokens.primary)
+                    }
+                }
+            }
         }
     }
 
