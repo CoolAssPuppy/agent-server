@@ -1,9 +1,17 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { TelemetryReporter, type StatusEvent } from './reporter.js';
 
 function createMockFetch() {
   return vi.fn().mockResolvedValue({ ok: true, status: 200 });
 }
+
+// Tests can schedule deferred retries that outlive the test. If we don't
+// isolate the pending-terminals dir, those retries eventually write real
+// files into `~/.agent-server/pending-terminals/` on the developer's Mac.
+let testPendingDir = '';
 
 function makeReporter(overrides: { fetch?: typeof fetch; heartbeatMs?: number } = {}) {
   return new TelemetryReporter({
@@ -13,10 +21,19 @@ function makeReporter(overrides: { fetch?: typeof fetch; heartbeatMs?: number } 
     apiKey: 'ap_live_test',
     fetch: overrides.fetch ?? createMockFetch(),
     heartbeatMs: overrides.heartbeatMs ?? 0,
+    pendingTerminalsDir: testPendingDir,
   });
 }
 
 describe('TelemetryReporter', () => {
+  beforeAll(() => {
+    testPendingDir = mkdtempSync(join(tmpdir(), 'reporter-test-pending-'));
+  });
+
+  afterAll(() => {
+    rmSync(testPendingDir, { recursive: true, force: true });
+  });
+
   beforeEach(() => {
     vi.useFakeTimers();
   });
