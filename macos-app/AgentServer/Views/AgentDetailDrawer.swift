@@ -180,12 +180,12 @@ struct AgentDetailDrawer: View {
 
     private var definitionView: some View {
         // Non-scrolling vertical stack so the markdown editor can grow to fill
-        // the remaining drawer height. runNow + trigger/schedule/tools stay
-        // pinned at the top; the prompt section expands to bottom with padding.
+        // the remaining drawer height. runNow + stats + trigger/schedule/tools
+        // stay pinned at the top; the prompt section expands to bottom.
         VStack(alignment: .leading, spacing: NSpacing.lg) {
             if let agent {
                 runNowRow(for: agent)
-                triggerScheduleToolsRow(for: agent)
+                statStripBox(for: agent)
                 promptSection(for: agent)
                     .frame(maxHeight: .infinity)
             } else {
@@ -198,26 +198,44 @@ struct AgentDetailDrawer: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    /// Three-column header row: Trigger · Schedule · Tools. Dividers between
-    /// columns give it the same boxed strip treatment as web's stat strips.
-    /// Schedule shows the human-readable cron only — the raw expression is
-    /// intentionally omitted to reduce clutter.
+    /// Nine-column stat strip matching the web AgentStatStrip: first row is
+    /// run-history stats (Total runs, Success rate, Avg duration, Total cost,
+    /// Last run, Next run), second row is agent definition (Trigger, Schedule,
+    /// Tools). One bordered container, divider between rows.
     @ViewBuilder
-    private func triggerScheduleToolsRow(for agent: Agent) -> some View {
-        HStack(alignment: .top, spacing: 0) {
-            column(title: "Trigger", value: agent.kind.label)
-            Divider().frame(height: 36)
-            column(
-                title: "Schedule",
-                value: agent.schedule.map { CronEnglishFormatter.describe($0) } ?? "—"
-            )
-            Divider().frame(height: 36)
-            column(
-                title: "Tools",
-                value: agent.tools.isEmpty ? "—" : agent.tools.joined(separator: ", ")
-            )
+    private func statStripBox(for agent: Agent) -> some View {
+        let stats = computeAgentStats(for: agent)
+        VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: 0) {
+                statColumn(title: "Total runs", value: stats.totalRuns)
+                Divider().frame(height: 36)
+                statColumn(title: "Success rate", value: stats.successRate)
+                Divider().frame(height: 36)
+                statColumn(title: "Avg duration", value: stats.avgDuration)
+                Divider().frame(height: 36)
+                statColumn(title: "Total cost", value: stats.totalCost)
+                Divider().frame(height: 36)
+                statColumn(title: "Last run", value: stats.lastRun)
+                Divider().frame(height: 36)
+                statColumn(title: "Next run", value: stats.nextRun, emphasize: stats.nextRun != "—")
+            }
+            .padding(NSpacing.md)
+            Divider()
+            HStack(alignment: .top, spacing: 0) {
+                statColumn(title: "Trigger", value: agent.kind.label)
+                Divider().frame(height: 36)
+                statColumn(
+                    title: "Schedule",
+                    value: agent.schedule.map { CronEnglishFormatter.describe($0) } ?? "—"
+                )
+                Divider().frame(height: 36)
+                statColumn(
+                    title: "Tools",
+                    value: agent.tools.isEmpty ? "—" : agent.tools.joined(separator: ", ")
+                )
+            }
+            .padding(NSpacing.md)
         }
-        .padding(NSpacing.md)
         .background(theme.tokens.card)
         .overlay(
             RoundedRectangle(cornerRadius: NRadius.sm)
@@ -226,19 +244,73 @@ struct AgentDetailDrawer: View {
         .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
     }
 
-    private func column(title: String, value: String) -> some View {
+    private func statColumn(title: String, value: String, emphasize: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: NSpacing.xxxs) {
             Text(title.uppercased())
                 .font(NTypography.labelSmall)
                 .foregroundStyle(theme.tokens.mutedForeground)
             Text(value)
                 .font(NTypography.bodySmall)
-                .foregroundStyle(theme.tokens.foreground)
+                .fontWeight(.semibold)
+                .foregroundStyle(emphasize ? theme.tokens.primary : theme.tokens.foreground)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, NSpacing.sm)
+    }
+
+    private struct AgentStatsValues {
+        let totalRuns: String
+        let successRate: String
+        let avgDuration: String
+        let totalCost: String
+        let lastRun: String
+        let nextRun: String
+    }
+
+    private func computeAgentStats(for agent: Agent) -> AgentStatsValues {
+        let runs = monitor.recentRuns.filter { $0.agentId == agent.id }
+        let total = runs.count
+        let terminal = runs.filter { $0.status != .running }
+        let completed = terminal.filter { $0.status == .completed }
+        let successPct: String = {
+            guard !terminal.isEmpty else { return "—" }
+            let r = Double(completed.count) / Double(terminal.count)
+            return "\(Int(round(r * 100)))%"
+        }()
+        let avgDurationMs: Double? = {
+            let ds = runs.compactMap { $0.durationMs.map(Double.init) }
+            guard !ds.isEmpty else { return nil }
+            return ds.reduce(0, +) / Double(ds.count)
+        }()
+        let totalCost = runs.compactMap { $0.estimatedCostUsd }.reduce(0.0, +)
+        let lastRunStr: String = {
+            guard let latest = runs.max(by: { $0.startedAt < $1.startedAt }) else { return "—" }
+            return latest.startedAt.formatted(.relative(presentation: .numeric))
+        }()
+        let nextRunStr: String = {
+            guard let schedule = agent.schedule,
+                  let next = CronNextFire.next(schedule, after: Date()) else { return "—" }
+            return next.formatted(.relative(presentation: .numeric))
+        }()
+        return AgentStatsValues(
+            totalRuns: "\(total)",
+            successRate: successPct,
+            avgDuration: avgDurationMs.map(formatDurationMs) ?? "—",
+            totalCost: totalCost > 0 ? String(format: "$%.2f", totalCost) : "—",
+            lastRun: lastRunStr,
+            nextRun: nextRunStr
+        )
+    }
+
+    private func formatDurationMs(_ ms: Double) -> String {
+        let s = ms / 1000
+        if s < 60 { return String(format: "%.0fs", s) }
+        if s < 3600 { return String(format: "%.0fm %.0fs", (s / 60).rounded(.down), s.truncatingRemainder(dividingBy: 60)) }
+        let h = (s / 3600).rounded(.down)
+        let m = (s.truncatingRemainder(dividingBy: 3600) / 60).rounded(.down)
+        return String(format: "%.0fh %.0fm", h, m)
     }
 
     /// Prompt section: "Prompt (filename.md)" with the filename in smaller,
