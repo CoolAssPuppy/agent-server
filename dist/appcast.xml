@@ -6,6 +6,24 @@
     <description>Agent Server updates</description>
     <language>en</language>
     <item>
+      <title>Version 2.1.0</title>
+      <pubDate>Wed, 15 Apr 2026 12:04:38 +0000</pubDate>
+      <sparkle:version>8</sparkle:version>
+      <sparkle:shortVersionString>2.1.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>More reliable Agent Server.</li><li>Edit prompt and configuration (YAML) for agents.</li><li>Dashboard now populates with data.</li><li>Optional anonymized telemetry.</li><li>Lots of bug fixes.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://hlwjnusdotqtmtwrjidu.supabase.co/storage/v1/object/public/downloads/AgentServer-2.1.0.dmg"
+        sparkle:edSignature="b1Kg8LfjK5mgSPQViBNzbrtXvP4OoENe2EMTShRTgW2PeUYGqwaeMN7y5u24j7Y5C+/AJ0eifAffllWjLHy1CA=="
+        length="32059731"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
       <title>Version 2.0.0</title>
       <pubDate>Tue, 14 Apr 2026 23:03:07 +0000</pubDate>
       <sparkle:version>7</sparkle:version>
