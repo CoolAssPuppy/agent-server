@@ -3,7 +3,7 @@ export { matchesPattern, isToolAllowed, buildCanUseTool } from './execution/perm
 export { discoverAgents } from './agents/discovery.js';
 export { shouldRun, getNextRun, hasMissedRun } from './agents/scheduler.js';
 export { acquireLock, releaseLock, isLocked } from './execution/lockfile.js';
-export { TelemetryReporter, type StatusEvent, type StatusState } from './reporting/reporter.js';
+export { TelemetryReporter, replayPendingTerminals, type StatusEvent, type StatusState } from './reporting/reporter.js';
 export { parseStreamEvent, summarizeTurn, extractToolMetadata, type ExecutionResult, type ClaudeStreamEvent } from './execution/executor.js';
 export { executeAgent } from './plugins/claude-code.js';
 export { runAgent, type RunResult, type Reporter } from './execution/runner.js';

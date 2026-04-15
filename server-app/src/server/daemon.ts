@@ -7,6 +7,7 @@ import { runAgent, type RunResult } from '../execution/runner.js';
 import { executeAgent } from '../plugins/claude-code.js';
 import { ExecutorRegistry } from '../execution/executor-registry.js';
 import { createReporter } from '../reporting/reporter-factory.js';
+import { replayPendingTerminals } from '../reporting/reporter.js';
 import { ScheduleSync } from '../reporting/sync-schedule.js';
 import { SseClient } from '../reporting/sse-client.js';
 import { TriggerHandler, type InvokeRun } from '../execution/trigger-handler.js';
@@ -214,6 +215,8 @@ export function startDaemon(config: ServerConfig): { stop: () => void } {
     console.log('  Panel: not configured (telemetry disabled)');
   }
   console.log('');
+
+  void replayPendingTerminals();
 
   void runDueAgents(config);
 

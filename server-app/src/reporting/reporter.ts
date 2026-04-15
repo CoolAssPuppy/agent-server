@@ -1,3 +1,7 @@
+import { mkdir, writeFile, readdir, readFile, unlink } from 'fs/promises';
+import { homedir } from 'os';
+import { join } from 'path';
+
 export type StatusState =
   | 'submitted'
   | 'working'
@@ -85,7 +89,6 @@ export class TelemetryReporter {
     model?: string;
   }): Promise<void> {
     console.log(`[telemetry] Sending completion for "${this.config.agentName}" to ${this.config.endpoint}`);
-    this.stop();
     const accomplishments: string[] = [];
     if (executionResult.filesWritten.length > 0) {
       accomplishments.push(`Wrote ${executionResult.filesWritten.length} file(s): ${executionResult.filesWritten.join(', ')}`);
@@ -107,38 +110,48 @@ export class TelemetryReporter {
       ?? (typeof executionResult.usage.model === 'string' ? executionResult.usage.model : undefined)
       ?? 'unknown';
 
-    await this.send({
-      state: 'completed',
-      result: {
-        summary: executionResult.summary,
-        accomplishments,
-        usage,
-        model,
-        output: {
-          turn_count: executionResult.turnCount,
-          tools_used: executionResult.toolsUsed,
-          files_read: executionResult.filesRead,
-          files_written: executionResult.filesWritten,
-          commands_run: executionResult.commandsRun,
+    try {
+      await this.send({
+        state: 'completed',
+        result: {
+          summary: executionResult.summary,
+          accomplishments,
+          usage,
+          model,
+          output: {
+            turn_count: executionResult.turnCount,
+            tools_used: executionResult.toolsUsed,
+            files_read: executionResult.filesRead,
+            files_written: executionResult.filesWritten,
+            commands_run: executionResult.commandsRun,
+          },
         },
-      },
-    });
+      });
+    } finally {
+      this.stop();
+    }
   }
 
   async fail(error: Error): Promise<void> {
-    this.stop();
-    await this.send({
-      state: 'failed',
-      error: { message: error.message },
-    });
+    try {
+      await this.send({
+        state: 'failed',
+        error: { message: error.message },
+      });
+    } finally {
+      this.stop();
+    }
   }
 
   async cancel(reason?: string, code?: string): Promise<void> {
-    this.stop();
-    await this.send({
-      state: 'canceled',
-      error: { message: reason ?? 'Canceled', ...(code ? { code } : {}) },
-    });
+    try {
+      await this.send({
+        state: 'canceled',
+        error: { message: reason ?? 'Canceled', ...(code ? { code } : {}) },
+      });
+    } finally {
+      this.stop();
+    }
   }
 
   /**
@@ -234,7 +247,13 @@ export class TelemetryReporter {
 
   private scheduleDeferredRetry(body: StatusEvent, attempt = 1): void {
     if (attempt > DEFERRED_RETRY_COUNT) {
-      console.error(`[telemetry] Abandoned ${body.state} event for "${this.config.agentName}" after all retries`);
+      console.error(`[telemetry] Abandoned ${body.state} event for "${this.config.agentName}" after all retries; persisting for replay`);
+      void persistPendingTerminal({
+        runId: this.config.runId,
+        endpoint: this.config.endpoint,
+        apiKey: this.config.apiKey,
+        body,
+      });
       return;
     }
 
@@ -258,5 +277,66 @@ export class TelemetryReporter {
       }
       this.scheduleDeferredRetry(body, attempt + 1);
     }, delayMs);
+  }
+}
+
+type PendingTerminal = {
+  runId: string;
+  endpoint: string;
+  apiKey: string;
+  body: StatusEvent;
+};
+
+export const PENDING_TERMINALS_DIR = join(homedir(), '.agent-server', 'pending-terminals');
+
+async function persistPendingTerminal(entry: PendingTerminal): Promise<void> {
+  try {
+    await mkdir(PENDING_TERMINALS_DIR, { recursive: true });
+    const file = join(PENDING_TERMINALS_DIR, `${entry.runId}.json`);
+    await writeFile(file, JSON.stringify(entry), 'utf8');
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[telemetry] Failed to persist pending terminal for ${entry.runId}: ${message}`);
+  }
+}
+
+export async function replayPendingTerminals(
+  fetchImpl: typeof globalThis.fetch = globalThis.fetch,
+): Promise<void> {
+  let files: string[];
+  try {
+    files = await readdir(PENDING_TERMINALS_DIR);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return;
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[telemetry] Failed to read pending terminals dir: ${message}`);
+    return;
+  }
+
+  for (const name of files) {
+    if (!name.endsWith('.json')) continue;
+    const path = join(PENDING_TERMINALS_DIR, name);
+    try {
+      const raw = await readFile(path, 'utf8');
+      const entry = JSON.parse(raw) as PendingTerminal;
+      const response = await fetchImpl(entry.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${entry.apiKey}`,
+        },
+        body: JSON.stringify(entry.body),
+      });
+      // Treat 2xx and 409 (already terminal) as success — the panel has the state.
+      if (response.ok || response.status === 409) {
+        await unlink(path);
+        console.log(`[telemetry] Replayed pending terminal ${entry.runId} (${response.status})`);
+      } else {
+        console.error(`[telemetry] Replay failed for ${entry.runId}: ${response.status}`);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[telemetry] Replay error for ${name}: ${message}`);
+    }
   }
 }

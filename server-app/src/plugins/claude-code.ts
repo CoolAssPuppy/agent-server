@@ -318,26 +318,10 @@ export async function executeAgent(
     if (resultPayload) return resultPayload;
     if (decisionHandled) continue;
 
-    return buildResult({
-      summary: lastAssistantText || 'Agent completed',
-      turnCount,
-      toolsUsed,
-      allFilesRead,
-      allFilesWritten,
-      allCommandsRun,
-      lastAssistantText,
-      mcpServers,
-      totalInputTokens,
-      totalOutputTokens,
-      totalCacheReadTokens,
-      totalCacheCreationTokens,
-      totalCostUsd,
-      model: lastModel,
-      stopReason: lastStopReason,
-      durationMs: lastDurationMs,
-      durationApiMs: lastDurationApiMs,
-      toolCalls: completedToolCalls,
-    });
+    // Stream ended without emitting a terminal `result` message. Treat this
+    // as a failure so the reporter marks the run failed instead of silently
+    // claiming success — otherwise the panel's stale-run sweep would flag it.
+    throw new Error('Claude SDK stream ended without a result message');
   }
 }
 
