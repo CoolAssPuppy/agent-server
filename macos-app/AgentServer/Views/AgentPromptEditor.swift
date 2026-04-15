@@ -4,11 +4,18 @@ import NerdsUI
 /// Editable prompt body for the agent detail drawer. Reads the full markdown
 /// file, splits off the YAML frontmatter (kept verbatim), and exposes only the
 /// body for editing. Cmd+S or the Save button writes the file back atomically.
+enum AgentPromptTab: String, CaseIterable, Identifiable {
+    case prompt = "PROMPT"
+    case configuration = "CONFIGURATION"
+    var id: String { rawValue }
+}
+
 struct AgentPromptEditor: View {
     let fileURL: URL
 
     @Environment(\.nTheme) private var theme
     @StateObject private var model: Loader
+    @State private var tab: AgentPromptTab = .prompt
 
     init(fileURL: URL) {
         self.fileURL = fileURL
@@ -25,14 +32,11 @@ struct AgentPromptEditor: View {
         .onAppear { model.loadIfNeeded() }
     }
 
-    /// Top row above the editor: "PROMPT (filename)" label on the left,
-    /// dirty-dot indicator in the middle, and a small Enabled toggle pinned
-    /// to the right. Sized so the toggle matches the label height.
+    /// Top row above the editor: tab picker (PROMPT | CONFIGURATION) on the
+    /// left with filename + dirty dot, Enabled toggle pinned to the right.
     private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: NSpacing.xs) {
-            Text("PROMPT")
-                .font(NTypography.labelSmall)
-                .foregroundStyle(theme.tokens.mutedForeground)
+        HStack(alignment: .center, spacing: NSpacing.sm) {
+            tabPicker
             Text("(\(fileURL.lastPathComponent))")
                 .font(NTypography.captionSmall)
                 .foregroundStyle(theme.tokens.mutedForeground.opacity(0.7))
@@ -54,7 +58,39 @@ struct AgentPromptEditor: View {
             .toggleStyle(.switch)
             .controlSize(.mini)
         }
+        // Horizontal inset matches MarkdownEditor's internal 16pt padding so
+        // the toggle's right edge lines up with the editor text, not with
+        // the card's outer border.
+        .padding(.horizontal, 16)
         .padding(.bottom, NSpacing.xs)
+    }
+
+    private var tabPicker: some View {
+        HStack(spacing: 0) {
+            ForEach(AgentPromptTab.allCases) { option in
+                Button {
+                    tab = option
+                } label: {
+                    Text(option.rawValue)
+                        .font(NTypography.labelSmall)
+                        .foregroundStyle(
+                            tab == option ? theme.tokens.foreground : theme.tokens.mutedForeground
+                        )
+                        .padding(.horizontal, NSpacing.sm)
+                        .padding(.vertical, 3)
+                        .background(
+                            tab == option
+                                ? theme.tokens.foreground.opacity(0.08)
+                                : Color.clear
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: NRadius.xs))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(2)
+        .background(theme.tokens.foreground.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
     }
 
     @ViewBuilder
@@ -73,11 +109,7 @@ struct AgentPromptEditor: View {
             .background(theme.tokens.card)
             .clipShape(RoundedRectangle(cornerRadius: 8))
         } else {
-            // Syntax-highlighted editor (NSTextView-backed) restored. The
-            // card is a fixed-height frame so the editor scrolls internally
-            // instead of pushing the drawer layout to match the document
-            // length.
-            MarkdownEditor(text: $model.body)
+            MarkdownEditor(text: binding(for: tab))
                 .frame(minHeight: 240, maxHeight: .infinity)
                 .padding(16)
                 .background(
@@ -88,6 +120,13 @@ struct AgentPromptEditor: View {
                                 .strokeBorder(theme.tokens.border, lineWidth: 1)
                         )
                 )
+        }
+    }
+
+    private func binding(for tab: AgentPromptTab) -> Binding<String> {
+        switch tab {
+        case .prompt: return $model.body
+        case .configuration: return $model.frontmatter
         }
     }
 
@@ -137,6 +176,7 @@ struct AgentPromptEditor: View {
                 .keyboardShortcut("s", modifiers: .command)
             }
         }
+        .padding(.horizontal, 16)
         .padding(.top, NSpacing.sm)
     }
 
@@ -148,21 +188,31 @@ struct AgentPromptEditor: View {
         @Published var body: String = "" {
             didSet {
                 guard didLoad else { return }
-                if body != lastLoadedBody && !isDirty {
-                    isDirty = true
-                }
+                recomputeDirty()
+            }
+        }
+        /// The YAML frontmatter block including the opening/closing `---`
+        /// fences, plus a trailing newline. Exposed for editing so the
+        /// CONFIGURATION tab can show and mutate the full fenced block.
+        @Published var frontmatter: String = "" {
+            didSet {
+                guard didLoad else { return }
+                recomputeDirty()
             }
         }
         @Published var isDirty: Bool = false
         @Published var loadError: String?
         @Published var saveError: String?
         @Published var showSavedToast: Bool = false
-        /// Mirrors `enabled: true|false` in the YAML frontmatter. Default true
-        /// if the field is absent (matches the daemon's own default).
-        @Published var enabled: Bool = true
 
-        private var frontmatter: String = ""
+        /// Derived from the current frontmatter. Default true when the field
+        /// is absent (matches the daemon's own default).
+        var enabled: Bool {
+            Self.parseEnabled(frontmatter: frontmatter)
+        }
+
         private var lastLoadedBody: String = ""
+        private var lastLoadedFrontmatter: String = ""
         private var didLoad = false
         private var toastTask: Task<Void, Never>?
 
@@ -178,7 +228,7 @@ struct AgentPromptEditor: View {
                 self.frontmatter = doc.frontmatter
                 self.body = doc.body
                 self.lastLoadedBody = doc.body
-                self.enabled = Self.parseEnabled(frontmatter: doc.frontmatter)
+                self.lastLoadedFrontmatter = doc.frontmatter
                 self.didLoad = true
                 self.isDirty = false
                 self.loadError = nil
@@ -190,22 +240,31 @@ struct AgentPromptEditor: View {
 
         func revert() {
             body = lastLoadedBody
+            frontmatter = lastLoadedFrontmatter
             isDirty = false
             saveError = nil
         }
 
         func setEnabled(_ newValue: Bool) {
             guard loadError == nil, enabled != newValue else { return }
-            enabled = newValue
             frontmatter = Self.rewriteEnabled(in: frontmatter, to: newValue)
+            // Immediate persistence for the toggle — it is a one-click
+            // primary action that shouldn't require the Save button.
             writeToDisk()
+            lastLoadedFrontmatter = frontmatter
+            recomputeDirty()
         }
 
         func save() {
             guard isDirty, loadError == nil else { return }
             writeToDisk()
             lastLoadedBody = body
+            lastLoadedFrontmatter = frontmatter
             isDirty = false
+        }
+
+        private func recomputeDirty() {
+            isDirty = body != lastLoadedBody || frontmatter != lastLoadedFrontmatter
         }
 
         private func writeToDisk() {
