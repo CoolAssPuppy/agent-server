@@ -105,8 +105,8 @@ struct MainPane: View {
         ) {
             DecisionsCard(decisions: monitor.pendingDecisions.filter(\.isPending))
             MyTasksTodayCard(agents: monitor.agents)
-            ArtifactsCard()
-            FeedCard(runs: monitor.activeRuns)
+            ArtifactsCard(runs: monitor.recentRuns, agents: monitor.agents)
+            FeedCard(runs: monitor.recentRuns, agents: monitor.agents)
         }
     }
 }
@@ -232,22 +232,114 @@ private struct MyTasksTodayCard: View {
     }
 }
 
+private struct ArtifactRow: Identifiable {
+    let id: String
+    let label: String
+    let agentName: String
+    let runStartedAt: Date
+    let url: URL?
+}
+
+/// Aggregates links + filesWritten across recent runs and renders the
+/// latest ~8 as artifact rows. Panel-side has a richer URL extractor
+/// (extractOutputLinks) — on macOS we rely on the daemon's Run payload,
+/// specifically `filesWritten` and any URLs parseable from result.summary.
+private func extractArtifacts(runs: [Run], agents: [Agent], limit: Int) -> [ArtifactRow] {
+    let agentName: [String: String] = Dictionary(uniqueKeysWithValues: agents.map { ($0.id, $0.name) })
+    var rows: [ArtifactRow] = []
+
+    for run in runs {
+        let owner = agentName[run.agentId] ?? run.agentId
+
+        // URLs extracted from the summary text.
+        if let summary = run.summary {
+            let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+            let range = NSRange(summary.startIndex..<summary.endIndex, in: summary)
+            detector?.enumerateMatches(in: summary, range: range) { match, _, _ in
+                if let url = match?.url {
+                    rows.append(ArtifactRow(
+                        id: "\(run.runId):\(url.absoluteString)",
+                        label: url.host ?? url.absoluteString,
+                        agentName: owner,
+                        runStartedAt: run.startedAt,
+                        url: url
+                    ))
+                }
+            }
+        }
+
+        // Files the run wrote.
+        for file in run.filesWritten {
+            let leaf = (file as NSString).lastPathComponent
+            rows.append(ArtifactRow(
+                id: "\(run.runId):\(file)",
+                label: leaf,
+                agentName: owner,
+                runStartedAt: run.startedAt,
+                url: URL(fileURLWithPath: file)
+            ))
+        }
+    }
+
+    return Array(rows.prefix(limit))
+}
+
 private struct ArtifactsCard: View {
+    let runs: [Run]
+    let agents: [Agent]
+
     @Environment(\.nTheme) private var theme
 
     var body: some View {
+        let items = extractArtifacts(runs: runs, agents: agents, limit: 8)
         MainPaneCard(title: "Artifacts", subtitle: nil) {
-            Text("No artifacts yet.")
-                .font(NTypography.caption)
+            if items.isEmpty {
+                Text("No artifacts yet.")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            } else {
+                VStack(alignment: .leading, spacing: NSpacing.xs) {
+                    ForEach(items) { item in
+                        artifactRow(item)
+                    }
+                }
+            }
+        }
+    }
+
+    private func artifactRow(_ item: ArtifactRow) -> some View {
+        HStack(spacing: NSpacing.sm) {
+            Image(systemName: "doc.text")
+                .font(.system(size: 11))
                 .foregroundStyle(theme.tokens.mutedForeground)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(item.label)
+                    .font(NTypography.bodySmall)
+                    .foregroundStyle(theme.tokens.foreground)
+                    .lineLimit(1)
+                Text(item.agentName)
+                    .font(NTypography.captionSmall)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .lineLimit(1)
+            }
+            Spacer()
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let url = item.url { NSWorkspace.shared.open(url) }
         }
     }
 }
 
 private struct FeedCard: View {
     let runs: [Run]
+    let agents: [Agent]
 
     @Environment(\.nTheme) private var theme
+
+    private var agentNameById: [String: String] {
+        Dictionary(uniqueKeysWithValues: agents.map { ($0.id, $0.name) })
+    }
 
     var body: some View {
         MainPaneCard(
@@ -263,16 +355,17 @@ private struct FeedCard: View {
                     ForEach(runs.prefix(10), id: \.runId) { run in
                         HStack(spacing: NSpacing.sm) {
                             Circle()
-                                .fill(Color.green)
+                                .fill(run.status.displayColor)
                                 .frame(width: 6, height: 6)
-                            Text(run.agentId)
+                            Text(agentNameById[run.agentId] ?? run.agentId)
                                 .font(NTypography.bodySmall)
                                 .foregroundStyle(theme.tokens.foreground)
                                 .lineLimit(1)
                             Spacer()
-                            Text(run.runId.prefix(8))
-                                .font(NTypography.caption)
+                            Text(run.startedAt.formatted(.relative(presentation: .numeric)))
+                                .font(NTypography.captionSmall)
                                 .foregroundStyle(theme.tokens.mutedForeground)
+                                .lineLimit(1)
                         }
                     }
                 }

@@ -5,6 +5,10 @@ import Foundation
 final class StatusMonitor: ObservableObject {
     @Published private(set) var agents: [Agent] = []
     @Published private(set) var activeRuns: [Run] = []
+    /// Full run list returned from the daemon, newest first. Used by the
+    /// MainPane's Feed + Artifacts cards (which care about ALL recent runs,
+    /// not just the ones currently running).
+    @Published private(set) var recentRuns: [Run] = []
     /// Most recent completed/failed run per agent. Drives the sidebar's
     /// "failed last run" red indicator.
     @Published private(set) var lastRunByAgent: [String: Run] = [:]
@@ -122,6 +126,7 @@ final class StatusMonitor: ObservableObject {
 
                 self.previousActiveRunIds = Set(currentActiveRuns.map { $0.runId })
                 self.activeRuns = currentActiveRuns
+                self.recentRuns = fetchedRuns.sorted { $0.startedAt > $1.startedAt }
 
                 // Latest TERMINAL run per agent (for sidebar failed/succeeded
                 // indicator). Running runs are excluded so the icon reflects
