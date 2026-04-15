@@ -24,6 +24,13 @@ export function panelRowToStoredRun(row: PanelRunRow): StoredRun | null {
   if (!row.id || !row.task_id) return null;
 
   const status = PANEL_TO_STORED_STATUS[row.status] ?? 'running';
+  // Only seed TERMINAL runs. In-flight runs on the panel may be panel-side
+  // stale-swept failures or runs the daemon never owned — if we seed them as
+  // "running" locally, the macOS sidebar will show phantom active runs that
+  // don't belong to any local agent. Daemon's in-memory state is the
+  // authoritative source of truth for anything currently executing.
+  if (status === 'running') return null;
+
   const startedAtIso = row.started_at ?? row.queued_at ?? null;
   if (!startedAtIso) return null;
 

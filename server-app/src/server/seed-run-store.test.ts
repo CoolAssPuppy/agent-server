@@ -66,10 +66,10 @@ describe('panelRowToStoredRun', () => {
     expect(result?.completedAt?.toISOString()).toBe('2026-04-15T09:00:30.000Z');
   });
 
-  it('maps working panel status to running', () => {
-    const row = getMockPanelRow({ status: 'working', ended_at: null });
-    const result = panelRowToStoredRun(row);
-    expect(result?.status).toBe('running');
+  it('skips non-terminal panel rows (daemon owns in-flight state)', () => {
+    expect(panelRowToStoredRun(getMockPanelRow({ status: 'working', ended_at: null }))).toBeNull();
+    expect(panelRowToStoredRun(getMockPanelRow({ status: 'submitted', ended_at: null }))).toBeNull();
+    expect(panelRowToStoredRun(getMockPanelRow({ status: 'input_required', ended_at: null }))).toBeNull();
   });
 
   it('maps canceled panel status to failed', () => {

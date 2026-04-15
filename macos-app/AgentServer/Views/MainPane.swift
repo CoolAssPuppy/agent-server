@@ -337,40 +337,16 @@ private func iconForArtifactURL(_ url: URL?) -> String {
     return "link"
 }
 
-/// Aggregates links + filesWritten across recent runs and renders the
-/// latest ~8 as artifact rows. Panel-side has a richer URL extractor
-/// (extractOutputLinks) — on macOS we rely on the daemon's Run payload,
-/// specifically `filesWritten` and any URLs parseable from result.summary.
+/// Aggregates artifacts (documents the agent produced) across recent runs and
+/// renders the latest ~8. We rely on `filesWritten` only — URLs mentioned in
+/// run summaries are frequently things the agent READ (analyzed), not CREATED,
+/// so surfacing them here misrepresents what the agent actually produced.
 private func extractArtifacts(runs: [Run], agents: [Agent], limit: Int) -> [ArtifactRow] {
-    let agentName: [String: String] = Dictionary(uniqueKeysWithValues: agents.map { ($0.id, $0.name) })
+    let agentNameById: [String: String] = Dictionary(uniqueKeysWithValues: agents.map { ($0.id, $0.name) })
     var rows: [ArtifactRow] = []
 
     for run in runs {
-        let owner = agentName[run.agentId] ?? run.agentId
-
-        // URLs extracted from the summary text.
-        if let summary = run.summary {
-            let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
-            let range = NSRange(summary.startIndex..<summary.endIndex, in: summary)
-            detector?.enumerateMatches(in: summary, range: range) { match, _, _ in
-                if let url = match?.url {
-                    // Document titles aren't reachable from a URL alone (every
-                    // service requires authenticated API access). Use the
-                    // agent's name as the primary label and put the URL on the
-                    // secondary line.
-                    rows.append(ArtifactRow(
-                        id: "\(run.runId):\(url.absoluteString)",
-                        label: owner,
-                        title: url.absoluteString,
-                        agentName: owner,
-                        runStartedAt: run.startedAt,
-                        url: url
-                    ))
-                }
-            }
-        }
-
-        // Files the run wrote.
+        let owner = agentNameById[run.agentId] ?? run.agentName
         for file in run.filesWritten {
             let leaf = (file as NSString).lastPathComponent
             rows.append(ArtifactRow(
@@ -481,7 +457,7 @@ private struct FeedCard: View {
                             Circle()
                                 .fill(run.status.displayColor)
                                 .frame(width: 6, height: 6)
-                            Text(agentNameById[run.agentId] ?? run.agentId)
+                            Text(agentNameById[run.agentId] ?? run.agentName)
                                 .font(NTypography.bodySmall)
                                 .foregroundStyle(theme.tokens.foreground)
                                 .lineLimit(1)
