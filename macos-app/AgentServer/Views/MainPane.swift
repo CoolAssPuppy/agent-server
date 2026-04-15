@@ -28,7 +28,7 @@ struct MainPane: View {
                 .frame(maxHeight: .infinity)
         }
         .padding(.horizontal, NSpacing.xxl)
-        .padding(.top, NSpacing.md)
+        .padding(.top, NSpacing.xxl)
         .padding(.bottom, NSpacing.md)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .safeAreaInset(edge: .bottom, spacing: 0) { footer }

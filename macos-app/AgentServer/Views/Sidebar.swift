@@ -73,7 +73,8 @@ struct Sidebar: View {
                 .clipShape(Capsule())
         }
         .padding(.horizontal, NSpacing.lg)
-        .padding(.vertical, NSpacing.md)
+        .padding(.top, NSpacing.xxl)
+        .padding(.bottom, NSpacing.md)
     }
 
     private var list: some View {
