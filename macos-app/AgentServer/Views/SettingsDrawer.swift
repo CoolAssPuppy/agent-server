@@ -171,6 +171,11 @@ struct SettingsDrawer: View {
                     isHealthy: monitor.isServerReachable,
                     label: monitor.isServerReachable ? "Running" : "Offline"
                 )
+                .contextMenu {
+                    Button("Restart Agent Server") {
+                        monitor.requestServerRestart()
+                    }
+                }
             }
 
             settingsRow(label: "SSE stream") {
