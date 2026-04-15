@@ -304,22 +304,23 @@ extension AppDelegate {
                 .environmentObject(themeManager)
 
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 1200, height: 820),
+                contentRect: NSRect(x: 0, y: 0, width: 1280, height: 920),
                 styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                 backing: .buffered,
                 defer: false
             )
-            window.identifier = NSUserInterfaceItemIdentifier("main")
             window.title = "Agent Server"
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
             window.isReleasedWhenClosed = false
             window.animationBehavior = .documentWindow
-            // Enforce a minimum content size so the footer always has room to
-            // render. Without this, macOS restores a previously-saved smaller
-            // frame (by window identifier) that clips the footer off.
-            window.minSize = NSSize(width: 1080, height: 640)
-            window.setContentSize(NSSize(width: 1200, height: 820))
+            // Enforce a minimum size so both the sidebar footer and the main
+            // pane footer always have room to render. No identifier + no
+            // frame autosave — we want a predictable size on every launch
+            // rather than macOS restoring a prior small frame that clipped
+            // the footer off.
+            window.minSize = NSSize(width: 1080, height: 720)
+            window.setContentSize(NSSize(width: 1280, height: 920))
             window.center()
             window.delegate = self
             window.contentViewController = NSHostingController(rootView: content)
