@@ -26,7 +26,6 @@ struct MainPane: View {
             VStack(alignment: .leading, spacing: NSpacing.xl) {
                 greeting
                 cardsGrid
-                    .frame(maxHeight: .infinity)
             }
             .padding(.horizontal, NSpacing.xxl)
             .padding(.top, NSpacing.xxl)
@@ -35,6 +34,7 @@ struct MainPane: View {
 
             footer
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.tokens.background)
     }
 
