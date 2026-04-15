@@ -7,6 +7,9 @@ struct MenuBarPopover: View {
     @ObservedObject var monitor: StatusMonitor
     @EnvironmentObject var themeManager: ThemeManager
 
+    /// Fires when the user clicks the "Agent Server" title or the dashboard
+    /// icon. Opens the main window to home (no drawer).
+    var onOpenHome: (() -> Void)?
     /// Fires when the user clicks the gear icon. Opens the main window with
     /// the settings drawer down (3NT-1).
     var onOpenSettings: (() -> Void)?
@@ -71,18 +74,25 @@ struct MenuBarPopover: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack {
-            Text("Agent Server")
-                .font(.system(size: 15))
-                .tracking(-0.15)
-                .foregroundStyle(theme.tokens.foreground)
+        Button {
+            onOpenHome?()
+        } label: {
+            HStack {
+                Text("Agent Server")
+                    .font(.system(size: 15))
+                    .tracking(-0.15)
+                    .foregroundStyle(theme.tokens.foreground)
 
-            Spacer()
+                Spacer()
 
-            Circle()
-                .fill(monitor.isServerReachable ? Color.green : Color.red)
-                .frame(width: 8, height: 8)
+                Circle()
+                    .fill(monitor.isServerReachable ? Color.green : Color.red)
+                    .frame(width: 8, height: 8)
+            }
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .help("Open Agent Server dashboard")
         .padding(.horizontal, 18)
         .padding(.top, NSpacing.lg)
         .padding(.bottom, 10)
@@ -205,6 +215,18 @@ struct MenuBarPopover: View {
             }
             .buttonStyle(.plain)
             .help("Settings")
+
+            Button {
+                onOpenHome?()
+            } label: {
+                Image(systemName: "rectangle.grid.2x2")
+                    .font(.system(size: 14))
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Open dashboard")
 
             Spacer()
 

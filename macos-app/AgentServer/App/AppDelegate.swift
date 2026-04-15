@@ -192,6 +192,7 @@ private extension AppDelegate {
     func setupPopover() {
         let popoverView = MenuBarPopover(
             monitor: monitor,
+            onOpenHome: { [weak self] in self?.openMainWindow() },
             onOpenSettings: { [weak self] in self?.openMainWindow(route: .settings) },
             onOpenAgent: { [weak self] agentId in self?.openMainWindow(route: .detail(agentId: agentId)) },
             onQuit: { NSApp.terminate(nil) }
@@ -276,7 +277,7 @@ extension AppDelegate {
     ///   2. After the window is on screen, `DrawerRouter.shared.routeTo(_:)`
     ///      is called inside `withAnimation(.easeOut(...))` so SwiftUI sees
     ///      the nil -> open transition and plays the drawer's .move(edge:).
-    func openMainWindow(route: Drawer) {
+    func openMainWindow(route: Drawer? = nil) {
         popover.performClose(nil)
 
         Task { @MainActor in
@@ -290,7 +291,8 @@ extension AppDelegate {
 
             if let window = mainWindow {
                 fadeIn(window: window)
-                scheduleDrawerOpen(route: route)
+                if let route { scheduleDrawerOpen(route: route) }
+                else { DrawerRouter.shared.close() }
                 return
             }
 
@@ -319,7 +321,7 @@ extension AppDelegate {
             mainWindow = window
 
             fadeIn(window: window)
-            scheduleDrawerOpen(route: route)
+            if let route { scheduleDrawerOpen(route: route) }
         }
     }
 
