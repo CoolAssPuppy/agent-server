@@ -49,6 +49,13 @@ actor AgentServerClient {
         try validateResponse(response)
     }
 
+    func deleteRun(id: String) async throws {
+        var request = URLRequest(url: baseURL.appendingPathComponent("/runs/\(id)"))
+        request.httpMethod = "DELETE"
+        let (_, response) = try await session.data(for: request)
+        try validateResponse(response)
+    }
+
     func cleanupStaleRuns() async throws -> CleanupResponse {
         var request = URLRequest(url: baseURL.appendingPathComponent("/cleanup"))
         request.httpMethod = "POST"

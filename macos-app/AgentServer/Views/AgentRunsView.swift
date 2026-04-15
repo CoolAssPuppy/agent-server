@@ -43,7 +43,10 @@ struct AgentRunsView: View {
             if isActive { startPolling() } else { stopPolling() }
         }
         .onChange(of: selectedRunId) { _, newId in
-            Task { await fetchLogsForRun(newId) }
+            Task {
+                await fetchLogsForRun(newId)
+                await hydrateSelectedRunFromPanel(newId)
+            }
         }
         .onDisappear { stopPolling() }
     }
@@ -111,6 +114,13 @@ struct AgentRunsView: View {
                     Task {
                         monitor.cancelRun(id: selectedRunId)
                         try? await Task.sleep(nanoseconds: 1_000_000_000)
+                        await fetchRuns()
+                    }
+                },
+                onDelete: {
+                    Task {
+                        try? await localClient.deleteRun(id: selectedRunId)
+                        self.selectedRunId = nil
                         await fetchRuns()
                     }
                 },
@@ -193,6 +203,52 @@ struct AgentRunsView: View {
 
     private func fetchFromLocalServer() async throws -> [Run] {
         try await localClient.runsForAgent(id: agentId)
+    }
+
+    private func hydrateSelectedRunFromPanel(_ runId: String?) async {
+        guard let runId, let panelClient else { return }
+        guard let localRun = runs.first(where: { $0.runId == runId }) else { return }
+        do {
+            guard let panelRun = try await panelClient.fetchRun(id: runId) else { return }
+            if panelRun.id != runId {
+                print("[AgentRunsView] panel run id \(panelRun.id) != local \(runId)")
+                return
+            }
+            let merged = mergeFields(local: localRun, panel: panelRun.toRun(agentId: localRun.agentId))
+            if let idx = runs.firstIndex(where: { $0.runId == runId }) {
+                runs[idx] = merged
+            }
+        } catch {
+            // Offline is fine — local run renders as-is
+        }
+    }
+
+    private func mergeFields(local: Run, panel: Run) -> Run {
+        Run(
+            runId: local.runId,
+            agentId: local.agentId,
+            agentName: local.agentName,
+            status: local.status,
+            startedAt: local.startedAt,
+            completedAt: local.completedAt ?? panel.completedAt,
+            summary: local.summary ?? panel.summary,
+            error: local.error ?? panel.error,
+            turnCount: local.turnCount > 0 ? local.turnCount : panel.turnCount,
+            toolsUsed: local.toolsUsed.isEmpty ? panel.toolsUsed : local.toolsUsed,
+            filesRead: local.filesRead.isEmpty ? panel.filesRead : local.filesRead,
+            filesWritten: local.filesWritten.isEmpty ? panel.filesWritten : local.filesWritten,
+            commandsRun: local.commandsRun.isEmpty ? panel.commandsRun : local.commandsRun,
+            progressMessages: local.progressMessages.isEmpty ? panel.progressMessages : local.progressMessages,
+            accomplishments: local.accomplishments.isEmpty ? panel.accomplishments : local.accomplishments,
+            observations: local.observations.isEmpty ? panel.observations : local.observations,
+            trigger: local.trigger ?? panel.trigger,
+            model: local.model ?? panel.model,
+            inputTokens: local.inputTokens ?? panel.inputTokens,
+            outputTokens: local.outputTokens ?? panel.outputTokens,
+            estimatedCostUsd: (local.estimatedCostUsd ?? 0) > 0 ? local.estimatedCostUsd : panel.estimatedCostUsd,
+            durationMs: local.durationMs ?? panel.durationMs,
+            conversationId: local.conversationId ?? panel.conversationId
+        )
     }
 
     private func fetchLogsForRun(_ runId: String?) async {

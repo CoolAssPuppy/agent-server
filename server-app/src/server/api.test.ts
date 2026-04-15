@@ -228,6 +228,26 @@ describe('API routes', () => {
     });
   });
 
+  describe('DELETE /runs/:id', () => {
+    it('deletes an existing run', async () => {
+      store.add(makeStoredRun({ runId: 'r-del-1', status: 'completed' }));
+      const app = createApp('127.0.0.1');
+
+      const res = await app.request('/runs/r-del-1', { method: 'DELETE' });
+      expect(res.status).toBe(200);
+
+      const body = await res.json();
+      expect(body.success).toBe(true);
+      expect(store.get('r-del-1')).toBeUndefined();
+    });
+
+    it('returns 404 when the run does not exist', async () => {
+      const app = createApp('127.0.0.1');
+      const res = await app.request('/runs/missing', { method: 'DELETE' });
+      expect(res.status).toBe(404);
+    });
+  });
+
   describe('GET /health', () => {
     it('returns ok', async () => {
       const app = createApp();

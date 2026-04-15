@@ -45,6 +45,24 @@ actor PanelClient {
         return PanelClient(panelURL: url, apiKey: key)
     }
 
+    func fetchRun(id: String) async throws -> PanelRun? {
+        let url = baseURL.appendingPathComponent("/api/runs/\(id)")
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw ClientError.invalidResponse
+        }
+        if http.statusCode == 404 { return nil }
+        guard (200...299).contains(http.statusCode) else {
+            throw ClientError.httpError(statusCode: http.statusCode)
+        }
+
+        let parsed = try decoder.decode(PanelRunResponse.self, from: data)
+        return parsed.run
+    }
+
     func fetchLogs(runId: String) async throws -> [PanelLog] {
         let url = baseURL.appendingPathComponent("/api/runs/\(runId)/logs")
         var request = URLRequest(url: url)

@@ -252,6 +252,13 @@ export function createApi(deps: ApiDependencies): Hono {
     }
   });
 
+  app.delete('/runs/:id', (c) => {
+    const runId = c.req.param('id');
+    const existed = deps.store.delete(runId);
+    if (!existed) return c.json({ error: 'Run not found' }, 404);
+    return c.json({ success: true, runId });
+  });
+
   app.post('/runs/:id/cancel', (c) => {
     const runId = c.req.param('id');
     const run = deps.store.get(runId);

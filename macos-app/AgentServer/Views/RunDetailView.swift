@@ -4,15 +4,15 @@ import NerdsUI
 enum RunDetailTab: String, CaseIterable {
     case activity = "Activity"
     case logs = "Logs"
-    case output = "Output"
     case decisions = "Decisions"
-    case details = "Details"
+    case information = "Information"
 }
 
 struct RunDetailView: View {
     let run: Run
     let logs: [PanelLog]
     let onCancel: () -> Void
+    var onDelete: (() -> Void)? = nil
     var decisions: [Decision] = []
 
     @Environment(\.nTheme) private var theme
@@ -26,10 +26,6 @@ struct RunDetailView: View {
 
     private var liveElapsed: TimeInterval {
         now.timeIntervalSince(run.startedAt)
-    }
-
-    private var hasOutput: Bool {
-        run.summary != nil || !run.accomplishments.isEmpty || !run.observations.isEmpty
     }
 
     var body: some View {
@@ -156,26 +152,21 @@ struct RunDetailView: View {
         var tooltip: String? = nil
     }
 
-    private func buildStatItems() -> [StatItem] {
-        var items: [StatItem] = []
+    private var heartbeatCountDisplay: String {
+        guard !logs.isEmpty else { return "--" }
+        return "\(logs.filter { $0.isHeartbeat }.count)"
+    }
 
+    private func buildStatItems() -> [StatItem] {
         let durationValue = run.status == .running
             ? formatDuration(liveElapsed)
             : (run.duration.map(formatDuration) ?? "--")
-        items.append(StatItem(icon: "clock", label: "Duration", value: durationValue))
-        items.append(StatItem(icon: "arrow.trianglehead.2.counterclockwise", label: "Turns", value: "\(run.turnCount)"))
-
-        if let tokens = run.totalTokens, tokens > 0 {
-            items.append(StatItem(icon: "number", label: "Tokens", value: formatTokenCount(tokens)))
-        }
-        if let cost = run.estimatedCostUsd, cost > 0 {
-            items.append(StatItem(icon: "dollarsign.circle", label: "Cost", value: formatCost(cost), tooltip: InfoTooltip.costExplanation))
-        }
-
-        items.append(StatItem(icon: "wrench", label: "Tools", value: "\(run.toolsUsed.count)"))
-        items.append(StatItem(icon: "doc", label: "Files", value: "\(run.filesRead.count + run.filesWritten.count)"))
-
-        return items
+        return [
+            StatItem(icon: "clock", label: "Duration", value: durationValue),
+            StatItem(icon: "arrow.trianglehead.2.counterclockwise", label: "Turns", value: "\(run.turnCount)"),
+            StatItem(icon: "wrench", label: "Tools", value: "\(run.toolsUsed.count)"),
+            StatItem(icon: "waveform.path.ecg", label: "Heartbeats", value: heartbeatCountDisplay),
+        ]
     }
 
     // MARK: - Live indicator
@@ -234,27 +225,28 @@ struct RunDetailView: View {
         }
     }
 
+    private var visibleTabs: [RunDetailTab] {
+        RunDetailTab.allCases.filter { tab in
+            if tab == .decisions && runDecisionsViewModel.isEmpty { return false }
+            return true
+        }
+    }
+
     private var tabPicker: some View {
         HStack(spacing: NSpacing.xxs) {
-            ForEach(RunDetailTab.allCases, id: \.self) { tab in
-                if tab == .output && !hasOutput && run.status == .running {
-                    EmptyView()
-                } else if tab == .decisions && runDecisionsViewModel.isEmpty {
-                    EmptyView()
-                } else {
-                    Button {
-                        selectedTab = tab
-                    } label: {
-                        Text(tab.rawValue)
-                            .font(NTypography.labelMedium)
-                            .foregroundStyle(selectedTab == tab ? theme.tokens.foreground : theme.tokens.mutedForeground)
-                            .padding(.horizontal, NSpacing.md)
-                            .padding(.vertical, NSpacing.xs)
-                            .background(selectedTab == tab ? theme.tokens.muted : .clear)
-                            .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
-                    }
-                    .buttonStyle(.plain)
+            ForEach(visibleTabs, id: \.self) { tab in
+                Button {
+                    selectedTab = tab
+                } label: {
+                    Text(tab.rawValue)
+                        .font(NTypography.labelMedium)
+                        .foregroundStyle(selectedTab == tab ? theme.tokens.foreground : theme.tokens.mutedForeground)
+                        .padding(.horizontal, NSpacing.md)
+                        .padding(.vertical, NSpacing.xs)
+                        .background(selectedTab == tab ? theme.tokens.muted : .clear)
+                        .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
                 }
+                .buttonStyle(.plain)
             }
             Spacer()
         }
@@ -269,12 +261,10 @@ struct RunDetailView: View {
             ActivityTabView(run: run, logs: logs)
         case .logs:
             LogsTabView(logs: logs, isLive: run.status == .running)
-        case .output:
-            OutputTabView(run: run)
         case .decisions:
             RunDecisionsTabView(viewModel: runDecisionsViewModel)
-        case .details:
-            DetailsTabView(run: run)
+        case .information:
+            InformationTabView(run: run, onCancel: onCancel, onDelete: onDelete)
         }
     }
 

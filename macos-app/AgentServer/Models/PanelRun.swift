@@ -4,6 +4,10 @@ struct PanelRunsResponse: Decodable {
     let runs: [PanelRun]
 }
 
+struct PanelRunResponse: Decodable {
+    let run: PanelRun
+}
+
 struct PanelRun: Decodable, Identifiable {
     let id: String
     let taskId: String

@@ -78,6 +78,10 @@ export class RunStore {
     this.runs.set(runId, normalizeStoredRun({ ...run, ...updates }));
   }
 
+  delete(runId: string): boolean {
+    return this.runs.delete(runId);
+  }
+
   addProgress(runId: string, message: string): void {
     const run = this.runs.get(runId);
     if (!run) return;
