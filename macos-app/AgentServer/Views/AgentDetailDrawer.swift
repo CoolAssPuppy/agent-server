@@ -183,45 +183,8 @@ struct AgentDetailDrawer: View {
             VStack(alignment: .leading, spacing: NSpacing.lg) {
                 if let agent {
                     runNowRow(for: agent)
-                    section(title: "Trigger") {
-                        Text(agent.kind.label)
-                            .font(NTypography.bodySmall)
-                            .foregroundStyle(theme.tokens.foreground)
-                    }
-                    if let schedule = agent.schedule {
-                        section(title: "Schedule") {
-                            Text(CronEnglishFormatter.describe(schedule))
-                                .font(NTypography.bodySmall)
-                                .foregroundStyle(theme.tokens.foreground)
-                            Text(schedule)
-                                .font(NTypography.captionSmall)
-                                .foregroundStyle(theme.tokens.mutedForeground)
-                        }
-                    }
-                    section(title: "Prompt") {
-                        if let url = AgentFile.find(agentId: agent.id)?.url {
-                            // `.id(url)` forces the StateObject-backed
-                            // Loader to reset when the user switches agents
-                            // while the drawer is open — otherwise the
-                            // editor keeps showing the previous agent's
-                            // markdown.
-                            AgentPromptEditor(fileURL: url)
-                                .id(url)
-                                .padding(.top, NSpacing.xs)
-                        } else {
-                            Text(agent.prompt)
-                                .font(NTypography.bodySmall)
-                                .foregroundStyle(theme.tokens.foreground)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    if !agent.tools.isEmpty {
-                        section(title: "Tools") {
-                            Text(agent.tools.joined(separator: ", "))
-                                .font(NTypography.bodySmall)
-                                .foregroundStyle(theme.tokens.foreground)
-                        }
-                    }
+                    triggerScheduleToolsRow(for: agent)
+                    promptSection(for: agent)
                 } else {
                     Text("Agent not found.")
                         .font(NTypography.bodyMedium)
@@ -230,6 +193,78 @@ struct AgentDetailDrawer: View {
             }
             .padding(NSpacing.xl)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// Three-column header row: Trigger · Schedule · Tools. Dividers between
+    /// columns give it the same boxed strip treatment as web's stat strips.
+    /// Schedule shows the human-readable cron only — the raw expression is
+    /// intentionally omitted to reduce clutter.
+    @ViewBuilder
+    private func triggerScheduleToolsRow(for agent: Agent) -> some View {
+        HStack(alignment: .top, spacing: 0) {
+            column(title: "Trigger", value: agent.kind.label)
+            Divider().frame(height: 36)
+            column(
+                title: "Schedule",
+                value: agent.schedule.map { CronEnglishFormatter.describe($0) } ?? "—"
+            )
+            Divider().frame(height: 36)
+            column(
+                title: "Tools",
+                value: agent.tools.isEmpty ? "—" : agent.tools.joined(separator: ", ")
+            )
+        }
+        .padding(NSpacing.md)
+        .background(theme.tokens.card)
+        .overlay(
+            RoundedRectangle(cornerRadius: NRadius.sm)
+                .stroke(theme.tokens.border, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
+    }
+
+    private func column(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: NSpacing.xxxs) {
+            Text(title.uppercased())
+                .font(NTypography.labelSmall)
+                .foregroundStyle(theme.tokens.mutedForeground)
+            Text(value)
+                .font(NTypography.bodySmall)
+                .foregroundStyle(theme.tokens.foreground)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, NSpacing.sm)
+    }
+
+    /// Prompt section: "Prompt (filename.md)" with the filename in smaller,
+    /// muted type directly beside the section label. Body is the markdown
+    /// editor when we can resolve the source file, else a plain text fallback.
+    @ViewBuilder
+    private func promptSection(for agent: Agent) -> some View {
+        let fileURL = AgentFile.find(agentId: agent.id)?.url
+        VStack(alignment: .leading, spacing: NSpacing.xs) {
+            HStack(alignment: .firstTextBaseline, spacing: NSpacing.xs) {
+                Text("PROMPT")
+                    .font(NTypography.labelSmall)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                if let fileURL {
+                    Text("(\(fileURL.lastPathComponent))")
+                        .font(NTypography.captionSmall)
+                        .foregroundStyle(theme.tokens.mutedForeground.opacity(0.7))
+                }
+            }
+            if let fileURL {
+                AgentPromptEditor(fileURL: fileURL)
+                    .id(fileURL)
+            } else {
+                Text(agent.prompt)
+                    .font(NTypography.bodySmall)
+                    .foregroundStyle(theme.tokens.foreground)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
