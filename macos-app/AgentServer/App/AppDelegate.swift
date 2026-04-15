@@ -283,10 +283,9 @@ extension AppDelegate {
             // Give the popover time to collapse before activating the app.
             try? await Task.sleep(for: .milliseconds(60))
 
-            // Briefly switch to .regular so the window can become key and
-            // Dock icon appears while the window is open. Revert to
-            // .accessory when the user closes the window (see windowWillClose).
-            NSApp.setActivationPolicy(.regular)
+            // Stay as .accessory permanently — Agent Server must never appear
+            // in the Dock or in Cmd-Tab. .accessory apps can still present
+            // windows and make them key; they just don't get a Dock icon.
             NSApp.activate(ignoringOtherApps: true)
 
             if let window = mainWindow {
@@ -354,8 +353,6 @@ extension AppDelegate {
     }
 
     private func showSettings(deepLinkAgentId: String?) {
-        NSApp.setActivationPolicy(.regular)
-
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(100))
             NSApp.activate(ignoringOtherApps: true)
@@ -457,8 +454,6 @@ extension AppDelegate: NSWindowDelegate {
         if window == mainWindow {
             mainWindow = nil
             DrawerRouter.shared.close()
-            // Flip back to menubar-only; no open windows remain.
-            NSApp.setActivationPolicy(.accessory)
         }
     }
 }
