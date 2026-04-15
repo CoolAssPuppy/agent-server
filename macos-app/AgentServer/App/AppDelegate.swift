@@ -315,6 +315,11 @@ extension AppDelegate {
             window.titleVisibility = .hidden
             window.isReleasedWhenClosed = false
             window.animationBehavior = .documentWindow
+            // Enforce a minimum content size so the footer always has room to
+            // render. Without this, macOS restores a previously-saved smaller
+            // frame (by window identifier) that clips the footer off.
+            window.minSize = NSSize(width: 1080, height: 640)
+            window.setContentSize(NSSize(width: 1200, height: 820))
             window.center()
             window.delegate = self
             window.contentViewController = NSHostingController(rootView: content)
