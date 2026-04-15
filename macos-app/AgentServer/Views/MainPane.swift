@@ -113,9 +113,10 @@ struct MainPane: View {
 
 // MARK: - Cards
 
-private struct MainPaneCard<Content: View>: View {
+private struct MainPaneCard<Accessory: View, Content: View>: View {
     let title: String
     let subtitle: String?
+    @ViewBuilder let accessory: () -> Accessory
     @ViewBuilder let content: () -> Content
 
     @Environment(\.nTheme) private var theme
@@ -133,6 +134,7 @@ private struct MainPaneCard<Content: View>: View {
                         .font(NTypography.caption)
                         .foregroundStyle(theme.tokens.mutedForeground)
                 }
+                accessory()
             }
             content()
             Spacer(minLength: 0)
@@ -145,6 +147,59 @@ private struct MainPaneCard<Content: View>: View {
                 .stroke(theme.tokens.border, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
+    }
+}
+
+extension MainPaneCard where Accessory == EmptyView {
+    init(title: String, subtitle: String? = nil, @ViewBuilder content: @escaping () -> Content) {
+        self.init(title: title, subtitle: subtitle, accessory: { EmptyView() }, content: content)
+    }
+}
+
+/// Time-window selector shared by Feed and Artifacts cards. 3 / 7 / 30 days.
+private enum MainPaneWindow: Int, CaseIterable, Identifiable {
+    case threeDays = 3
+    case sevenDays = 7
+    case thirtyDays = 30
+
+    var id: Int { rawValue }
+    var label: String { "\(rawValue)d" }
+    var seconds: TimeInterval { TimeInterval(rawValue * 86_400) }
+}
+
+private struct MainPaneWindowPicker: View {
+    @Binding var selection: MainPaneWindow
+
+    @Environment(\.nTheme) private var theme
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(MainPaneWindow.allCases) { option in
+                Button {
+                    selection = option
+                } label: {
+                    Text(option.label)
+                        .font(NTypography.captionSmall)
+                        .foregroundStyle(
+                            selection == option
+                                ? theme.tokens.foreground
+                                : theme.tokens.mutedForeground
+                        )
+                        .padding(.horizontal, NSpacing.xs)
+                        .padding(.vertical, 2)
+                        .background(
+                            selection == option
+                                ? theme.tokens.foreground.opacity(0.08)
+                                : Color.clear
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: NRadius.xs))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(2)
+        .background(theme.tokens.foreground.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
     }
 }
 
@@ -337,10 +392,20 @@ private struct ArtifactsCard: View {
     let agents: [Agent]
 
     @Environment(\.nTheme) private var theme
+    @State private var window: MainPaneWindow = .threeDays
+
+    private var filtered: [Run] {
+        let cutoff = Date().addingTimeInterval(-window.seconds)
+        return runs.filter { $0.startedAt >= cutoff }
+    }
 
     var body: some View {
-        let items = extractArtifacts(runs: runs, agents: agents, limit: 8)
-        MainPaneCard(title: "Artifacts", subtitle: nil) {
+        let items = extractArtifacts(runs: filtered, agents: agents, limit: 8)
+        MainPaneCard(
+            title: "Artifacts",
+            subtitle: nil,
+            accessory: { MainPaneWindowPicker(selection: $window) }
+        ) {
             if items.isEmpty {
                 Text("No artifacts yet.")
                     .font(NTypography.caption)
@@ -387,23 +452,31 @@ private struct FeedCard: View {
     let agents: [Agent]
 
     @Environment(\.nTheme) private var theme
+    @State private var window: MainPaneWindow = .threeDays
 
     private var agentNameById: [String: String] {
         Dictionary(uniqueKeysWithValues: agents.map { ($0.id, $0.name) })
     }
 
+    private var filtered: [Run] {
+        let cutoff = Date().addingTimeInterval(-window.seconds)
+        return runs.filter { $0.startedAt >= cutoff }
+    }
+
     var body: some View {
         MainPaneCard(
             title: "Feed",
-            subtitle: "last \(min(runs.count, 10))"
+            subtitle: nil,
+            accessory: { MainPaneWindowPicker(selection: $window) }
         ) {
-            if runs.isEmpty {
+            let items = filtered
+            if items.isEmpty {
                 Text("No recent activity.")
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
             } else {
                 VStack(alignment: .leading, spacing: NSpacing.xs) {
-                    ForEach(runs.prefix(10), id: \.runId) { run in
+                    ForEach(items.prefix(10), id: \.runId) { run in
                         HStack(spacing: NSpacing.sm) {
                             Circle()
                                 .fill(run.status.displayColor)
