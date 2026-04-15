@@ -318,28 +318,22 @@ struct AgentDetailDrawer: View {
         return String(format: "%.0fh %.0fm", h, m)
     }
 
-    /// Prompt section: "Prompt (filename.md)" with the filename in smaller,
-    /// muted type directly beside the section label. Body is the markdown
-    /// editor when we can resolve the source file, else a plain text fallback.
+    /// Prompt section. The `AgentPromptEditor` owns its own top header row
+    /// (PROMPT (filename) + Enabled toggle) so this wrapper has no extra
+    /// label. Falls back to a plain text view when we can't resolve the
+    /// source file.
     @ViewBuilder
     private func promptSection(for agent: Agent) -> some View {
         let fileURL = AgentFile.find(agentId: agent.id)?.url
-        VStack(alignment: .leading, spacing: NSpacing.xs) {
-            HStack(alignment: .firstTextBaseline, spacing: NSpacing.xs) {
+        if let fileURL {
+            AgentPromptEditor(fileURL: fileURL)
+                .id(fileURL)
+                .frame(maxHeight: .infinity)
+        } else {
+            VStack(alignment: .leading, spacing: NSpacing.xs) {
                 Text("PROMPT")
                     .font(NTypography.labelSmall)
                     .foregroundStyle(theme.tokens.mutedForeground)
-                if let fileURL {
-                    Text("(\(fileURL.lastPathComponent))")
-                        .font(NTypography.captionSmall)
-                        .foregroundStyle(theme.tokens.mutedForeground.opacity(0.7))
-                }
-            }
-            if let fileURL {
-                AgentPromptEditor(fileURL: fileURL)
-                    .id(fileURL)
-                    .frame(maxHeight: .infinity)
-            } else {
                 ScrollView {
                     Text(agent.prompt)
                         .font(NTypography.bodySmall)
@@ -349,8 +343,8 @@ struct AgentDetailDrawer: View {
                 }
                 .frame(maxHeight: .infinity)
             }
+            .frame(maxHeight: .infinity)
         }
-        .frame(maxHeight: .infinity)
     }
 
     private var runsView: some View {

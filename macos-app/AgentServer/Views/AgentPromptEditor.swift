@@ -25,11 +25,17 @@ struct AgentPromptEditor: View {
         .onAppear { model.loadIfNeeded() }
     }
 
+    /// Top row above the editor: "PROMPT (filename)" label on the left,
+    /// dirty-dot indicator in the middle, and a small Enabled toggle pinned
+    /// to the right. Sized so the toggle matches the label height.
     private var header: some View {
-        // Filename is already shown by the parent section label in
-        // AgentDetailDrawer as `PROMPT (filename.md)` — don't duplicate it
-        // here. Only the dirty indicator earns its own row.
-        HStack(spacing: NSpacing.xs) {
+        HStack(alignment: .firstTextBaseline, spacing: NSpacing.xs) {
+            Text("PROMPT")
+                .font(NTypography.labelSmall)
+                .foregroundStyle(theme.tokens.mutedForeground)
+            Text("(\(fileURL.lastPathComponent))")
+                .font(NTypography.captionSmall)
+                .foregroundStyle(theme.tokens.mutedForeground.opacity(0.7))
             if model.isDirty {
                 Text("●")
                     .font(NTypography.caption)
@@ -37,9 +43,18 @@ struct AgentPromptEditor: View {
                     .help("Unsaved changes")
             }
             Spacer()
+            Toggle(isOn: Binding(
+                get: { model.enabled },
+                set: { model.setEnabled($0) }
+            )) {
+                Text("Enabled")
+                    .font(NTypography.captionSmall)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            }
+            .toggleStyle(.switch)
+            .controlSize(.mini)
         }
-        .frame(height: model.isDirty ? nil : 0)
-        .padding(.bottom, model.isDirty ? NSpacing.xs : 0)
+        .padding(.bottom, NSpacing.xs)
     }
 
     @ViewBuilder
@@ -78,20 +93,6 @@ struct AgentPromptEditor: View {
 
     private var saveBar: some View {
         HStack(spacing: NSpacing.sm) {
-            // Enabled toggle: flips the agent's frontmatter `enabled:` field
-            // and writes the file immediately. Independent of the save/revert
-            // flow on the prompt body.
-            Toggle(isOn: Binding(
-                get: { model.enabled },
-                set: { model.setEnabled($0) }
-            )) {
-                Text("Enabled")
-                    .font(NTypography.bodySmall)
-                    .foregroundStyle(theme.tokens.foreground)
-            }
-            .toggleStyle(.switch)
-            .controlSize(.small)
-
             if let saveError = model.saveError {
                 Text(saveError)
                     .font(NTypography.caption)
