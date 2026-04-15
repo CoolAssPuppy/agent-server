@@ -198,19 +198,40 @@ private struct MyTasksTodayCard: View {
 
     @Environment(\.nTheme) private var theme
 
+    /// Returns the agents to display and whether we fell through to tomorrow.
+    /// Today's firings take priority; if empty and the local hour is >= 17
+    /// we surface tomorrow's schedule so the evening view isn't empty.
+    private var planned: (agents: [Agent], isTomorrow: Bool) {
+        let now = Date()
+        let today = agents.filter { agent in
+            guard let schedule = agent.schedule else { return false }
+            return CronNextFire.firesToday(schedule, now: now)
+        }
+        if !today.isEmpty {
+            return (today, false)
+        }
+        let hour = Calendar.current.component(.hour, from: now)
+        guard hour >= 17 else { return ([], false) }
+        let tomorrow = agents.filter { agent in
+            guard let schedule = agent.schedule else { return false }
+            return CronNextFire.firesTomorrow(schedule, now: now)
+        }
+        return (tomorrow, !tomorrow.isEmpty)
+    }
+
     var body: some View {
+        let result = planned
         MainPaneCard(
-            title: "Tasks planned today",
+            title: result.isTomorrow ? "Tasks planned tomorrow" : "Tasks planned today",
             subtitle: nil
         ) {
-            let scheduled = agents.filter { $0.isScheduled }
-            if scheduled.isEmpty {
+            if result.agents.isEmpty {
                 Text("Nothing scheduled.")
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
             } else {
                 VStack(alignment: .leading, spacing: NSpacing.xs) {
-                    ForEach(scheduled.prefix(4)) { agent in
+                    ForEach(result.agents.prefix(4)) { agent in
                         HStack(spacing: NSpacing.sm) {
                             Image(systemName: "clock")
                                 .font(.system(size: NIconSize.sm))

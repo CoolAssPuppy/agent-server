@@ -51,6 +51,7 @@
 		ADEA864A419BCB76C61FD5DB /* SidebarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 325C74DAF7BB5F1C25B3A733 /* SidebarViewModel.swift */; };
 		B5453300A1BD30D48C23D05C /* AgentRunsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 643CBD2E294E942C10398144 /* AgentRunsView.swift */; };
 		C4B385B463512A7D0B8C1774 /* AgentDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4262F21955BC608AD2576EA7 /* AgentDetailView.swift */; };
+		C57F8443BD1AD312F39219D2 /* CronNextFire.swift in Sources */ = {isa = PBXBuildFile; fileRef = D885EDB8362181BEA390FCF9 /* CronNextFire.swift */; };
 		C982B2D86AD2BE30FB8DAC66 /* RunModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAE9947D3E921908B8C043B8 /* RunModel.swift */; };
 		C9E2E13C6B848A341745C6BB /* AgentsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5408352E637AF41D2211E4CC /* AgentsListView.swift */; };
 		CC20F093FA361FE81C47C993 /* AgentPromptDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FB65A68A7D65247566F5429 /* AgentPromptDocument.swift */; };
@@ -137,6 +138,7 @@
 		BF267E78CF53DB3D651E8D62 /* AgentServer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AgentServer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C1C9BFADC1AEB3CEFB05D566 /* AgentServerEventKit */ = {isa = PBXFileReference; includeInIndex = 0; path = AgentServerEventKit; sourceTree = BUILT_PRODUCTS_DIR; };
 		C2BC95C8DAB6DCFFF47D6082 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		D885EDB8362181BEA390FCF9 /* CronNextFire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CronNextFire.swift; sourceTree = "<group>"; };
 		DE2D05889A0359D1B96434A4 /* EnvEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvEditorView.swift; sourceTree = "<group>"; };
 		E0885A392057C026891B6710 /* MenuBarPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPopover.swift; sourceTree = "<group>"; };
 		EAE9947D3E921908B8C043B8 /* RunModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunModel.swift; sourceTree = "<group>"; };
@@ -296,6 +298,7 @@
 				689DD1451D8EBE1AF2A3FBE1 /* AgentsListBadgeViewModel.swift */,
 				019F0C7D13F571CF359F3CB9 /* ConnectionsStore.swift */,
 				0136765C94481AB61536D483 /* CronEnglishFormatter.swift */,
+				D885EDB8362181BEA390FCF9 /* CronNextFire.swift */,
 				B9E3A0BC90A75E1C817A3238 /* Decision.swift */,
 				B9BC93C3FF41E699B85E8B5A /* DrawerDragDismissal.swift */,
 				1A9B17FFF708C7E5834EAB27 /* DrawerRouter.swift */,
@@ -495,6 +498,7 @@
 				E883FEF25E1CA4ADE2A5E648 /* AppDelegate.swift in Sources */,
 				39740E464CDDEC9742EDB194 /* ConnectionsStore.swift in Sources */,
 				F17110F056DA38776543B8F6 /* CronEnglishFormatter.swift in Sources */,
+				C57F8443BD1AD312F39219D2 /* CronNextFire.swift in Sources */,
 				59831E5595B33F9E1EF1F7D3 /* Decision.swift in Sources */,
 				7B15DE5C3DAF31547879B22E /* DrawerDragDismissal.swift in Sources */,
 				35FDE3BEDFC10D02FAD60D3F /* DrawerRouter.swift in Sources */,
