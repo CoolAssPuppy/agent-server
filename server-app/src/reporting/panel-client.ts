@@ -4,6 +4,21 @@ type PanelClientConfig = {
   fetch?: typeof globalThis.fetch;
 };
 
+export type PanelRunRow = {
+  id: string;
+  task_id: string;
+  task_name: string;
+  status: string;
+  trigger?: string;
+  queued_at?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+  duration_ms?: number | null;
+  error_message?: string | null;
+  result?: Record<string, unknown> | null;
+  conversation_id?: string | null;
+};
+
 export class PanelClient {
   private readonly panelUrl: string;
   private readonly panelApiKey: string;
@@ -39,6 +54,26 @@ export class PanelClient {
       console.error(`[panel-client] Failed to clean up orphaned runs: ${message}`);
       return 0;
     }
+  }
+
+  async fetchRecentRuns(limit = 200): Promise<PanelRunRow[]> {
+    const cappedLimit = Math.min(Math.max(Math.floor(limit), 1), 200);
+    const response = await this.fetchFn(
+      `${this.panelUrl}/api/runs?limit=${cappedLimit}`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.panelApiKey}`,
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(`Panel returned ${response.status} fetching recent runs`);
+    }
+
+    const body = await response.json() as { runs?: PanelRunRow[] };
+    return Array.isArray(body.runs) ? body.runs : [];
   }
 
   async markStaleRuns(): Promise<void> {

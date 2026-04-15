@@ -13,6 +13,7 @@ import { executeAgent } from '../plugins/claude-code.js';
 import { ExecutorRegistry } from '../execution/executor-registry.js';
 import { createReporter } from '../reporting/reporter-factory.js';
 import { createPanelClient } from '../reporting/panel-client.js';
+import { seedRunStoreFromPanel } from './seed-run-store.js';
 import { replayPendingTerminals } from '../reporting/reporter.js';
 import { ScheduleSync } from '../reporting/sync-schedule.js';
 import { SseClient } from '../reporting/sse-client.js';
@@ -605,14 +606,41 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       })
     : undefined;
 
-  if (scheduleSync) void scheduleSync.start();
-  if (triggerHandler) triggerHandler.start();
-  if (sseClient) void sseClient.start();
+  // Seed the in-memory RunStore from the panel so the macOS app's Feed /
+  // Artifacts cards are populated on daemon restart. We don't block on this:
+  // start the scheduler after the seed finishes OR a 2-second timeout, so a
+  // slow or offline panel doesn't delay daemon readiness.
+  const SEED_TIMEOUT_MS = 2_000;
+  const seedPromise: Promise<void> = panelClient
+    ? seedRunStoreFromPanel({ panelClient, store })
+        .then((result) => {
+          console.log(
+            `[seed] Seeded RunStore from panel: inserted=${result.inserted}, skipped=${result.skipped}, fetched=${result.fetched}`,
+          );
+        })
+        .catch((err) => {
+          const message = err instanceof Error ? err.message : String(err);
+          console.warn(`[seed] Failed to seed RunStore from panel: ${message}`);
+        })
+    : Promise.resolve();
 
-  void runDueAgents();
-  const interval = setInterval(() => {
+  const seedOrTimeout = Promise.race([
+    seedPromise,
+    new Promise<void>((resolve) => setTimeout(resolve, SEED_TIMEOUT_MS)),
+  ]);
+
+  let interval: NodeJS.Timeout | undefined;
+
+  void seedOrTimeout.then(() => {
+    if (scheduleSync) void scheduleSync.start();
+    if (triggerHandler) triggerHandler.start();
+    if (sseClient) void sseClient.start();
+
     void runDueAgents();
-  }, config.checkIntervalMs);
+    interval = setInterval(() => {
+      void runDueAgents();
+    }, config.checkIntervalMs);
+  });
 
   const staleSweepInterval = panelClient
     ? setInterval(() => {
@@ -809,7 +837,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
 
   return {
     stop: async () => {
-      clearInterval(interval);
+      if (interval) clearInterval(interval);
       clearInterval(expiryInterval);
       if (staleSweepInterval) clearInterval(staleSweepInterval);
       if (pendingReplayInterval) clearInterval(pendingReplayInterval);
