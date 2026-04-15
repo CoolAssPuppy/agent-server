@@ -498,16 +498,23 @@ private struct ArtifactsCard: View {
     }
 
     private func artifactRow(_ item: ArtifactRow) -> some View {
-        HStack(spacing: NSpacing.sm) {
+        // For http(s) URL artifacts the agent name reads as the primary
+        // identifier (who produced this) with the URL's host underneath. For
+        // file artifacts where there is no external host, the filename stays
+        // primary with no secondary line.
+        let isWeb = (item.url?.scheme == "http" || item.url?.scheme == "https")
+        let primary = isWeb ? item.agentName : item.label
+        let secondary: String? = isWeb ? (item.url?.host) : nil
+        return HStack(spacing: NSpacing.sm) {
             Image(systemName: iconForArtifactURL(item.url))
                 .font(.system(size: 11))
                 .foregroundStyle(theme.tokens.mutedForeground)
             VStack(alignment: .leading, spacing: 1) {
-                Text(item.label)
+                Text(primary)
                     .font(NTypography.bodySmall)
                     .foregroundStyle(theme.tokens.foreground)
                     .lineLimit(1)
-                if let secondary = item.title {
+                if let secondary {
                     Text(secondary)
                         .font(NTypography.captionSmall)
                         .foregroundStyle(theme.tokens.mutedForeground)
