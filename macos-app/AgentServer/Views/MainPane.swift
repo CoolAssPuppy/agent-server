@@ -19,22 +19,19 @@ struct MainPane: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: NSpacing.xl) {
-                    greeting
-                    cardsGrid
-                }
-                // Match the sidebar's header top padding (NSpacing.md) so
-                // the greeting sits on the same horizontal line as the
-                // "Agents" header. Sides use NSpacing.xxl for breathing room.
-                .padding(.horizontal, NSpacing.xxl)
-                .padding(.top, NSpacing.md)
-                .padding(.bottom, NSpacing.xxl)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            footer
+        // Non-scrolling main pane. Greeting + 2×2 card grid fill the window.
+        // The Artifacts and Feed cards handle their own internal scroll when
+        // content overflows, so the main window never needs a chrome scroller.
+        VStack(alignment: .leading, spacing: NSpacing.xl) {
+            greeting
+            cardsGrid
+                .frame(maxHeight: .infinity)
         }
+        .padding(.horizontal, NSpacing.xxl)
+        .padding(.top, NSpacing.md)
+        .padding(.bottom, NSpacing.md)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .safeAreaInset(edge: .bottom, spacing: 0) { footer }
         .background(theme.tokens.background)
     }
 
