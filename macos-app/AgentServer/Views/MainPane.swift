@@ -460,7 +460,7 @@ private struct ArtifactsCard: View {
                             artifactRow(item)
                         }
                     }
-                    .padding(.vertical, 2)
+                    .padding(.bottom, NSpacing.sm)
                 }
                 .frame(maxHeight: 280)
             }
@@ -582,7 +582,7 @@ private struct FeedCard: View {
                             }
                         }
                     }
-                    .padding(.vertical, 2)
+                    .padding(.bottom, NSpacing.sm)
                 }
                 .frame(maxHeight: 280)
             }
