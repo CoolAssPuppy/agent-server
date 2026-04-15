@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { mkdirSync, appendFileSync, readdirSync, existsSync } from 'fs';
+import { mkdirSync, appendFileSync } from 'fs';
 import { dirname } from 'path';
 import type { DecisionInput } from '../interaction/schema.js';
 
@@ -234,26 +234,6 @@ export type DecisionOutcome =
  *   POST decision -> await resolution -> persist + format for resumption.
  * On timeout, reports 'failed' to the panel and returns { status: 'timeout' }.
  */
-/**
- * Enumerates run_id JSONL files present in the conversation directory.
- * Chunk 8 or daemon.ts can call this on startup to discover runs that were
- * paused in `input_required` and rehydrate them. Full rehydration (querying
- * Panel for pending decisions, re-attaching awaitResolution) is a follow-up
- * TODO — this function just exposes the on-disk state.
- */
-export function listPausedRunFiles(conversationDir: string): string[] {
-  try {
-    if (!existsSync(conversationDir)) return [];
-    return readdirSync(conversationDir)
-      .filter((f) => f.endsWith('.jsonl'))
-      .map((f) => f.replace(/\.jsonl$/, ''));
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`[decision-handler] listPausedRunFiles failed: ${message}`);
-    return [];
-  }
-}
-
 export async function runDecisionCycle(
   decision: DecisionInput,
   context: DecisionContext,
