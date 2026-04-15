@@ -454,11 +454,15 @@ private struct ArtifactsCard: View {
             if items.isEmpty {
                 emptyState
             } else {
-                VStack(alignment: .leading, spacing: NSpacing.xs) {
-                    ForEach(items) { item in
-                        artifactRow(item)
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: NSpacing.xs) {
+                        ForEach(items) { item in
+                            artifactRow(item)
+                        }
                     }
+                    .padding(.vertical, 2)
                 }
+                .frame(maxHeight: 280)
             }
         }
         .task { await refreshPanelArtifacts() }
@@ -559,24 +563,28 @@ private struct FeedCard: View {
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
             } else {
-                VStack(alignment: .leading, spacing: NSpacing.xs) {
-                    ForEach(items.prefix(10), id: \.runId) { run in
-                        HStack(spacing: NSpacing.sm) {
-                            Circle()
-                                .fill(run.status.displayColor)
-                                .frame(width: 6, height: 6)
-                            Text(agentNameById[run.agentId] ?? run.agentName)
-                                .font(NTypography.bodySmall)
-                                .foregroundStyle(theme.tokens.foreground)
-                                .lineLimit(1)
-                            Spacer()
-                            Text(run.startedAt.formatted(.relative(presentation: .numeric)))
-                                .font(NTypography.captionSmall)
-                                .foregroundStyle(theme.tokens.mutedForeground)
-                                .lineLimit(1)
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: NSpacing.xs) {
+                        ForEach(items, id: \.runId) { run in
+                            HStack(spacing: NSpacing.sm) {
+                                Circle()
+                                    .fill(run.status.displayColor)
+                                    .frame(width: 6, height: 6)
+                                Text(agentNameById[run.agentId] ?? run.agentName)
+                                    .font(NTypography.bodySmall)
+                                    .foregroundStyle(theme.tokens.foreground)
+                                    .lineLimit(1)
+                                Spacer()
+                                Text(run.startedAt.formatted(.relative(presentation: .numeric)))
+                                    .font(NTypography.captionSmall)
+                                    .foregroundStyle(theme.tokens.mutedForeground)
+                                    .lineLimit(1)
+                            }
                         }
                     }
+                    .padding(.vertical, 2)
                 }
+                .frame(maxHeight: 280)
             }
         }
     }
