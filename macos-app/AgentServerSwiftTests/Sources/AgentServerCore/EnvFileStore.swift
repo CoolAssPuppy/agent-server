@@ -193,5 +193,11 @@ public enum EnvFileStore {
             try? FileManager.default.removeItem(at: tmpURL)
             throw EnvFileStoreError.writeFailed(error.localizedDescription)
         }
+        // Lock to owner-only. .env holds API keys and tokens; default umask
+        // would otherwise leave it world-readable on some setups.
+        try? FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: Int16(0o600))],
+            ofItemAtPath: url.path
+        )
     }
 }

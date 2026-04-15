@@ -14,6 +14,14 @@ export type StoredRun = {
   commandsRun: string[];
   progressMessages: string[];
   conversationId?: string;
+  // Populated from the executor's ExecutionResult.usage so clients
+  // (the macOS app, the panel) can render per-run duration and cost
+  // without waiting for panel-side hydration.
+  durationMs?: number;
+  estimatedCostUsd?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  model?: string;
 };
 
 const DEFAULT_MAX_RUNS = 200;

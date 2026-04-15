@@ -96,5 +96,12 @@ struct EnvFile {
     func save(to path: String = EnvFile.defaultPath) throws {
         let content = serialize()
         try content.write(toFile: path, atomically: true, encoding: .utf8)
+        // Secrets live in .env. Restrict to owner read/write so other local
+        // users can't read API keys or tokens. `.posixPermissions` uses an
+        // NSNumber of an octal literal (0o600 = rw-------).
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: Int16(0o600))],
+            ofItemAtPath: path
+        )
     }
 }

@@ -10,21 +10,37 @@ final class ServerProcessManager {
     private static let locationKey = "AGENT_SERVER_LOCATION"
 
     private var serverDirectory: String? {
-        // Precedence: 1) UserDefaults, 2) .env, 3) bundled, 4) bundle-adjacent
+        // Precedence: 1) UserDefaults, 2) .env, 3) bundled, 4) bundle-adjacent.
+        // Each candidate is realpath-resolved before checking for dist/cli.js
+        // so a symlink (whether user-placed or attacker-planted in a shared
+        // tmp dir) cannot redirect the Node runtime to arbitrary JavaScript.
         if let configured = Self.configuredLocation() {
             let serverApp = (configured as NSString).appendingPathComponent("server-app")
-            // Support pointing at the repo root or directly at server-app/
             let candidates = [serverApp, configured]
-            if let match = candidates.first(where: { FileManager.default.fileExists(atPath: "\($0)/dist/cli.js") }) {
+            if let match = candidates
+                .compactMap(Self.resolveRealPath)
+                .first(where: { FileManager.default.fileExists(atPath: "\($0)/dist/cli.js") }) {
                 return match
             }
             print("[ServerProcessManager] AGENT_SERVER_LOCATION is set but dist/cli.js not found at \(configured)")
         }
 
         let fallbacks = [bundledResourcePath, bundleAdjacentPath]
-        return fallbacks.compactMap { $0 }.first {
-            FileManager.default.fileExists(atPath: "\($0)/dist/cli.js")
+        return fallbacks
+            .compactMap { $0 }
+            .compactMap(Self.resolveRealPath)
+            .first { FileManager.default.fileExists(atPath: "\($0)/dist/cli.js") }
+    }
+
+    /// Resolves a filesystem path to its canonical form (following symlinks).
+    /// Returns nil if the path cannot be resolved, which is treated as "skip
+    /// this candidate" by the caller. Using realpath(3) ensures we don't
+    /// execute Node against a symlink target the current user didn't audit.
+    private static func resolveRealPath(_ path: String) -> String? {
+        guard let resolved = (path as NSString).resolvingSymlinksInPath as String? else {
+            return nil
         }
+        return resolved
     }
 
     static func configuredLocation() -> String? {
@@ -138,11 +154,18 @@ final class ServerProcessManager {
             guard let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !output.isEmpty else { return }
 
-            for pidString in output.components(separatedBy: .newlines) {
-                if let pid = Int32(pidString.trimmingCharacters(in: .whitespaces)), pid > 0 {
-                    kill(pid, SIGTERM)
-                    print("[ServerProcessManager] Sent SIGTERM to external server (PID \(pid))")
-                }
+            // Strictly accept only well-formed decimal PIDs. lsof's output
+            // should already be numeric, but pinning the shape avoids
+            // sending SIGTERM to anything unexpected if lsof behavior
+            // drifts across macOS versions.
+            let digitsOnly = CharacterSet(charactersIn: "0123456789")
+            for rawLine in output.components(separatedBy: .newlines) {
+                let trimmed = rawLine.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.isEmpty,
+                      trimmed.unicodeScalars.allSatisfy({ digitsOnly.contains($0) }),
+                      let pid = Int32(trimmed), pid > 0 else { continue }
+                kill(pid, SIGTERM)
+                print("[ServerProcessManager] Sent SIGTERM to external server (PID \(pid))")
             }
 
             try? await Task.sleep(for: .seconds(1))

@@ -6,7 +6,13 @@ actor AgentServerClient {
     private let decoder: JSONDecoder
 
     init(port: Int = 47821) {
-        self.baseURL = URL(string: "http://localhost:\(port)")!
+        // Fail loud during init with a clear message if the host/port combo
+        // ever produces an invalid URL — better than a force-unwrap crash
+        // miles away in the call site.
+        guard let url = URL(string: "http://localhost:\(port)") else {
+            preconditionFailure("AgentServerClient: invalid base URL for port \(port)")
+        }
+        self.baseURL = url
 
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 5
@@ -31,9 +37,14 @@ actor AgentServerClient {
 
     func runsForAgent(id: String) async throws -> [Run] {
         let url = baseURL.appendingPathComponent("/runs")
-        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            throw ClientError.invalidResponse
+        }
         components.queryItems = [URLQueryItem(name: "agent_id", value: id)]
-        let (data, response) = try await session.data(from: components.url!)
+        guard let composed = components.url else {
+            throw ClientError.invalidResponse
+        }
+        let (data, response) = try await session.data(from: composed)
         try validateResponse(response)
         return try decoder.decode([Run].self, from: data)
     }

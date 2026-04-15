@@ -70,4 +70,37 @@ final class CronEnglishFormatterTests: XCTestCase {
             "Monday, Wednesday, Friday at 9:00 AM"
         )
     }
+
+    // Hour ranges with minute steps — "during market/work hours" style.
+    func testStepMinutesWithHourRangeAndWeekdays() {
+        XCTAssertEqual(
+            CronEnglishFormatter.describe("*/30 9-16 * * 1-5"),
+            "Every 30 minutes, 9 AM–4 PM, weekdays"
+        )
+        XCTAssertEqual(
+            CronEnglishFormatter.describe("*/5 9-17 * * 1-5"),
+            "Every 5 minutes, 9 AM–5 PM, weekdays"
+        )
+    }
+
+    func testStepMinutesWithHourRangeAllDays() {
+        XCTAssertEqual(
+            CronEnglishFormatter.describe("*/15 9-17 * * *"),
+            "Every 15 minutes, 9 AM–5 PM"
+        )
+    }
+
+    func testHourlyWithHourRangeAndWeekdays() {
+        XCTAssertEqual(
+            CronEnglishFormatter.describe("0 9-16 * * 1-5"),
+            "Hourly, 9 AM–4 PM, weekdays"
+        )
+    }
+
+    func testStepMinutesOnlyWithWeekdays() {
+        XCTAssertEqual(
+            CronEnglishFormatter.describe("*/10 * * * 1-5"),
+            "Every 10 minutes, weekdays"
+        )
+    }
 }

@@ -237,9 +237,9 @@ export class SseClient {
 
     try {
       while (!this.stopped) {
-        let chunk: { done: boolean; value: Uint8Array | undefined };
+        let chunk: { done: boolean; value?: Uint8Array };
         try {
-          chunk = await reader.read() as { done: boolean; value: Uint8Array | undefined };
+          chunk = await reader.read();
         } catch (err) {
           if (this.idleTimedOut || this.stopped) return;
           throw err;

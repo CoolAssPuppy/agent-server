@@ -79,7 +79,7 @@ export const AgentConfigSchema = z
     enabled: z.boolean().default(true),
     on_complete: z.array(TriggerRefSchema).optional(),
     on_failure: z.array(TriggerRefSchema).optional(),
-    watch: z.array(FileWatchSchema).optional(),
+    watch: z.array(FileWatchSchema).max(32).optional(),
     executor: z.string().trim().min(1).max(64).optional(),
     permissions: PermissionsSchema.optional(),
     mcp_servers: z.record(z.string().min(1), McpServerConfigSchema).optional(),

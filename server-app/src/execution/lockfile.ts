@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync, openSync, closeSync } from 'fs';
 import { join } from 'path';
 
 function lockPath(lockDir: string, agentId: string): string {
@@ -33,11 +33,29 @@ export function acquireLock(lockDir: string, agentId: string): boolean {
     if (pid !== null && isProcessAlive(pid)) {
       return false;
     }
-    unlinkSync(path);
+    // Stale lock — remove before attempting exclusive create below.
+    try { unlinkSync(path); } catch { /* already gone */ }
   }
 
-  writeFileSync(path, String(process.pid), 'utf-8');
-  return true;
+  // Exclusive create ('wx'): fails if another process beats us to the file.
+  // This also refuses to follow a pre-existing symlink, closing the
+  // symlink-attack vector where the lockDir is writeable by an attacker.
+  try {
+    const fd = openSync(path, 'wx');
+    try {
+      writeFileSync(fd, String(process.pid), 'utf-8');
+    } finally {
+      closeSync(fd);
+    }
+    return true;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'EEXIST') {
+      // Lost the race against another acquirer.
+      return false;
+    }
+    throw err;
+  }
 }
 
 export function releaseLock(lockDir: string, agentId: string): void {

@@ -138,16 +138,20 @@ export async function executeAgent(
         const turnStartedAt = performance.now();
 
         for (const block of content) {
-          if (block.type === 'text' && 'text' in block) {
-            textParts.push(block.text as string);
+          if (block.type === 'text' && 'text' in block && typeof block.text === 'string') {
+            textParts.push(block.text);
           }
 
-          if (block.type === 'tool_use' && 'name' in block) {
-            const name = block.name as string;
+          if (block.type === 'tool_use' && 'name' in block && typeof block.name === 'string') {
+            const name = block.name;
             toolsUsed.add(name);
             lastToolName = name;
 
-            const input = ('input' in block ? block.input : {}) as Record<string, unknown>;
+            const rawInput = 'input' in block ? block.input : {};
+            const input: Record<string, unknown> =
+              rawInput && typeof rawInput === 'object' && !Array.isArray(rawInput)
+                ? (rawInput as Record<string, unknown>)
+                : {};
             const toolUseId = 'id' in block && typeof block.id === 'string' ? block.id : null;
             if (toolUseId) {
               toolStarts.set(toolUseId, {
@@ -274,11 +278,15 @@ export async function executeAgent(
         if (resolvedModel) lastModel = resolvedModel;
 
         if (message.subtype !== 'success') {
-          const errors = 'errors' in message ? (message.errors as string[]) : [];
+          const rawErrors = 'errors' in message ? message.errors : [];
+          const errors = Array.isArray(rawErrors)
+            ? rawErrors.filter((e): e is string => typeof e === 'string')
+            : [];
           throw new Error(errors.join('; ') || `Agent failed: ${message.subtype}`);
         }
 
-        const resultText = 'result' in message ? (message.result as string) : '';
+        const resultText =
+          'result' in message && typeof message.result === 'string' ? message.result : '';
 
         resultPayload = buildResult({
           summary: resultText || 'Agent completed',

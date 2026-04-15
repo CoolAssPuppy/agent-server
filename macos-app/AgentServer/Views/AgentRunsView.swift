@@ -27,7 +27,7 @@ struct AgentRunsView: View {
     var body: some View {
         HStack(spacing: 0) {
             runList
-                .frame(width: 230)
+                .frame(width: 260)
 
             if selectedRunId != nil {
                 Divider()
@@ -35,7 +35,18 @@ struct AgentRunsView: View {
                     .frame(maxWidth: .infinity)
             }
         }
-        .task { await fetchRuns() }
+        .task(id: agentId) { await fetchRuns() }
+        .onChange(of: agentId) { _, _ in
+            // Switching agents while the Runs tab is open must reset the
+            // selection and list — otherwise the header updates to the new
+            // agent but the pane keeps showing the previous agent's runs.
+            runs = []
+            selectedRunId = nil
+            selectedRunLogs = []
+            isLoading = true
+            loadError = nil
+            stopPolling()
+        }
         .onChange(of: monitor.activeRuns.count) { _, _ in
             Task { await fetchRuns() }
         }
@@ -94,7 +105,7 @@ struct AgentRunsView: View {
                 Spacer()
             } else {
                 List(runs, selection: $selectedRunId) { run in
-                    RunRow(run: run)
+                    RunRow(run: run, isSelected: selectedRunId == run.runId)
                         .tag(run.runId)
                 }
                 .listStyle(.plain)
@@ -268,58 +279,94 @@ struct AgentRunsView: View {
 
 private struct RunRow: View {
     let run: Run
+    var isSelected: Bool = false
 
     @Environment(\.nTheme) private var theme
 
+    /// Primary text color. When selected the row draws on a saturated blue
+    /// background, which washes out the theme's muted foreground. Flip to
+    /// white in that state so the date stays readable.
+    private var primaryColor: Color {
+        isSelected ? .white : theme.tokens.foreground
+    }
+
+    /// Secondary text color. White-at-85%-opacity reads cleanly on the blue
+    /// selection background in both light and dark mode.
+    private var secondaryColor: Color {
+        isSelected ? Color.white.opacity(0.85) : theme.tokens.mutedForeground
+    }
+
     var body: some View {
-        HStack(spacing: NSpacing.md) {
+        HStack(alignment: .top, spacing: NSpacing.sm) {
             StatusIndicator(status: run.status)
+                .padding(.top, 2)
 
             VStack(alignment: .leading, spacing: NSpacing.xxxs) {
+                // Date on its own line so the longest metric row can stretch
+                // the full width of the 260px column without wrapping mid-word.
                 HStack(spacing: NSpacing.xs) {
                     Text(run.startedAt, style: .date)
                         .font(NTypography.labelMedium)
+                        .foregroundStyle(primaryColor)
+                        .lineLimit(1)
                     Text(run.startedAt, style: .time)
                         .font(NTypography.bodySmall)
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                }
-
-                HStack(spacing: NSpacing.sm) {
-                    if run.conversationId != nil {
-                        Image(systemName: "bubble.left.and.bubble.right")
-                            .font(NTypography.caption)
-                            .foregroundStyle(.purple)
-                    }
-
-                    if run.turnCount > 0 {
-                        Label("\(run.turnCount) turns", systemImage: "arrow.trianglehead.2.counterclockwise")
-                            .font(NTypography.caption)
-                            .foregroundStyle(theme.tokens.mutedForeground)
-                    }
-
-                    if let duration = run.duration {
-                        Label(formatDuration(duration), systemImage: "clock")
-                            .font(NTypography.caption)
-                            .foregroundStyle(theme.tokens.mutedForeground)
-                    }
-
-                    if let cost = run.estimatedCostUsd, cost > 0 {
-                        HStack(spacing: NSpacing.xxs) {
-                            Label(formatCost(cost), systemImage: "dollarsign.circle")
-                                .font(NTypography.caption)
-                                .foregroundStyle(theme.tokens.mutedForeground)
-                            InfoTooltip(text: InfoTooltip.costExplanation)
-                        }
+                        .foregroundStyle(secondaryColor)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    if run.status == .running {
+                        PulsingDot(color: .green)
                     }
                 }
-            }
 
-            Spacer()
-
-            if run.status == .running {
-                PulsingDot(color: .green)
+                metaRow
             }
         }
         .padding(.vertical, NSpacing.xxs)
+    }
+
+    /// Compact metric row: icon + number, no long labels. Keeps every item on
+    /// a single line within the 260px column regardless of how many metrics
+    /// are populated.
+    @ViewBuilder
+    private var metaRow: some View {
+        HStack(spacing: NSpacing.sm) {
+            if run.conversationId != nil {
+                Image(systemName: "bubble.left.and.bubble.right")
+                    .font(NTypography.caption)
+                    .foregroundStyle(isSelected ? Color.white : .purple)
+            }
+
+            if run.turnCount > 0 {
+                metric(icon: "arrow.trianglehead.2.counterclockwise", text: "\(run.turnCount)")
+                    .help("\(run.turnCount) turns")
+            }
+
+            if let duration = run.duration {
+                metric(icon: "clock", text: formatDuration(duration))
+                    .help("Duration")
+            }
+
+            if let cost = run.estimatedCostUsd, cost > 0 {
+                metric(icon: "dollarsign.circle", text: formatCost(cost))
+                    .help(InfoTooltip.costExplanation)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .lineLimit(1)
+    }
+
+    private func metric(icon: String, text: String) -> some View {
+        HStack(spacing: NSpacing.xxs) {
+            Image(systemName: icon)
+                .font(NTypography.caption)
+                .foregroundStyle(secondaryColor)
+            Text(text)
+                .font(NTypography.caption)
+                .foregroundStyle(secondaryColor)
+                .monospacedDigit()
+        }
+        .fixedSize()
     }
 }

@@ -43,6 +43,38 @@ public enum CronEnglishFormatter {
             return "Every hour"
         }
 
+        // Patterns with an hour range (e.g. "9-16") in the hour field.
+        // These cover the common "during trading hours / work hours" schedules
+        // like `*/30 9-16 * * 1-5`.
+        if dayOfMonth == "*", month == "*", let hourRange = describeHourRange(hour) {
+            let dowSuffix = dayOfWeekSuffix(dayOfWeek)
+            if let step = stepValue(minute) {
+                let head = step == 1 ? "Every minute" : "Every \(step) minutes"
+                return "\(head), \(hourRange)\(dowSuffix)"
+            }
+            if minute == "0" {
+                return "Hourly, \(hourRange)\(dowSuffix)"
+            }
+            if let minuteValue = Int(minute), (0...59).contains(minuteValue) {
+                return "At :\(String(format: "%02d", minuteValue)), \(hourRange)\(dowSuffix)"
+            }
+        }
+
+        // Minute step with a specific hour or every hour, optional day-of-week.
+        // Covers `*/15 9 * * *` → "Every 15 minutes at 9:00 AM" and
+        // `*/10 * * * 1-5` → "Every 10 minutes, weekdays".
+        if dayOfMonth == "*", month == "*", let step = stepValue(minute) {
+            let head = step == 1 ? "Every minute" : "Every \(step) minutes"
+            if let hourValue = Int(hour), (0...23).contains(hourValue) {
+                let time = formatTime(hour: hourValue, minute: 0).replacingOccurrences(of: ":00 ", with: " ")
+                let dowSuffix = dayOfWeekSuffix(dayOfWeek)
+                return "\(head) at \(time)\(dowSuffix)"
+            }
+            if hour == "*", dayOfWeek != "*", let label = describeDayOfWeek(dayOfWeek) {
+                return "\(head), \(lowercaseDayLabel(label))"
+            }
+        }
+
         if let minuteValue = Int(minute), let hourValue = Int(hour),
            (0...59).contains(minuteValue), (0...23).contains(hourValue),
            month == "*" {
@@ -63,6 +95,48 @@ public enum CronEnglishFormatter {
         }
 
         return expression
+    }
+
+    /// Formats an hour range field like `9-16` into `9 AM–4 PM`. Returns nil
+    /// if the field isn't a simple integer range in 0–23.
+    private static func describeHourRange(_ field: String) -> String? {
+        guard field.contains("-"), !field.contains(",") else { return nil }
+        let parts = field.split(separator: "-")
+        guard parts.count == 2,
+              let start = Int(parts[0]), (0...23).contains(start),
+              let end = Int(parts[1]), (0...23).contains(end),
+              start < end else { return nil }
+        return "\(formatHour(start))–\(formatHour(end))"
+    }
+
+    /// Human-readable hour without minutes: `9 AM`, `4 PM`, `12 PM`.
+    private static func formatHour(_ hour: Int) -> String {
+        let period = hour >= 12 ? "PM" : "AM"
+        let displayHour: Int
+        switch hour {
+        case 0: displayHour = 12
+        case 13...23: displayHour = hour - 12
+        default: displayHour = hour
+        }
+        return "\(displayHour) \(period)"
+    }
+
+    /// Returns a leading `, weekdays`-style suffix for the day-of-week field,
+    /// or an empty string when it's `*` or unrecognized.
+    private static func dayOfWeekSuffix(_ field: String) -> String {
+        guard field != "*", let label = describeDayOfWeek(field) else { return "" }
+        return ", \(lowercaseDayLabel(label))"
+    }
+
+    /// Lowercase the common group labels (`Weekdays`, `Weekends`) so they read
+    /// naturally in the middle of a sentence. Specific day names keep their
+    /// capitalization.
+    private static func lowercaseDayLabel(_ label: String) -> String {
+        switch label {
+        case "Weekdays": return "weekdays"
+        case "Weekends": return "weekends"
+        default: return label
+        }
     }
 
     // MARK: - Helpers

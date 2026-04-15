@@ -115,10 +115,13 @@ struct SettingsDrawer: View {
 
     private var footer: some View {
         HStack {
-            Text("© 2026 Strategic Nerds, Inc. · Made with love in Lisbon, Portugal.")
+            Text("Made with love in Lisbon, Portugal.")
                 .font(NTypography.captionSmall)
                 .foregroundStyle(theme.tokens.mutedForeground)
             Spacer()
+            Text("© 2026 Strategic Nerds, Inc.")
+                .font(NTypography.captionSmall)
+                .foregroundStyle(theme.tokens.mutedForeground)
         }
         .padding(.horizontal, NSpacing.xxl)
         .padding(.vertical, NSpacing.md)
@@ -513,6 +516,19 @@ struct SettingsDrawer: View {
                             .frame(width: 14, height: 14)
                             .foregroundStyle(theme.tokens.mutedForeground)
                         Text("Buy me coffee.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(theme.tokens.primary)
+                    }
+                }
+
+                Link(destination: URL(string: "https://www.strategicnerds.com/picksandshovels")!) {
+                    HStack(alignment: .center, spacing: NSpacing.xs) {
+                        Image(systemName: "book.closed.fill")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 14, height: 14)
+                            .foregroundStyle(theme.tokens.mutedForeground)
+                        Text("Buy my book.")
                             .font(.system(size: 12))
                             .foregroundStyle(theme.tokens.primary)
                     }

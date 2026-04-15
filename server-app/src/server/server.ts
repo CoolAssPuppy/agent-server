@@ -334,9 +334,13 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
           progress: (msg, meta) => {
             store.addProgress(runId, msg);
             if (meta) {
+              const rawTools = meta.tools_used;
+              const toolsUsed = Array.isArray(rawTools)
+                ? rawTools.filter((t): t is string => typeof t === 'string')
+                : [];
               store.update(runId, {
                 turnCount: typeof meta.turns_completed === 'number' ? meta.turns_completed : 0,
-                toolsUsed: Array.isArray(meta.tools_used) ? meta.tools_used as string[] : [],
+                toolsUsed,
               });
             }
             broadcaster.emit(sanitizeProgressEvent({
@@ -355,6 +359,12 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
         };
         const executor = executorRegistry.resolve(a);
         const result = await executor(a, wrappedReporter, { abortController });
+        // Pull token / cost telemetry from ExecutionResult.usage so the
+        // local server's /runs response can render duration and cost in the
+        // macOS app without round-tripping through the panel.
+        const usage = (result.usage ?? {}) as Record<string, unknown>;
+        const coerceNumber = (value: unknown): number | undefined =>
+          typeof value === 'number' && Number.isFinite(value) ? value : undefined;
         store.update(runId, {
           status: 'completed',
           completedAt: new Date(),
@@ -364,6 +374,11 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
           filesRead: result.filesRead,
           filesWritten: result.filesWritten,
           commandsRun: result.commandsRun,
+          durationMs: coerceNumber(result.durationMs) ?? coerceNumber(usage.duration_ms),
+          estimatedCostUsd: coerceNumber(usage.estimated_cost_usd),
+          inputTokens: coerceNumber(usage.input_tokens),
+          outputTokens: coerceNumber(usage.output_tokens),
+          model: typeof result.model === 'string' ? result.model : undefined,
         });
         if (result.interaction && agent.interaction) {
           void handleInteractionResult(runId, agent, result.interaction);
@@ -389,10 +404,6 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       createReporter: (rid, name, convId) => createReporter(config, rid, name, { serverId, conversationId: convId ?? conversationId }),
       promptSuffix,
     }).then((result) => {
-      activeControllers.delete(runId);
-      terminalResolvers.get(runId)?.();
-      terminalResolvers.delete(runId);
-      terminalWaiters.delete(runId);
       if (result.status === 'skipped') {
         store.update(runId, {
           status: 'skipped',
@@ -401,28 +412,23 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
         return;
       }
       if (result.status === 'failed') {
-        store.update(runId, {
-          status: 'failed',
-          completedAt: new Date(),
-          error: result.error,
-        });
-        broadcaster.emit(sanitizeProgressEvent({
-          type: 'run_failed',
-          runId,
-          agentId: agent.id,
-          error: result.error,
-          timestamp: new Date().toISOString(),
-        }));
-        sendNotification(agent, runId, { status: 'failed', error: result.error });
-        onDone?.({ status: 'failed', error: result.error });
-        void fireDownstreamTriggers(agent.id, 'failed');
+        emitRunFailure(result.error ?? 'Unknown error');
       }
     }).catch((err) => {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      emitRunFailure(errorMsg);
+    }).finally(() => {
+      // Cleanup bookkeeping on every terminal path — success, failure, throw.
       activeControllers.delete(runId);
       terminalResolvers.get(runId)?.();
       terminalResolvers.delete(runId);
       terminalWaiters.delete(runId);
-      const errorMsg = err instanceof Error ? err.message : String(err);
+    });
+
+    // Shared failure-emit used by both the `.then()` branch (runner returned a
+    // failed result) and `.catch()` branch (runner threw). Centralizing
+    // eliminates drift between the two paths.
+    function emitRunFailure(errorMsg: string): void {
       store.update(runId, {
         status: 'failed',
         completedAt: new Date(),
@@ -438,7 +444,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       sendNotification(agent, runId, { status: 'failed', error: errorMsg });
       onDone?.({ status: 'failed', error: errorMsg });
       void fireDownstreamTriggers(agent.id, 'failed');
-    });
+    }
 
     return runId;
   }
@@ -516,11 +522,28 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
 
   const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
 
-  app.get('/ws', upgradeWebSocket(() => {
+  app.get('/ws', upgradeWebSocket((c) => {
     let listener: ((event: ProgressEvent) => void) | undefined;
+
+    // When an API key is configured, require it on WebSocket upgrade too.
+    // Browsers cannot set custom headers on the WS handshake, so accept the
+    // key either via `Authorization: Bearer …` / `x-agent-server-key` (for
+    // native clients) or a `?key=` query string (for browsers).
+    const configuredKey = config.apiKey?.trim();
+    const headerKey =
+      c.req.header('authorization')?.replace(/^Bearer\s+/i, '').trim() ||
+      c.req.header('x-agent-server-key')?.trim();
+    const queryKey = c.req.query('key')?.trim();
+    const providedKey = headerKey || queryKey;
+    const authOk = !configuredKey || providedKey === configuredKey;
 
     return {
       onOpen(event, ws) {
+        if (!authOk) {
+          ws.close(1008, 'Unauthorized');
+          return;
+        }
+
         const origin = (event as { req?: { raw?: Request } })?.req?.raw?.headers.get('origin');
         if (!isAllowedOrigin(origin ?? undefined, config.host)) {
           ws.close(1008, 'Origin not allowed');
@@ -556,11 +579,15 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   console.log(`Agent Server API listening on http://${config.host}:${port}`);
 
   if (panelClient) {
-    void panelClient.failOrphanedRuns(serverId).then((cleaned) => {
-      if (cleaned > 0) {
-        console.log(`[startup] Cleaned up ${cleaned} orphaned run(s) from previous server instance`);
-      }
-    });
+    void panelClient.failOrphanedRuns(serverId)
+      .then((cleaned) => {
+        if (cleaned > 0) {
+          console.log(`[startup] Cleaned up ${cleaned} orphaned run(s) from previous server instance`);
+        }
+      })
+      .catch((err) => {
+        console.warn(`[startup] Failed to clean up orphaned runs: ${sanitizeText(String(err), 300)}`);
+      });
   }
 
   // Drain any terminal events that never reached the panel during a prior
@@ -568,14 +595,17 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   // runs completed by the last daemon will sit as `working` on the panel
   // until the stale-sweep reclassifies them as failed.
   const replayKey = config.panelApiKey;
-  const replayFn = (): Promise<void> => replayPendingTerminals({
-    getApiKey: () => replayKey,
-  });
+  const runReplay = (): void => {
+    replayPendingTerminals({ getApiKey: () => replayKey })
+      .catch((err) => {
+        console.warn(`[replay] pending-terminal replay failed: ${sanitizeText(String(err), 300)}`);
+      });
+  };
   if (replayKey) {
-    void replayFn();
+    runReplay();
   }
   const pendingReplayInterval = replayKey
-    ? setInterval(() => { void replayFn(); }, PENDING_REPLAY_INTERVAL_MS)
+    ? setInterval(runReplay, PENDING_REPLAY_INTERVAL_MS)
     : null;
 
   // Bridge panel SSE run_trigger events into the local triggerRun path so
@@ -679,6 +709,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     const telegramChannel = await createTelegramChannel({
       botToken: config.telegramBotToken,
       chatIdPath,
+      allowedChatId: config.telegramAllowedChatId,
     });
 
     telegramChannel.onReply((reply) => {

@@ -1,6 +1,7 @@
 import { mkdir, writeFile, readdir, readFile, unlink } from 'fs/promises';
 import { homedir } from 'os';
 import { join } from 'path';
+import { sanitizeText } from '../server/security-utils.js';
 
 export type StatusState =
   | 'submitted'
@@ -165,7 +166,7 @@ export class TelemetryReporter {
     try {
       await this.send({
         state: 'failed',
-        error: { message: error.message },
+        error: { message: sanitizeText(error.message, 1_000) },
       });
     } finally {
       this.stopHeartbeat();
@@ -181,7 +182,10 @@ export class TelemetryReporter {
     try {
       await this.send({
         state: 'canceled',
-        error: { message: reason ?? 'Canceled', ...(code ? { code } : {}) },
+        error: {
+          message: sanitizeText(reason ?? 'Canceled', 1_000),
+          ...(code ? { code } : {}),
+        },
       });
     } finally {
       this.stopHeartbeat();
@@ -271,10 +275,16 @@ export class TelemetryReporter {
           return;
         }
 
-        console.error(`[telemetry] POST ${this.config.endpoint} returned ${response.status}: ${response.statusText}`);
+        console.error(
+          `[telemetry] POST ${this.config.endpoint} returned ${response.status} ${response.statusText} ` +
+          `for ${event.state} event of "${this.config.agentName}" (attempt ${attempt}/${maxAttempts})`
+        );
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.error(`[telemetry] Failed to send ${event.state} event for "${this.config.agentName}": ${message}`);
+        const message = sanitizeText(err instanceof Error ? err.message : String(err), 300);
+        console.error(
+          `[telemetry] Failed to send ${event.state} event for "${this.config.agentName}" ` +
+          `(attempt ${attempt}/${maxAttempts}): ${message}`
+        );
       }
 
       if (attempt < maxAttempts) {
@@ -315,10 +325,16 @@ export class TelemetryReporter {
           body: JSON.stringify(body),
         });
         if (isTerminalAcceptedStatus(response)) return;
-        console.error(`[telemetry] Deferred retry ${attempt} for ${body.state}: ${response.status}`);
+        console.error(
+          `[telemetry] Deferred retry ${attempt}/${DEFERRED_RETRY_COUNT} for ` +
+          `${body.state} "${this.config.agentName}": HTTP ${response.status}`
+        );
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.error(`[telemetry] Deferred retry ${attempt} for ${body.state}: ${message}`);
+        const message = sanitizeText(err instanceof Error ? err.message : String(err), 300);
+        console.error(
+          `[telemetry] Deferred retry ${attempt}/${DEFERRED_RETRY_COUNT} for ` +
+          `${body.state} "${this.config.agentName}": ${message}`
+        );
       }
       this.scheduleDeferredRetry(body, attempt + 1);
     }, delayMs);

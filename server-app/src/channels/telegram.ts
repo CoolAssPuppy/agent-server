@@ -263,6 +263,12 @@ async function saveChatId(path: string, chatId: number): Promise<void> {
 type CreateTelegramChannelOptions = {
   botToken: string;
   chatIdPath: string;
+  /**
+   * Optional fixed chat ID. When set, only this chat may pair via `/start`;
+   * any other chat is rejected with a message. This closes the
+   * first-comer-wins window on public bots whose handle leaks.
+   */
+  allowedChatId?: number;
   decisions?: {
     panelUrl: string;
     apiKey: string;
@@ -294,6 +300,12 @@ export async function createTelegramChannel(
 
   bot.command('start', async (ctx) => {
     const newChatId = ctx.chat.id;
+
+    if (options.allowedChatId !== undefined && options.allowedChatId !== newChatId) {
+      await ctx.reply('This bot is restricted to a specific chat.');
+      return;
+    }
+
     const existingChatId = channel.getChatId();
     if (existingChatId && existingChatId !== newChatId) {
       await ctx.reply('This bot is already linked to a different chat.');

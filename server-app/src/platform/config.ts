@@ -36,6 +36,11 @@ export const ServerConfigSchema = z.object({
   port: z.number().int().positive().default(47821),
   host: z.string().default('127.0.0.1'),
   telegramBotToken: z.string().optional(),
+  /**
+   * Optional pinned Telegram chat ID. When set, only this chat is allowed to
+   * pair via `/start` and all callbacks from other chats are ignored.
+   */
+  telegramAllowedChatId: z.number().int().optional(),
   apiKey: z.string().min(16).optional(),
   catchUp: z.boolean().default(false),
   maxConcurrentRuns: z.number().int().positive().default(8),
@@ -62,6 +67,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       : undefined,
     host: env.AGENT_SERVER_HOST || undefined,
     telegramBotToken: env.AGENT_SERVER_TELEGRAM_BOT_TOKEN || undefined,
+    telegramAllowedChatId: env.AGENT_SERVER_TELEGRAM_CHAT_ID
+      ? Number(env.AGENT_SERVER_TELEGRAM_CHAT_ID)
+      : undefined,
     apiKey: env.AGENT_SERVER_API_KEY || undefined,
     catchUp: env.AGENT_SERVER_CATCH_UP === 'true',
     maxConcurrentRuns: env.AGENT_SERVER_MAX_CONCURRENT_RUNS

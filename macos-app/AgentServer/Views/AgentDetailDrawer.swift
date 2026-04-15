@@ -13,6 +13,9 @@ struct AgentDetailDrawer: View {
     @Environment(\.nTheme) private var theme
     @State private var tab: Tab = .definition
     @State private var dragOffset: CGFloat = 0
+    @State private var panelRuns: [Run] = []
+
+    private let panelClient = PanelClient.fromEnv()
 
     static let width: CGFloat = 780
     static let slideDuration: Double = 0.22
@@ -48,6 +51,26 @@ struct AgentDetailDrawer: View {
         .compositingGroup()
         .shadow(color: Color.black.opacity(0.25), radius: 20, x: -8, y: 0)
         .offset(x: dragOffset)
+        .task(id: agentId) {
+            await fetchPanelRunsForStats()
+        }
+    }
+
+    /// Pull this agent's history from the panel so the Definition tab's
+    /// stats strip can render avg duration and total cost even for runs the
+    /// local server never persisted those fields for. Silent on offline /
+    /// panel-not-configured — the local data path still works.
+    private func fetchPanelRunsForStats() async {
+        guard let panelClient, let agent else {
+            panelRuns = []
+            return
+        }
+        do {
+            let fetched = try await panelClient.fetchRuns(agent: agent.name, limit: 200)
+            panelRuns = fetched.map { $0.toRun(agentId: agent.id) }
+        } catch {
+            panelRuns = []
+        }
     }
 
     /// Vertical 4pt grab bar glued to the right edge. Dragging it leftward
@@ -273,9 +296,50 @@ struct AgentDetailDrawer: View {
         // Runs seeded from the panel use panel's task_id (UUID) as agentId —
         // that won't match the local slug. Fall back to matching by agent
         // display name so history shows up regardless of the id keyspace.
-        let runs = monitor.recentRuns.filter {
+        let localRuns = monitor.recentRuns.filter {
             $0.agentId == agent.id || $0.agentName == agent.name
         }
+
+        // Merge in panel-fetched runs (they have authoritative duration/cost
+        // for historical completions that the local server may not have
+        // persisted). Dedupe by runId so a run that exists in both only
+        // counts once, preferring panel data for cost/duration when the
+        // local record is missing those fields.
+        let localById = Dictionary(uniqueKeysWithValues: localRuns.map { ($0.runId, $0) })
+        var mergedById: [String: Run] = localById
+        for panelRun in panelRuns where panelRun.agentId == agent.id || panelRun.agentName == agent.name {
+            if let existing = mergedById[panelRun.runId] {
+                mergedById[panelRun.runId] = Run(
+                    runId: existing.runId,
+                    agentId: existing.agentId,
+                    agentName: existing.agentName,
+                    status: existing.status,
+                    startedAt: existing.startedAt,
+                    completedAt: existing.completedAt ?? panelRun.completedAt,
+                    summary: existing.summary ?? panelRun.summary,
+                    error: existing.error ?? panelRun.error,
+                    turnCount: existing.turnCount > 0 ? existing.turnCount : panelRun.turnCount,
+                    toolsUsed: existing.toolsUsed.isEmpty ? panelRun.toolsUsed : existing.toolsUsed,
+                    filesRead: existing.filesRead.isEmpty ? panelRun.filesRead : existing.filesRead,
+                    filesWritten: existing.filesWritten.isEmpty ? panelRun.filesWritten : existing.filesWritten,
+                    commandsRun: existing.commandsRun.isEmpty ? panelRun.commandsRun : existing.commandsRun,
+                    progressMessages: existing.progressMessages,
+                    accomplishments: existing.accomplishments.isEmpty ? panelRun.accomplishments : existing.accomplishments,
+                    observations: existing.observations.isEmpty ? panelRun.observations : existing.observations,
+                    trigger: existing.trigger ?? panelRun.trigger,
+                    model: existing.model ?? panelRun.model,
+                    inputTokens: existing.inputTokens ?? panelRun.inputTokens,
+                    outputTokens: existing.outputTokens ?? panelRun.outputTokens,
+                    estimatedCostUsd: (existing.estimatedCostUsd ?? 0) > 0 ? existing.estimatedCostUsd : panelRun.estimatedCostUsd,
+                    durationMs: existing.durationMs ?? panelRun.durationMs,
+                    conversationId: existing.conversationId ?? panelRun.conversationId
+                )
+            } else {
+                mergedById[panelRun.runId] = panelRun
+            }
+        }
+        let runs = Array(mergedById.values)
+
         let total = runs.count
         let terminal = runs.filter { $0.status != .running }
         let completed = terminal.filter { $0.status == .completed }

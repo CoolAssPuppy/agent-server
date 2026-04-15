@@ -76,6 +76,11 @@ export class FileWatcher {
 
     fsWatcher.on('error', (err) => {
       console.error(`[file-watch] Watcher error for ${config.path}: ${err}`);
+      // Prevent file-descriptor leaks when the underlying watch fails
+      // (device files, permission-denied paths, unmount). The closed
+      // watcher still lives in `this.watchers` and will be a no-op on
+      // `stop()`, which is safe.
+      try { fsWatcher.close(); } catch { /* already closed */ }
     });
 
     this.watchers.push(fsWatcher);
