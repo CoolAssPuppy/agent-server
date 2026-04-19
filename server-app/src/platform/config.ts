@@ -45,6 +45,11 @@ export const ServerConfigSchema = z.object({
   catchUp: z.boolean().default(false),
   maxConcurrentRuns: z.number().int().positive().default(8),
   maxWebSocketClients: z.number().int().positive().default(100),
+  // Default wall-clock timeout applied to every run that does not declare its
+  // own `timeout` field. 30 minutes covers every sample agent; agents with
+  // legitimate long-running workloads can override per-agent via the
+  // `timeout` field in YAML. Set to 0 or a negative value via env to disable.
+  runTimeoutMs: z.number().int().default(30 * 60 * 1000),
 });
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
@@ -77,6 +82,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       : undefined,
     maxWebSocketClients: env.AGENT_SERVER_MAX_WS_CLIENTS
       ? Number(env.AGENT_SERVER_MAX_WS_CLIENTS)
+      : undefined,
+    runTimeoutMs: env.AGENT_SERVER_RUN_TIMEOUT_MS
+      ? Number(env.AGENT_SERVER_RUN_TIMEOUT_MS)
       : undefined,
   });
 }

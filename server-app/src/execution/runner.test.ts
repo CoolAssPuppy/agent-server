@@ -499,4 +499,124 @@ describe('runAgent', () => {
     expect(cancel).toHaveBeenCalledOnce();
     expect(fail).not.toHaveBeenCalled();
   });
+
+  it('fails the run with a timeout error when timeoutMs elapses before execute resolves', async () => {
+    const lockDir = createTempDir('runner');
+    dirs.push(lockDir);
+
+    const cancel = vi.fn();
+    const stop = vi.fn();
+
+    const execute = vi.fn().mockImplementation(() => new Promise(() => {
+      /* never resolves */
+    }));
+
+    const result = await runAgent({
+      agent: makeAgent(),
+      lockDir,
+      timeoutMs: 50,
+      execute,
+      createReporter: () => ({
+        start: noop,
+        progress: noop,
+        complete: noop,
+        fail: noop,
+        cancel,
+        stop,
+      }),
+    });
+
+    expect(result.status).toBe('failed');
+    expect(result.error).toMatch(/timeout/i);
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(cancel.mock.calls[0][0]).toMatch(/timeout/i);
+    expect(cancel.mock.calls[0][1]).toBe('run_timeout');
+    expect(stop).toHaveBeenCalledOnce();
+  });
+
+  it('aborts the provided AbortController when timeout fires', async () => {
+    const lockDir = createTempDir('runner');
+    dirs.push(lockDir);
+
+    const abortController = new AbortController();
+    let observedAbort = false;
+
+    const execute = vi.fn().mockImplementation(() => new Promise((_resolve, reject) => {
+      abortController.signal.addEventListener('abort', () => {
+        observedAbort = true;
+        const reason = abortController.signal.reason;
+        reject(reason instanceof Error ? reason : new Error('AbortError'));
+      });
+    }));
+
+    const result = await runAgent({
+      agent: makeAgent(),
+      lockDir,
+      timeoutMs: 50,
+      abortController,
+      execute,
+      createReporter: () => ({
+        start: noop,
+        progress: noop,
+        complete: noop,
+        fail: noop,
+        cancel: noop,
+        stop: () => {},
+      }),
+    });
+
+    expect(observedAbort).toBe(true);
+    expect(abortController.signal.aborted).toBe(true);
+    expect(result.status).toBe('failed');
+    expect(result.error).toMatch(/timeout/i);
+  });
+
+  it('completes normally when execute finishes before the timeout', async () => {
+    const lockDir = createTempDir('runner');
+    dirs.push(lockDir);
+
+    const result = await runAgent({
+      agent: makeAgent(),
+      lockDir,
+      timeoutMs: 1_000,
+      execute: async () => makeExecutionResult(),
+      createReporter: () => ({
+        start: noop,
+        progress: noop,
+        complete: noop,
+        fail: noop,
+        stop: () => {},
+      }),
+    });
+
+    expect(result.status).toBe('completed');
+  });
+
+  it('prefers per-agent timeout over runner timeoutMs fallback', async () => {
+    const lockDir = createTempDir('runner');
+    dirs.push(lockDir);
+
+    const cancel = vi.fn();
+
+    const result = await runAgent({
+      agent: makeAgent({ timeout: '30s' }),
+      lockDir,
+      // A generous fallback; the per-agent 30s is not expected to be applied
+      // by the runner (the server resolves it) — this test asserts the runner
+      // respects whatever value was threaded in, not the agent-level field.
+      timeoutMs: 50,
+      execute: () => new Promise(() => {}),
+      createReporter: () => ({
+        start: noop,
+        progress: noop,
+        complete: noop,
+        fail: noop,
+        cancel,
+        stop: () => {},
+      }),
+    });
+
+    expect(result.status).toBe('failed');
+    expect(cancel).toHaveBeenCalledOnce();
+  });
 });

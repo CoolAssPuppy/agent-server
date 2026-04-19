@@ -6,6 +6,8 @@ import { sanitizePromptSuffix } from '../server/security-utils.js';
 import { assessPromptInjectionRisk, wrapUntrustedUserContext } from './prompt-injection.js';
 import type { DecisionContext } from './decision-handler.js';
 
+export const RUN_TIMEOUT_CODE = 'run_timeout';
+
 export type RunResult = {
   runId?: string;
   status: 'completed' | 'failed' | 'skipped';
@@ -34,10 +36,34 @@ type RunAgentOptions = {
   promptSuffix?: string;
   conversationId?: string;
   buildDecisionContext?: (runId: string) => DecisionContext | undefined;
+  /**
+   * Maximum wall-clock duration for the run in milliseconds. When elapsed,
+   * the run is aborted, marked failed with code `run_timeout`, and the lock
+   * is released. Undefined disables the timer (back-compat default).
+   */
+  timeoutMs?: number;
+  /**
+   * Optional AbortController. When the timeout fires, the runner calls
+   * `abort(reason)` on this controller so the executor (e.g. Claude SDK) can
+   * surface the abort to in-flight tool calls. The runner also races the
+   * executor against the timeout, so it returns even if the executor
+   * ignores the abort signal.
+   */
+  abortController?: AbortController;
 };
 
 export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
-  const { agent, lockDir, execute, createReporter, promptSuffix, conversationId, buildDecisionContext } = options;
+  const {
+    agent,
+    lockDir,
+    execute,
+    createReporter,
+    promptSuffix,
+    conversationId,
+    buildDecisionContext,
+    timeoutMs,
+    abortController,
+  } = options;
 
   if (!acquireLock(lockDir, agent.id)) {
     // Fix 4: Panel should still record that a concurrent invocation was
@@ -105,12 +131,25 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
     }
 
     const decisionContext = buildDecisionContext?.(runId);
-    const result = await execute(effectiveAgent, reporter, { runId, decisionContext });
+    const result = await raceWithTimeout(
+      execute(effectiveAgent, reporter, { runId, decisionContext }),
+      timeoutMs,
+      abortController,
+    );
     await reporter.complete(result);
     reporter.stop();
     return { runId, status: 'completed', result };
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
+    if (isTimeoutError(error)) {
+      if (typeof reporter.cancel === 'function') {
+        await reporter.cancel(error.message, RUN_TIMEOUT_CODE);
+      } else {
+        await reporter.fail(error);
+      }
+      reporter.stop();
+      return { runId, status: 'failed', error: error.message };
+    }
     if (isAbortError(error)) {
       if (typeof reporter.cancel === 'function') {
         await reporter.cancel(error.message || 'Canceled');
@@ -126,6 +165,46 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
   } finally {
     releaseLock(lockDir, agent.id);
   }
+}
+
+async function raceWithTimeout<T>(
+  work: Promise<T>,
+  timeoutMs: number | undefined,
+  abortController: AbortController | undefined,
+): Promise<T> {
+  if (!timeoutMs || timeoutMs <= 0) return work;
+
+  let handle: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    handle = setTimeout(() => {
+      const error = createTimeoutError(timeoutMs);
+      try {
+        abortController?.abort(error);
+      } catch {
+        // Node <20 may not accept an abort reason; fall through.
+      }
+      reject(error);
+    }, timeoutMs);
+    if (handle.unref) handle.unref();
+  });
+
+  try {
+    return await Promise.race([work, timeoutPromise]);
+  } finally {
+    if (handle) clearTimeout(handle);
+  }
+}
+
+function createTimeoutError(timeoutMs: number): Error {
+  const error = new Error(`Run exceeded timeout of ${timeoutMs}ms`);
+  error.name = 'RunTimeoutError';
+  (error as Error & { code?: string }).code = RUN_TIMEOUT_CODE;
+  return error;
+}
+
+function isTimeoutError(error: Error): boolean {
+  return error.name === 'RunTimeoutError'
+    || (error as Error & { code?: unknown }).code === RUN_TIMEOUT_CODE;
 }
 
 function isAbortError(error: Error): boolean {

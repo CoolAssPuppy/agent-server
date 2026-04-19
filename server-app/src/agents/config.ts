@@ -74,6 +74,7 @@ export const AgentConfigSchema = z
     tools: z.array(z.string().trim().min(1).max(120)).max(128).default([]),
     disallowed_tools: z.array(z.string().trim().min(1).max(120)).max(128).default([]),
     max_turns: z.number().int().positive().default(20),
+    timeout: z.string().trim().max(16).optional(),
     working_directory: z.string().max(1024).refine((v) => !v.includes('\0')).optional(),
     permission_mode: z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk']).optional(),
     enabled: z.boolean().default(true),

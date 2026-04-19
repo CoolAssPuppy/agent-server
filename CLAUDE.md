@@ -293,6 +293,12 @@ The `/health` endpoint returns `{ status, timestamp, started_at }` where `starte
 
 Connect to `ws://localhost:47821/ws` for real-time run progress. Events are JSON with type `run_started`, `run_progress`, `run_completed`, or `run_failed`. The `ProgressBroadcaster` class in `server/websocket.ts` manages subscriptions. The macOS app uses `URLSessionWebSocketTask` to connect, falling back to HTTP polling if the connection fails.
 
+### Run wall-clock timeout
+
+Every run is bounded by a wall-clock timeout to guarantee that a wedged MCP tool call, unresponsive SDK stream, or other hang cannot hold the agent's lock indefinitely. The runner races the executor against a `setTimeout` in `execution/runner.ts` (`raceWithTimeout`); on expiry it calls `AbortController.abort()` with a `RunTimeoutError` so the Claude SDK can surface the abort to in-flight tool calls, then rejects the race so `runAgent` returns cleanly and the lock is released in the `finally` block.
+
+Precedence: per-agent `timeout` field (YAML) wins over the server default `AGENT_SERVER_RUN_TIMEOUT_MS` (30 min). Set either to `0` to disable. The runner marks timed-out runs as `failed` and emits `reporter.cancel(reason, 'run_timeout')` so the panel can distinguish timeout cancellations from user-initiated ones.
+
 ### Sleep/wake catch-up
 
 When `AGENT_SERVER_CATCH_UP=true`, the server detects sleep gaps (when `now - lastCheckedAt > 2 * checkIntervalMs`) and triggers agents that missed their cron window during sleep. Uses `hasMissedRun()` from `scheduler.ts` to check if any cron occurrence fell between `lastCheckedAt` and `now`.
@@ -320,6 +326,7 @@ tools:
 disallowed_tools:        # optional, tools to explicitly deny
   - Bash
 max_turns: 20
+timeout: 30m                # optional wall-clock cap; falls back to AGENT_SERVER_RUN_TIMEOUT_MS (default 30m)
 enabled: true
 working_directory: "~/projects/my-project"
 permission_mode: bypassPermissions  # optional: bypassPermissions | acceptEdits | dontAsk | default | plan
@@ -423,6 +430,7 @@ The CLI loads `~/.agent-server/.env` at startup. Shell env vars and Doppler (`do
 | AGENT_SERVER_PORT | 47821 | HTTP API port |
 | AGENT_SERVER_TELEGRAM_BOT_TOKEN | (none) | Telegram bot token for interactive agents |
 | AGENT_SERVER_CATCH_UP | false | Resume missed scheduled agents after sleep/wake |
+| AGENT_SERVER_RUN_TIMEOUT_MS | 1800000 | Wall-clock ceiling per run (ms). Agents can override via `timeout` field. Set `0` to disable. |
 
 ## Testing
 

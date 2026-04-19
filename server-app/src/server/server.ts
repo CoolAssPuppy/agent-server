@@ -33,6 +33,7 @@ import { routeMessage } from '../channels/router.js';
 import { randomUUID } from 'crypto';
 import { ProgressBroadcaster, type ProgressEvent } from './websocket.js';
 import { sanitizeProgressEvent, sanitizeText } from './security-utils.js';
+import { parseDuration } from '../agents/duration.js';
 
 export type ServerInstance = {
   stop: () => Promise<void> | void;
@@ -50,22 +51,29 @@ const SHUTDOWN_DRAIN_TIMEOUT_MS = 10_000;
 /** Per-run wait inside the overall drain budget. */
 const SHUTDOWN_PER_RUN_TIMEOUT_MS = 3_000;
 
-const TIMEOUT_PATTERN = /^(\d+)(m|h)$/;
-const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000;
+const DEFAULT_INTERACTION_TIMEOUT_MS = 30 * 60 * 1000;
+const DEFAULT_CONVERSATION_TTL_MS = 30 * 60 * 1000;
+
+/**
+ * Resolves the wall-clock run timeout in order of precedence: the agent's
+ * `timeout` field wins when present and valid, otherwise the server default
+ * from `AGENT_SERVER_RUN_TIMEOUT_MS`. Returns `undefined` (no timeout)
+ * when the server default is 0 or negative and the agent does not declare
+ * its own.
+ */
+function resolveRunTimeoutMs(agent: AgentConfig, config: ServerConfig): number | undefined {
+  if (agent.timeout) {
+    const parsed = parseDuration(agent.timeout, 0);
+    if (parsed > 0) return parsed;
+  }
+  return config.runTimeoutMs > 0 ? config.runTimeoutMs : undefined;
+}
 
 export function isLoopbackHost(host: string): boolean {
   const normalized = host.trim().toLowerCase();
   return normalized === '127.0.0.1' || normalized === '::1' || normalized === 'localhost';
 }
 
-function parseTimeout(timeout: string): number {
-  const match = TIMEOUT_PATTERN.exec(timeout);
-  if (!match) return DEFAULT_TIMEOUT_MS;
-
-  const value = parseInt(match[1], 10);
-  const unit = match[2];
-  return unit === 'h' ? value * 60 * 60 * 1000 : value * 60 * 1000;
-}
 
 
 export function isAllowedOrigin(originHeader: string | undefined, host: string): boolean {
@@ -228,7 +236,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     if (!agent.interaction) return;
 
     const interactionId = randomUUID();
-    const timeoutMs = parseTimeout(agent.interaction.timeout);
+    const timeoutMs = parseDuration(agent.interaction.timeout, DEFAULT_INTERACTION_TIMEOUT_MS);
 
     interactionStore.add({
       id: interactionId,
@@ -403,6 +411,8 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       },
       createReporter: (rid, name, convId) => createReporter(config, rid, name, { serverId, conversationId: convId ?? conversationId }),
       promptSuffix,
+      timeoutMs: resolveRunTimeoutMs(agent, config),
+      abortController,
     }).then((result) => {
       if (result.status === 'skipped') {
         store.update(runId, {
@@ -784,7 +794,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
           let convId: string | undefined;
 
           if (isConversational) {
-            const ttlMs = parseTimeout(agent.conversation?.ttl ?? '30m');
+            const ttlMs = parseDuration(agent.conversation?.ttl, DEFAULT_CONVERSATION_TTL_MS);
             const conv = conversationStore.create(chatId, agent.id, ttlMs);
             convId = conv.id;
             conversationStore.addMessage(conv.id, 'user', text);
