@@ -30,6 +30,7 @@ struct SettingsDrawer: View {
     @State private var autoUpdates: Bool = true
     @State private var telemetryOptIn: Bool = Telemetry.isOptedIn
     @State private var didLoad: Bool = false
+    @ObservedObject private var notificationPreferences = NotificationPreferences.shared
 
     static let height: CGFloat = 500
     static let slideDuration: Double = 0.26
@@ -137,6 +138,11 @@ struct SettingsDrawer: View {
                 }
 
             settingsToggle("Resume scheduled agents after wake", isOn: $resumeAfterWake)
+
+            settingsToggle("Enable notifications", isOn: $notificationPreferences.enabled)
+
+            settingsToggle("Also notify for agent output", isOn: $notificationPreferences.includeAgentOutput)
+                .disabled(!notificationPreferences.enabled)
 
             settingsToggle("Help improve Agent Server", isOn: $telemetryOptIn)
                 .onChange(of: telemetryOptIn) { _, newValue in

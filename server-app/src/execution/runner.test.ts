@@ -528,6 +528,7 @@ describe('runAgent', () => {
 
     expect(result.status).toBe('failed');
     expect(result.error).toMatch(/timeout/i);
+    expect(result.code).toBe('run_timeout');
     expect(cancel).toHaveBeenCalledOnce();
     expect(cancel.mock.calls[0][0]).toMatch(/timeout/i);
     expect(cancel.mock.calls[0][1]).toBe('run_timeout');

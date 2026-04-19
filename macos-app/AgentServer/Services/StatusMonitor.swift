@@ -137,9 +137,11 @@ final class StatusMonitor: ObservableObject {
 
                 if let serverStartedAt = health.startedAt {
                     if let previous = self.previousServerStartedAt,
-                       previous != serverStartedAt,
-                       !self.previousActiveRunIds.isEmpty {
-                        self.staleRunCount = self.previousActiveRunIds.count
+                       previous != serverStartedAt {
+                        if !self.previousActiveRunIds.isEmpty {
+                            self.staleRunCount = self.previousActiveRunIds.count
+                        }
+                        self.notificationManager?.notifyServerRestarted()
                     }
                     self.previousServerStartedAt = serverStartedAt
                 }
@@ -302,7 +304,6 @@ final class StatusMonitor: ObservableObject {
 
             switch event.type {
             case "run_started":
-                notificationManager?.notifyRunStarted(agentName: agentName(for: event.agentId))
                 poll()
             case "run_completed":
                 notificationManager?.notifyRunCompleted(
@@ -311,11 +312,22 @@ final class StatusMonitor: ObservableObject {
                 )
                 poll()
             case "run_failed":
-                notificationManager?.notifyRunFailed(
-                    agentName: agentName(for: event.agentId),
-                    error: event.error ?? event.message
-                )
+                if event.code == "run_timeout" {
+                    notificationManager?.notifyRunTimedOut(
+                        agentName: agentName(for: event.agentId)
+                    )
+                } else {
+                    notificationManager?.notifyRunFailed(
+                        agentName: agentName(for: event.agentId),
+                        error: event.error ?? event.message
+                    )
+                }
                 poll()
+            case "mcp_status":
+                let needsAuth = event.mcpNeedsAuthServers ?? []
+                if !needsAuth.isEmpty {
+                    notificationManager?.notifyMcpNeedsAuth(serverNames: needsAuth)
+                }
             default:
                 break
             }
@@ -350,4 +362,11 @@ struct ProgressEvent: Decodable {
     let message: String?
     let error: String?
     let summary: String?
+    let code: String?
+    let mcpNeedsAuthServers: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case type, runId, agentId, timestamp, message, error, summary, code
+        case mcpNeedsAuthServers = "mcp_needs_auth_servers"
+    }
 }

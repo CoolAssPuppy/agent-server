@@ -12,6 +12,12 @@ export type RunResult = {
   runId?: string;
   status: 'completed' | 'failed' | 'skipped';
   error?: string;
+  /**
+   * Machine-readable failure cause. Populated on wall-clock timeouts as
+   * `run_timeout`. Callers (e.g. the server's WebSocket broadcaster) use
+   * this to distinguish timeouts from generic failures or user cancels.
+   */
+  code?: string;
   result?: ExecutionResult;
 };
 
@@ -148,7 +154,7 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
         await reporter.fail(error);
       }
       reporter.stop();
-      return { runId, status: 'failed', error: error.message };
+      return { runId, status: 'failed', error: error.message, code: RUN_TIMEOUT_CODE };
     }
     if (isAbortError(error)) {
       if (typeof reporter.cancel === 'function') {

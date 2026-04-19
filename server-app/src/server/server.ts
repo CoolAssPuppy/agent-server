@@ -55,6 +55,28 @@ const DEFAULT_INTERACTION_TIMEOUT_MS = 30 * 60 * 1000;
 const DEFAULT_CONVERSATION_TTL_MS = 30 * 60 * 1000;
 
 /**
+ * Extracts `needs-auth` MCP server names from a progress metadata blob.
+ * The Claude Code executor publishes the full server list in
+ * `metadata.mcp_servers` whenever it has fresh status. Returning a
+ * non-empty list is the signal for the WebSocket broadcaster to emit a
+ * dedicated `mcp_status` event so clients can surface a re-auth prompt.
+ */
+function extractMcpNeedsAuthServers(meta: Record<string, unknown> | undefined): string[] {
+  if (!meta) return [];
+  const servers = meta.mcp_servers;
+  if (!Array.isArray(servers)) return [];
+  const out: string[] = [];
+  for (const s of servers) {
+    if (typeof s !== 'object' || s === null) continue;
+    const record = s as Record<string, unknown>;
+    if (record.status === 'needs-auth' && typeof record.name === 'string') {
+      out.push(record.name);
+    }
+  }
+  return out;
+}
+
+/**
  * Resolves the wall-clock run timeout in order of precedence: the agent's
  * `timeout` field wins when present and valid, otherwise the server default
  * from `AGENT_SERVER_RUN_TIMEOUT_MS`. Returns `undefined` (no timeout)
@@ -359,6 +381,18 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
               metadata: meta,
               timestamp: new Date().toISOString(),
             }));
+
+            const mcpNeedsAuth = extractMcpNeedsAuthServers(meta);
+            if (mcpNeedsAuth.length > 0) {
+              broadcaster.emit(sanitizeProgressEvent({
+                type: 'mcp_status',
+                runId,
+                agentId: agent.id,
+                mcp_needs_auth_servers: mcpNeedsAuth,
+                timestamp: new Date().toISOString(),
+              }));
+            }
+
             return reporter.progress(msg, meta);
           },
           complete: (result) => reporter.complete(result),
@@ -422,7 +456,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
         return;
       }
       if (result.status === 'failed') {
-        emitRunFailure(result.error ?? 'Unknown error');
+        emitRunFailure(result.error ?? 'Unknown error', result.code);
       }
     }).catch((err) => {
       const errorMsg = err instanceof Error ? err.message : String(err);
@@ -438,7 +472,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     // Shared failure-emit used by both the `.then()` branch (runner returned a
     // failed result) and `.catch()` branch (runner threw). Centralizing
     // eliminates drift between the two paths.
-    function emitRunFailure(errorMsg: string): void {
+    function emitRunFailure(errorMsg: string, code?: string): void {
       store.update(runId, {
         status: 'failed',
         completedAt: new Date(),
@@ -449,6 +483,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
         runId,
         agentId: agent.id,
         error: errorMsg,
+        code,
         timestamp: new Date().toISOString(),
       }));
       sendNotification(agent, runId, { status: 'failed', error: errorMsg });
