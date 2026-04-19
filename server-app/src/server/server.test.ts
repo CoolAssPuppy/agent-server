@@ -2,7 +2,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { evaluateTriggers } from '../agents/triggers.js';
 import { makeAgent } from '../test-factories.js';
 import type { AgentConfig } from '../agents/config.js';
-import { shouldDispatchNotification, shouldSendTelegramRunNotification } from './server.js';
+import {
+  extractMcpNeedsAuthServers,
+  shouldDispatchNotification,
+  shouldSendTelegramRunNotification,
+} from './server.js';
 
 describe('fireDownstreamTriggers', () => {
   async function fireDownstreamTriggers(
@@ -221,5 +225,40 @@ describe('shouldDispatchNotification', () => {
         summary: undefined,
       }),
     ).toBe(true);
+  });
+});
+
+describe('extractMcpNeedsAuthServers', () => {
+  it('returns empty when metadata is missing', () => {
+    expect(extractMcpNeedsAuthServers(undefined)).toEqual([]);
+  });
+
+  it('returns empty when mcp_servers is absent or not an array', () => {
+    expect(extractMcpNeedsAuthServers({})).toEqual([]);
+    expect(extractMcpNeedsAuthServers({ mcp_servers: 'oops' })).toEqual([]);
+  });
+
+  it('returns only the names of servers that report needs-auth', () => {
+    const meta = {
+      mcp_servers: [
+        { name: 'gmail', status: 'connected' },
+        { name: 'hubspot', status: 'needs-auth' },
+        { name: 'zapier', status: 'needs-auth' },
+        { name: 'canva', status: 'failed' },
+      ],
+    };
+    expect(extractMcpNeedsAuthServers(meta)).toEqual(['hubspot', 'zapier']);
+  });
+
+  it('rejects entries with a non-string name or wrong shape', () => {
+    const meta = {
+      mcp_servers: [
+        { name: 'ok', status: 'needs-auth' },
+        { name: 42, status: 'needs-auth' },
+        null,
+        'garbage',
+      ],
+    };
+    expect(extractMcpNeedsAuthServers(meta)).toEqual(['ok']);
   });
 });

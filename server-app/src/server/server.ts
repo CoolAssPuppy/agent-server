@@ -55,13 +55,17 @@ const SHUTDOWN_PER_RUN_TIMEOUT_MS = 3_000;
 const DEFAULT_INTERACTION_TIMEOUT_MS = 30 * 60 * 1000;
 const DEFAULT_CONVERSATION_TTL_MS = 30 * 60 * 1000;
 
-function extractMcpNeedsAuthServers(meta: Record<string, unknown> | undefined): string[] {
+function isNeedsAuthMcpServer(value: unknown): value is McpServerInfo {
+  if (typeof value !== 'object' || value === null) return false;
+  const s = value as Partial<McpServerInfo>;
+  return s.status === 'needs-auth' && typeof s.name === 'string';
+}
+
+export function extractMcpNeedsAuthServers(meta: Record<string, unknown> | undefined): string[] {
   if (!meta) return [];
   const servers = meta.mcp_servers;
   if (!Array.isArray(servers)) return [];
-  return (servers as McpServerInfo[])
-    .filter((s) => s && typeof s === 'object' && s.status === 'needs-auth' && typeof s.name === 'string')
-    .map((s) => s.name);
+  return servers.filter(isNeedsAuthMcpServer).map((s) => s.name);
 }
 
 /**
