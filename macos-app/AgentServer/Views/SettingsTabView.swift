@@ -1,12 +1,15 @@
 import SwiftUI
 import NerdsUI
+import UserNotifications
 
 struct SettingsTabView: View {
     @ObservedObject var monitor: StatusMonitor
+    @ObservedObject private var notificationPreferences = NotificationPreferences.shared
     @ObservedObject private var launchManager = LaunchAtLoginManager.shared
     @ObservedObject private var updater = UpdaterManager.shared
     @AppStorage("catchUpEnabled") private var catchUpEnabled = false
     @State private var serverLocation: String = ServerProcessManager.configuredLocation() ?? ""
+    @State private var notificationsAuthorizationDenied: Bool = false
 
     @Environment(\.nTheme) private var theme
 
@@ -80,6 +83,20 @@ struct SettingsTabView: View {
                     }
                 }
 
+                Section("Notifications") {
+                    Toggle("Enable notifications", isOn: $notificationPreferences.enabled)
+
+                    if notificationPreferences.enabled {
+                        Toggle("Notify for agent output", isOn: $notificationPreferences.includeAgentOutput)
+                    }
+
+                    if notificationsAuthorizationDenied {
+                        Text("Notifications are blocked in System Settings. Enable them under Notifications > Agent Server.")
+                            .font(NTypography.caption)
+                            .foregroundStyle(theme.tokens.mutedForeground)
+                    }
+                }
+
                 Section("Updates") {
                     Toggle("Automatically check for updates", isOn: $updater.automaticallyChecksForUpdates)
 
@@ -106,6 +123,9 @@ struct SettingsTabView: View {
                 }
             }
             .formStyle(.grouped)
+            .task {
+                await refreshNotificationAuthorizationStatus()
+            }
 
             Spacer(minLength: NSpacing.lg)
 
@@ -146,6 +166,13 @@ struct SettingsTabView: View {
         serverLocation = path
         ServerProcessManager.setLocation(path)
         monitor.requestServerRestart()
+    }
+
+    private func refreshNotificationAuthorizationStatus() async {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        await MainActor.run {
+            notificationsAuthorizationDenied = settings.authorizationStatus == .denied
+        }
     }
 
     private func updateCatchUpSetting(_ enabled: Bool) {

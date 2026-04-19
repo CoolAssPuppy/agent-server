@@ -11,6 +11,7 @@ import { RunStore } from '../reporting/store.js';
 import { runAgent } from '../execution/runner.js';
 import { executeAgent } from '../plugins/claude-code.js';
 import { ExecutorRegistry } from '../execution/executor-registry.js';
+import type { McpServerInfo } from '../execution/executor.js';
 import { createReporter } from '../reporting/reporter-factory.js';
 import { createPanelClient } from '../reporting/panel-client.js';
 import { seedRunStoreFromPanel } from './seed-run-store.js';
@@ -53,6 +54,19 @@ const SHUTDOWN_PER_RUN_TIMEOUT_MS = 3_000;
 
 const DEFAULT_INTERACTION_TIMEOUT_MS = 30 * 60 * 1000;
 const DEFAULT_CONVERSATION_TTL_MS = 30 * 60 * 1000;
+
+function isNeedsAuthMcpServer(value: unknown): value is McpServerInfo {
+  if (typeof value !== 'object' || value === null) return false;
+  const s = value as Partial<McpServerInfo>;
+  return s.status === 'needs-auth' && typeof s.name === 'string';
+}
+
+export function extractMcpNeedsAuthServers(meta: Record<string, unknown> | undefined): string[] {
+  if (!meta) return [];
+  const servers = meta.mcp_servers;
+  if (!Array.isArray(servers)) return [];
+  return servers.filter(isNeedsAuthMcpServer).map((s) => s.name);
+}
 
 /**
  * Resolves the wall-clock run timeout in order of precedence: the agent's
@@ -337,6 +351,12 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       lockDir: config.lockDir,
       buildDecisionContext,
       execute: async (a, reporter) => {
+        // The Claude Code executor publishes mcp_servers on most progress
+        // events. Without dedup, every turn would re-broadcast the same
+        // needs-auth list, firing a duplicate mcp_status notification on
+        // every tick until the user re-authenticates. Track the last-sent
+        // set per run and only broadcast on change.
+        let lastNeedsAuthKey: string | null = null;
         const wrappedReporter: Reporter = {
           start: () => reporter.start(),
           progress: (msg, meta) => {
@@ -359,6 +379,22 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
               metadata: meta,
               timestamp: new Date().toISOString(),
             }));
+
+            const mcpNeedsAuth = extractMcpNeedsAuthServers(meta);
+            if (mcpNeedsAuth.length > 0) {
+              const key = [...mcpNeedsAuth].sort().join('|');
+              if (key !== lastNeedsAuthKey) {
+                lastNeedsAuthKey = key;
+                broadcaster.emit(sanitizeProgressEvent({
+                  type: 'mcp_status',
+                  runId,
+                  agentId: agent.id,
+                  mcp_needs_auth_servers: mcpNeedsAuth,
+                  timestamp: new Date().toISOString(),
+                }));
+              }
+            }
+
             return reporter.progress(msg, meta);
           },
           complete: (result) => reporter.complete(result),
@@ -422,7 +458,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
         return;
       }
       if (result.status === 'failed') {
-        emitRunFailure(result.error ?? 'Unknown error');
+        emitRunFailure(result.error ?? 'Unknown error', result.code);
       }
     }).catch((err) => {
       const errorMsg = err instanceof Error ? err.message : String(err);
@@ -438,7 +474,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     // Shared failure-emit used by both the `.then()` branch (runner returned a
     // failed result) and `.catch()` branch (runner threw). Centralizing
     // eliminates drift between the two paths.
-    function emitRunFailure(errorMsg: string): void {
+    function emitRunFailure(errorMsg: string, code?: string): void {
       store.update(runId, {
         status: 'failed',
         completedAt: new Date(),
@@ -449,6 +485,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
         runId,
         agentId: agent.id,
         error: errorMsg,
+        code,
         timestamp: new Date().toISOString(),
       }));
       sendNotification(agent, runId, { status: 'failed', error: errorMsg });

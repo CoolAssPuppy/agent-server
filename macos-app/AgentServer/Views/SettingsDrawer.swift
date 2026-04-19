@@ -1,6 +1,7 @@
 import SwiftUI
 import NerdsUI
 import AppKit
+import UserNotifications
 
 /// Settings drawer (mock 3NT-1). Pulls down over the main pane from the top
 /// edge of the window. Three flat cards side by side: General,
@@ -30,6 +31,8 @@ struct SettingsDrawer: View {
     @State private var autoUpdates: Bool = true
     @State private var telemetryOptIn: Bool = Telemetry.isOptedIn
     @State private var didLoad: Bool = false
+    @State private var notificationsAuthorizationDenied: Bool = false
+    @ObservedObject private var notificationPreferences = NotificationPreferences.shared
 
     static let height: CGFloat = 500
     static let slideDuration: Double = 0.26
@@ -103,7 +106,10 @@ struct SettingsDrawer: View {
 
     private var content: some View {
         HStack(alignment: .top, spacing: NSpacing.lg) {
-            generalCard
+            VStack(spacing: NSpacing.lg) {
+                generalCard
+                notificationsCard
+            }
             panelConnectionsCard
             VStack(spacing: NSpacing.lg) {
                 updatesCard
@@ -431,6 +437,29 @@ struct SettingsDrawer: View {
         }
     }
 
+
+    private var notificationsCard: some View {
+        SettingsCard(title: "Notifications") {
+            settingsToggle("Enable notifications", isOn: $notificationPreferences.enabled)
+
+            if notificationPreferences.enabled {
+                settingsToggle("Notify for agent output", isOn: $notificationPreferences.includeAgentOutput)
+            }
+
+            if notificationsAuthorizationDenied {
+                Text("Notifications are blocked in System Settings. Enable them under Notifications > Agent Server.")
+                    .font(NTypography.captionSmall)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .task {
+            let settings = await UNUserNotificationCenter.current().notificationSettings()
+            await MainActor.run {
+                notificationsAuthorizationDenied = settings.authorizationStatus == .denied
+            }
+        }
+    }
 
     private var updatesCard: some View {
         SettingsCard(title: "Updates") {
