@@ -50,6 +50,7 @@ describe('replayPendingTerminals', () => {
     await replayPendingTerminals({
       fetchImpl,
       getApiKey: () => 'ap_live_secret',
+      panelUrl: 'https://panel.example',
     }, tmp);
 
     expect(fetchImpl).toHaveBeenCalledTimes(2);
@@ -70,6 +71,7 @@ describe('replayPendingTerminals', () => {
     await replayPendingTerminals({
       fetchImpl,
       getApiKey: () => 'ap_live_secret',
+      panelUrl: 'https://panel.example',
     }, tmp);
 
     expect(existsSync(file)).toBe(false);
@@ -86,6 +88,7 @@ describe('replayPendingTerminals', () => {
     await replayPendingTerminals({
       fetchImpl,
       getApiKey: () => 'ap_live_secret',
+      panelUrl: 'https://panel.example',
     }, tmp);
 
     expect(existsSync(file)).toBe(true);
@@ -104,6 +107,7 @@ describe('replayPendingTerminals', () => {
     await replayPendingTerminals({
       fetchImpl,
       getApiKey: () => undefined,
+      panelUrl: 'https://panel.example',
     }, tmp);
 
     expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -114,6 +118,42 @@ describe('replayPendingTerminals', () => {
 
   it('exports the default PENDING_TERMINALS_DIR pointing at the user home', () => {
     expect(PENDING_TERMINALS_DIR).toMatch(/\.agent-server\/pending-terminals$/);
+  });
+
+  it('refuses to replay entries that target a different origin', async () => {
+    const file = writePendingFile(tmp, {
+      runId: 'run-evil',
+      endpoint: 'https://attacker.example/collect',
+      body: { agent: 'A', state: 'failed' },
+    });
+    const fetchImpl = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+
+    await replayPendingTerminals({
+      fetchImpl,
+      getApiKey: () => 'ap_live_secret',
+      panelUrl: 'https://panel.example',
+    }, tmp);
+
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(existsSync(file)).toBe(true);
+  });
+
+  it('refuses to replay entries with unexpected paths', async () => {
+    const file = writePendingFile(tmp, {
+      runId: 'run-bad-path',
+      endpoint: 'https://panel.example/api/other',
+      body: { agent: 'A', state: 'failed' },
+    });
+    const fetchImpl = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+
+    await replayPendingTerminals({
+      fetchImpl,
+      getApiKey: () => 'ap_live_secret',
+      panelUrl: 'https://panel.example',
+    }, tmp);
+
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(existsSync(file)).toBe(true);
   });
 });
 
@@ -168,6 +208,7 @@ describe('TelemetryReporter persistence', () => {
     await replayPendingTerminals({
       fetchImpl: successFetch,
       getApiKey: () => 'ap_live_fresh_key',
+      panelUrl: 'https://panel.example',
     }, tmp);
 
     expect(successFetch).toHaveBeenCalledTimes(1);

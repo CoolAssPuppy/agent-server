@@ -596,7 +596,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   // until the stale-sweep reclassifies them as failed.
   const replayKey = config.panelApiKey;
   const runReplay = (): void => {
-    replayPendingTerminals({ getApiKey: () => replayKey })
+    replayPendingTerminals({ getApiKey: () => replayKey, panelUrl: config.panelUrl })
       .catch((err) => {
         console.warn(`[replay] pending-terminal replay failed: ${sanitizeText(String(err), 300)}`);
       });

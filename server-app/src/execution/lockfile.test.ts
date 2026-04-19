@@ -24,8 +24,15 @@ describe('lockfile', () => {
       expect(acquired).toBe(true);
 
       const lockPath = join(lockDir, 'test-agent.lock');
-      const pid = readFileSync(lockPath, 'utf-8').trim();
-      expect(Number(pid)).toBe(process.pid);
+      const payload = JSON.parse(readFileSync(lockPath, 'utf-8')) as {
+        pid: number;
+        instanceId: string;
+        createdAt: string;
+      };
+      expect(payload.pid).toBe(process.pid);
+      expect(typeof payload.instanceId).toBe('string');
+      expect(payload.instanceId.length).toBeGreaterThan(10);
+      expect(typeof payload.createdAt).toBe('string');
     });
 
     it('prevents double acquisition by same process', () => {
