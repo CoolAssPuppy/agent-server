@@ -6,6 +6,24 @@
     <description>Agent Server updates</description>
     <language>en</language>
     <item>
+      <title>Version 2.2.0</title>
+      <pubDate>Sun, 19 Apr 2026 18:20:31 +0000</pubDate>
+      <sparkle:version>11</sparkle:version>
+      <sparkle:shortVersionString>2.2.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Added system notifications</li><li>Bug fixes to address stuck agents</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://hlwjnusdotqtmtwrjidu.supabase.co/storage/v1/object/public/downloads/AgentServer-2.2.0.dmg"
+        sparkle:edSignature="+M27pB+6DJDQGJFqW3wGqx0W8VHucPUa1kt+h5NNZQxTPX2YeXOF+3BU/H6Rk1A+37qVTBH/nXahYgRVxbFtCA=="
+        length="32327716"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
       <title>Version 2.1.2</title>
       <pubDate>Sun, 19 Apr 2026 09:29:05 +0000</pubDate>
       <sparkle:version>10</sparkle:version>
