@@ -85,8 +85,10 @@ struct SettingsTabView: View {
 
                 Section("Notifications") {
                     Toggle("Enable notifications", isOn: $notificationPreferences.enabled)
-                    Toggle("Also notify for agent output", isOn: $notificationPreferences.includeAgentOutput)
-                        .disabled(!notificationPreferences.enabled)
+
+                    if notificationPreferences.enabled {
+                        Toggle("Notify for agent output", isOn: $notificationPreferences.includeAgentOutput)
+                    }
 
                     if notificationsAuthorizationDenied {
                         Text("Notifications are blocked in System Settings. Enable them under Notifications > Agent Server.")

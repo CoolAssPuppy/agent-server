@@ -104,7 +104,10 @@ struct SettingsDrawer: View {
 
     private var content: some View {
         HStack(alignment: .top, spacing: NSpacing.lg) {
-            generalCard
+            VStack(spacing: NSpacing.lg) {
+                generalCard
+                notificationsCard
+            }
             panelConnectionsCard
             VStack(spacing: NSpacing.lg) {
                 updatesCard
@@ -138,11 +141,6 @@ struct SettingsDrawer: View {
                 }
 
             settingsToggle("Resume scheduled agents after wake", isOn: $resumeAfterWake)
-
-            settingsToggle("Enable notifications", isOn: $notificationPreferences.enabled)
-
-            settingsToggle("Also notify for agent output", isOn: $notificationPreferences.includeAgentOutput)
-                .disabled(!notificationPreferences.enabled)
 
             settingsToggle("Help improve Agent Server", isOn: $telemetryOptIn)
                 .onChange(of: telemetryOptIn) { _, newValue in
@@ -437,6 +435,16 @@ struct SettingsDrawer: View {
         }
     }
 
+
+    private var notificationsCard: some View {
+        SettingsCard(title: "Notifications") {
+            settingsToggle("Enable notifications", isOn: $notificationPreferences.enabled)
+
+            if notificationPreferences.enabled {
+                settingsToggle("Notify for agent output", isOn: $notificationPreferences.includeAgentOutput)
+            }
+        }
+    }
 
     private var updatesCard: some View {
         SettingsCard(title: "Updates") {
