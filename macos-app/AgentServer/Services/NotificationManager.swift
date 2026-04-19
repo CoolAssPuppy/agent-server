@@ -7,48 +7,34 @@ import UserNotifications
 final class NotificationManager {
     private let center = UNUserNotificationCenter.current()
     let preferences: NotificationPreferences
-
-    private var chimePlayer: AVAudioPlayer?
+    private let chimePlayers: [Chime: AVAudioPlayer]
 
     init(preferences: NotificationPreferences = .shared) {
         self.preferences = preferences
+        self.chimePlayers = Self.makeChimePlayers()
         observeAppActivation()
-        chimePlayer = Self.makeChimePlayer()
     }
 
-    /// Build an `AVAudioPlayer` for the bundled chime. We use our own
-    /// audio player because macOS NotificationCenter's `UNNotificationSound`
-    /// playback is unreliable for custom sounds on Sonoma/Sequoia — usernoted
-    /// logs `Playing notification sound` but the audio often doesn't reach
-    /// the speaker. Playing via `AVAudioPlayer` from our own process gives
-    /// us deterministic behavior and lets us still respect the user's
-    /// preferences via `shouldPost(_:)`.
-    private static func makeChimePlayer() -> AVAudioPlayer? {
-        guard let url = Bundle.main.url(forResource: "agent-server-notification", withExtension: "aiff") else {
-            return nil
-        }
-        do {
-            let player = try AVAudioPlayer(contentsOf: url)
-            player.prepareToPlay()
-            return player
-        } catch {
-            NSLog("[notifications] Could not prepare chime player: %@", String(describing: error))
-            return nil
-        }
+    /// Which audio to play alongside a notification banner.
+    ///
+    /// Three chimes cover every call site:
+    /// - `.info` for tier-1 system events (MCP re-auth, server restart).
+    ///   Uses the generic `agent-server-notification.aiff`.
+    /// - `.success` for completed runs. Uses `agent-server-success.aiff`.
+    /// - `.failure` for failed or timed-out runs. Uses
+    ///   `agent-server-failure.aiff`.
+    enum Chime: String, CaseIterable {
+        case info    = "agent-server-notification"
+        case success = "agent-server-success"
+        case failure = "agent-server-failure"
     }
 
-/// Request notification permission. Behavior:
+    /// Request notification permission. Behavior:
     /// - `.notDetermined`: triggers the macOS prompt (one-time, on first launch).
     ///   For menu-bar (.accessory) apps the prompt can land behind the active
     ///   window, so we activate the app first to make sure the user sees it.
     /// - `.denied`: log a hint so the user knows where to flip it on.
     /// - `.authorized` / `.provisional`: nothing to do; macOS handles delivery.
-    ///
-    /// Note: we do NOT cache an `isAuthorized` flag. `UNUserNotificationCenter.add`
-    /// silently drops notifications when permission is missing, and the user can
-    /// flip the System Settings toggle at any time. Re-querying on every post is
-    /// cheap, and avoiding stale local cache fixes the case where the user
-    /// granted after launch (which the old caching code missed).
     func requestAuthorization() {
         center.getNotificationSettings { [weak self] settings in
             guard let self else { return }
@@ -58,14 +44,14 @@ final class NotificationManager {
                     NSApp.activate(ignoringOtherApps: true)
                     self.center.requestAuthorization(options: [.alert, .sound]) { granted, error in
                         if let error {
-                            print("[notifications] Authorization request failed: \(error.localizedDescription)")
+                            NSLog("[notifications] Authorization request failed: %@", error.localizedDescription)
                         } else if !granted {
-                            print("[notifications] User declined notification permission. Enable in System Settings > Notifications > Agent Server.")
+                            NSLog("[notifications] User declined notification permission. Enable in System Settings > Notifications > Agent Server.")
                         }
                     }
                 }
             case .denied:
-                print("[notifications] Permission denied. Enable in System Settings > Notifications > Agent Server.")
+                NSLog("[notifications] Permission denied. Enable in System Settings > Notifications > Agent Server.")
             case .authorized, .provisional, .ephemeral:
                 break
             @unknown default:
@@ -80,46 +66,51 @@ final class NotificationManager {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            // No-op refresh: the next post() will pick up whatever System
-            // Settings says. This observer is here so we can extend later
-            // (e.g. to update a Settings UI badge) without changing call sites.
             _ = self
         }
     }
 
     // MARK: Agent output (tier 2)
 
+    /// Successful run completion. Tier 2. Uses the success chime.
     func notifyRunCompleted(agentName: String, summary: String?) {
         let body = summary.flatMap { trimmed($0) } ?? "Run completed"
         post(
             title: agentName,
             body: body,
             category: .agentOutput,
+            chime: .success,
             identifier: "run-completed-\(UUID().uuidString)"
         )
     }
 
+    /// Run failed (non-timeout). Tier 2. Uses the failure chime.
     func notifyRunFailed(agentName: String, error: String?) {
         let body = error.flatMap { trimmed($0) } ?? "Run failed"
         post(
             title: "\(agentName) failed",
             body: body,
             category: .agentOutput,
+            chime: .failure,
             identifier: "run-failed-\(UUID().uuidString)"
+        )
+    }
+
+    /// Run hit the wall-clock timeout. Tier 2 (treated as agent output, same
+    /// gating as `notifyRunFailed`). Uses the failure chime.
+    func notifyRunTimedOut(agentName: String) {
+        post(
+            title: "\(agentName) timed out",
+            body: "The run exceeded its wall-clock timeout and was aborted.",
+            category: .agentOutput,
+            chime: .failure,
+            identifier: "run-timeout-\(UUID().uuidString)"
         )
     }
 
     // MARK: System events (tier 1)
 
-    func notifyRunTimedOut(agentName: String) {
-        post(
-            title: "\(agentName) timed out",
-            body: "The run exceeded its wall-clock timeout and was aborted.",
-            category: .systemEvent,
-            identifier: "run-timeout-\(UUID().uuidString)"
-        )
-    }
-
+    /// One or more MCP servers need re-authentication. Tier 1.
     func notifyMcpNeedsAuth(serverNames: [String]) {
         guard !serverNames.isEmpty else { return }
         let list = serverNames.joined(separator: ", ")
@@ -127,15 +118,18 @@ final class NotificationManager {
             title: "Reconnect required",
             body: "These MCP servers need re-auth in Claude Code: \(list)",
             category: .systemEvent,
+            chime: .info,
             identifier: "mcp-auth-\(UUID().uuidString)"
         )
     }
 
+    /// The agent server process restarted (detected via `/health` delta). Tier 1.
     func notifyServerRestarted() {
         post(
             title: "Agent Server restarted",
             body: "Previously running agents were released.",
             category: .systemEvent,
+            chime: .info,
             identifier: "server-restart-\(UUID().uuidString)"
         )
     }
@@ -146,6 +140,7 @@ final class NotificationManager {
         title: String,
         body: String,
         category: NotificationCategory,
+        chime: Chime,
         identifier: String
     ) {
         guard preferences.shouldPost(category) else { return }
@@ -153,9 +148,9 @@ final class NotificationManager {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
-        // Silent notification — we play the chime ourselves via AVAudioPlayer
-        // below. macOS `UNNotificationSound(named:)` is unreliable for custom
-        // sounds; this avoids fighting it.
+        // Silent banner — we play the chime ourselves via AVAudioPlayer so we
+        // can pick per-event sounds reliably. macOS's `UNNotificationSound`
+        // custom-sound path is unreliable on Sonoma+ (see prior commit).
         content.sound = nil
 
         let request = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
@@ -165,21 +160,58 @@ final class NotificationManager {
             }
         }
 
-        playChime()
+        // Respect the OS-level sound setting. If the user has disabled sound
+        // for Agent Server in System Settings > Notifications, we stay silent
+        // even though the banner still shows. This mirrors what `UNUserNotificationCenter`
+        // would do if we had set `content.sound`.
+        center.getNotificationSettings { [weak self] settings in
+            guard let self else { return }
+            guard Self.shouldDeliver(settings) else { return }
+            guard settings.soundSetting == .enabled else { return }
+            Task { @MainActor in
+                self.play(chime)
+            }
+        }
     }
 
-    /// Play the custom chime out-of-band from the notification banner. macOS
-    /// respects our app's notification sound setting automatically because the
-    /// `shouldPost(_:)` check above already gates us on the user's in-app
-    /// preference. We intentionally do NOT check
-    /// `UNUserNotificationCenter.current().getNotificationSettings().soundSetting`
-    /// — users can disable our tier-2 toggle if they want silence.
-    private func playChime() {
-        guard let player = chimePlayer else { return }
+    /// Whether the OS is willing to deliver notifications for us at all.
+    /// Covers the common authorized states; returns false for `.denied` and
+    /// any future enum case we don't explicitly recognize.
+    private static func shouldDeliver(_ settings: UNNotificationSettings) -> Bool {
+        switch settings.authorizationStatus {
+        case .authorized, .provisional, .ephemeral: return true
+        case .notDetermined, .denied: return false
+        @unknown default: return false
+        }
+    }
+
+    private func play(_ chime: Chime) {
+        guard let player = chimePlayers[chime] else { return }
         if player.isPlaying {
             player.currentTime = 0
         }
         player.play()
+    }
+
+    /// Prepare an `AVAudioPlayer` for each chime at init. The players are
+    /// kept alive for the app's lifetime and reused on every post. Pre-loading
+    /// avoids a first-play lag.
+    private static func makeChimePlayers() -> [Chime: AVAudioPlayer] {
+        var out: [Chime: AVAudioPlayer] = [:]
+        for chime in Chime.allCases {
+            guard let url = Bundle.main.url(forResource: chime.rawValue, withExtension: "aiff") else {
+                NSLog("[notifications] Bundled chime missing: %@.aiff", chime.rawValue)
+                continue
+            }
+            do {
+                let player = try AVAudioPlayer(contentsOf: url)
+                player.prepareToPlay()
+                out[chime] = player
+            } catch {
+                NSLog("[notifications] Could not prepare chime %@: %@", chime.rawValue, String(describing: error))
+            }
+        }
+        return out
     }
 
     private func trimmed(_ text: String) -> String? {
