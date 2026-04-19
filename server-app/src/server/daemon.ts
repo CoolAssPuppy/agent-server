@@ -224,7 +224,7 @@ export function startDaemon(config: ServerConfig): { stop: () => void } {
   }
   console.log('');
 
-  void replayPendingTerminals({ getApiKey: () => config.panelApiKey });
+  void replayPendingTerminals({ getApiKey: () => config.panelApiKey, panelUrl: config.panelUrl });
 
   void runDueAgents(config);
 

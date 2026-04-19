@@ -384,7 +384,24 @@ export type ReplayOptions = {
   fetchImpl?: typeof globalThis.fetch;
   /** Resolve the current panel API key. Required; replay is a no-op if it returns undefined. */
   getApiKey?: () => string | undefined;
+  /**
+   * Optional panel base URL. When provided, replay only posts to endpoints
+   * that share the same origin and match the expected run-status route.
+   */
+  panelUrl?: string;
 };
+
+function isValidReplayEndpoint(endpoint: string, panelUrl?: string): boolean {
+  if (!panelUrl) return true;
+  try {
+    const target = new URL(endpoint);
+    const panel = new URL(panelUrl);
+    if (target.origin !== panel.origin) return false;
+    return /^\/api\/runs\/[^/]+\/status$/.test(target.pathname);
+  } catch {
+    return false;
+  }
+}
 
 export async function replayPendingTerminals(
   options: ReplayOptions = {},
@@ -409,6 +426,12 @@ export async function replayPendingTerminals(
     try {
       const raw = await readFile(path, 'utf8');
       const entry = JSON.parse(raw) as LegacyPendingTerminal;
+      if (!isValidReplayEndpoint(entry.endpoint, options.panelUrl)) {
+        console.error(
+          `[telemetry] Refusing to replay ${entry.runId}: endpoint does not match configured panel origin/route`,
+        );
+        continue;
+      }
       // Prefer current config API key; fall back to legacy embedded key for
       // forward-migration of old files written before the security fix.
       const apiKey = getApiKey?.() ?? entry.apiKey;

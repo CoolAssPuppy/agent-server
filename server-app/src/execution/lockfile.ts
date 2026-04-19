@@ -1,9 +1,18 @@
 import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync, openSync, closeSync } from 'fs';
 import { join } from 'path';
+import { randomUUID } from 'crypto';
 
 function lockPath(lockDir: string, agentId: string): string {
   return join(lockDir, `${agentId}.lock`);
 }
+
+type LockData = {
+  pid: number;
+  instanceId?: string;
+  createdAt?: string;
+};
+
+const PROCESS_INSTANCE_ID = randomUUID();
 
 function isProcessAlive(pid: number): boolean {
   try {
@@ -14,11 +23,23 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
-function readLockPid(path: string): number | null {
+function readLockData(path: string): LockData | null {
   try {
     const content = readFileSync(path, 'utf-8').trim();
-    const pid = Number(content);
-    return Number.isFinite(pid) ? pid : null;
+    if (content.startsWith('{')) {
+      const parsed = JSON.parse(content) as Partial<LockData>;
+      if (typeof parsed.pid === 'number' && Number.isFinite(parsed.pid)) {
+        return {
+          pid: parsed.pid,
+          instanceId: typeof parsed.instanceId === 'string' ? parsed.instanceId : undefined,
+          createdAt: typeof parsed.createdAt === 'string' ? parsed.createdAt : undefined,
+        };
+      }
+      return null;
+    }
+    // Backwards-compatible parse for legacy lock files that only contained a pid.
+    const legacyPid = Number(content);
+    return Number.isFinite(legacyPid) ? { pid: legacyPid } : null;
   } catch {
     return null;
   }
@@ -28,38 +49,58 @@ export function acquireLock(lockDir: string, agentId: string): boolean {
   mkdirSync(lockDir, { recursive: true });
   const path = lockPath(lockDir, agentId);
 
-  if (existsSync(path)) {
-    const pid = readLockPid(path);
-    if (pid !== null && isProcessAlive(pid)) {
-      return false;
+  // Retry a few times because another process may clean up a stale lock at
+  // exactly the same time we do.
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    // Exclusive create ('wx'): fails if another process beats us to the file.
+    // This also refuses to follow a pre-existing symlink, closing the
+    // symlink-attack vector where the lockDir is writeable by an attacker.
+    try {
+      const fd = openSync(path, 'wx');
+      try {
+        const payload: LockData = {
+          pid: process.pid,
+          instanceId: PROCESS_INSTANCE_ID,
+          createdAt: new Date().toISOString(),
+        };
+        writeFileSync(fd, JSON.stringify(payload), 'utf-8');
+      } finally {
+        closeSync(fd);
+      }
+      return true;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code !== 'EEXIST') throw err;
+
+      const lockData = readLockData(path);
+      if (lockData !== null && isProcessAlive(lockData.pid)) {
+        return false;
+      }
+
+      // Stale or unreadable lock — try removing it, then loop and retry.
+      try {
+        unlinkSync(path);
+      } catch (unlinkErr) {
+        const unlinkCode = (unlinkErr as NodeJS.ErrnoException).code;
+        if (unlinkCode !== 'ENOENT') {
+          return false;
+        }
+      }
     }
-    // Stale lock — remove before attempting exclusive create below.
-    try { unlinkSync(path); } catch { /* already gone */ }
   }
 
-  // Exclusive create ('wx'): fails if another process beats us to the file.
-  // This also refuses to follow a pre-existing symlink, closing the
-  // symlink-attack vector where the lockDir is writeable by an attacker.
-  try {
-    const fd = openSync(path, 'wx');
-    try {
-      writeFileSync(fd, String(process.pid), 'utf-8');
-    } finally {
-      closeSync(fd);
-    }
-    return true;
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code;
-    if (code === 'EEXIST') {
-      // Lost the race against another acquirer.
-      return false;
-    }
-    throw err;
-  }
+  return false;
 }
 
 export function releaseLock(lockDir: string, agentId: string): void {
   const path = lockPath(lockDir, agentId);
+  const lockData = readLockData(path);
+  if (lockData && lockData.pid === process.pid && lockData.instanceId && lockData.instanceId !== PROCESS_INSTANCE_ID) {
+    console.warn(
+      `[lockfile] releaseLock(${agentId}) skipped; lock belongs to a different process instance (pid=${lockData.pid})`,
+    );
+    return;
+  }
   try {
     unlinkSync(path);
   } catch (err) {
@@ -77,8 +118,8 @@ export function isLocked(lockDir: string, agentId: string): boolean {
   const path = lockPath(lockDir, agentId);
   if (!existsSync(path)) return false;
 
-  const pid = readLockPid(path);
-  if (pid === null || !isProcessAlive(pid)) {
+  const lockData = readLockData(path);
+  if (lockData === null || !isProcessAlive(lockData.pid)) {
     try { unlinkSync(path); } catch { /* already gone */ }
     return false;
   }
