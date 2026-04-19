@@ -303,15 +303,15 @@ final class StatusMonitor: ObservableObject {
                   let event = try? JSONDecoder().decode(ProgressEvent.self, from: data) else { return }
 
             switch event.type {
-            case "run_started":
+            case .runStarted:
                 poll()
-            case "run_completed":
+            case .runCompleted:
                 notificationManager?.notifyRunCompleted(
                     agentName: agentName(for: event.agentId),
                     summary: event.summary
                 )
                 poll()
-            case "run_failed":
+            case .runFailed:
                 if event.code == "run_timeout" {
                     notificationManager?.notifyRunTimedOut(
                         agentName: agentName(for: event.agentId)
@@ -323,12 +323,12 @@ final class StatusMonitor: ObservableObject {
                     )
                 }
                 poll()
-            case "mcp_status":
+            case .mcpStatus:
                 let needsAuth = event.mcpNeedsAuthServers ?? []
                 if !needsAuth.isEmpty {
                     notificationManager?.notifyMcpNeedsAuth(serverNames: needsAuth)
                 }
-            default:
+            case .runProgress, .unknown:
                 break
             }
         case .data:
@@ -354,8 +354,22 @@ final class StatusMonitor: ObservableObject {
     }
 }
 
+enum ProgressEventType: String, Decodable {
+    case runStarted = "run_started"
+    case runProgress = "run_progress"
+    case runCompleted = "run_completed"
+    case runFailed = "run_failed"
+    case mcpStatus = "mcp_status"
+    case unknown
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = ProgressEventType(rawValue: raw) ?? .unknown
+    }
+}
+
 struct ProgressEvent: Decodable {
-    let type: String
+    let type: ProgressEventType
     let runId: String
     let agentId: String
     let timestamp: String

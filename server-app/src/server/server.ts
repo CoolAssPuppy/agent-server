@@ -11,6 +11,7 @@ import { RunStore } from '../reporting/store.js';
 import { runAgent } from '../execution/runner.js';
 import { executeAgent } from '../plugins/claude-code.js';
 import { ExecutorRegistry } from '../execution/executor-registry.js';
+import type { McpServerInfo } from '../execution/executor.js';
 import { createReporter } from '../reporting/reporter-factory.js';
 import { createPanelClient } from '../reporting/panel-client.js';
 import { seedRunStoreFromPanel } from './seed-run-store.js';
@@ -54,26 +55,13 @@ const SHUTDOWN_PER_RUN_TIMEOUT_MS = 3_000;
 const DEFAULT_INTERACTION_TIMEOUT_MS = 30 * 60 * 1000;
 const DEFAULT_CONVERSATION_TTL_MS = 30 * 60 * 1000;
 
-/**
- * Extracts `needs-auth` MCP server names from a progress metadata blob.
- * The Claude Code executor publishes the full server list in
- * `metadata.mcp_servers` whenever it has fresh status. Returning a
- * non-empty list is the signal for the WebSocket broadcaster to emit a
- * dedicated `mcp_status` event so clients can surface a re-auth prompt.
- */
 function extractMcpNeedsAuthServers(meta: Record<string, unknown> | undefined): string[] {
   if (!meta) return [];
   const servers = meta.mcp_servers;
   if (!Array.isArray(servers)) return [];
-  const out: string[] = [];
-  for (const s of servers) {
-    if (typeof s !== 'object' || s === null) continue;
-    const record = s as Record<string, unknown>;
-    if (record.status === 'needs-auth' && typeof record.name === 'string') {
-      out.push(record.name);
-    }
-  }
-  return out;
+  return (servers as McpServerInfo[])
+    .filter((s) => s && typeof s === 'object' && s.status === 'needs-auth' && typeof s.name === 'string')
+    .map((s) => s.name);
 }
 
 /**
@@ -359,6 +347,12 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       lockDir: config.lockDir,
       buildDecisionContext,
       execute: async (a, reporter) => {
+        // The Claude Code executor publishes mcp_servers on most progress
+        // events. Without dedup, every turn would re-broadcast the same
+        // needs-auth list, firing a duplicate mcp_status notification on
+        // every tick until the user re-authenticates. Track the last-sent
+        // set per run and only broadcast on change.
+        let lastNeedsAuthKey: string | null = null;
         const wrappedReporter: Reporter = {
           start: () => reporter.start(),
           progress: (msg, meta) => {
@@ -384,13 +378,17 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
 
             const mcpNeedsAuth = extractMcpNeedsAuthServers(meta);
             if (mcpNeedsAuth.length > 0) {
-              broadcaster.emit(sanitizeProgressEvent({
-                type: 'mcp_status',
-                runId,
-                agentId: agent.id,
-                mcp_needs_auth_servers: mcpNeedsAuth,
-                timestamp: new Date().toISOString(),
-              }));
+              const key = [...mcpNeedsAuth].sort().join('|');
+              if (key !== lastNeedsAuthKey) {
+                lastNeedsAuthKey = key;
+                broadcaster.emit(sanitizeProgressEvent({
+                  type: 'mcp_status',
+                  runId,
+                  agentId: agent.id,
+                  mcp_needs_auth_servers: mcpNeedsAuth,
+                  timestamp: new Date().toISOString(),
+                }));
+              }
             }
 
             return reporter.progress(msg, meta);
