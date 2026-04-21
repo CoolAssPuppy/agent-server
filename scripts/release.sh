@@ -8,7 +8,7 @@
 #   3. Archives + exports Developer ID .app
 #   4. Notarizes + staples the .app
 #   5. Builds DMG, notarizes + staples DMG, Sparkle-signs it
-#   6. Uploads DMG + appcast.xml to Supabase Storage
+#   6. Uploads DMG + appcast.xml to Cloudflare R2 (strategic-nerds-downloads)
 #   7. Verifies everything is live
 #
 # Prerequisites:
@@ -16,6 +16,8 @@
 #   - Sparkle sign_update at ~/bin/sparkle/sign_update
 #   - create-dmg installed (brew install create-dmg)
 #   - doppler CLI logged in with access to the agent-server/prd config
+#     (provides CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, R2_BUCKET_NAME, R2_PUBLIC_BASE_URL)
+#   - wrangler available (npm i -g wrangler) or npx on PATH
 #   - python3 on PATH (for appcast manipulation)
 #   - xcodegen on PATH
 #
@@ -23,7 +25,7 @@
 #   ./scripts/release.sh <version> "<release notes HTML>"
 #
 # Example:
-#   ./scripts/release.sh 1.0.3 "<li>Fixed launch-at-login bug.</li><li>New About window.</li>"
+#   ./scripts/release.sh 2.3.0 "<li>New feature.</li><li>Bug fixes.</li>"
 
 set -euo pipefail
 
@@ -39,13 +41,17 @@ NOTARY_PROFILE="agent-server"
 SPARKLE_SIGN_UPDATE="${SPARKLE_SIGN_UPDATE:-$HOME/bin/sparkle/sign_update}"
 SIGN_IDENTITY="Developer ID Application: Prashant Sridharan (955GSY56UT)"
 
-SUPABASE_URL="https://hlwjnusdotqtmtwrjidu.supabase.co"
-SUPABASE_BUCKET="downloads"
+APP_FOLDER="agent-server"
 DUB_SHORTLINK="https://coolasspuppy.com/agent-server-updates"
 
 DOPPLER_PROJECT="agent-server"
 DOPPLER_CONFIG="prd"
-DOPPLER_KEY_NAME="SB_AGENT_PANEL_SERVICE_ROLE_KEY"
+
+if command -v wrangler >/dev/null 2>&1; then
+  WRANGLER=(wrangler)
+else
+  WRANGLER=(npx --yes wrangler)
+fi
 
 #----------------------------------------------------------------------
 # Preflight
@@ -56,6 +62,11 @@ for tool in xcodebuild xcodegen create-dmg doppler python3 "$SPARKLE_SIGN_UPDATE
     exit 1
   fi
 done
+
+if ! "${WRANGLER[@]}" --version >/dev/null 2>&1; then
+  echo "Error: wrangler not available. Install with: npm i -g wrangler"
+  exit 1
+fi
 
 if ! xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
   echo "Error: notarytool profile '$NOTARY_PROFILE' not found or invalid."
@@ -149,39 +160,46 @@ if [ ! -f "$DMG" ] || [ ! -f "$SPARKLE_TXT" ]; then
 fi
 
 #----------------------------------------------------------------------
-# 7. Fetch Supabase service role key via Doppler
+# 7. Fetch Cloudflare R2 credentials from Doppler
 #----------------------------------------------------------------------
-echo "==> Fetching Supabase service role key from Doppler"
-SB_KEY=$(doppler secrets get "$DOPPLER_KEY_NAME" \
-  --project "$DOPPLER_PROJECT" \
-  --config "$DOPPLER_CONFIG" \
-  --plain 2>/dev/null || true)
-if [ -z "$SB_KEY" ]; then
-  echo "Error: could not fetch $DOPPLER_KEY_NAME from Doppler."
-  echo "Run 'doppler login' and confirm access to $DOPPLER_PROJECT/$DOPPLER_CONFIG."
+echo "==> Fetching Cloudflare R2 credentials from Doppler ($DOPPLER_PROJECT/$DOPPLER_CONFIG)"
+export CLOUDFLARE_API_TOKEN
+CLOUDFLARE_API_TOKEN=$(doppler secrets get CLOUDFLARE_API_TOKEN \
+  --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" --plain 2>/dev/null || true)
+export CLOUDFLARE_ACCOUNT_ID
+CLOUDFLARE_ACCOUNT_ID=$(doppler secrets get CLOUDFLARE_ACCOUNT_ID \
+  --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" --plain 2>/dev/null || true)
+R2_BUCKET=$(doppler secrets get R2_BUCKET_NAME \
+  --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" --plain 2>/dev/null || echo "strategic-nerds-downloads")
+R2_PUBLIC_BASE=$(doppler secrets get R2_PUBLIC_BASE_URL \
+  --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" --plain 2>/dev/null || echo "https://downloads.strategicnerds.com")
+
+if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+  echo "Error: missing CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID in Doppler $DOPPLER_PROJECT/$DOPPLER_CONFIG"
   exit 1
 fi
 
 #----------------------------------------------------------------------
-# 8. Upload DMG
+# 8. Upload DMG to R2
 #----------------------------------------------------------------------
 DMG_NAME="AgentServer-$VERSION.dmg"
-echo "==> Uploading $DMG_NAME to Supabase bucket '$SUPABASE_BUCKET'"
-HTTP_CODE=$(curl -sS -o /tmp/release-upload.out -w "%{http_code}" -X POST \
-  -H "Authorization: Bearer $SB_KEY" \
-  -H "apikey: $SB_KEY" \
-  -H "Content-Type: application/x-apple-diskimage" \
-  -H "x-upsert: true" \
-  --data-binary "@$DMG" \
-  "$SUPABASE_URL/storage/v1/object/$SUPABASE_BUCKET/$DMG_NAME")
-if [ "$HTTP_CODE" != "200" ]; then
-  echo "Error: DMG upload failed (HTTP $HTTP_CODE)"
-  cat /tmp/release-upload.out
-  exit 1
-fi
+R2_DMG_KEY="apps/$APP_FOLDER/$DMG_NAME"
+echo "==> Uploading $DMG_NAME to R2 ($R2_BUCKET/$R2_DMG_KEY)"
+"${WRANGLER[@]}" r2 object put "$R2_BUCKET/$R2_DMG_KEY" \
+  --file="$DMG" \
+  --content-type="application/x-apple-diskimage" \
+  --remote
+
+# Also upload as AgentServer-latest.dmg so the strategic-nerds site has a stable URL
+R2_LATEST_KEY="apps/$APP_FOLDER/AgentServer-latest.dmg"
+echo "==> Uploading latest.dmg alias to R2 ($R2_BUCKET/$R2_LATEST_KEY)"
+"${WRANGLER[@]}" r2 object put "$R2_BUCKET/$R2_LATEST_KEY" \
+  --file="$DMG" \
+  --content-type="application/x-apple-diskimage" \
+  --remote
 
 #----------------------------------------------------------------------
-# 9. Update appcast.xml and upload
+# 9. Update appcast.xml and upload to R2
 #----------------------------------------------------------------------
 APPCAST="$DIST/appcast.xml"
 echo "==> Prepending new <item> to appcast.xml"
@@ -189,7 +207,7 @@ echo "==> Prepending new <item> to appcast.xml"
 ED_SIG=$(grep -oE 'sparkle:edSignature="[^"]+"' "$SPARKLE_TXT" | sed -E 's/.*"([^"]+)"/\1/')
 LENGTH=$(grep -oE 'length="[^"]+"' "$SPARKLE_TXT" | sed -E 's/.*"([^"]+)"/\1/')
 PUB_DATE=$(LC_ALL=C date -u +"%a, %d %b %Y %H:%M:%S +0000")
-ENCLOSURE_URL="$SUPABASE_URL/storage/v1/object/public/$SUPABASE_BUCKET/$DMG_NAME"
+ENCLOSURE_URL="$R2_PUBLIC_BASE/apps/$APP_FOLDER/$DMG_NAME"
 
 python3 - <<PY
 import pathlib, re
@@ -223,27 +241,22 @@ xml = xml.replace(marker, marker + "\n" + new_item, 1)
 p.write_text(xml)
 PY
 
-echo "==> Uploading appcast.xml"
-HTTP_CODE=$(curl -sS -o /tmp/release-upload.out -w "%{http_code}" -X POST \
-  -H "Authorization: Bearer $SB_KEY" \
-  -H "apikey: $SB_KEY" \
-  -H "Content-Type: application/xml" \
-  -H "x-upsert: true" \
-  --data-binary "@$APPCAST" \
-  "$SUPABASE_URL/storage/v1/object/$SUPABASE_BUCKET/appcast.xml")
-if [ "$HTTP_CODE" != "200" ]; then
-  echo "Error: appcast upload failed (HTTP $HTTP_CODE)"
-  cat /tmp/release-upload.out
-  exit 1
-fi
+R2_APPCAST_KEY="apps/$APP_FOLDER/appcast.xml"
+echo "==> Uploading appcast.xml to R2 ($R2_BUCKET/$R2_APPCAST_KEY)"
+"${WRANGLER[@]}" r2 object put "$R2_BUCKET/$R2_APPCAST_KEY" \
+  --file="$APPCAST" \
+  --content-type="application/xml; charset=utf-8" \
+  --remote
 
 #----------------------------------------------------------------------
 # 10. Verify
 #----------------------------------------------------------------------
 echo ""
 echo "==> Verifying uploaded DMG"
-curl -sI "$SUPABASE_URL/storage/v1/object/public/$SUPABASE_BUCKET/$DMG_NAME" \
-  | grep -iE '^(HTTP|content-length)'
+curl -sI "$ENCLOSURE_URL" | grep -iE '^(HTTP|content-length)'
+echo ""
+echo "==> Verifying appcast at R2"
+curl -sI "$R2_PUBLIC_BASE/$R2_APPCAST_KEY" | grep -iE '^(HTTP|content-length)'
 echo ""
 echo "==> Verifying appcast via Dub shortlink"
 curl -sL "$DUB_SHORTLINK" | grep -E '<(title|sparkle:shortVersionString|enclosure)' | head -6
@@ -259,6 +272,7 @@ echo "  $APPCAST"
 echo ""
 echo "Live:"
 echo "  $ENCLOSURE_URL"
+echo "  $R2_PUBLIC_BASE/$R2_APPCAST_KEY"
 echo "  $DUB_SHORTLINK"
 echo ""
 echo "Don't forget to commit: project.yml + dist/appcast.xml"

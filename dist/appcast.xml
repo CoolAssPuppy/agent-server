@@ -2,7 +2,7 @@
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
   <channel>
     <title>Agent Server</title>
-    <link>https://hlwjnusdotqtmtwrjidu.supabase.co/storage/v1/object/public/downloads/appcast.xml</link>
+    <link>https://downloads.strategicnerds.com/apps/agent-server/appcast.xml</link>
     <description>Agent Server updates</description>
     <language>en</language>
     <item>
@@ -17,7 +17,7 @@
         </ul>
       ]]></description>
       <enclosure
-        url="https://hlwjnusdotqtmtwrjidu.supabase.co/storage/v1/object/public/downloads/AgentServer-2.2.0.dmg"
+        url="https://downloads.strategicnerds.com/apps/agent-server/AgentServer-2.2.0.dmg"
         sparkle:edSignature="+M27pB+6DJDQGJFqW3wGqx0W8VHucPUa1kt+h5NNZQxTPX2YeXOF+3BU/H6Rk1A+37qVTBH/nXahYgRVxbFtCA=="
         length="32327716"
         type="application/x-apple-diskimage" />
@@ -35,7 +35,7 @@
         </ul>
       ]]></description>
       <enclosure
-        url="https://hlwjnusdotqtmtwrjidu.supabase.co/storage/v1/object/public/downloads/AgentServer-2.1.2.dmg"
+        url="https://downloads.strategicnerds.com/apps/agent-server/AgentServer-2.1.2.dmg"
         sparkle:edSignature="q+8IX/UpRHmLhvUiUBoruFtf5bk5JkurzL6HA0GZtFO39SC+hVSzoHcd6kY7bnMEcU5Lsj/LPCmSlyPfPuBlAQ=="
         length="32097188"
         type="application/x-apple-diskimage" />
@@ -53,7 +53,7 @@
         </ul>
       ]]></description>
       <enclosure
-        url="https://hlwjnusdotqtmtwrjidu.supabase.co/storage/v1/object/public/downloads/AgentServer-2.1.1.dmg"
+        url="https://downloads.strategicnerds.com/apps/agent-server/AgentServer-2.1.1.dmg"
         sparkle:edSignature="WeLcfOmrcm0u5QPcbHPIR+JGXdhWyth+YLdrT7aMSDT7fK/ZtfC9iIvmJMuTMu42DGEHdwbc/RYHPzSAkNQUCg=="
         length="32099783"
         type="application/x-apple-diskimage" />
@@ -71,7 +71,7 @@
         </ul>
       ]]></description>
       <enclosure
-        url="https://hlwjnusdotqtmtwrjidu.supabase.co/storage/v1/object/public/downloads/AgentServer-2.1.0.dmg"
+        url="https://downloads.strategicnerds.com/apps/agent-server/AgentServer-2.1.0.dmg"
         sparkle:edSignature="b1Kg8LfjK5mgSPQViBNzbrtXvP4OoENe2EMTShRTgW2PeUYGqwaeMN7y5u24j7Y5C+/AJ0eifAffllWjLHy1CA=="
         length="32059731"
         type="application/x-apple-diskimage" />
@@ -89,7 +89,7 @@
         </ul>
       ]]></description>
       <enclosure
-        url="https://hlwjnusdotqtmtwrjidu.supabase.co/storage/v1/object/public/downloads/AgentServer-2.0.0.dmg"
+        url="https://downloads.strategicnerds.com/apps/agent-server/AgentServer-2.0.0.dmg"
         sparkle:edSignature="+iizeLt4N93g020JXPvKiv7/MwHcxKlWUDAODnuHo17VWPs16fkyQfCj1VDgctttXeTyp2KqGVOU2k4F24VpBA=="
         length="30883866"
         type="application/x-apple-diskimage" />
@@ -107,7 +107,7 @@
         </ul>
       ]]></description>
       <enclosure
-        url="https://hlwjnusdotqtmtwrjidu.supabase.co/storage/v1/object/public/downloads/AgentServer-1.0.4.dmg"
+        url="https://downloads.strategicnerds.com/apps/agent-server/AgentServer-1.0.4.dmg"
         sparkle:edSignature="J1UKSFRhb/5A2CG3tekacYTeU8ywL99UmcjSwKnAV+5U8T7xuJVNxnDCUUq+ZGeVUBvnjh4KPu/9yLIZVlEVAw=="
         length="30544773"
         type="application/x-apple-diskimage" />
@@ -125,7 +125,7 @@
         </ul>
       ]]></description>
       <enclosure
-        url="https://hlwjnusdotqtmtwrjidu.supabase.co/storage/v1/object/public/downloads/AgentServer-1.0.3.dmg"
+        url="https://downloads.strategicnerds.com/apps/agent-server/AgentServer-1.0.3.dmg"
         sparkle:edSignature="QmZOaVbTbf4OKwjTKd3POHtNTWUHBJdtElNQ7rOFyc6LCLKR52J3kLae4Jr2tMfOZwj9dhGWe65w9QDB/VHsBg=="
         length="30540135"
         type="application/x-apple-diskimage" />
@@ -145,7 +145,7 @@
         </ul>
       ]]></description>
       <enclosure
-        url="https://hlwjnusdotqtmtwrjidu.supabase.co/storage/v1/object/public/downloads/AgentServer-1.0.2.dmg"
+        url="https://downloads.strategicnerds.com/apps/agent-server/AgentServer-1.0.2.dmg"
         sparkle:edSignature="2QHmV4idylgDWhn2e45/XuaDG72brZDeKvC0PiYQU82ja3Xfu9Sg/G/CGeUpOgq+SuprVwudVYmHS+44F2Y+Bw=="
         length="30536778"
         type="application/x-apple-diskimage" />
@@ -163,7 +163,7 @@
         </ul>
       ]]></description>
       <enclosure
-        url="https://hlwjnusdotqtmtwrjidu.supabase.co/storage/v1/object/public/downloads/AgentServer-1.0.1.dmg"
+        url="https://downloads.strategicnerds.com/apps/agent-server/AgentServer-1.0.1.dmg"
         sparkle:edSignature="/UiJW6BpOr61RdURjxuakkgdmi7NhY4eDhmTXf9/rSwEC9Hf2qlvHvIBCcO1pUfluZna04F6i2IR15ZkPEywBg=="
         length="30509024"
         type="application/x-apple-diskimage" />

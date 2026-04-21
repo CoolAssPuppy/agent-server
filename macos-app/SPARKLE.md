@@ -2,12 +2,14 @@
 
 The macOS app ships with [Sparkle 2](https://sparkle-project.org) wired in. Users get "Check for Updates..." in the status-bar right-click menu and in Settings > Updates, plus daily automatic checks.
 
-Appcast and release zips are hosted in a **public Supabase Storage bucket** (`downloads` on project `hlwjnusdotqtmtwrjidu`). The appcast URL is fronted by a **Dub.co shortlink** at `https://coolasspuppy.com/agent-server-updates` so the feed location can be moved later without re-shipping the app. Enclosure (zip) URLs point directly at Supabase.
+Appcast and release DMGs are hosted in the **Cloudflare R2 `strategic-nerds-downloads` bucket** (shared with Mail Notifier and Meeting Notifier — each app has its own folder under `apps/`). The bucket is exposed publicly at `https://downloads.strategicnerds.com`. The appcast URL is fronted by a **Dub.co shortlink** at `https://coolasspuppy.com/agent-server-updates` so the feed location can be moved later without re-shipping the app. Enclosure (DMG) URLs point directly at R2.
 
 URLs:
 
 - **Feed (baked into the app)**: `https://coolasspuppy.com/agent-server-updates` (Dub shortlink)
-- **Appcast destination**: `https://hlwjnusdotqtmtwrjidu.supabase.co/storage/v1/object/public/downloads/appcast.xml`
+- **Appcast destination**: `https://downloads.strategicnerds.com/apps/agent-server/appcast.xml`
+- **DMG pattern**: `https://downloads.strategicnerds.com/apps/agent-server/AgentServer-<version>.dmg`
+- **Latest DMG (stable URL)**: `https://downloads.strategicnerds.com/apps/agent-server/AgentServer-latest.dmg` (overwritten on every release)
 
 Do steps 1 through 5 once. Then step 6 on every release.
 
@@ -42,38 +44,38 @@ It will:
 
 Copy the public key string that `generate_keys` printed. You'll paste it in step 3.
 
-## 2. Confirm the Supabase bucket
+## 2. Confirm the R2 bucket
 
-The `downloads` bucket on project `hlwjnusdotqtmtwrjidu` should already be public and have a file size limit large enough for a notarized `.app` zip (raise to at least 200 MB if it's still at the default 50 MB).
+The `strategic-nerds-downloads` R2 bucket is public via `downloads.strategicnerds.com`. Each app lives under `apps/<app-name>/`. No file size limit issues — R2 handles multi-GB objects fine.
 
 Public URL pattern:
 
 ```
-https://hlwjnusdotqtmtwrjidu.supabase.co/storage/v1/object/public/downloads/<filename>
+https://downloads.strategicnerds.com/apps/agent-server/<filename>
 ```
 
-If `appcast.xml` isn't already in the bucket, upload this placeholder via the Supabase dashboard (Storage > downloads > Upload file):
+The release script automatically uploads `dist/appcast.xml` to `apps/agent-server/appcast.xml` on every release. The bootstrap appcast (an empty channel) is checked into `dist/appcast.xml` and looks like:
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
   <channel>
     <title>Agent Server</title>
-    <link>https://hlwjnusdotqtmtwrjidu.supabase.co/storage/v1/object/public/downloads/appcast.xml</link>
+    <link>https://downloads.strategicnerds.com/apps/agent-server/appcast.xml</link>
     <description>Agent Server updates</description>
     <language>en</language>
   </channel>
 </rss>
 ```
 
-Verify by opening the URL in a browser — you should see the XML.
+After the first release, verify by opening `https://downloads.strategicnerds.com/apps/agent-server/appcast.xml` in a browser — you should see the XML with at least one `<item>`.
 
 ## 3. Confirm the Dub.co shortlink
 
 The shortlink is already created:
 
 - **Short URL**: `https://coolasspuppy.com/agent-server-updates`
-- **Destination URL**: `https://hlwjnusdotqtmtwrjidu.supabase.co/storage/v1/object/public/downloads/appcast.xml`
+- **Destination URL**: `https://downloads.strategicnerds.com/apps/agent-server/appcast.xml`
 
 In the Dub dashboard, verify:
 - Cloaking/frame is **OFF**. Sparkle needs a plain HTTP redirect, not an iframe wrapper.
@@ -85,9 +87,9 @@ Test the redirect:
 curl -sI "https://coolasspuppy.com/agent-server-updates" | grep -i '^location:'
 ```
 
-You should see a `location:` header pointing at the Supabase URL above. If you see a 200 response with HTML instead, cloaking is on — turn it off.
+You should see a `location:` header pointing at the R2 URL above. If you see a 200 response with HTML instead, cloaking is on — turn it off.
 
-**This shortlink slug is baked into every shipped copy of the app and cannot be changed.** You can repoint the destination URL later (e.g. move to R2, S3, GitHub Releases), but the slug is forever.
+**This shortlink slug is baked into every shipped copy of the app and cannot be changed.** You can repoint the destination URL later (the destination already moved from Supabase to R2 once), but the slug is forever.
 
 ## 4. Put the public key and feed URL in Info.plist
 
