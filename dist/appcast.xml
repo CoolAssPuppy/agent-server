@@ -6,6 +6,24 @@
     <description>Agent Server updates</description>
     <language>en</language>
     <item>
+      <title>Version 2.2.1</title>
+      <pubDate>Tue, 28 Apr 2026 23:18:27 +0000</pubDate>
+      <sparkle:version>16</sparkle:version>
+      <sparkle:shortVersionString>2.2.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Bug fixes to telemetry server.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://downloads.strategicnerds.com/apps/agent-server/AgentServer-2.2.1.dmg"
+        sparkle:edSignature="Jvm4o2ZVvEyo7mcN7+niKUIsW44NrDDiieE+biJfL+NiKf8ihtZkuiXCCakUbSzcednVCX5yaaE6WKjcTNfbCw=="
+        length="32346142"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
       <title>Version 2.2.0</title>
       <pubDate>Sun, 19 Apr 2026 18:20:31 +0000</pubDate>
       <sparkle:version>11</sparkle:version>
