@@ -41,6 +41,10 @@ type ReporterConfig = {
   apiKey: string;
   fetch?: typeof globalThis.fetch;
   heartbeatMs?: number;
+  progressMode?: 'live' | 'batched';
+  progressSampleMs?: number;
+  maxProgressEntries?: number;
+  includeProgressMetadata?: boolean;
   serverId?: string;
   conversationId?: string;
   /** Override the pending-terminals directory (tests only). */
@@ -48,6 +52,8 @@ type ReporterConfig = {
 };
 
 const DEFAULT_HEARTBEAT_MS = 30_000;
+const DEFAULT_PROGRESS_SAMPLE_MS = 5_000;
+const DEFAULT_MAX_PROGRESS_ENTRIES = 50;
 const TERMINAL_STATES: ReadonlySet<string> = new Set(['completed', 'failed', 'canceled', 'rejected']);
 const TERMINAL_RETRY_COUNT = 3;
 const TERMINAL_RETRY_BASE_MS = 500;
@@ -67,6 +73,10 @@ export class TelemetryReporter {
   private readonly config: Required<Omit<ReporterConfig, 'fetch' | 'heartbeatMs' | 'serverId' | 'conversationId' | 'pendingTerminalsDir'>> & {
     fetch: typeof globalThis.fetch;
     heartbeatMs: number;
+    progressMode: 'live' | 'batched';
+    progressSampleMs: number;
+    maxProgressEntries: number;
+    includeProgressMetadata: boolean;
     serverId?: string;
     conversationId?: string;
     pendingTerminalsDir?: string;
@@ -75,12 +85,20 @@ export class TelemetryReporter {
   private deferredRetryTimer: ReturnType<typeof setTimeout> | null = null;
   private terminalSent = false;
   private stopped = false;
+  private readonly progressEntries: Array<Record<string, unknown>> = [];
+  private progressEntriesDropped = 0;
+  private lastProgressSentAt = 0;
+  private throttledProgressCount = 0;
 
   constructor(config: ReporterConfig) {
     this.config = {
       ...config,
       fetch: config.fetch ?? globalThis.fetch,
       heartbeatMs: config.heartbeatMs ?? DEFAULT_HEARTBEAT_MS,
+      progressMode: config.progressMode ?? 'live',
+      progressSampleMs: config.progressSampleMs ?? DEFAULT_PROGRESS_SAMPLE_MS,
+      maxProgressEntries: config.maxProgressEntries ?? DEFAULT_MAX_PROGRESS_ENTRIES,
+      includeProgressMetadata: config.includeProgressMetadata ?? false,
     };
   }
 
@@ -90,7 +108,28 @@ export class TelemetryReporter {
   }
 
   async progress(message: string, metadata?: Record<string, unknown>): Promise<void> {
-    await this.send({ state: 'working', message, metadata });
+    this.recordProgress(message, metadata);
+    if (this.config.progressMode === 'batched') return;
+
+    const now = Date.now();
+    if (this.lastProgressSentAt > 0 && (now - this.lastProgressSentAt) < this.config.progressSampleMs) {
+      this.throttledProgressCount += 1;
+      return;
+    }
+    const throttled = this.throttledProgressCount;
+    this.throttledProgressCount = 0;
+    this.lastProgressSentAt = now;
+    const safeMessage = sanitizeText(message, 1_000);
+    await this.send({
+      state: 'working',
+      message: throttled > 0
+        ? `[batched ${throttled + 1} updates] ${safeMessage}`
+        : safeMessage,
+      metadata: {
+        ...(metadata ?? {}),
+        ...(throttled > 0 ? { batched_progress_updates: throttled } : {}),
+      },
+    });
   }
 
   async complete(executionResult: {
@@ -145,6 +184,9 @@ export class TelemetryReporter {
             files_read: executionResult.filesRead,
             files_written: executionResult.filesWritten,
             commands_run: executionResult.commandsRun,
+            ...(this.progressEntries.length > 0
+              ? { progress_updates: this.progressEntries, progress_updates_dropped: this.progressEntriesDropped }
+              : {}),
           },
         },
       });
@@ -343,6 +385,26 @@ export class TelemetryReporter {
     // (written when all retries exhaust) is the durable fallback.
     if (typeof timer.unref === 'function') timer.unref();
     this.deferredRetryTimer = timer;
+  }
+
+  private recordProgress(message: string, metadata?: Record<string, unknown>): void {
+    if (this.progressEntries.length >= this.config.maxProgressEntries) {
+      this.progressEntriesDropped += 1;
+      return;
+    }
+    const entry: Record<string, unknown> = {
+      timestamp: new Date().toISOString(),
+      message: sanitizeText(message, 280),
+    };
+    if (this.config.includeProgressMetadata && metadata) {
+      entry.metadata = metadata;
+    } else if (metadata) {
+      const compact: Record<string, unknown> = {};
+      if (typeof metadata.turns_completed === 'number') compact.turns_completed = metadata.turns_completed;
+      if (Array.isArray(metadata.tools_used)) compact.tools_used = metadata.tools_used;
+      if (Object.keys(compact).length > 0) entry.metadata = compact;
+    }
+    this.progressEntries.push(entry);
   }
 }
 

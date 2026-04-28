@@ -13,7 +13,12 @@ function createMockFetch() {
 // files into `~/.agent-server/pending-terminals/` on the developer's Mac.
 let testPendingDir = '';
 
-function makeReporter(overrides: { fetch?: typeof fetch; heartbeatMs?: number } = {}) {
+function makeReporter(overrides: {
+  fetch?: typeof fetch;
+  heartbeatMs?: number;
+  progressMode?: 'live' | 'batched';
+  progressSampleMs?: number;
+} = {}) {
   return new TelemetryReporter({
     runId: 'run-123',
     agentName: 'Test Agent',
@@ -21,6 +26,8 @@ function makeReporter(overrides: { fetch?: typeof fetch; heartbeatMs?: number } 
     apiKey: 'ap_live_test',
     fetch: overrides.fetch ?? createMockFetch(),
     heartbeatMs: overrides.heartbeatMs ?? 0,
+    progressMode: overrides.progressMode,
+    progressSampleMs: overrides.progressSampleMs,
     pendingTerminalsDir: testPendingDir,
   });
 }
@@ -129,6 +136,46 @@ describe('TelemetryReporter', () => {
     expect(body.state).toBe('working');
     expect(body.message).toBe('Processing items');
     expect(body.metadata?.turns_completed).toBe(5);
+  });
+
+  it('throttles high-frequency progress updates in live mode', async () => {
+    const mockFetch = createMockFetch();
+    const reporter = makeReporter({ fetch: mockFetch, progressSampleMs: 10_000 });
+
+    await reporter.start();
+    await reporter.progress('step 1');
+    await reporter.progress('step 2');
+    await reporter.progress('step 3');
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const body = JSON.parse(mockFetch.mock.calls[1][1].body) as StatusEvent;
+    expect(body.message).toBe('step 1');
+  });
+
+  it('batches progress updates into the terminal completed payload', async () => {
+    const mockFetch = createMockFetch();
+    const reporter = makeReporter({ fetch: mockFetch, progressMode: 'batched' });
+
+    await reporter.start();
+    await reporter.progress('step 1', { turns_completed: 1, tools_used: ['Read'] });
+    await reporter.progress('step 2', { turns_completed: 2, tools_used: ['Write'] });
+    await reporter.complete({
+      summary: 'done',
+      output: {},
+      usage: {},
+      turnCount: 2,
+      toolsUsed: ['Read', 'Write'],
+      filesRead: [],
+      filesWritten: [],
+      commandsRun: [],
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const body = JSON.parse(mockFetch.mock.calls[1][1].body) as StatusEvent;
+    const progressUpdates = (body.result?.output?.progress_updates ?? []) as Array<Record<string, unknown>>;
+    expect(progressUpdates).toHaveLength(2);
+    expect(progressUpdates[0].message).toBe('step 1');
+    expect((progressUpdates[0].metadata as Record<string, unknown>).turns_completed).toBe(1);
   });
 
   it('includes authorization header', async () => {
