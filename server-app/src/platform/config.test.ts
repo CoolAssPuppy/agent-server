@@ -12,6 +12,10 @@ describe('loadConfig', () => {
     expect(config.lockDir).toBe(join(homedir(), '.agent-server', 'locks'));
     expect(config.checkIntervalMs).toBe(60_000);
     expect(config.heartbeatMs).toBe(20_000);
+    expect(config.telemetryProgressMode).toBe('live');
+    expect(config.telemetryProgressSampleMs).toBe(5_000);
+    expect(config.telemetryProgressMaxEntries).toBe(50);
+    expect(config.telemetryProgressIncludeMetadata).toBe(false);
     expect(config.port).toBe(47821);
     expect(config.host).toBe('127.0.0.1');
     expect(config.panelUrl).toBeUndefined();
@@ -33,6 +37,10 @@ describe('loadConfig', () => {
       AGENT_SERVER_HOST: '0.0.0.0',
       AGENT_SERVER_MAX_CONCURRENT_RUNS: '3',
       AGENT_SERVER_MAX_WS_CLIENTS: '25',
+      AGENT_SERVER_TELEMETRY_PROGRESS_MODE: 'batched',
+      AGENT_SERVER_TELEMETRY_PROGRESS_SAMPLE_MS: '7000',
+      AGENT_SERVER_TELEMETRY_PROGRESS_MAX_ENTRIES: '20',
+      AGENT_SERVER_TELEMETRY_PROGRESS_INCLUDE_METADATA: 'true',
     });
     expect(config.agentsDir).toBe('/tmp/agents');
     expect(config.lockDir).toBe('/tmp/locks');
@@ -44,6 +52,10 @@ describe('loadConfig', () => {
     expect(config.host).toBe('0.0.0.0');
     expect(config.maxConcurrentRuns).toBe(3);
     expect(config.maxWebSocketClients).toBe(25);
+    expect(config.telemetryProgressMode).toBe('batched');
+    expect(config.telemetryProgressSampleMs).toBe(7000);
+    expect(config.telemetryProgressMaxEntries).toBe(20);
+    expect(config.telemetryProgressIncludeMetadata).toBe(true);
   });
 
   it('rejects short API keys', () => {

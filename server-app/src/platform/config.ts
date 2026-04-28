@@ -33,6 +33,10 @@ export const ServerConfigSchema = z.object({
   // dropped heartbeat (wifi roam, VPN reconnect) does not cause a false
   // stale-failure on the panel.
   heartbeatMs: z.number().int().positive().default(20_000),
+  telemetryProgressMode: z.enum(['live', 'batched']).default('live'),
+  telemetryProgressSampleMs: z.number().int().positive().default(5_000),
+  telemetryProgressMaxEntries: z.number().int().positive().default(50),
+  telemetryProgressIncludeMetadata: z.boolean().default(false),
   port: z.number().int().positive().default(47821),
   host: z.string().default('127.0.0.1'),
   telegramBotToken: z.string().optional(),
@@ -66,6 +70,16 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       : undefined,
     heartbeatMs: env.AGENT_SERVER_HEARTBEAT_MS
       ? Number(env.AGENT_SERVER_HEARTBEAT_MS)
+      : undefined,
+    telemetryProgressMode: env.AGENT_SERVER_TELEMETRY_PROGRESS_MODE || undefined,
+    telemetryProgressSampleMs: env.AGENT_SERVER_TELEMETRY_PROGRESS_SAMPLE_MS
+      ? Number(env.AGENT_SERVER_TELEMETRY_PROGRESS_SAMPLE_MS)
+      : undefined,
+    telemetryProgressMaxEntries: env.AGENT_SERVER_TELEMETRY_PROGRESS_MAX_ENTRIES
+      ? Number(env.AGENT_SERVER_TELEMETRY_PROGRESS_MAX_ENTRIES)
+      : undefined,
+    telemetryProgressIncludeMetadata: env.AGENT_SERVER_TELEMETRY_PROGRESS_INCLUDE_METADATA === 'true'
+      ? true
       : undefined,
     port: env.AGENT_SERVER_PORT
       ? Number(env.AGENT_SERVER_PORT)

@@ -32,6 +32,10 @@ export function createReporter(
     endpoint: `${config.panelUrl}/api/runs/${runId}/status`,
     apiKey: config.panelApiKey,
     heartbeatMs: config.heartbeatMs,
+    progressMode: config.telemetryProgressMode,
+    progressSampleMs: config.telemetryProgressSampleMs,
+    maxProgressEntries: config.telemetryProgressMaxEntries,
+    includeProgressMetadata: config.telemetryProgressIncludeMetadata,
     serverId: options.serverId,
     conversationId: options.conversationId,
   });

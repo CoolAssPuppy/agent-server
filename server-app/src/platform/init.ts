@@ -82,6 +82,11 @@ const ENV_SCAFFOLD = `# Agent Server environment configuration.
 # Agent Server works fine locally but run history lives only in memory.
 # AGENT_SERVER_PANEL_URL=https://www.agentpanel.dev
 # AGENT_SERVER_PANEL_API_KEY=ap_live_...
+# Telemetry tuning:
+# AGENT_SERVER_TELEMETRY_PROGRESS_MODE=live   # live | batched
+# AGENT_SERVER_TELEMETRY_PROGRESS_SAMPLE_MS=5000
+# AGENT_SERVER_TELEMETRY_PROGRESS_MAX_ENTRIES=50
+# AGENT_SERVER_TELEMETRY_PROGRESS_INCLUDE_METADATA=false
 
 # --- Telegram (optional) ---
 # Create a bot at https://t.me/BotFather to get a token. Enables:
