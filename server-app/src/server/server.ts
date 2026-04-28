@@ -445,7 +445,11 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
         void fireDownstreamTriggers(agent.id, 'completed');
         return result;
       },
-      createReporter: (rid, name, convId) => createReporter(config, rid, name, { serverId, conversationId: convId ?? conversationId }),
+      createReporter: (rid, name, convId) => createReporter(config, rid, name, {
+        serverId,
+        conversationId: convId ?? conversationId,
+        agentTelemetry: agent.telemetry,
+      }),
       promptSuffix,
       timeoutMs: resolveRunTimeoutMs(agent, config),
       abortController,

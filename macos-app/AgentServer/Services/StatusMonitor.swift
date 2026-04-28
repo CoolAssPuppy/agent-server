@@ -20,7 +20,11 @@ final class StatusMonitor: ObservableObject {
     private let client = AgentServerClient()
     private var panelClient: PanelClient?
     private var decisionsTimer: Timer?
-    private let decisionsPollInterval: TimeInterval = 10
+    // 60s. Was 10s, which burned ~34K Vercel Edge Requests/month at typical
+    // usage. The popover also refreshes on start() and after every resolve(),
+    // so the user never sees this gap when actively interacting — it only
+    // affects how fast a brand-new decision lights up the menu bar dot.
+    private let decisionsPollInterval: TimeInterval = 60
     private var timer: Timer?
     private let pollInterval: TimeInterval = 5
     private var webSocketTask: URLSessionWebSocketTask?

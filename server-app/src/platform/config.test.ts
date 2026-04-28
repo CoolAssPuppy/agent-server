@@ -11,7 +11,7 @@ describe('loadConfig', () => {
     expect(config.agentsDir).toBe(join(homedir(), '.agent-server', 'agents'));
     expect(config.lockDir).toBe(join(homedir(), '.agent-server', 'locks'));
     expect(config.checkIntervalMs).toBe(60_000);
-    expect(config.heartbeatMs).toBe(20_000);
+    expect(config.heartbeatMs).toBe(60_000);
     expect(config.telemetryProgressMode).toBe('live');
     expect(config.telemetryProgressSampleMs).toBe(5_000);
     expect(config.telemetryProgressMaxEntries).toBe(50);

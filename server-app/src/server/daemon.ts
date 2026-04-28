@@ -34,7 +34,10 @@ function runAgentWithConfig(config: ServerConfig, agent: AgentConfig, options: R
     agent,
     lockDir: config.lockDir,
     execute: (a, reporter) => registry.resolve(a)(a, reporter),
-    createReporter: (runId, agentName, convId) => createReporter(config, runId, agentName, { conversationId: convId }),
+    createReporter: (runId, agentName, convId) => createReporter(config, runId, agentName, {
+      conversationId: convId,
+      agentTelemetry: agent.telemetry,
+    }),
     promptSuffix: options.promptSuffix,
   });
 }
@@ -187,7 +190,10 @@ function createInvokeRun(config: ServerConfig): InvokeRun {
       lockDir: config.lockDir,
       execute: (a, reporter) => registry.resolve(a)(a, reporter),
       createReporter: (runId, agentName, convId) => {
-        const reporter = createReporter(config, runId, agentName, { conversationId: convId });
+        const reporter = createReporter(config, runId, agentName, {
+          conversationId: convId,
+          agentTelemetry: options.agent.telemetry,
+        });
         const wrapped: Reporter = {
           start: async () => {
             await options.onRunStart(runId);

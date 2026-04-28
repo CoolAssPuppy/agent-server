@@ -51,7 +51,7 @@ type ReporterConfig = {
   pendingTerminalsDir?: string;
 };
 
-const DEFAULT_HEARTBEAT_MS = 30_000;
+const DEFAULT_HEARTBEAT_MS = 60_000;
 const DEFAULT_PROGRESS_SAMPLE_MS = 5_000;
 const DEFAULT_MAX_PROGRESS_ENTRIES = 50;
 const TERMINAL_STATES: ReadonlySet<string> = new Set(['completed', 'failed', 'canceled', 'rejected']);

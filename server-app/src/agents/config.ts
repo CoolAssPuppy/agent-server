@@ -23,6 +23,20 @@ export const PermissionsSchema = z.object({
 
 export type Permissions = z.infer<typeof PermissionsSchema>;
 
+/**
+ * Per-agent telemetry overrides. Any field set here wins over the equivalent
+ * server config (env-var) value. Omitted fields fall through to the env-var
+ * default, then to the hard-coded default in `TelemetryReporter`.
+ */
+export const AgentTelemetrySchema = z.object({
+  progress_mode: z.enum(['live', 'batched']).optional(),
+  progress_sample_ms: z.number().int().positive().optional(),
+  progress_max_entries: z.number().int().positive().optional(),
+  progress_include_metadata: z.boolean().optional(),
+});
+
+export type AgentTelemetry = z.infer<typeof AgentTelemetrySchema>;
+
 const McpStdioServerSchema = z.object({
   type: z.literal('stdio').optional(),
   command: z.string().min(1),
@@ -87,6 +101,7 @@ export const AgentConfigSchema = z
     interaction: InteractionConfigSchema.optional(),
     notification: NotificationConfigSchema.optional(),
     conversation: ConversationConfigSchema.optional(),
+    telemetry: AgentTelemetrySchema.optional(),
   })
   .passthrough();
 

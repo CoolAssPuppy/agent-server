@@ -31,7 +31,12 @@ export type AgentServerEvent =
 
 const DEFAULT_INITIAL_BACKOFF_MS = 1_000;
 const DEFAULT_MAX_BACKOFF_MS = 30_000;
-const DEFAULT_IDLE_TIMEOUT_MS = 45_000;
+// 5 minutes. Long enough to keep idle reconnects out of the panel's request
+// budget (45s reconnects burn ~57K requests/month per server) without losing
+// our ability to detect a silently-dead connection within a single human
+// attention span. Real run failures are still caught independently by the
+// panel's stale-runs sweep.
+const DEFAULT_IDLE_TIMEOUT_MS = 300_000;
 
 export type SseClientOptions = {
   panelUrl: string;

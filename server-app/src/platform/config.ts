@@ -29,10 +29,10 @@ export const ServerConfigSchema = z.object({
   panelUrl: z.string().url().optional(),
   panelApiKey: z.string().optional(),
   checkIntervalMs: z.number().int().positive().default(60_000),
-  // Panel-side stale threshold is 90s. 20s gives ~4.5x buffer so a single
+  // Panel-side stale threshold is 90s. 60s gives a 1.5x buffer so a single
   // dropped heartbeat (wifi roam, VPN reconnect) does not cause a false
-  // stale-failure on the panel.
-  heartbeatMs: z.number().int().positive().default(20_000),
+  // stale-failure on the panel, while keeping panel chatter low.
+  heartbeatMs: z.number().int().positive().default(60_000),
   telemetryProgressMode: z.enum(['live', 'batched']).default('live'),
   telemetryProgressSampleMs: z.number().int().positive().default(5_000),
   telemetryProgressMaxEntries: z.number().int().positive().default(50),

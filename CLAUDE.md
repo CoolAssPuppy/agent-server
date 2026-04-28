@@ -426,15 +426,37 @@ The CLI loads `~/.agent-server/.env` at startup. Shell env vars and Doppler (`do
 | AGENT_SERVER_CHECK_INTERVAL_MS | 60000 | Daemon check interval |
 | AGENT_SERVER_PANEL_URL | (none) | Agent Panel URL for telemetry |
 | AGENT_SERVER_PANEL_API_KEY | (none) | API key for Agent Panel |
-| AGENT_SERVER_HEARTBEAT_MS | 30000 | Heartbeat interval |
+| AGENT_SERVER_HEARTBEAT_MS | 60000 | Heartbeat interval (ms). Panel marks runs stale after 90s, so 60s gives a 1.5x safety buffer against single dropped heartbeats. |
 | AGENT_SERVER_PORT | 47821 | HTTP API port |
 | AGENT_SERVER_TELEGRAM_BOT_TOKEN | (none) | Telegram bot token for interactive agents |
 | AGENT_SERVER_CATCH_UP | false | Resume missed scheduled agents after sleep/wake |
 | AGENT_SERVER_RUN_TIMEOUT_MS | 1800000 | Wall-clock ceiling per run (ms). Agents can override via `timeout` field. Set `0` to disable. |
+| AGENT_SERVER_TELEMETRY_PROGRESS_MODE | live | Panel progress reporting mode. `live` throttles updates to one per sample window; `batched` defers all updates to the terminal payload. |
+| AGENT_SERVER_TELEMETRY_PROGRESS_SAMPLE_MS | 5000 | Minimum interval between live progress posts. Batched updates within the window are surfaced on the next non-throttled post. |
+| AGENT_SERVER_TELEMETRY_PROGRESS_MAX_ENTRIES | 50 | Hard cap on accumulated progress entries per run. Excess updates increment `progress_updates_dropped`. |
+| AGENT_SERVER_TELEMETRY_PROGRESS_INCLUDE_METADATA | false | When `true`, full metadata is recorded on every progress entry. Default keeps only `turns_completed` and `tools_used` to shrink payload. |
 
 ## Testing
 
 TDD is mandatory. Tests are colocated with source files (`*.test.ts`). Use factory functions for test data, never `let`/`beforeEach` mutation.
+
+### Panel telemetry batching
+
+Three knobs control how chatty the panel telemetry is, with a strict precedence: **agent YAML > server env > defaults**.
+
+1. **macOS settings drawer** -- the "Panel telemetry" card writes the four `AGENT_SERVER_TELEMETRY_PROGRESS_*` keys into `~/.agent-server/.env`.
+2. **`.env` / shell env** -- the server reads these on launch.
+3. **Per-agent `telemetry` block** in YAML -- wins field-by-field over the env. Unset fields fall through to env, then defaults.
+
+```yaml
+telemetry:
+  progress_mode: batched          # live | batched
+  progress_sample_ms: 10000       # minimum gap between live posts (ms)
+  progress_max_entries: 20        # cap accumulated entries
+  progress_include_metadata: true # store full metadata on every entry
+```
+
+Validated by `AgentTelemetrySchema` in `agents/config.ts` and resolved in `reporting/reporter-factory.ts`. The settings drawer changes take effect after the next server restart.
 
 ### Notifications
 

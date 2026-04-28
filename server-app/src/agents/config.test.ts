@@ -160,6 +160,48 @@ describe('AgentConfigSchema', () => {
     expect(result.notification?.on_failure).toBe(true);
   });
 
+  it('accepts config with telemetry block', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'chatty',
+      name: 'Chatty Agent',
+      prompt: 'Lots of progress updates.',
+      telemetry: {
+        progress_mode: 'batched',
+        progress_sample_ms: 10_000,
+        progress_max_entries: 20,
+        progress_include_metadata: true,
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.telemetry?.progress_mode).toBe('batched');
+      expect(result.data.telemetry?.progress_sample_ms).toBe(10_000);
+      expect(result.data.telemetry?.progress_max_entries).toBe(20);
+      expect(result.data.telemetry?.progress_include_metadata).toBe(true);
+    }
+  });
+
+  it('accepts a partial telemetry block', () => {
+    const result = AgentConfigSchema.parse({
+      id: 'partial',
+      name: 'Partial Telemetry',
+      prompt: 'Only set the mode.',
+      telemetry: { progress_mode: 'live' },
+    });
+    expect(result.telemetry?.progress_mode).toBe('live');
+    expect(result.telemetry?.progress_sample_ms).toBeUndefined();
+  });
+
+  it('rejects invalid telemetry mode', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'bad',
+      name: 'Bad Telemetry',
+      prompt: 'Wrong mode.',
+      telemetry: { progress_mode: 'streamed' },
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('accepts config with permissions block', () => {
     const result = AgentConfigSchema.safeParse({
       id: 'restricted',

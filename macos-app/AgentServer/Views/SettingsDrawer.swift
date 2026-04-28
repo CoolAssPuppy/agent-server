@@ -34,7 +34,14 @@ struct SettingsDrawer: View {
     @State private var notificationsAuthorizationDenied: Bool = false
     @ObservedObject private var notificationPreferences = NotificationPreferences.shared
 
-    static let height: CGFloat = 500
+    // MARK: - Telemetry state
+
+    @State private var telemetryMode: TelemetryMode = .live
+    @State private var telemetrySampleSeconds: Int = 5
+    @State private var telemetryMaxEntries: Int = 50
+    @State private var telemetryIncludeMetadata: Bool = false
+
+    static let height: CGFloat = 640
     static let slideDuration: Double = 0.26
 
     private static let envPath: URL = {
@@ -99,8 +106,8 @@ struct SettingsDrawer: View {
         .padding(.horizontal, NSpacing.xxl)
         // Reserve space for the transparent titlebar's traffic lights.
         // The drawer covers the titlebar area, so the Settings title and
-        // ✕ close need to sit below the traffic light row.
-        .padding(.top, 40)
+        // ✕ close sit just below the traffic light row.
+        .padding(.top, 28)
         .padding(.bottom, NSpacing.md)
     }
 
@@ -110,7 +117,10 @@ struct SettingsDrawer: View {
                 generalCard
                 notificationsCard
             }
-            panelConnectionsCard
+            VStack(spacing: NSpacing.lg) {
+                panelConnectionsCard
+                telemetryCard
+            }
             VStack(spacing: NSpacing.lg) {
                 updatesCard
                 contactCard
@@ -209,7 +219,11 @@ struct SettingsDrawer: View {
                             }
                         }
                     }
-                    .frame(maxHeight: 200)
+                    // Minimum height keeps a stable 3-row footprint visible
+                    // even when the user has only a couple of env vars set,
+                    // so the card doesn't collapse to a thin strip and the
+                    // +/- toolbar always has the same visual anchor.
+                    .frame(minHeight: 110, maxHeight: 240)
                 }
                 .background(
                     RoundedRectangle(cornerRadius: NRadius.sm)
@@ -461,6 +475,53 @@ struct SettingsDrawer: View {
         }
     }
 
+    /// Panel telemetry batching controls. Persists into `~/.agent-server/.env`
+    /// as the four `AGENT_SERVER_TELEMETRY_PROGRESS_*` keys. Server reads
+    /// these on launch, so changes take effect after the next server restart.
+    /// Per-agent overrides in agent YAML always win over these values.
+    private var telemetryCard: some View {
+        SettingsCard(title: "Telemetry") {
+            settingsRow(label: "Progress mode") {
+                Picker("", selection: $telemetryMode) {
+                    Text("Live").tag(TelemetryMode.live)
+                    Text("Batched").tag(TelemetryMode.batched)
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(width: 140)
+                .onChange(of: telemetryMode) { _, _ in persistTelemetry() }
+            }
+
+            settingsRow(label: "Sample interval (s)") {
+                Stepper(value: $telemetrySampleSeconds, in: 1...600) {
+                    Text("\(telemetrySampleSeconds)")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(theme.tokens.foreground)
+                }
+                .controlSize(.mini)
+                .onChange(of: telemetrySampleSeconds) { _, _ in persistTelemetry() }
+            }
+
+            settingsRow(label: "Max progress entries") {
+                Stepper(value: $telemetryMaxEntries, in: 1...500) {
+                    Text("\(telemetryMaxEntries)")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(theme.tokens.foreground)
+                }
+                .controlSize(.mini)
+                .onChange(of: telemetryMaxEntries) { _, _ in persistTelemetry() }
+            }
+
+            settingsToggle("Include progress metadata", isOn: $telemetryIncludeMetadata)
+                .onChange(of: telemetryIncludeMetadata) { _, _ in persistTelemetry() }
+
+            Text("Per-agent telemetry blocks override these values. Restart the server to apply changes.")
+                .font(NTypography.captionSmall)
+                .foregroundStyle(theme.tokens.mutedForeground)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     private var updatesCard: some View {
         SettingsCard(title: "Updates") {
             settingsToggle("Automatically check for updates", isOn: $autoUpdates)
@@ -642,6 +703,50 @@ struct SettingsDrawer: View {
             saveError = "Could not load \(Self.envPath.lastPathComponent): \(error.localizedDescription)"
         }
         refreshValidation()
+        loadTelemetryFromPairs()
+    }
+
+    // MARK: - Telemetry persistence
+
+    private func loadTelemetryFromPairs() {
+        let lookup = Dictionary(uniqueKeysWithValues: pairs.map { ($0.key, $0.value) })
+        if let mode = lookup[TelemetryEnvKey.mode], let parsed = TelemetryMode(rawValue: mode) {
+            telemetryMode = parsed
+        }
+        if let sampleMs = lookup[TelemetryEnvKey.sampleMs], let parsed = Int(sampleMs), parsed > 0 {
+            telemetrySampleSeconds = max(1, parsed / 1000)
+        }
+        if let maxEntries = lookup[TelemetryEnvKey.maxEntries], let parsed = Int(maxEntries), parsed > 0 {
+            telemetryMaxEntries = parsed
+        }
+        if let include = lookup[TelemetryEnvKey.includeMetadata] {
+            telemetryIncludeMetadata = include == "true"
+        }
+    }
+
+    private func persistTelemetry() {
+        let updates: [(String, String)] = [
+            (TelemetryEnvKey.mode, telemetryMode.rawValue),
+            (TelemetryEnvKey.sampleMs, String(telemetrySampleSeconds * 1000)),
+            (TelemetryEnvKey.maxEntries, String(telemetryMaxEntries)),
+            (TelemetryEnvKey.includeMetadata, telemetryIncludeMetadata ? "true" : "false"),
+        ]
+        // Replace-or-append each key while preserving the order of all other
+        // pairs. EnvFileStore.save handles comment preservation downstream.
+        var byKey: [String: Int] = [:]
+        for (idx, pair) in pairs.enumerated() {
+            byKey[pair.key] = idx
+        }
+        for (key, value) in updates {
+            let updated = EnvPair(key: key, value: value, isSecret: false)
+            if let idx = byKey[key] {
+                pairs[idx] = updated
+            } else {
+                pairs.append(updated)
+                byKey[key] = pairs.count - 1
+            }
+        }
+        persistIfValid()
     }
 
     private func deleteRow(at index: Int) {
@@ -683,6 +788,9 @@ private struct SettingsCard<Content: View>: View {
     @Environment(\.nTheme) private var theme
 
     var body: some View {
+        // No trailing Spacer: cards size to their content. Without this,
+        // the bottom card in each column would stretch to fill whatever
+        // the tallest column (now the middle one with telemetry) is using.
         VStack(alignment: .leading, spacing: NSpacing.sm) {
             Text(title.uppercased())
                 .font(.system(size: 11, weight: .semibold))
@@ -691,7 +799,6 @@ private struct SettingsCard<Content: View>: View {
             VStack(alignment: .leading, spacing: NSpacing.xxs) {
                 content()
             }
-            Spacer(minLength: 0)
         }
         .padding(NSpacing.lg)
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -702,6 +809,20 @@ private struct SettingsCard<Content: View>: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
     }
+}
+
+// MARK: - Telemetry types
+
+enum TelemetryMode: String, Hashable {
+    case live
+    case batched
+}
+
+private enum TelemetryEnvKey {
+    static let mode = "AGENT_SERVER_TELEMETRY_PROGRESS_MODE"
+    static let sampleMs = "AGENT_SERVER_TELEMETRY_PROGRESS_SAMPLE_MS"
+    static let maxEntries = "AGENT_SERVER_TELEMETRY_PROGRESS_MAX_ENTRIES"
+    static let includeMetadata = "AGENT_SERVER_TELEMETRY_PROGRESS_INCLUDE_METADATA"
 }
 
 // MARK: - Bottom-only rounded rectangle
