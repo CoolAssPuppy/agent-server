@@ -65,21 +65,21 @@ targets:
           set -e
           export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
-          if ! command -v npm >/dev/null 2>&1; then
-            echo "error: npm not found on PATH; install Node.js before building"
+          if ! command -v pnpm >/dev/null 2>&1; then
+            echo "error: pnpm not found on PATH; install pnpm before building (brew install pnpm or corepack enable)"
             exit 1
           fi
 
-          SRC_DIR="${SRCROOT}/../server-app"
+          ROOT_DIR="${SRCROOT}/.."
           STAGING="${SRCROOT}/.build-cache/server-bundle"
           HASH_FILE="$STAGING/.installed-lock-hash"
 
-          if [ ! -f "$SRC_DIR/package-lock.json" ]; then
-            echo "error: server-app/package-lock.json missing; run npm install in server-app first"
+          if [ ! -f "$ROOT_DIR/pnpm-lock.yaml" ]; then
+            echo "error: pnpm-lock.yaml missing at $ROOT_DIR; run pnpm install at the agent-server root first"
             exit 1
           fi
 
-          CURRENT_HASH=$(shasum -a 256 "$SRC_DIR/package-lock.json" | awk '{print $1}')
+          CURRENT_HASH=$(shasum -a 256 "$ROOT_DIR/pnpm-lock.yaml" | awk '{print $1}')
           INSTALLED_HASH=""
           if [ -f "$HASH_FILE" ]; then
             INSTALLED_HASH=$(cat "$HASH_FILE")
@@ -90,14 +90,14 @@ targets:
             exit 0
           fi
 
-          echo "Staging production node_modules..."
-          mkdir -p "$STAGING"
-          cp -f "$SRC_DIR/package.json" "$STAGING/package.json"
-          cp -f "$SRC_DIR/package-lock.json" "$STAGING/package-lock.json"
-
-          cd "$STAGING"
-          rm -rf node_modules
-          npm ci --omit=dev --ignore-scripts --silent
+          echo "Staging production node_modules via pnpm deploy..."
+          rm -rf "$STAGING"
+          # pnpm deploy creates a self-contained, production-only copy
+          # of the target workspace package — includes package.json and
+          # a real (non-symlinked) node_modules tree, which is what the
+          # .app needs to bundle and code-sign.
+          cd "$ROOT_DIR"
+          pnpm --filter @agent-server/core deploy --prod --legacy "$STAGING"
 
           echo "$CURRENT_HASH" > "$HASH_FILE"
           echo "Staged production node_modules (lock hash $CURRENT_HASH)"

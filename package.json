@@ -3,16 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "description": "Lightweight orchestration server for AI agents",
-  "scripts": {
-    "dev": "npm run dev --prefix server-app",
-    "build": "npm run build --prefix server-app",
-    "start": "npm run start --prefix server-app",
-    "test": "npm test --prefix server-app",
-    "lint": "npm run lint --prefix server-app",
-    "type-check": "npm run type-check --prefix server-app"
-  },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.18",
+    "pnpm": ">=11",
+    "npm": "please-use-pnpm",
+    "yarn": "please-use-pnpm"
+  },
+  "packageManager": "pnpm@11.1.0+sha512.0c44e842e5686b2c061a81adda8b2258bd8818e9704b2cf2c63d56b931a7b2e910092e085027003b96ca3911ab56a07f6df5abaed2be9925034cdd686a535b14",
+  "scripts": {
+    "preinstall": "pnpm dlx only-allow pnpm",
+    "dev": "pnpm --filter @agent-server/core run dev",
+    "build": "pnpm --filter @agent-server/core run build",
+    "start": "pnpm --filter @agent-server/core run start",
+    "test": "pnpm --filter @agent-server/core run test",
+    "lint": "pnpm --filter @agent-server/core run lint",
+    "type-check": "pnpm --filter @agent-server/core run type-check"
   },
   "license": "MIT"
 }

@@ -1,0 +1,10 @@
+packages:
+  - 'server-app'
+
+allowBuilds:
+  # esbuild's postinstall fetches the platform-specific binary used by
+  # vitest and tsx.
+  esbuild: true
+  # @parcel/watcher's prebuilt binary keeps tsx --watch fast; falls
+  # back to polling without it.
+  '@parcel/watcher': true

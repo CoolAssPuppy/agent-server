@@ -50,7 +50,7 @@ DOPPLER_CONFIG="prd"
 if command -v wrangler >/dev/null 2>&1; then
   WRANGLER=(wrangler)
 else
-  WRANGLER=(npx --yes wrangler)
+  WRANGLER=(pnpm dlx wrangler)
 fi
 
 #----------------------------------------------------------------------
