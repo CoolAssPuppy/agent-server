@@ -42,8 +42,8 @@ This means agents inherit everything Claude Code provides: MCP server integratio
 
 ```bash
 cd server-app
-npm install
-npm run build
+pnpm install
+pnpm run build
 ```
 
 ### 2. Initialize the config directory
@@ -266,7 +266,7 @@ Trigger it with:
 
 ```bash
 cd server-app
-npx tsx src/cli.ts run dependency-audit
+pnpm exec tsx src/cli.ts run dependency-audit
 ```
 
 ### Example: agent chaining
@@ -543,16 +543,16 @@ All CLI commands run from the `server-app/` directory:
 
 ```bash
 cd server-app
-npx tsx src/cli.ts init                          # Create ~/.agent-server/ with sample agent
-npx tsx src/cli.ts start                         # Start server (HTTP API + scheduler)
-npx tsx src/cli.ts run <agentId>                 # Run an agent immediately
-npx tsx src/cli.ts run <agentId> --with "context" # Run with extra context appended to prompt
-npx tsx src/cli.ts list                          # List all discovered agents
-npx tsx src/cli.ts install                       # Install macOS LaunchAgent for auto-start
-npx tsx src/cli.ts uninstall                     # Remove macOS LaunchAgent
+pnpm exec tsx src/cli.ts init                          # Create ~/.agent-server/ with sample agent
+pnpm exec tsx src/cli.ts start                         # Start server (HTTP API + scheduler)
+pnpm exec tsx src/cli.ts run <agentId>                 # Run an agent immediately
+pnpm exec tsx src/cli.ts run <agentId> --with "context" # Run with extra context appended to prompt
+pnpm exec tsx src/cli.ts list                          # List all discovered agents
+pnpm exec tsx src/cli.ts install                       # Install macOS LaunchAgent for auto-start
+pnpm exec tsx src/cli.ts uninstall                     # Remove macOS LaunchAgent
 ```
 
-After building (`npm run build`), the CLI is also available as:
+After building (`pnpm run build`), the CLI is also available as:
 
 ```bash
 agent-server start
@@ -774,7 +774,7 @@ A native Swift app that lives in the menu bar for monitoring and controlling age
 - **Run and cancel agents**: Trigger any agent from the agent list with a single click. Cancel running agents via the API.
 - **Environment editor**: Edit `~/.agent-server/.env` with a key-value editor. Contextual icons for each variable type.
 - **Server settings**: View server status, agent count, launch-at-login toggle, sleep/wake catch-up toggle, and app version.
-- **Bundled server**: The compiled `server-app/dist/`, `package.json`, and production `node_modules/` are copied into `Contents/Resources/` at build time. The app launches the Node server immediately on first run — no npm install step, no network required, code signing stays valid because nothing is written inside the bundle post-signing.
+- **Bundled server**: The compiled `server-app/dist/`, `package.json`, and production `node_modules/` are copied into `Contents/Resources/` at build time. The app launches the Node server immediately on first run — no pnpm install step, no network required, code signing stays valid because nothing is written inside the bundle post-signing.
 
 ### Build
 
@@ -788,7 +788,7 @@ xcodebuild -project AgentServer.xcodeproj -scheme AgentServer build
 
 Or open `AgentServer.xcodeproj` in Xcode after running `xcodegen generate`.
 
-The first build runs `npm ci --omit=dev` in `macos-app/.build-cache/server-bundle/` to stage the production `node_modules/` that gets bundled into `Contents/Resources/`. Subsequent builds skip the install step when `server-app/package-lock.json` is unchanged (detected via a cached SHA-256 hash). `.build-cache/` is gitignored.
+The first build runs `pnpm install --frozen-lockfile --omit=dev` in `macos-app/.build-cache/server-bundle/` to stage the production `node_modules/` that gets bundled into `Contents/Resources/`. Subsequent builds skip the install step when `server-app/package-lock.json` is unchanged (detected via a cached SHA-256 hash). `.build-cache/` is gitignored.
 
 ### Architecture
 
@@ -869,9 +869,9 @@ Any change under `server-app/` must be compiled before building the app, because
 
 ```bash
 cd server-app
-npm run type-check
-npm test
-npm run build
+pnpm run type-check
+pnpm test
+pnpm run build
 ```
 
 #### 2. Archive the macOS app
@@ -1229,11 +1229,11 @@ All development commands run from `server-app/`:
 
 ```bash
 cd server-app
-npm install
-npm test              # 486 tests
-npm run type-check    # TypeScript strict mode
-npm run build         # Compile to dist/
-npm run dev           # Watch mode with tsx
+pnpm install
+pnpm test              # 486 tests
+pnpm run type-check    # TypeScript strict mode
+pnpm run build         # Compile to dist/
+pnpm run dev           # Watch mode with tsx
 ```
 
 Tests are colocated with source files (`*.test.ts`). The project uses TDD with factory functions for test data.
