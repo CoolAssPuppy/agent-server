@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { formatInteraction, resolveSelection } from './console.js';
 import type { InteractionRequest } from '../interaction/schema.js';
 

@@ -3,9 +3,6 @@ import {
   InteractionRequestSchema,
   InteractionConfigSchema,
   NotificationConfigSchema,
-  type InteractionRequest,
-  type InteractionConfig,
-  type NotificationConfig,
 } from './schema.js';
 
 describe('InteractionRequestSchema', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildRoutingPrompt, parseRoutingResponse, routeMessage, type RouteResult } from './router.js';
+import { buildRoutingPrompt, parseRoutingResponse, routeMessage } from './router.js';
 import type { AgentConfig } from '../agents/config.js';
 
 function makeAgent(overrides: Partial<AgentConfig> = {}): AgentConfig {

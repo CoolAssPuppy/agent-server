@@ -1,6 +1,7 @@
 import type { StoredRun } from '../reporting/store.js';
 import type { ProgressEvent } from './websocket.js';
 
+// eslint-disable-next-line no-control-regex -- intentionally strips control characters
 const CONTROL_CHAR_PATTERN = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g;
 const LONG_HORIZONTAL_SPACE_PATTERN = /[^\S\n]{2,}/g;
 const EXCESSIVE_NEWLINES_PATTERN = /\n{4,}/g;
