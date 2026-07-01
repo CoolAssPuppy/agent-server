@@ -108,19 +108,21 @@ The reporter includes `worker_id` (hostname-pid) in metadata on every event, all
 
 ### Panel client and ghost run cleanup
 
-`PanelClient` in `reporting/panel-client.ts` provides two methods for cleaning up orphaned ("ghost") runs in the panel:
+`PanelClient` in `reporting/panel-client.ts` cleans up orphaned ("ghost") runs in the panel:
 
 - `failOrphanedRuns(serverId?)` -- calls `POST {panelUrl}/api/runs/cleanup` to mark all `working` runs for a given worker as failed
-- `markStaleRuns()` -- calls `POST {panelUrl}/api/cron/stale-runs` to trigger the panel's stale run detection
 
 Use `createPanelClient(config)` to get a `PanelClient` or `null` (when panel is not configured).
 
-**Defense in depth**: Ghost runs are handled by five layers:
+**Defense in depth**: Ghost runs are handled by three layers:
 1. **Startup reconciliation**: Server calls `failOrphanedRuns(serverId)` on boot
-2. **Vercel cron**: Panel's `/api/cron/stale-runs` runs every minute
-3. **pg_cron**: Supabase `mark_stale_runs()` runs every 30s (if available)
-4. **Periodic sweep**: Server calls `markStaleRuns()` every 5 minutes
-5. **Manual**: `agent-server cleanup` CLI or macOS app "Clean up" action
+2. **pg_cron**: Supabase `mark_stale_runs()` runs every 30s (authoritative in prod)
+3. **Manual**: `agent-server cleanup` CLI or macOS app "Clean up" action
+
+> The daemon used to also POST `/api/cron/stale-runs` every 5 minutes as an
+> extra sweep, but that endpoint authenticates with a separate `CRON_SECRET`,
+> not the panel API key the daemon holds, so it never authenticated. pg_cron
+> covers this in production, so the redundant poke was removed.
 
 The local server exposes `POST /cleanup` for the macOS app to trigger cleanup without needing panel credentials directly.
 

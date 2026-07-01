@@ -118,8 +118,6 @@ export function validateNetworkExposure(host: string, apiKey?: string): void {
   }
 }
 
-const STALE_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
-
 export function shouldSendTelegramRunNotification(
   agent: AgentConfig,
   status: 'completed' | 'failed',
@@ -723,12 +721,6 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     }, config.checkIntervalMs);
   });
 
-  const staleSweepInterval = panelClient
-    ? setInterval(() => {
-        void panelClient.markStaleRuns();
-      }, STALE_SWEEP_INTERVAL_MS)
-    : null;
-
   async function setupFileWatchers(): Promise<FileWatcher | null> {
     const agents = await discoverAgents(config.agentsDir);
     const watchConfigs = extractWatchConfigs(agents);
@@ -921,7 +913,6 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     stop: async () => {
       if (interval) clearInterval(interval);
       clearInterval(expiryInterval);
-      if (staleSweepInterval) clearInterval(staleSweepInterval);
       if (pendingReplayInterval) clearInterval(pendingReplayInterval);
       scheduleSync?.stop();
       triggerHandler?.stop();
