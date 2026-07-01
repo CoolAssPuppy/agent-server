@@ -75,24 +75,6 @@ export class PanelClient {
     const body = await response.json() as { runs?: PanelRunRow[] };
     return Array.isArray(body.runs) ? body.runs : [];
   }
-
-  async markStaleRuns(): Promise<void> {
-    try {
-      const response = await this.fetchFn(`${this.panelUrl}/api/cron/stale-runs`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.panelApiKey}`,
-        },
-      });
-
-      if (!response.ok) {
-        console.error(`[panel-client] Stale runs check returned ${response.status}`);
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`[panel-client] Failed to mark stale runs: ${message}`);
-    }
-  }
 }
 
 export function createPanelClient(config: { panelUrl?: string; panelApiKey?: string }): PanelClient | null {

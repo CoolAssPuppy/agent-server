@@ -69,35 +69,6 @@ describe('PanelClient', () => {
     });
   });
 
-  describe('markStaleRuns', () => {
-    it('sends POST to stale-runs endpoint', async () => {
-      const mockFetch = createMockFetch({ ok: true, status: 200, body: { ok: true } });
-      const client = new PanelClient({
-        panelUrl: 'https://panel.example.com',
-        panelApiKey: 'test-key',
-        fetch: mockFetch,
-      });
-
-      await client.markStaleRuns();
-
-      expect(mockFetch).toHaveBeenCalledOnce();
-      const [url, options] = mockFetch.mock.calls[0];
-      expect(url).toBe('https://panel.example.com/api/cron/stale-runs');
-      expect(options.method).toBe('POST');
-      expect(options.headers['Authorization']).toBe('Bearer test-key');
-    });
-
-    it('does not throw when request fails', async () => {
-      const mockFetch = vi.fn().mockRejectedValue(new Error('Network error'));
-      const client = new PanelClient({
-        panelUrl: 'https://panel.example.com',
-        panelApiKey: 'test-key',
-        fetch: mockFetch,
-      });
-
-      await expect(client.markStaleRuns()).resolves.toBeUndefined();
-    });
-  });
 });
 
 describe('createPanelClient', () => {
