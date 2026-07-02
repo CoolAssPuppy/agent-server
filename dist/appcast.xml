@@ -6,6 +6,24 @@
     <description>Agent Server updates</description>
     <language>en</language>
     <item>
+      <title>Version 2.2.3</title>
+      <pubDate>Thu, 02 Jul 2026 07:11:22 +0000</pubDate>
+      <sparkle:version>19</sparkle:version>
+      <sparkle:shortVersionString>2.2.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Bug fixes</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-2.2.3.dmg"
+        sparkle:edSignature="iqWOHluheQB4b0blr6RYuvSAE5WlPJ2axicACnfBnEd7Hyj0r4xAvsDelNZCQtQsHo3UVNA7ph+xBql8pu8qAg=="
+        length="71136345"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
       <title>Version 2.2.2</title>
       <pubDate>Thu, 02 Jul 2026 04:54:32 +0000</pubDate>
       <sparkle:version>17</sparkle:version>
