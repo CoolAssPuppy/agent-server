@@ -92,12 +92,14 @@ targets:
 
           echo "Staging production node_modules via pnpm deploy..."
           rm -rf "$STAGING"
-          # pnpm deploy creates a self-contained, production-only copy
-          # of the target workspace package — includes package.json and
-          # a real (non-symlinked) node_modules tree, which is what the
-          # .app needs to bundle and code-sign.
+          # node-linker=hoisted produces a FLAT node_modules. pnpm's default
+          # isolated linker fills node_modules with .pnpm store symlinks, which
+          # make the signed .app invalid — Gatekeeper reports the app as
+          # "damaged". Then strip the .bin shims (the app runs `node dist/cli.js`
+          # directly and never uses them) so ZERO symlinks remain in the bundle.
           cd "$ROOT_DIR"
-          pnpm --filter @agent-server/core deploy --prod --legacy "$STAGING"
+          pnpm --filter @agent-server/core deploy --prod --legacy --config.node-linker=hoisted "$STAGING"
+          find "$STAGING/node_modules" -name ".bin" -type d -prune -exec rm -rf {} + 2>/dev/null || true
 
           echo "$CURRENT_HASH" > "$HASH_FILE"
           echo "Staged production node_modules (lock hash $CURRENT_HASH)"
