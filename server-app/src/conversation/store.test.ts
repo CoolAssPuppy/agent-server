@@ -41,7 +41,7 @@ describe('ConversationStore', () => {
 
     it('should not find expired conversations', () => {
       const store = makeStore();
-      const conv = store.create(123, 'restaurant-checker', -1);
+      store.create(123, 'restaurant-checker', -1);
 
       store.expireStale();
 

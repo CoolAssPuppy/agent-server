@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { writeFileSync, mkdirSync, rmSync } from 'fs';
+import { writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { createTempDir } from '../test-factories.js';
-import { FileWatcher, type FileWatchConfig } from './file-watcher.js';
+import { FileWatcher } from './file-watcher.js';
 
 describe('FileWatcher', () => {
   const dirs: string[] = [];

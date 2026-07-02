@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { ChannelDispatcher } from './dispatcher.js';
-import type { Channel, ChannelReply } from './channel.js';
+import type { Channel } from './channel.js';
 import type { InteractionRequest } from '../interaction/schema.js';
 import type { NotificationData } from '../interaction/notification.js';
 
