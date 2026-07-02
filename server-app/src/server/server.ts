@@ -17,7 +17,7 @@ import { createPanelClient } from '../reporting/panel-client.js';
 import { seedRunStoreFromPanel } from './seed-run-store.js';
 import { replayPendingTerminals } from '../reporting/reporter.js';
 import { ScheduleSync } from '../reporting/sync-schedule.js';
-import { SseClient } from '../reporting/sse-client.js';
+import { RealtimeClient } from '../reporting/realtime-client.js';
 import { TriggerHandler } from '../execution/trigger-handler.js';
 import type { DecisionContext } from '../execution/decision-handler.js';
 import { shouldRun, hasMissedRun } from '../agents/scheduler.js';
@@ -221,21 +221,26 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
         panelApiKey: config.panelApiKey!,
       })
     : undefined;
-  const sseClient = panelConfigured
-    ? new SseClient({
+  const realtimeConfigured = Boolean(
+    panelConfigured && config.supabaseUrl && config.supabasePublishableKey,
+  );
+  const realtimeClient = realtimeConfigured
+    ? new RealtimeClient({
         panelUrl: config.panelUrl!,
         panelApiKey: config.panelApiKey!,
+        supabaseUrl: config.supabaseUrl!,
+        supabasePublishableKey: config.supabasePublishableKey!,
         cursorPath: join(homedir(), '.agent-server', 'sse-cursor'),
       })
     : undefined;
 
   function buildDecisionContext(runId: string): DecisionContext | undefined {
-    if (!sseClient || !config.panelUrl || !config.panelApiKey) return undefined;
+    if (!realtimeClient || !config.panelUrl || !config.panelApiKey) return undefined;
     return {
       runId,
       panelUrl: config.panelUrl,
       panelApiKey: config.panelApiKey,
-      eventBus: sseClient.events,
+      eventBus: realtimeClient.events,
       conversationDir: join(homedir(), '.agent-server', 'runs'),
     };
   }
@@ -660,12 +665,12 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   // Bridge panel SSE run_trigger events into the local triggerRun path so
   // the concurrency cap, RunStore, and activeControllers bookkeeping stay
   // consistent with the scheduler-driven and HTTP-API-driven paths.
-  const triggerHandler = panelConfigured && sseClient
+  const triggerHandler = realtimeClient
     ? new TriggerHandler({
         agentsDir: config.agentsDir,
         panelUrl: config.panelUrl!,
         panelApiKey: config.panelApiKey!,
-        sseEvents: sseClient.events,
+        sseEvents: realtimeClient.events,
         invokeRun: async ({ agent, promptSuffix, onRunStart }) => {
           try {
             const runId = triggerRunForAgent(agent, { promptSuffix });
@@ -713,7 +718,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   void seedOrTimeout.then(() => {
     if (scheduleSync) void scheduleSync.start();
     if (triggerHandler) triggerHandler.start();
-    if (sseClient) void sseClient.start();
+    if (realtimeClient) void realtimeClient.start();
 
     void runDueAgents();
     interval = setInterval(() => {
@@ -916,7 +921,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       if (pendingReplayInterval) clearInterval(pendingReplayInterval);
       scheduleSync?.stop();
       triggerHandler?.stop();
-      sseClient?.stop();
+      realtimeClient?.stop();
       await drainActiveRuns();
       httpServer.close();
       void fileWatcherPromise.then((w) => w?.stop());

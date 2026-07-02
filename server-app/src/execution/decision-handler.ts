@@ -5,7 +5,7 @@ import type { DecisionInput } from '../interaction/schema.js';
 
 /**
  * Resolution payload shape shipped by the Panel over SSE when a decision is resolved.
- * Matches `DecisionResolvedEvent.resolution` in sse-client.ts.
+ * Matches `DecisionResolvedEvent.resolution` in realtime-client.ts.
  */
 export type DecisionResolutionPayload = {
   action_id: string;
@@ -21,10 +21,10 @@ type DecisionResolvedEvent = {
 };
 
 /**
- * Structural interface of the SSE event bus. Chunk 8's SseClient exposes
+ * Structural interface of the SSE event bus. The RealtimeClient exposes
  * `.events` which implements this (plus more). We inject this shape to
- * decouple from the concrete SseClient module so this code is testable and
- * does not depend on Chunk 8's module being present at unit-test time.
+ * decouple from the concrete RealtimeClient module so this code is testable and
+ * does not depend on the realtime-client module being present at unit-test time.
  */
 export interface SseEventBus extends EventEmitter {
   on(event: 'decision_resolved', listener: (e: DecisionResolvedEvent) => void): this;
