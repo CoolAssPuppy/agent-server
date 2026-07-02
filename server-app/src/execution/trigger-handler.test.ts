@@ -4,7 +4,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { EventEmitter } from 'events';
 import { TriggerHandler, type InvokeRun } from './trigger-handler.js';
-import type { RunTriggerEvent } from '../reporting/sse-client.js';
+import type { RunTriggerEvent } from '../reporting/realtime-client.js';
 
 type FetchCall = {
   url: string;

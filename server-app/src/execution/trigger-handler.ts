@@ -2,7 +2,7 @@ import type { EventEmitter } from 'events';
 import type { AgentConfig } from '../agents/config.js';
 import { discoverAgents } from '../agents/discovery.js';
 import type { RunResult } from './runner.js';
-import type { RunTriggerEvent } from '../reporting/sse-client.js';
+import type { RunTriggerEvent } from '../reporting/realtime-client.js';
 
 export type TriggerKind = 'manual';
 

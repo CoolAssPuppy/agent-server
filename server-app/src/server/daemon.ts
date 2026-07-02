@@ -9,7 +9,7 @@ import { ExecutorRegistry } from '../execution/executor-registry.js';
 import { createReporter } from '../reporting/reporter-factory.js';
 import { replayPendingTerminals } from '../reporting/reporter.js';
 import { ScheduleSync } from '../reporting/sync-schedule.js';
-import { SseClient } from '../reporting/sse-client.js';
+import { RealtimeClient } from '../reporting/realtime-client.js';
 import { TriggerHandler, type InvokeRun } from '../execution/trigger-handler.js';
 import { ConsoleChannel } from '../channels/console.js';
 import type { ChannelReply } from '../channels/channel.js';
@@ -248,20 +248,26 @@ export function startDaemon(config: ServerConfig): { stop: () => void } {
       })
     : undefined;
 
-  const sseClient = panelConfigured
-    ? new SseClient({
+  const realtimeConfigured = Boolean(
+    panelConfigured && config.supabaseUrl && config.supabasePublishableKey,
+  );
+
+  const realtimeClient = realtimeConfigured
+    ? new RealtimeClient({
         panelUrl: config.panelUrl!,
         panelApiKey: config.panelApiKey!,
+        supabaseUrl: config.supabaseUrl!,
+        supabasePublishableKey: config.supabasePublishableKey!,
         cursorPath: join(homedir(), '.agent-server', 'sse-cursor'),
       })
     : undefined;
 
-  const triggerHandler = panelConfigured && sseClient
+  const triggerHandler = realtimeClient
     ? new TriggerHandler({
         agentsDir: config.agentsDir,
         panelUrl: config.panelUrl!,
         panelApiKey: config.panelApiKey!,
-        sseEvents: sseClient.events,
+        sseEvents: realtimeClient.events,
         invokeRun: createInvokeRun(config),
       })
     : undefined;
@@ -274,8 +280,8 @@ export function startDaemon(config: ServerConfig): { stop: () => void } {
     triggerHandler.start();
   }
 
-  if (sseClient) {
-    void sseClient.start();
+  if (realtimeClient) {
+    void realtimeClient.start();
   }
 
   return {
@@ -283,7 +289,7 @@ export function startDaemon(config: ServerConfig): { stop: () => void } {
       clearInterval(interval);
       scheduleSync?.stop();
       triggerHandler?.stop();
-      sseClient?.stop();
+      realtimeClient?.stop();
       console.log('Agent Server stopped.');
     },
   };
