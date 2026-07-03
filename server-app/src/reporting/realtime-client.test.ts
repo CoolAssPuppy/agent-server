@@ -102,11 +102,21 @@ function createFakeSupabase(rows: Record<string, QueuedRow[]> = {}): FakeSupabas
   };
 }
 
-function tokenResponse(overrides: Partial<{ token: string; expires_at: number; org_id: string }> = {}): Response {
+function tokenResponse(
+  overrides: Partial<{
+    token: string;
+    expires_at: number;
+    org_id: string;
+    supabase_url: string;
+    supabase_publishable_key: string;
+  }> = {},
+): Response {
   const body = {
     token: 'jwt-token',
     expires_at: Date.now() + 30 * 60 * 1000,
     org_id: 'org-1',
+    supabase_url: 'https://db.test',
+    supabase_publishable_key: 'sb_publishable',
     ...overrides,
   };
   return new Response(JSON.stringify(body), { status: 200 });
@@ -149,8 +159,6 @@ describe('RealtimeClient', () => {
     return new RealtimeClient({
       panelUrl: 'https://panel.test',
       panelApiKey: 'ap_live_key',
-      supabaseUrl: 'https://db.test',
-      supabasePublishableKey: 'sb_publishable',
       cursorPath: opts.cursorPath ?? cursorPath(),
       fetch: fetchFn,
       createClient: (() => opts.supabase) as never,
@@ -179,6 +187,39 @@ describe('RealtimeClient', () => {
     expect(supabase.channels.map((c) => c.name)).toEqual([
       'agent-server-run-triggers-org-42',
       'agent-server-decisions-org-42',
+    ]);
+    client.stop();
+  });
+
+  it('builds the Supabase client from coordinates in the token response, not from config', async () => {
+    const supabase = createFakeSupabase();
+    const createArgs: Array<{ url: string; key: string }> = [];
+    const fetchFn = vi.fn(async () =>
+      tokenResponse({
+        supabase_url: 'https://project-from-token.supabase.co',
+        supabase_publishable_key: 'sb_publishable_from_token',
+      }),
+    );
+    // The daemon has NO supabase config of its own; createClient must receive
+    // exactly the URL + key the panel returned with the token.
+    const client = new RealtimeClient({
+      panelUrl: 'https://panel.test',
+      panelApiKey: 'ap_live_key',
+      cursorPath: cursorPath(),
+      fetch: fetchFn as unknown as typeof globalThis.fetch,
+      createClient: ((url: string, key: string) => {
+        createArgs.push({ url, key });
+        return supabase;
+      }) as never,
+      initialBackoffMs: 5,
+      maxBackoffMs: 20,
+    });
+
+    await client.start();
+    await flush();
+
+    expect(createArgs).toEqual([
+      { url: 'https://project-from-token.supabase.co', key: 'sb_publishable_from_token' },
     ]);
     client.stop();
   });

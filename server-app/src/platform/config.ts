@@ -28,11 +28,6 @@ export const ServerConfigSchema = z.object({
   logsDir: z.string().default(() => join(homedir(), '.agent-server', 'logs')),
   panelUrl: z.string().url().optional(),
   panelApiKey: z.string().optional(),
-  // Direct Supabase Realtime subscribe for the daemon (retires the panel SSE
-  // proxy). Both must be set alongside panelUrl/panelApiKey for the daemon to
-  // stand up its RealtimeClient.
-  supabaseUrl: z.string().url().optional(),
-  supabasePublishableKey: z.string().optional(),
   checkIntervalMs: z.number().int().positive().default(60_000),
   // Panel-side stale threshold is 90s. 60s gives a 1.5x buffer so a single
   // dropped heartbeat (wifi roam, VPN reconnect) does not cause a false
@@ -70,8 +65,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     logsDir: env.AGENT_SERVER_LOGS_DIR,
     panelUrl: env.AGENT_SERVER_PANEL_URL || undefined,
     panelApiKey: env.AGENT_SERVER_PANEL_API_KEY || undefined,
-    supabaseUrl: env.AGENT_SERVER_SUPABASE_URL || undefined,
-    supabasePublishableKey: env.AGENT_SERVER_SUPABASE_PUBLISHABLE_KEY || undefined,
     checkIntervalMs: env.AGENT_SERVER_CHECK_INTERVAL_MS
       ? Number(env.AGENT_SERVER_CHECK_INTERVAL_MS)
       : undefined,

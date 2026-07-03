@@ -248,16 +248,10 @@ export function startDaemon(config: ServerConfig): { stop: () => void } {
       })
     : undefined;
 
-  const realtimeConfigured = Boolean(
-    panelConfigured && config.supabaseUrl && config.supabasePublishableKey,
-  );
-
-  const realtimeClient = realtimeConfigured
+  const realtimeClient = panelConfigured
     ? new RealtimeClient({
         panelUrl: config.panelUrl!,
         panelApiKey: config.panelApiKey!,
-        supabaseUrl: config.supabaseUrl!,
-        supabasePublishableKey: config.supabasePublishableKey!,
         cursorPath: join(homedir(), '.agent-server', 'sse-cursor'),
       })
     : undefined;

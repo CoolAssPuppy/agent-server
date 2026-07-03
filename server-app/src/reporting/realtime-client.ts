@@ -16,6 +16,13 @@ import {
  * mints a short-lived org-scoped ES256 JWT from the panel and subscribes to
  * Supabase Realtime `postgres_changes` on `run_triggers` and `decisions`
  * directly. RLS policies keyed to the token's `org_id` claim scope every read.
+ *
+ * The daemon carries NO Supabase config of its own — its only panel config is
+ * `panelUrl` + `panelApiKey`. The token endpoint returns the Supabase URL and
+ * public publishable key alongside the token, so a daemon with no panel
+ * configured never learns about or contacts Supabase. This keeps Agent Server
+ * fully standalone and panel-agnostic; Supabase is an implementation detail of
+ * being panel-connected, not a dependency baked into the daemon.
  */
 
 export type RunTriggerEvent = {
@@ -80,6 +87,8 @@ type RealtimeTokenResponse = {
   token: string;
   expires_at: number;
   org_id: string;
+  supabase_url: string;
+  supabase_publishable_key: string;
 };
 
 type RunTriggerRow = {
@@ -105,8 +114,6 @@ type DecisionRow = {
 export type RealtimeClientOptions = {
   panelUrl: string;
   panelApiKey: string;
-  supabaseUrl: string;
-  supabasePublishableKey: string;
   cursorPath: string;
   fetch?: typeof globalThis.fetch;
   createClient?: typeof defaultCreateClient;
@@ -131,6 +138,8 @@ export class RealtimeClient {
   private token = '';
   private expiresAt = 0;
   private orgId = '';
+  private supabaseUrl = '';
+  private supabasePublishableKey = '';
 
   private supabase: SupabaseClient | undefined;
 
@@ -201,8 +210,8 @@ export class RealtimeClient {
     if (this.stopped) return;
 
     this.supabase = this.createClientFn(
-      this.options.supabaseUrl,
-      this.options.supabasePublishableKey,
+      this.supabaseUrl,
+      this.supabasePublishableKey,
       { accessToken: async () => this.token },
     );
     this.supabase.realtime.setAuth(this.token);
@@ -226,6 +235,8 @@ export class RealtimeClient {
     this.token = body.token;
     this.expiresAt = body.expires_at;
     this.orgId = body.org_id;
+    this.supabaseUrl = body.supabase_url;
+    this.supabasePublishableKey = body.supabase_publishable_key;
   }
 
   private subscribe(): void {
