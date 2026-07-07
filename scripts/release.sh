@@ -47,6 +47,21 @@ DUB_SHORTLINK="https://coolasspuppy.com/agent-server-updates"
 DOPPLER_PROJECT="agent-server"
 DOPPLER_CONFIG="prd"
 
+# Notarization auth. Prefer inline credentials sourced from Doppler so a release
+# works on any machine with Doppler access — no per-machine `notarytool
+# store-credentials` keychain bootstrap required. Falls back to the keychain
+# profile when the app-specific password isn't in Doppler.
+NOTARY_APPLE_ID="${NOTARY_APPLE_ID:-prashant_sridharan@hotmail.com}"
+NOTARY_TEAM_ID="955GSY56UT"
+NOTARY_PASSWORD="$(doppler secrets get SPARKLE_APP_SPECIFIC_PASSWORD \
+  --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" --plain 2>/dev/null || true)"
+if [ -n "$NOTARY_PASSWORD" ]; then
+  NOTARY_AUTH=(--apple-id "$NOTARY_APPLE_ID" --team-id "$NOTARY_TEAM_ID" --password "$NOTARY_PASSWORD")
+else
+  NOTARY_AUTH=(--keychain-profile "$NOTARY_PROFILE")
+fi
+export NOTARY_APPLE_ID NOTARY_TEAM_ID NOTARY_PASSWORD
+
 if command -v wrangler >/dev/null 2>&1; then
   WRANGLER=(wrangler)
 else
@@ -68,9 +83,10 @@ if ! "${WRANGLER[@]}" --version >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
-  echo "Error: notarytool profile '$NOTARY_PROFILE' not found or invalid."
-  echo "Run: xcrun notarytool store-credentials \"$NOTARY_PROFILE\" --apple-id ... --team-id ... --password ..."
+if ! xcrun notarytool history "${NOTARY_AUTH[@]}" >/dev/null 2>&1; then
+  echo "Error: notarization credentials invalid (using ${NOTARY_AUTH[0]})."
+  echo "Ensure SPARKLE_APP_SPECIFIC_PASSWORD is set in Doppler $DOPPLER_PROJECT/$DOPPLER_CONFIG,"
+  echo "or store a keychain profile: xcrun notarytool store-credentials \"$NOTARY_PROFILE\" --apple-id ... --team-id ... --password ..."
   exit 1
 fi
 
@@ -138,7 +154,7 @@ fi
 echo "==> Notarizing .app (takes a few minutes)"
 APP_ZIP="$DIST/export-$VERSION/AgentServer.app.zip"
 ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$APP_ZIP"
-xcrun notarytool submit "$APP_ZIP" --keychain-profile "$NOTARY_PROFILE" --wait
+xcrun notarytool submit "$APP_ZIP" "${NOTARY_AUTH[@]}" --wait
 rm -f "$APP_ZIP"
 
 echo "==> Stapling .app"
