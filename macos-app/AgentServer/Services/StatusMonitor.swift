@@ -18,13 +18,11 @@ final class StatusMonitor: ObservableObject {
     @Published var deepLinkAgentId: String?
 
     private let client = AgentServerClient()
+    // Retained only for resolving decisions (a write, POSTed to the panel with
+    // the API key). Reading pending decisions now comes from the local daemon,
+    // which subscribes to Supabase Realtime and serves them over /decisions —
+    // no panel polling, so zero Vercel cost.
     private var panelClient: PanelClient?
-    private var decisionsTimer: Timer?
-    // 60s. Was 10s, which burned ~34K Vercel Edge Requests/month at typical
-    // usage. The popover also refreshes on start() and after every resolve(),
-    // so the user never sees this gap when actively interacting — it only
-    // affects how fast a brand-new decision lights up the menu bar dot.
-    private let decisionsPollInterval: TimeInterval = 60
     private var timer: Timer?
     private let pollInterval: TimeInterval = 5
     private var webSocketTask: URLSessionWebSocketTask?
@@ -60,13 +58,11 @@ final class StatusMonitor: ObservableObject {
         poll()
         pollDecisions()
         connectWebSocket()
+        // Decisions ride the same 5s cadence as runs, but the call is local
+        // (to the daemon), so it costs nothing on the panel side.
         timer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.poll()
-            }
-        }
-        decisionsTimer = Timer.scheduledTimer(withTimeInterval: decisionsPollInterval, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
                 self?.pollDecisions()
             }
         }
@@ -75,22 +71,16 @@ final class StatusMonitor: ObservableObject {
     func stop() {
         timer?.invalidate()
         timer = nil
-        decisionsTimer?.invalidate()
-        decisionsTimer = nil
         disconnectWebSocket()
     }
 
     // MARK: - Decisions polling
 
     func pollDecisions() {
-        if panelClient == nil {
-            panelClient = PanelClient.fromEnv()
-        }
-        guard let panelClient else { return }
         Task { [weak self] in
             guard let self else { return }
             do {
-                let decisions = try await panelClient.fetchPendingDecisions()
+                let decisions = try await self.client.fetchPendingDecisions()
                 let ids = Set(decisions.map { $0.id })
                 if self.hasDoneInitialDecisionsPoll {
                     for newDecision in ids.subtracting(self.reportedDecisionIds) {
@@ -110,6 +100,9 @@ final class StatusMonitor: ObservableObject {
         Telemetry.capture("decision_resolved", properties: ["decision_id": id])
         // Optimistic removal.
         pendingDecisions.removeAll { $0.id == id }
+        if panelClient == nil {
+            panelClient = PanelClient.fromEnv()
+        }
         guard let panelClient else { return }
         Task { [weak self] in
             do {

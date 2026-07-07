@@ -111,6 +111,44 @@ type DecisionRow = {
   resolution: { action_id: string; input?: string } | null;
 };
 
+// The columns needed to render a pending decision in the macOS app. These map
+// 1:1 to the `Decision` model the app decodes, so the daemon's `/decisions`
+// endpoint can return these rows verbatim.
+const PENDING_DECISION_COLUMNS =
+  'id, task_run_id, agent_slug, type, title, payload, status, due_at, defer_until, created_at';
+
+type PendingDecisionRow = {
+  id: string;
+  task_run_id: string;
+  agent_slug: string;
+  type: string;
+  title: string;
+  payload: unknown;
+  status: string;
+  due_at: string | null;
+  defer_until: string | null;
+  created_at: string;
+};
+
+/**
+ * Pending decision as served to the macOS app over the daemon's local
+ * `/decisions` endpoint. Keys are snake_case to match the app's `Decision`
+ * Codable model; `payload` is always an object (defaulted to `{}`) so the
+ * app's non-optional `payload` field always decodes.
+ */
+export type PendingDecision = {
+  id: string;
+  task_run_id: string;
+  agent_slug: string;
+  type: string;
+  title: string;
+  payload: unknown;
+  status: string;
+  due_at: string | null;
+  defer_until: string | null;
+  created_at: string;
+};
+
 export type RealtimeClientOptions = {
   panelUrl: string;
   panelApiKey: string;
@@ -152,6 +190,11 @@ export class RealtimeClient {
 
   private readonly seen = new Set<string>();
   private readonly slugCache = new Map<string, string>();
+  // Live set of pending decisions for the org, keyed by decision id. Fed by the
+  // decisions INSERT/UPDATE subscription and rebuilt on every catch-up. Served
+  // to the macOS app over the daemon's local `/decisions` endpoint so the app
+  // never polls the panel for them.
+  private readonly pending = new Map<string, PendingDecision>();
 
   constructor(options: RealtimeClientOptions) {
     this.options = options;
@@ -187,6 +230,13 @@ export class RealtimeClient {
 
   getCursor(): number {
     return this.cursor;
+  }
+
+  /** Current pending decisions for the org, newest first. */
+  getPendingDecisions(): PendingDecision[] {
+    return [...this.pending.values()].sort((a, b) =>
+      a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0,
+    );
   }
 
   /**
@@ -264,6 +314,18 @@ export class RealtimeClient {
       .on(
         'postgres_changes',
         {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'decisions',
+          filter: `org_id=eq.${orgId}`,
+        },
+        (payload) => {
+          this.reconcilePending(payload.new as PendingDecisionRow);
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
           event: 'UPDATE',
           schema: 'public',
           table: 'decisions',
@@ -274,9 +336,24 @@ export class RealtimeClient {
             payload.new as DecisionRow,
             payload.old as Partial<DecisionRow> | undefined,
           );
+          this.reconcilePending(payload.new as PendingDecisionRow);
         },
       )
       .subscribe((status) => this.onSubscribeStatus(status));
+  }
+
+  /**
+   * Keep the pending set current from a decisions row. A row with status
+   * `pending` is upserted; any other status (resolved / expired / canceled)
+   * removes it. Tolerates partial rows — a missing/blank id is ignored.
+   */
+  private reconcilePending(row: PendingDecisionRow | undefined): void {
+    if (!row || typeof row.id !== 'string' || row.id.length === 0) return;
+    if (row.status === 'pending') {
+      this.pending.set(row.id, toPending(row));
+    } else {
+      this.pending.delete(row.id);
+    }
   }
 
   /**
@@ -351,6 +428,26 @@ export class RealtimeClient {
         task_run_id: row.task_run_id,
         resolution: row.resolution ?? { action_id: '' },
       });
+    }
+
+    // Rebuild the pending set from scratch. Realtime never replays inserts that
+    // landed while we were disconnected, so this query is the authoritative
+    // source for what is currently awaiting a human.
+    const { data: pendingRows, error: pendingErr } = await this.supabase
+      .from('decisions')
+      .select(PENDING_DECISION_COLUMNS)
+      .eq('org_id', this.orgId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+
+    if (pendingErr) {
+      this.warn(`Catch-up pending decisions query failed: ${pendingErr.message}`);
+      return;
+    }
+    this.pending.clear();
+    for (const row of (pendingRows ?? []) as PendingDecisionRow[]) {
+      if (row.status !== 'pending') continue;
+      this.pending.set(row.id, toPending(row));
     }
   }
 
@@ -512,4 +609,24 @@ export class RealtimeClient {
 
 function message(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Normalize a decisions row into the shape the macOS app decodes. `payload` is
+ * defaulted to `{}` so the app's non-optional `payload` field always decodes,
+ * and the optional timestamps pass through as null when absent.
+ */
+function toPending(row: PendingDecisionRow): PendingDecision {
+  return {
+    id: row.id,
+    task_run_id: row.task_run_id,
+    agent_slug: row.agent_slug,
+    type: row.type,
+    title: row.title,
+    payload: row.payload ?? {},
+    status: row.status,
+    due_at: row.due_at ?? null,
+    defer_until: row.defer_until ?? null,
+    created_at: row.created_at,
+  };
 }

@@ -191,6 +191,117 @@ describe('RealtimeClient', () => {
     client.stop();
   });
 
+  it('exposes a live INSERTed pending decision via getPendingDecisions', async () => {
+    const supabase = createFakeSupabase();
+    const client = makeClient({ supabase });
+
+    await client.start();
+    await flush();
+
+    const decisionsChannel = supabase.channels[1];
+    decisionsChannel.fire({
+      new: {
+        id: 'dec-1',
+        task_run_id: 'run-1',
+        agent_slug: 'weekly-report',
+        type: 'approve',
+        title: 'Ship the release?',
+        payload: { approve_label: 'Ship' },
+        status: 'pending',
+        due_at: null,
+        defer_until: null,
+        created_at: '2026-07-02T00:00:00.000Z',
+      },
+    });
+    await flush();
+
+    expect(client.getPendingDecisions()).toEqual([
+      {
+        id: 'dec-1',
+        task_run_id: 'run-1',
+        agent_slug: 'weekly-report',
+        type: 'approve',
+        title: 'Ship the release?',
+        payload: { approve_label: 'Ship' },
+        status: 'pending',
+        due_at: null,
+        defer_until: null,
+        created_at: '2026-07-02T00:00:00.000Z',
+      },
+    ]);
+    client.stop();
+  });
+
+  it('drops a decision from pending once it resolves', async () => {
+    const supabase = createFakeSupabase();
+    const client = makeClient({ supabase });
+    const resolved: DecisionResolvedEvent[] = [];
+    client.events.on('decision_resolved', (e) => resolved.push(e));
+
+    await client.start();
+    await flush();
+
+    const decisionsChannel = supabase.channels[1];
+    const base = {
+      id: 'dec-2',
+      task_run_id: 'run-2',
+      agent_slug: 'a',
+      type: 'approve',
+      title: 't',
+      payload: {},
+      due_at: null,
+      defer_until: null,
+      created_at: '2026-07-02T00:00:00.000Z',
+    };
+    decisionsChannel.fire({ new: { ...base, status: 'pending' } });
+    await flush();
+    expect(client.getPendingDecisions()).toHaveLength(1);
+
+    decisionsChannel.fire({
+      new: {
+        ...base,
+        status: 'resolved',
+        resolved_at: '2026-07-02T01:00:00.000Z',
+        resolution: { action_id: 'approve' },
+      },
+    });
+    await flush();
+
+    expect(client.getPendingDecisions()).toHaveLength(0);
+    // The resolve transition still emits decision_resolved for run resumption.
+    expect(resolved.map((e) => e.decision_id)).toEqual(['dec-2']);
+    client.stop();
+  });
+
+  it('rebuilds pending decisions from catch-up on subscribe', async () => {
+    const supabase = createFakeSupabase({
+      decisions: [
+        {
+          id: 'dec-3',
+          task_run_id: 'run-3',
+          agent_slug: 'a',
+          type: 'answer',
+          title: 'Question?',
+          payload: { prompt: 'Which?' },
+          status: 'pending',
+          due_at: null,
+          defer_until: null,
+          created_at: '2026-07-02T00:00:00.000Z',
+        },
+      ],
+    });
+    const client = makeClient({ supabase });
+
+    await client.start();
+    await flush();
+    subscribeAll(supabase);
+    await flush();
+    await flush();
+
+    expect(client.getPendingDecisions().map((d) => d.id)).toEqual(['dec-3']);
+    client.stop();
+  });
+
   it('builds the Supabase client from coordinates in the token response, not from config', async () => {
     const supabase = createFakeSupabase();
     const createArgs: Array<{ url: string; key: string }> = [];

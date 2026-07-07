@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'crypto';
 import { z } from 'zod';
 import type { AgentConfig } from '../agents/config.js';
 import type { RunStore } from '../reporting/store.js';
+import type { PendingDecision } from '../reporting/realtime-client.js';
 import {
   AuthFailureTracker,
   InMemoryRateLimiter,
@@ -18,6 +19,11 @@ type ApiDependencies = {
   triggerRun: (agentId: string, promptSuffix?: string) => Promise<string>;
   cancelRun?: (runId: string) => boolean;
   cleanupFn?: () => Promise<number>;
+  /**
+   * Current pending decisions for the org, sourced from the daemon's Supabase
+   * Realtime subscription. Absent when the daemon has no panel configured.
+   */
+  getPendingDecisions?: () => PendingDecision[];
   apiKey?: string;
   startedAt?: string;
   host?: string;
@@ -236,6 +242,13 @@ export function createApi(deps: ApiDependencies): Hono {
     const run = deps.store.get(c.req.param('id'));
     if (!run) return c.json({ error: 'Run not found' }, 404);
     return c.json(sanitizeStoredRun(run));
+  });
+
+  // Pending decisions the daemon learned about over Supabase Realtime. Served
+  // locally so the macOS app reads them from the daemon (like runs/agents)
+  // instead of polling the panel. Empty when no panel is configured.
+  app.get('/decisions', (c) => {
+    return c.json({ decisions: deps.getPendingDecisions?.() ?? [] });
   });
 
   app.post('/cleanup', async (c) => {

@@ -53,6 +53,38 @@ actor AgentServerClient {
         try await get("/runs/\(id)")
     }
 
+    /// Pending decisions the daemon learned about over Supabase Realtime. The
+    /// daemon serves these locally so the app never polls the panel for them.
+    /// Uses a fractional-seconds-tolerant decoder because Postgres timestamps
+    /// carry sub-second precision that the default `.iso8601` strategy rejects.
+    func fetchPendingDecisions() async throws -> [Decision] {
+        let url = baseURL.appendingPathComponent("/decisions")
+        let (data, response) = try await session.data(from: url)
+        try validateResponse(response)
+        return try Self.decisionDecoder.decode(DecisionsResponse.self, from: data).decisions
+    }
+
+    private static let decisionDecoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let dateString = try container.decode(String.self)
+
+            let iso = ISO8601DateFormatter()
+            iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = iso.date(from: dateString) { return date }
+
+            iso.formatOptions = [.withInternetDateTime]
+            if let date = iso.date(from: dateString) { return date }
+
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Cannot decode date: \(dateString)"
+            )
+        }
+        return decoder
+    }()
+
     func cancelRun(id: String) async throws {
         var request = URLRequest(url: baseURL.appendingPathComponent("/runs/\(id)/cancel"))
         request.httpMethod = "POST"

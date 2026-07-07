@@ -128,23 +128,9 @@ actor PanelClient {
 
     // MARK: - Decisions
 
-    func fetchPendingDecisions() async throws -> [Decision] {
-        var components = URLComponents(
-            url: baseURL.appendingPathComponent("/api/decisions"),
-            resolvingAgainstBaseURL: false
-        )!
-        components.queryItems = [URLQueryItem(name: "status", value: "pending")]
-
-        var request = URLRequest(url: components.url!)
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-
-        let (data, response) = try await session.data(for: request)
-        try validateResponse(response)
-
-        let parsed = try decoder.decode(DecisionsResponse.self, from: data)
-        return parsed.decisions
-    }
-
+    // Pending decisions are read from the local daemon (which subscribes to
+    // Supabase Realtime), not the panel — see AgentServerClient. Resolution is
+    // still a panel write, authenticated with the API key.
     func resolveDecision(id: String, body: DecisionResolveBody) async throws {
         let url = baseURL.appendingPathComponent("/api/decisions/\(id)/resolve")
         var request = URLRequest(url: url)

@@ -564,6 +564,9 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     cleanupFn: panelClient
       ? () => panelClient.failOrphanedRuns(serverId)
       : undefined,
+    getPendingDecisions: realtimeClient
+      ? () => realtimeClient.getPendingDecisions()
+      : undefined,
     apiKey: config.apiKey,
     startedAt,
     host: config.host,
