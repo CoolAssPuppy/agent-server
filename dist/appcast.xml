@@ -6,6 +6,24 @@
     <description>Agent Server updates</description>
     <language>en</language>
     <item>
+      <title>Version 2.4.0</title>
+      <pubDate>Sun, 12 Jul 2026 22:03:21 +0000</pubDate>
+      <sparkle:version>22</sparkle:version>
+      <sparkle:shortVersionString>2.4.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Now supports Codex for non-interactive agent execution.</li><li>Security hardening.</li><li>Bug fixes.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-2.4.0.dmg"
+        sparkle:edSignature="Q8UxuNEHKf1LhLIKYaIvlEvVA5nKEMoTpWvt4r0qXz5gAZHo1YqIrJPipWhJtsCfEMJvrn8KT/dvdEHP8JlVBA=="
+        length="187517030"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
       <title>Version 2.3.1</title>
       <pubDate>Tue, 07 Jul 2026 05:02:46 +0000</pubDate>
       <sparkle:version>21</sparkle:version>
