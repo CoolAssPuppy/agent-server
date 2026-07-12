@@ -6,6 +6,7 @@ export { acquireLock, releaseLock, isLocked } from './execution/lockfile.js';
 export { TelemetryReporter, replayPendingTerminals, type StatusEvent, type StatusState } from './reporting/reporter.js';
 export { parseStreamEvent, summarizeTurn, extractToolMetadata, type ExecutionResult, type ClaudeStreamEvent } from './execution/executor.js';
 export { executeAgent } from './plugins/claude-code.js';
+export { executeCodexAgent } from './plugins/codex.js';
 export { runAgent, type RunResult, type Reporter } from './execution/runner.js';
 export { loadConfig, ServerConfigSchema, type ServerConfig } from './platform/config.js';
 export { runDueAgents, runSingleAgent, listAgents, startDaemon } from './server/daemon.js';

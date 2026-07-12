@@ -172,15 +172,17 @@ max_turns: 10
 | `description` | no | | What this agent does. Used by Telegram message routing to match messages to agents. |
 | `schedule` | no | | Cron expression (e.g., `0 9 * * 1-5`). Omit for on-demand agents. |
 | `timezone` | no | | IANA timezone for schedule evaluation (e.g., `America/Los_Angeles`) |
-| `prompt` | yes* | | The prompt sent to Claude Code. *In frontmatter format, the Markdown body is the prompt. |
+| `prompt` | yes* | | The prompt sent to the selected executor. *In frontmatter format, the Markdown body is the prompt. |
 | `max_turns` | no | `AGENT_SERVER_DEFAULT_MAX_TURNS` (default `20`) | Maximum agentic conversation turns |
-| `working_directory` | no | `$HOME` | Working directory for the Claude Code session. Supports `~`. |
-| `tools` | no | `[]` | Allowed tools list (SDK-level). Empty means all tools are available. |
-| `disallowed_tools` | no | `[]` | Tools to explicitly deny (SDK-level). Removed from the model's context entirely. |
-| `permissions` | no | | Fine-grained tool permissions with glob patterns. See [tool permissions](#example-tool-permissions). |
-| `permission_mode` | no | `bypassPermissions` | SDK permission mode: `bypassPermissions`, `acceptEdits`, `dontAsk`, `default`, `plan` |
+| `working_directory` | no | `$HOME` | Working directory for the executor session. Supports `~`. |
+| `tools` | no | `[]` | Allowed tools list for the Claude Code executor. Empty means all tools are available. |
+| `disallowed_tools` | no | `[]` | Tools to explicitly deny for the Claude Code executor. Removed from the model's context entirely. |
+| `permissions` | no | | Fine-grained tool permissions for the Claude Code executor with glob patterns. See [tool permissions](#example-tool-permissions). |
+| `permission_mode` | no | `bypassPermissions` | Claude Code SDK permission mode. For Codex, `plan` maps to a read-only sandbox and all other modes map to `workspace-write`. |
 | `enabled` | no | `true` | Whether the scheduler runs this agent |
-| `executor` | no | `claude-code` | Which executor plugin to use |
+| `executor` | no | `claude-code` | Which executor plugin to use: `claude-code` or `codex` |
+| `codex_sandbox` | no | `workspace-write` | Codex-only sandbox override: `read-only`, `workspace-write`, or `danger-full-access` |
+| `model` | no | | Optional model override passed to Codex as `--model` |
 | `on_complete` | no | | Agents to trigger on successful completion |
 | `on_failure` | no | | Agents to trigger on failure |
 | `watch` | no | | File paths to watch for changes (triggers runs outside the cron schedule) |
@@ -1147,6 +1149,74 @@ The default executor uses the Claude Agent SDK, but the system is pluggable. Age
 executor: codex  # defaults to 'claude-code' if omitted
 ```
 
+### Codex executor
+
+The built-in Codex executor uses the official `@openai/codex-sdk`. The SDK runs a compatible local Codex runtime and emits typed streaming events for progress, tool calls, usage, and the final response.
+
+Authenticate once with your ChatGPT account before starting Agent Server:
+
+```bash
+codex login
+codex login status
+```
+
+Choose **Sign in with ChatGPT** in the browser flow. This uses Codex access included with your ChatGPT subscription. Agent Server gives the Codex child a small process environment containing only runtime variables such as `HOME`, `PATH`, and `TMPDIR`. Application secrets, including `OPENAI_API_KEY`, are excluded.
+
+Use it per agent:
+
+```yaml
+id: repo-maintainer
+name: Repo Maintainer
+executor: codex
+working_directory: ~/Developer/my-project
+codex_sandbox: workspace-write
+model: gpt-5.4
+prompt: |
+  Review the repository and fix the smallest issue you find.
+```
+
+Codex support is intentionally implemented as a separate executor. Existing agents keep using `claude-code` until you set `executor: codex`.
+
+Some Claude SDK fields do not have a one-to-one Codex SDK setting. `tools`, `disallowed_tools`, `permissions`, and `max_turns` are only enforced by the Claude Code executor today. Codex runs disable network access and web search by default. The configured Codex sandbox controls filesystem writes, but Agent Server cannot yet enforce a command allowlist or narrow filesystem read roots for Codex shell commands.
+
+Credential-free agent-level MCP declarations are passed as SDK configuration overrides. Codex agents reject MCP declarations containing `env` or `headers` because SDK overrides can appear in child-process arguments. Keep agents that need private tokens disabled until a token-backed adapter is available:
+
+```yaml
+executor: codex
+enabled: false
+mcp_servers:
+  private-service:
+    command: private-service-mcp
+    env:
+      SERVICE_TOKEN: "${SERVICE_TOKEN}"
+```
+
+Do not enable a Codex agent that handles sensitive files or requires private service credentials unless its effective Codex sandbox and MCP authentication path meet your security requirements.
+
+Account-level Claude tools such as `mcp__claude_ai_Notion__*` are not available to Codex automatically. To keep existing prompts working, configure equivalent Codex MCP servers using matching server names where possible. For example, a Work Notion server named `claude_ai_Notion` exposes tool calls with the same `mcp__claude_ai_Notion__...` prefix in Agent Server telemetry.
+
+Example Codex config for Work Notion:
+
+```toml
+[mcp_servers."claude_ai_Notion"]
+command = "npx"
+args = ["-y", "@notionhq/notion-mcp-server"]
+env = { NOTION_TOKEN = "..." }
+enabled = true
+required = true
+```
+
+Example agent-level Personal Notion config:
+
+```yaml
+mcp_servers:
+  notion-personal:
+    command: npx
+    args: ["-y", "@notionhq/notion-mcp-server"]
+    env:
+      NOTION_TOKEN: "${NOTION_PERSONAL_API_KEY}"
+```
+
 Register custom executors programmatically:
 
 ```typescript
@@ -1217,6 +1287,7 @@ server-app/src/
 
   plugins/                   Executor implementations
     claude-code.ts             Claude Code executor (Agent SDK query())
+    codex.ts                  Codex executor (official Codex SDK)
 
   cli.ts                     Commander CLI entry point
   index.ts                   Barrel exports for library use

@@ -5,6 +5,7 @@ import { discoverAgents } from '../agents/discovery.js';
 import { shouldRun } from '../agents/scheduler.js';
 import { runAgent, type RunResult } from '../execution/runner.js';
 import { executeAgent } from '../plugins/claude-code.js';
+import { executeCodexAgent } from '../plugins/codex.js';
 import { ExecutorRegistry } from '../execution/executor-registry.js';
 import { createReporter } from '../reporting/reporter-factory.js';
 import { replayPendingTerminals } from '../reporting/reporter.js';
@@ -20,6 +21,7 @@ import type { Reporter } from '../execution/runner.js';
 function createDefaultRegistry(): ExecutorRegistry {
   const registry = new ExecutorRegistry();
   registry.register('claude-code', executeAgent);
+  registry.register('codex', executeCodexAgent);
   registry.setDefault('claude-code');
   return registry;
 }

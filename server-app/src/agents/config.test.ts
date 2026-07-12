@@ -202,6 +202,32 @@ describe('AgentConfigSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  it('accepts the supported executor names and Codex settings', () => {
+    const result = AgentConfigSchema.parse({
+      id: 'codex-agent',
+      name: 'Codex Agent',
+      prompt: 'Run with Codex.',
+      executor: 'codex',
+      model: 'gpt-5.4',
+      codex_sandbox: 'read-only',
+    });
+
+    expect(result.executor).toBe('codex');
+    expect(result.model).toBe('gpt-5.4');
+    expect(result.codex_sandbox).toBe('read-only');
+  });
+
+  it('rejects unknown executors during agent discovery', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'unknown-provider',
+      name: 'Unknown Provider',
+      prompt: 'Do something.',
+      executor: 'other-provider',
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it('accepts config with permissions block', () => {
     const result = AgentConfigSchema.safeParse({
       id: 'restricted',
@@ -591,6 +617,20 @@ describe('resolveEnvVars', () => {
 });
 
 describe('parseAgentFile', () => {
+  it('selects Codex from Markdown frontmatter', () => {
+    const config = parseAgentFile(`---
+id: codex-markdown
+name: Codex Markdown
+executor: codex
+---
+
+Run this prompt with my ChatGPT subscription.
+`);
+
+    expect(config.executor).toBe('codex');
+    expect(config.prompt).toBe('Run this prompt with my ChatGPT subscription.');
+  });
+
   it('parses pure YAML when no frontmatter delimiters present', () => {
     const config = parseAgentFile(VALID_YAML);
     expect(config.id).toBe('hello-world');

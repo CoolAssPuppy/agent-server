@@ -10,6 +10,7 @@ import { discoverAgents } from '../agents/discovery.js';
 import { RunStore } from '../reporting/store.js';
 import { runAgent } from '../execution/runner.js';
 import { executeAgent } from '../plugins/claude-code.js';
+import { executeCodexAgent } from '../plugins/codex.js';
 import { ExecutorRegistry } from '../execution/executor-registry.js';
 import type { McpServerInfo } from '../execution/executor.js';
 import { createReporter } from '../reporting/reporter-factory.js';
@@ -190,6 +191,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
 
   const executorRegistry = new ExecutorRegistry();
   executorRegistry.register('claude-code', executeAgent);
+  executorRegistry.register('codex', executeCodexAgent);
   executorRegistry.setDefault('claude-code');
 
   const activeControllers = new Map<string, AbortController>();
