@@ -5,7 +5,8 @@ final class ServerProcessManager {
     private var serverProcess: Process?
     private var didStartServer = false
 
-    private let healthURL = URL(string: "http://localhost:47821/health")!
+    private let healthURL = LocalServerEndpoint.httpURL(port: 47821)!
+        .appendingPathComponent("health")
 
     private static let locationKey = "AGENT_SERVER_LOCATION"
 

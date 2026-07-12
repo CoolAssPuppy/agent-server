@@ -9,7 +9,7 @@ actor AgentServerClient {
         // Fail loud during init with a clear message if the host/port combo
         // ever produces an invalid URL — better than a force-unwrap crash
         // miles away in the call site.
-        guard let url = URL(string: "http://localhost:\(port)") else {
+        guard let url = LocalServerEndpoint.httpURL(port: port) else {
             preconditionFailure("AgentServerClient: invalid base URL for port \(port)")
         }
         self.baseURL = url

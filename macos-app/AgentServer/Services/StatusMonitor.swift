@@ -262,7 +262,7 @@ final class StatusMonitor: ObservableObject {
     // MARK: - WebSocket
 
     private func connectWebSocket() {
-        guard let url = URL(string: "ws://localhost:47821/ws") else { return }
+        guard let url = LocalServerEndpoint.webSocketURL(port: 47821) else { return }
         let session = URLSession(configuration: .default)
         webSocketTask = session.webSocketTask(with: url)
         webSocketTask?.resume()
