@@ -107,6 +107,45 @@ describe('TelegramChannel', () => {
     return { channel, mockApi };
   }
 
+  it('isolates long-polling failure from the server process', async () => {
+    const pollingError = new Error('409 Conflict: terminated by another getUpdates request');
+    const onPollingError = vi.fn();
+    const bot = {
+      start: vi.fn().mockRejectedValue(pollingError),
+      stop: vi.fn().mockResolvedValue(undefined),
+    };
+    const mockApi = {
+      sendMessage: vi.fn().mockResolvedValue({ message_id: 42 }),
+      answerCallbackQuery: vi.fn().mockResolvedValue(true),
+    };
+    const channel = new TelegramChannel({
+      api: mockApi,
+      bot,
+      onPollingError,
+    });
+
+    await channel.start();
+    await vi.waitFor(() => expect(onPollingError).toHaveBeenCalledWith(pollingError));
+  });
+
+  it('logs the reason when long polling stops', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const bot = {
+      start: vi.fn().mockRejectedValue(new Error('409 Conflict')),
+      stop: vi.fn().mockResolvedValue(undefined),
+    };
+    const mockApi = {
+      sendMessage: vi.fn().mockResolvedValue({ message_id: 42 }),
+      answerCallbackQuery: vi.fn().mockResolvedValue(true),
+    };
+    const channel = new TelegramChannel({ api: mockApi, bot });
+
+    await channel.start();
+    await vi.waitFor(() => {
+      expect(errorSpy).toHaveBeenCalledWith('[telegram] Long polling stopped: 409 Conflict');
+    });
+  });
+
   it('sends a message with inline keyboard for option requests', async () => {
     const { channel, mockApi } = makeChannel();
     await channel.send('int-1', optionsRequest);

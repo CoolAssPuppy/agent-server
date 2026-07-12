@@ -19,7 +19,8 @@ type TelegramApi = {
 type TelegramChannelOptions = {
   api: TelegramApi;
   chatId?: number;
-  bot?: Bot;
+  bot?: Pick<Bot, 'start' | 'stop'>;
+  onPollingError?: (error: unknown) => void;
 };
 
 const CALLBACK_SEPARATOR = ':';
@@ -94,21 +95,29 @@ export class TelegramChannel implements Channel {
   private pendingInteractions = new Map<string, InteractionRequest>();
   private sentMessages = new Map<string, { messageId: number; chatId: number }>();
   private lastPendingId: string | undefined;
-  private bot: Bot | undefined;
+  private bot: Pick<Bot, 'start' | 'stop'> | undefined;
+  private onPollingError: (error: unknown) => void;
 
   constructor(options: TelegramChannelOptions) {
     this.api = options.api;
     this.chatId = options.chatId;
     this.bot = options.bot;
+    this.onPollingError = options.onPollingError ?? ((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[telegram] Long polling stopped: ${message}`);
+    });
   }
 
   async start(): Promise<void> {
     if (this.bot) {
-      this.bot.start({
+      const polling = this.bot.start({
         drop_pending_updates: true,
         onStart: (botInfo) => {
           console.log(`Telegram bot @${botInfo.username} connected (long-polling)`);
         },
+      });
+      void polling.catch((error: unknown) => {
+        this.onPollingError(error);
       });
     }
   }
