@@ -31,10 +31,14 @@ struct MenuBarPopover: View {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    private var scheduledAgents: [Agent] {
+    private var availableAgents: [Agent] {
         let runningIds = Set(monitor.activeRuns.map(\.agentId))
+        let availableIds = AgentCatalogPresentation.availableAgentIds(
+            agentIds: monitor.agents.map(\.id),
+            runningAgentIds: runningIds
+        )
         return monitor.agents
-            .filter { !runningIds.contains($0.id) && $0.isScheduled }
+            .filter { availableIds.contains($0.id) }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
@@ -50,7 +54,7 @@ struct MenuBarPopover: View {
                         SectionDivider()
                         runningSection
                     }
-                    if !scheduledAgents.isEmpty {
+                    if !availableAgents.isEmpty {
                         SectionDivider()
                         allAgentsSection
                     }
@@ -168,12 +172,12 @@ struct MenuBarPopover: View {
 
     private var allAgentsSection: some View {
         VStack(spacing: NSpacing.xxs) {
-            sectionLabel(title: "All agents", trailing: "\(scheduledAgents.count)")
+            sectionLabel(title: "All agents", trailing: "\(availableAgents.count)")
                 .padding(.horizontal, NSpacing.lg)
                 .padding(.top, NSpacing.sm)
                 .padding(.bottom, NSpacing.xxs)
 
-            ForEach(scheduledAgents) { agent in
+            ForEach(availableAgents) { agent in
                 PopoverAgentRow(
                     agent: agent,
                     variant: .scheduled,

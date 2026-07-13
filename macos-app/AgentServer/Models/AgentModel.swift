@@ -51,8 +51,10 @@ struct Agent: Codable, Identifiable {
     }
 
     var scheduleDisplay: String {
-        guard let schedule else { return "On-demand" }
-        return CronEnglishFormatter.describe(schedule)
+        if let schedule {
+            return CronEnglishFormatter.describe(schedule)
+        }
+        return AgentTriggerPresentation(schedule: nil, hasWatch: hasWatch).fallbackLabel ?? "On demand"
     }
 }
 
@@ -109,9 +111,9 @@ enum AgentKind {
         switch self {
         case .scheduled: return "Scheduled"
         case .interactive: return "Interactive"
-        case .watcher: return "File watcher"
+        case .watcher: return "File watch"
         case .chained: return "Chained"
-        case .onDemand: return "On-demand"
+        case .onDemand: return "On demand"
         }
     }
 
@@ -131,4 +133,3 @@ struct AgentKindColor {
     let g: Double
     let b: Double
 }
-

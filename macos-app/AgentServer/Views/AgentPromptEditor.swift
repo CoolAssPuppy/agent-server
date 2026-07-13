@@ -12,14 +12,19 @@ enum AgentPromptTab: String, CaseIterable, Identifiable {
 
 struct AgentPromptEditor: View {
     let fileURL: URL
+    let onDefinitionChanged: () -> Void
 
     @Environment(\.nTheme) private var theme
     @StateObject private var model: Loader
     @State private var tab: AgentPromptTab = .prompt
 
-    init(fileURL: URL) {
+    init(fileURL: URL, onDefinitionChanged: @escaping () -> Void = {}) {
         self.fileURL = fileURL
-        _model = StateObject(wrappedValue: Loader(fileURL: fileURL))
+        self.onDefinitionChanged = onDefinitionChanged
+        _model = StateObject(wrappedValue: Loader(
+            fileURL: fileURL,
+            onDefinitionChanged: onDefinitionChanged
+        ))
     }
 
     var body: some View {
@@ -184,6 +189,7 @@ struct AgentPromptEditor: View {
 
     final class Loader: ObservableObject {
         let fileURL: URL
+        let onDefinitionChanged: () -> Void
 
         @Published var body: String = "" {
             didSet {
@@ -208,7 +214,7 @@ struct AgentPromptEditor: View {
         /// Derived from the current frontmatter. Default true when the field
         /// is absent (matches the daemon's own default).
         var enabled: Bool {
-            Self.parseEnabled(frontmatter: frontmatter)
+            (try? AgentEnabledFileEditor.enabled(in: frontmatter)) ?? true
         }
 
         private var lastLoadedBody: String = ""
@@ -216,8 +222,9 @@ struct AgentPromptEditor: View {
         private var didLoad = false
         private var toastTask: Task<Void, Never>?
 
-        init(fileURL: URL) {
+        init(fileURL: URL, onDefinitionChanged: @escaping () -> Void = {}) {
             self.fileURL = fileURL
+            self.onDefinitionChanged = onDefinitionChanged
         }
 
         func loadIfNeeded() {
@@ -246,13 +253,21 @@ struct AgentPromptEditor: View {
         }
 
         func setEnabled(_ newValue: Bool) {
-            guard loadError == nil, enabled != newValue else { return }
-            frontmatter = Self.rewriteEnabled(in: frontmatter, to: newValue)
-            // Immediate persistence for the toggle — it is a one-click
-            // primary action that shouldn't require the Save button.
-            writeToDisk()
-            lastLoadedFrontmatter = frontmatter
-            recomputeDirty()
+            guard loadError == nil else { return }
+            do {
+                let updated = try AgentEnabledFileEditor.setEnabled(at: fileURL, to: newValue)
+                let document = AgentPromptDocument(source: updated)
+                frontmatter = document.frontmatter
+                body = document.body
+                lastLoadedFrontmatter = document.frontmatter
+                lastLoadedBody = document.body
+                saveError = nil
+                recomputeDirty()
+                flashSavedToast()
+                onDefinitionChanged()
+            } catch {
+                saveError = "Save failed: \(error.localizedDescription)"
+            }
         }
 
         func save() {
@@ -280,53 +295,6 @@ struct AgentPromptEditor: View {
             } catch {
                 saveError = "Save failed: \(error.localizedDescription)"
             }
-        }
-
-        private static func parseEnabled(frontmatter: String) -> Bool {
-            // Scan for a line like `enabled: true` or `enabled: false`.
-            // Absent → default to enabled.
-            for line in frontmatter.components(separatedBy: "\n") {
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                if trimmed.lowercased().hasPrefix("enabled:") {
-                    let value = trimmed.dropFirst("enabled:".count)
-                        .trimmingCharacters(in: .whitespaces)
-                        .lowercased()
-                    return value != "false"
-                }
-            }
-            return true
-        }
-
-        private static func rewriteEnabled(in frontmatter: String, to value: Bool) -> String {
-            let lines = frontmatter.components(separatedBy: "\n")
-            var mutated = false
-            var output: [String] = []
-            for line in lines {
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                if trimmed.lowercased().hasPrefix("enabled:") {
-                    output.append("enabled: \(value)")
-                    mutated = true
-                } else {
-                    output.append(line)
-                }
-            }
-            if mutated { return output.joined(separator: "\n") }
-            // Insert before closing `---` fence.
-            var inserted = false
-            var result: [String] = []
-            var seenOpen = false
-            for line in lines {
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                if trimmed == "---" {
-                    if seenOpen && !inserted {
-                        result.append("enabled: \(value)")
-                        inserted = true
-                    }
-                    seenOpen = true
-                }
-                result.append(line)
-            }
-            return result.joined(separator: "\n")
         }
 
         private func flashSavedToast() {

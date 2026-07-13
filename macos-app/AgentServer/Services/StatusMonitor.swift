@@ -194,7 +194,6 @@ final class StatusMonitor: ObservableObject {
                 self.lastRunByAgent = latest
             } catch {
                 self.isServerReachable = false
-                self.agents = []
                 self.activeRuns = []
                 self.consecutiveFailures += 1
 

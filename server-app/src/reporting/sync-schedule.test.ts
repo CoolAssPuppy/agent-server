@@ -54,7 +54,7 @@ describe('extractDescription', () => {
 });
 
 describe('buildAgentSyncPayload', () => {
-  it('builds payload for scheduled and on-demand agents', () => {
+  it('builds payload for scheduled, watch-only, and on-demand agents while excluding disabled agents', () => {
     const now = new Date('2026-04-14T10:00:00Z');
     const agents = [
       makeAgent({
@@ -65,17 +65,26 @@ describe('buildAgentSyncPayload', () => {
         timezone: 'UTC',
       }),
       makeAgent({
+        id: 'watch-only',
+        name: 'Watch-Only Agent',
+        description: 'Triggered by a file change.',
+        schedule: undefined,
+        timezone: undefined,
+        watch: [{ path: '/tmp/manuscript.docx' }],
+      }),
+      makeAgent({
         id: 'on-demand',
         name: 'On-Demand Agent',
         description: 'Triggered manually.',
         schedule: undefined,
         timezone: undefined,
       }),
+      makeAgent({ id: 'disabled', enabled: false, schedule: undefined }),
     ];
 
     const payload = buildAgentSyncPayload(agents, now);
 
-    expect(payload.agents).toHaveLength(2);
+    expect(payload.agents).toHaveLength(3);
     expect(payload.agents[0]).toMatchObject({
       slug: 'scheduled',
       name: 'Scheduled Agent',
@@ -85,12 +94,20 @@ describe('buildAgentSyncPayload', () => {
     });
     expect(typeof payload.agents[0].next_run_at).toBe('string');
     expect(payload.agents[1]).toMatchObject({
+      slug: 'watch-only',
+      name: 'Watch-Only Agent',
+      description: 'Triggered by a file change.',
+    });
+    expect(payload.agents[1].cron_expression).toBeUndefined();
+    expect(payload.agents[1].next_run_at).toBeUndefined();
+    expect(payload.agents[2]).toMatchObject({
       slug: 'on-demand',
       name: 'On-Demand Agent',
       description: 'Triggered manually.',
     });
-    expect(payload.agents[1].cron_expression).toBeUndefined();
-    expect(payload.agents[1].next_run_at).toBeUndefined();
+    expect(payload.agents[2].cron_expression).toBeUndefined();
+    expect(payload.agents[2].next_run_at).toBeUndefined();
+    expect(payload.agents.map((agent) => agent.slug)).not.toContain('disabled');
   });
 
   it('computes next_run_at correctly for cron + timezone', () => {
