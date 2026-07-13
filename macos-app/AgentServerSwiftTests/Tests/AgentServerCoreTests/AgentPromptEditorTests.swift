@@ -17,12 +17,7 @@ final class AgentPromptEditorTests: XCTestCase {
         """
         let parsed = AgentPromptDocument(source: source)
 
-        XCTAssertEqual(parsed.frontmatter, """
-        ---
-        id: test
-        name: Test Agent
-        ---
-        """)
+        XCTAssertEqual(parsed.frontmatter, "---\nid: test\nname: Test Agent\n---\n")
         XCTAssertEqual(parsed.body, """
 
         # Heading
@@ -86,6 +81,19 @@ final class AgentPromptEditorTests: XCTestCase {
         XCTAssertEqual(doc.serialize(newBody: "replacement body"), "replacement body")
     }
 
+    func testSerializeUnchangedBodyPreservesExactFrontmatterBoundary() {
+        let sources = [
+            "---\nid: x\n---\nPrompt",
+            "---\r\nid: x\r\n---\r\nPrompt\r\n",
+            "---\nid: x\n---\nPrompt without final newline",
+        ]
+
+        for source in sources {
+            let document = AgentPromptDocument(source: source)
+            XCTAssertEqual(document.serialize(newBody: document.body), source)
+        }
+    }
+
     // MARK: - Round-trip on disk
 
     func testSaveRoundTripPreservesFrontmatter() throws {
@@ -112,9 +120,7 @@ final class AgentPromptEditorTests: XCTestCase {
         let reparsed = AgentPromptDocument(source: reloaded)
 
         XCTAssertEqual(reparsed.frontmatter, doc.frontmatter)
-        // Round-trip: a leading blank line on the new body is absorbed as the
-        // frontmatter/body boundary, matching the format on the original file.
-        XCTAssertEqual(reparsed.body, "Edited prompt body.\n")
+        XCTAssertEqual(reparsed.body, newBody)
     }
 
     // MARK: - Dirty tracking

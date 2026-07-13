@@ -44,6 +44,33 @@ describe('API routes', () => {
       expect(body).toHaveLength(2);
       expect(body[0].id).toBe('test-agent');
     });
+
+    it('returns scheduled, watch-only, on-demand, and disabled definitions without inventing schedules', async () => {
+      const agents = [
+        makeAgent({ id: 'scheduled', schedule: '0 9 * * *' }),
+        makeAgent({ id: 'watch-only', schedule: undefined, watch: [{ path: '/tmp/manuscript.docx' }] }),
+        makeAgent({ id: 'on-demand', schedule: undefined, watch: undefined }),
+        makeAgent({ id: 'disabled', enabled: false, schedule: undefined }),
+      ];
+      const app = createApi({
+        getAgents: async () => agents,
+        store,
+        triggerRun,
+      });
+
+      const res = await app.request('/agents');
+      const body = await res.json() as Array<Record<string, unknown>>;
+
+      expect(body.map((agent) => agent.id)).toEqual([
+        'scheduled',
+        'watch-only',
+        'on-demand',
+        'disabled',
+      ]);
+      expect(body.find((agent) => agent.id === 'watch-only')?.schedule).toBeUndefined();
+      expect(body.find((agent) => agent.id === 'on-demand')?.schedule).toBeUndefined();
+      expect(body.find((agent) => agent.id === 'disabled')?.enabled).toBe(false);
+    });
   });
 
   describe('GET /agents/:id', () => {

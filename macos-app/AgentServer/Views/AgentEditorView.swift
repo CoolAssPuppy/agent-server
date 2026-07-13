@@ -181,22 +181,21 @@ struct AgentEditorView: View {
     }
 
     private func parseEnabled(from text: String) -> Bool {
-        for line in text.components(separatedBy: .newlines) {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("enabled:") {
-                let value = trimmed.dropFirst(8).trimmingCharacters(in: .whitespaces)
-                return value == "true"
-            }
-        }
-        return true
+        (try? AgentEnabledFileEditor.enabled(in: text)) ?? true
     }
 
     private func updateEnabledInContent() {
-        let oldValue = isEnabled ? "enabled: false" : "enabled: true"
-        let newValue = isEnabled ? "enabled: true" : "enabled: false"
-
-        if content.contains(oldValue) {
-            content = content.replacingOccurrences(of: oldValue, with: newValue)
+        guard let fileURL else { return }
+        do {
+            let updatedContent = try AgentEnabledFileEditor.updatingEnabled(in: content, to: isEnabled)
+            let updatedFile = try AgentEnabledFileEditor.setEnabled(at: fileURL, to: isEnabled)
+            content = updatedContent
+            originalContent = updatedFile
+            saveError = nil
+            monitor.poll()
+        } catch {
+            saveError = error.localizedDescription
+            isEnabled = parseEnabled(from: content)
         }
     }
 }

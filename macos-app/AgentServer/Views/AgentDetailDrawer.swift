@@ -390,7 +390,7 @@ struct AgentDetailDrawer: View {
     private func promptSection(for agent: Agent) -> some View {
         let fileURL = AgentFile.find(agentId: agent.id)?.url
         if let fileURL {
-            AgentPromptEditor(fileURL: fileURL)
+            AgentPromptEditor(fileURL: fileURL, onDefinitionChanged: monitor.poll)
                 .id(fileURL)
                 .frame(maxHeight: .infinity)
         } else {

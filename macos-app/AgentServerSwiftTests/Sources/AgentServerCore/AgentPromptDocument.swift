@@ -25,21 +25,24 @@ public struct AgentPromptDocument: Equatable {
     private static func split(_ source: String) -> (String, String) {
         guard source.hasPrefix("---") else { return ("", source) }
 
-        // Use a character-level scan so we preserve exact whitespace and line
-        // endings in both halves.
-        let lines = source.components(separatedBy: "\n")
-        guard lines.first?.trimmingCharacters(in: .whitespaces) == "---" else {
+        let fullRange = NSRange(source.startIndex..<source.endIndex, in: source)
+        let opener = try! NSRegularExpression(pattern: #"\A---\r?\n"#)
+        guard let openMatch = opener.firstMatch(in: source, range: fullRange) else {
             return ("", source)
         }
-
-        for index in 1..<lines.count {
-            if lines[index].trimmingCharacters(in: .whitespaces) == "---" {
-                let fmLines = lines[0...index]
-                let bodyLines = lines[(index + 1)...]
-                let frontmatter = fmLines.joined(separator: "\n")
-                let body = bodyLines.isEmpty ? "" : bodyLines.joined(separator: "\n")
-                return (frontmatter, body)
-            }
+        let closer = try! NSRegularExpression(
+            pattern: #"^---[\t ]*(?:\r?\n|\z)"#,
+            options: [.anchorsMatchLines]
+        )
+        let remainingRange = NSRange(
+            location: NSMaxRange(openMatch.range),
+            length: fullRange.length - NSMaxRange(openMatch.range)
+        )
+        if let closeMatch = closer.firstMatch(in: source, range: remainingRange) {
+            let boundary = NSMaxRange(closeMatch.range)
+            let frontmatter = (source as NSString).substring(to: boundary)
+            let body = (source as NSString).substring(from: boundary)
+            return (frontmatter, body)
         }
 
         // No closing fence — treat entire document as body.
