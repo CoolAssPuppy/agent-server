@@ -9,7 +9,7 @@
 - [x] Add an integration test for toggle, definition reload, catalog sync, app restart, and retained visibility.
 - [x] Run focused tests, full tests, lint, type checks, and builds for the server and macOS app.
 - [x] Review the diff for narrow scope and document root causes and verification evidence.
-- [ ] Commit the fixes, merge to `main`, push, then release the next patch version with `- Bug fixes` and push release changes.
+- [x] Commit the fixes, merge to `main`, push, then release the next patch version with `- Bug fixes` and push release changes.
 
 ## Review
 
