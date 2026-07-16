@@ -15,7 +15,6 @@ final class StatusMonitor: ObservableObject {
     @Published private(set) var isServerReachable = false
     @Published private(set) var staleRunCount: Int = 0
     @Published private(set) var pendingDecisions: [Decision] = []
-    @Published var deepLinkAgentId: String?
 
     private let client = AgentServerClient()
     // Retained only for resolving decisions (a write, POSTed to the panel with

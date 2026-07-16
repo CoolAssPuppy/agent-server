@@ -19,6 +19,8 @@ server-app/src/
   agents/
     config.ts            -- Zod schema + YAML/frontmatter parser for agent definitions
     discovery.ts         -- Reads agent files (.yaml, .yml, .md) from agents directory
+    capabilities.ts      -- Consumer capability catalog + derivation + toggle translation
+    writer.ts            -- Lossless structured writes to agent files (create/update/delete)
     scheduler.ts         -- Cron expression evaluation (cron-parser v5)
     triggers.ts          -- Agent chaining (on_complete, on_failure)
     file-watcher.ts      -- File watch triggers with debounce and glob
@@ -283,7 +285,23 @@ Callback data uses `index:interactionId` encoding to stay within Telegram's 64-b
 
 ### HTTP API
 
-Hono app created via `createApi()` with dependency injection. Routes: `/agents`, `/agents/:id`, `/agents/:id/run`, `/runs`, `/runs/:id`, `/runs/:id/cancel`, `/cleanup`, `/health`, `/ws`. The `startServer()` function combines HTTP + scheduler + Telegram + WebSocket in one process.
+Hono app created via `createApi()` with dependency injection. Routes: `/agents` (GET list, POST create), `/agents/:id` (GET, PUT update, DELETE), `/agents/:id/run`, `/capabilities`, `/runs`, `/runs/:id`, `/runs/:id/cancel`, `/cleanup`, `/health`, `/ws`. The `startServer()` function combines HTTP + scheduler + Telegram + WebSocket in one process.
+
+Agent GET responses are **enriched**: hard-coded secrets in `mcp_servers` env/headers are masked (`${VAR}` references pass through), and a derived `capabilities` array is attached so clients can render consumer toggles without knowing YAML semantics. Agent write routes accept bodies up to 256 KB (prompts); all other routes keep the 8 KB cap.
+
+### Capability catalog
+
+`agents/capabilities.ts` is the translation layer between agent YAML and the consumer UI. `CAPABILITY_CATALOG` maps human capabilities ("Read your files", "Notion", "TripMaster", "CalorieNerds", ...) onto tools/`mcp_servers` entries. Key functions:
+
+- `deriveCapabilities(agent, env)` -- computes each capability's on/off state; unrecognized MCP servers and tools surface as generic custom entries (ids `mcp:<key>` / `tool:<name>`), never hidden.
+- `applyCapabilityChanges(agent, changes, env)` -- turns toggles into field updates. Disabling never deletes config: tool capabilities are denied via `disallowed_tools`, MCP capabilities via the server-level `mcp__<name>` rule, so every toggle is reversible. Enabling a catalog MCP capability writes its server entry (secrets stay as `${VAR}` references; remote URLs resolve from env at enable time because the schema requires literal URLs) and adds allowlist coverage when `tools` is non-empty.
+- Capabilities that need keys report `required_env`/`env_ready`; enabling without them fails with a `missing_env` error (HTTP 409 + `missing_env` array) so the UI can run its Connect flow.
+
+A `permissions` block is deliberately out of scope for capability toggles — agents using it are edited via the raw editor.
+
+### Agent writer
+
+`agents/writer.ts` owns all file mutation for the API. Updates go through the `yaml` package's Document API (`parseDocument` + per-key set/delete), so comments, key order, and passthrough fields survive edits; for `.md` agents only the frontmatter is rewritten and the body is replaced only when the prompt itself changes. `POST /agents` renders a frontmatter+markdown file, building an explicit `tools` allowlist from enabled capabilities. `DELETE /agents/:id` soft-deletes by moving the file into `.deleted/` (invisible to discovery). Errors carry a typed code (`not_found`, `already_exists`, `invalid`, `missing_env`) that the API maps to status codes. The writer (and the API's capability checks) reads `~/.agent-server/.env` fresh per call, so keys saved by the app's Connect flow work without a server restart — though the running daemon only picks them up for agent runs after its next restart.
 
 The `/health` endpoint returns `{ status, timestamp, started_at }` where `started_at` is the server boot time (ISO string). The macOS app uses `started_at` to detect server restarts and identify orphaned runs. The `/cleanup` endpoint calls the panel to fail orphaned runs owned by this server instance.
 
@@ -490,10 +508,13 @@ macos-app/
       EventKitPermissionManager.swift -- Requests Calendar + Reminders access at startup
       LaunchAtLoginManager.swift      -- SMAppService wrapper
     Views/
-      SettingsView.swift              -- Tab container (Agents, Settings)
-      AgentsListView.swift            -- Agent list with run buttons
-      SettingsTabView.swift           -- Launch at login + env editor
-      EnvEditorView.swift             -- Key-value editor for .env
+      MainWindow.swift                -- Sidebar + main pane + drawer overlays
+      Sidebar.swift                   -- Agent list (left, 240px)
+      MainPane.swift                  -- Home dashboard cards
+      AgentDetailDrawer.swift         -- Consumer agent page (last run, capabilities, gear)
+      AgentSettingsView.swift         -- Gear editor: basics, schedule, capability toggles, Connect flow, advanced raw editor
+      CreateAgentSheet.swift          -- Consumer new-agent flow (POST /agents)
+      SettingsDrawer.swift            -- App settings (power-user cards behind Advanced)
     Assets.xcassets/                  -- App icon + menu bar icons
     Info.plist                        -- Includes NSCalendarsFullAccessUsageDescription + NSRemindersFullAccessUsageDescription
   AgentServerEventKit/
@@ -507,6 +528,7 @@ macos-app/
 
 ### Key patterns
 
+- **Consumer UI**: The main window is sidebar (agents) + home pane, with slide-in drawers governed by `DrawerRouter`. Clicking an agent opens `AgentDetailDrawer` — a consumer page showing the schedule in plain English, the last run's outcome (rendered markdown summary), and enabled-capability chips; full run history hides behind "View history". The gear opens `AgentSettingsSheet`: name/description/schedule/instructions plus a capability toggle list driven by the server's derived `capabilities` array. Toggles PUT `/agents/:id` immediately; a capability missing its keys triggers `ConnectCapabilitySheet`, which saves values into `~/.agent-server/.env` via `EnvFileStore` (restarting the server if idle) and retries. A raw-file editor (`AgentPromptEditor`) stays available behind an Advanced disclosure. `CreateAgentSheet` creates agents through `POST /agents` with capability checkboxes from `GET /capabilities`. `SchedulePreset` (AgentServerCore) maps the picker to cron and back; unrecognized cron shapes stay "Custom" so hand-written schedules are never rewritten. The legacy `NavigationSplitView` stack (SettingsView/AgentsListView/AgentEditorView/AgentDetailView/SettingsTabView/EnvEditorView) was removed; notification deep-links route into the drawer via `openMainWindow(route:)`.
 - **NSStatusBar + NSMenu**: Menu bar icon with dropdown showing active runs and scheduled agent count. Icon switches from template (idle) to tinted (active runs).
 - **StatusMonitor**: Connects to `ws://localhost:47821/ws` for real-time run events. Falls back to HTTP polling every 5 seconds if WebSocket disconnects. Reconnects automatically after 5 seconds. Uses `@Published` properties for reactive UI updates. On lifecycle events (`run_completed`, `run_failed`, `mcp_status`) it calls `poll()` and routes to `NotificationManager`. Routes `run_failed` with `code == "run_timeout"` to `notifyRunTimedOut` and `run_failed` without a timeout code to `notifyRunFailed` — both tier-2. Detects server restarts by comparing `/health` `started_at` values between polls and fires `notifyServerRestarted` on change. Does NOT notify on `run_started` (too noisy).
 - **AgentServerClient**: HTTP client with `cancelRun(id:)` for aborting running agents via `POST /runs/:id/cancel`.
@@ -528,7 +550,7 @@ Two-tier UserDefaults-backed model defined in `AgentServerSwiftTests/Sources/Age
 | Notify for agent output | `notifications.includeAgentOutput` | `.agentOutput` | Run completed | `.success` (`agent-server-success.aiff`) |
 |  |  |  | Run failed (non-timeout), Run timed out | `.failure` (`agent-server-failure.aiff`) |
 
-Both toggles default ON. `shouldPost(.systemEvent)` requires only the master; `shouldPost(.agentOutput)` requires both. `NotificationCategory` lives in the core test module so the gate matrix is unit-testable. UI settings live in `SettingsDrawer.notificationsCard` (primary) and `SettingsTabView` (legacy sheet path); both bind to `NotificationPreferences.shared`. The second toggle is conditionally rendered (hidden, not greyed) when the master is off. Chimes are mono/22050Hz AIFF — the format that decodes reliably in `AVAudioPlayer` on macOS Sonoma+.
+Both toggles default ON. `shouldPost(.systemEvent)` requires only the master; `shouldPost(.agentOutput)` requires both. `NotificationCategory` lives in the core test module so the gate matrix is unit-testable. UI settings live in `SettingsDrawer.notificationsCard`, bound to `NotificationPreferences.shared`. The second toggle is conditionally rendered (hidden, not greyed) when the master is off. Chimes are mono/22050Hz AIFF — the format that decodes reliably in `AVAudioPlayer` on macOS Sonoma+.
 
 The server emits structured hints that the Swift side uses to pick categories: `run_failed` events carry an optional `code` field (currently `"run_timeout"` from `execution/runner.ts` when the wall-clock timer fires), and MCP authentication issues fan out as a dedicated `mcp_status` WebSocket event with `mcp_needs_auth_servers: string[]`, emitted by the `wrappedReporter` in `server/server.ts` whenever progress metadata contains `mcp_servers` with `status: "needs-auth"` entries.
 - **No sandbox**: App needs filesystem access for `~/.agent-server/.env` and network access for localhost API.

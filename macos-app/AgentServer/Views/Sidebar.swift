@@ -160,9 +160,8 @@ struct Sidebar: View {
 
             // `onNewAgent` callback is kept on the view so callers can
             // intercept (e.g., open the agents folder), but the default
-            // behavior now presents the NewAgentSheet template flow from
-            // the legacy UI. Tap → sheet, user fills in details, onCreate
-            // → we re-poll monitor so the new agent appears in the list.
+            // behavior presents the consumer CreateAgentSheet. On create we
+            // re-poll and open the new agent's detail drawer.
             Button {
                 showNewAgentSheet = true
             } label: {
