@@ -14,13 +14,25 @@ struct Agent: Codable, Identifiable {
     let notification: NotificationConfig?
     let onComplete: [TriggerRef]?
     let onFailure: [TriggerRef]?
+    let disallowedTools: [String]?
+    let timezone: String?
+    let model: String?
+    let timeout: String?
+    let permissionMode: String?
+    let workingDirectory: String?
+    /// Derived by the server from tools/disallowed_tools/mcp_servers.
+    /// Optional so the app still decodes agents from older servers.
+    let capabilities: [AgentCapability]?
 
     enum CodingKeys: String, CodingKey {
         case id, name, description, schedule, prompt, tools, enabled
-        case watch, interaction, notification
+        case watch, interaction, notification, timezone, model, timeout, capabilities
         case maxTurns = "max_turns"
         case onComplete = "on_complete"
         case onFailure = "on_failure"
+        case disallowedTools = "disallowed_tools"
+        case permissionMode = "permission_mode"
+        case workingDirectory = "working_directory"
     }
 
     var isScheduled: Bool {
@@ -56,6 +68,52 @@ struct Agent: Codable, Identifiable {
         }
         return AgentTriggerPresentation(schedule: nil, hasWatch: hasWatch).fallbackLabel ?? "On demand"
     }
+}
+
+/// One consumer-facing capability row ("Read your files", "Notion", ...)
+/// derived server-side from the agent's YAML. Toggling sends the id back
+/// via the capabilities field of an agent patch.
+struct AgentCapability: Codable, Identifiable, Equatable {
+    let id: String
+    let label: String
+    let description: String
+    let icon: String
+    let kind: String
+    let enabled: Bool
+    let custom: Bool
+    let requiredEnv: [String]
+    let envReady: Bool
+    let serverName: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, label, description, icon, kind, enabled, custom
+        case requiredEnv = "required_env"
+        case envReady = "env_ready"
+        case serverName = "server_name"
+    }
+}
+
+/// Catalog entry from GET /capabilities, used by the new-agent flow to
+/// offer every known capability before the agent exists.
+struct CapabilityCatalogEntry: Codable, Identifiable, Equatable {
+    let id: String
+    let label: String
+    let description: String
+    let icon: String
+    let kind: String
+    let builtin: Bool
+    let requiredEnv: [String]
+    let envReady: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, label, description, icon, kind, builtin
+        case requiredEnv = "required_env"
+        case envReady = "env_ready"
+    }
+}
+
+struct CapabilityCatalogResponse: Codable {
+    let capabilities: [CapabilityCatalogEntry]
 }
 
 struct FileWatch: Codable {

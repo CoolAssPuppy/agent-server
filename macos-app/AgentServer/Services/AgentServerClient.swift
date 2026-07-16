@@ -107,6 +107,82 @@ actor AgentServerClient {
         return try decoder.decode(CleanupResponse.self, from: data)
     }
 
+    /// Applies a structured patch to an agent definition via the server's
+    /// PUT /agents/:id route. Values use JSON conventions: NSNull() removes
+    /// a field, and a "capabilities" array of {id, enabled} objects toggles
+    /// capabilities. The server writes the YAML/markdown file losslessly.
+    func updateAgent(id: String, patch: [String: Any]) async throws -> Agent {
+        var request = URLRequest(url: baseURL.appendingPathComponent("/agents/\(id)"))
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: patch)
+
+        let (data, response) = try await session.data(for: request)
+        try validateWriteResponse(data: data, response: response)
+        return try decoder.decode(Agent.self, from: data)
+    }
+
+    /// Convenience for a single capability toggle.
+    func setCapability(agentId: String, capabilityId: String, enabled: Bool) async throws -> Agent {
+        try await updateAgent(
+            id: agentId,
+            patch: ["capabilities": [["id": capabilityId, "enabled": enabled]]]
+        )
+    }
+
+    func createAgent(
+        name: String,
+        description: String?,
+        prompt: String,
+        schedule: String?,
+        capabilities: [(id: String, enabled: Bool)]
+    ) async throws -> Agent {
+        var body: [String: Any] = ["name": name, "prompt": prompt]
+        if let description, !description.isEmpty { body["description"] = description }
+        if let schedule, !schedule.isEmpty { body["schedule"] = schedule }
+        if !capabilities.isEmpty {
+            body["capabilities"] = capabilities.map { ["id": $0.id, "enabled": $0.enabled] }
+        }
+
+        var request = URLRequest(url: baseURL.appendingPathComponent("/agents"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await session.data(for: request)
+        try validateWriteResponse(data: data, response: response)
+        return try decoder.decode(Agent.self, from: data)
+    }
+
+    func deleteAgent(id: String) async throws {
+        var request = URLRequest(url: baseURL.appendingPathComponent("/agents/\(id)"))
+        request.httpMethod = "DELETE"
+        let (data, response) = try await session.data(for: request)
+        try validateWriteResponse(data: data, response: response)
+    }
+
+    func capabilityCatalog() async throws -> [CapabilityCatalogEntry] {
+        let response: CapabilityCatalogResponse = try await get("/capabilities")
+        return response.capabilities
+    }
+
+    /// Write routes return structured errors (message + missing env vars for
+    /// connection capabilities); surface those instead of a bare status code.
+    private func validateWriteResponse(data: Data, response: URLResponse) throws {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw ClientError.invalidResponse
+        }
+        guard !(200...299).contains(httpResponse.statusCode) else { return }
+
+        if let body = try? decoder.decode(AgentWriteErrorBody.self, from: data) {
+            throw ClientError.writeFailed(
+                message: body.error,
+                missingEnv: body.missingEnv ?? []
+            )
+        }
+        throw ClientError.httpError(statusCode: httpResponse.statusCode)
+    }
+
     func triggerRun(agentId: String, with context: String? = nil) async throws -> TriggerResponse {
         var request = URLRequest(url: baseURL.appendingPathComponent("/agents/\(agentId)/run"))
         request.httpMethod = "POST"
@@ -139,9 +215,20 @@ actor AgentServerClient {
     }
 }
 
+struct AgentWriteErrorBody: Decodable {
+    let error: String
+    let missingEnv: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case error
+        case missingEnv = "missing_env"
+    }
+}
+
 enum ClientError: LocalizedError {
     case invalidResponse
     case httpError(statusCode: Int)
+    case writeFailed(message: String, missingEnv: [String])
 
     var errorDescription: String? {
         switch self {
@@ -149,6 +236,15 @@ enum ClientError: LocalizedError {
             return "Invalid response from server"
         case .httpError(let statusCode):
             return "HTTP error: \(statusCode)"
+        case .writeFailed(let message, _):
+            return message
         }
+    }
+
+    /// Env vars a capability needs before it can be enabled; empty when the
+    /// failure was not a missing-connection problem.
+    var missingEnvVars: [String] {
+        if case .writeFailed(_, let missingEnv) = self { return missingEnv }
+        return []
     }
 }
