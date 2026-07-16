@@ -117,11 +117,11 @@ export function parseAgentYaml(yaml: string): AgentConfig {
 const FRONTMATTER_OPEN = /^---\r?\n/;
 const FRONTMATTER_CLOSE = /\r?\n---\s*(?:\r?\n|$)/;
 
-function hasFrontmatter(content: string): boolean {
+export function hasFrontmatter(content: string): boolean {
   return FRONTMATTER_OPEN.test(content);
 }
 
-function splitFrontmatter(content: string): { yaml: string; body: string } {
+export function splitFrontmatter(content: string): { yaml: string; body: string } {
   const afterOpener = content.slice(content.indexOf('\n') + 1);
   const closeMatch = FRONTMATTER_CLOSE.exec(afterOpener);
   if (!closeMatch) {

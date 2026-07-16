@@ -1,7 +1,18 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { timingSafeEqual } from 'crypto';
 import { z } from 'zod';
 import type { AgentConfig } from '../agents/config.js';
+import {
+  catalogSummary,
+  deriveCapabilities,
+  redactAgentSecrets,
+} from '../agents/capabilities.js';
+import {
+  AgentPatchSchema,
+  AgentWriteError,
+  NewAgentSchema,
+  type AgentWriter,
+} from '../agents/writer.js';
 import type { RunStore } from '../reporting/store.js';
 import type { PendingDecision } from '../reporting/realtime-client.js';
 import {
@@ -12,6 +23,8 @@ import {
   sanitizeStoredRun,
   sanitizeText,
 } from './security-utils.js';
+
+type EnvSource = Record<string, string | undefined>;
 
 type ApiDependencies = {
   getAgents: () => Promise<AgentConfig[]>;
@@ -24,15 +37,33 @@ type ApiDependencies = {
    * Realtime subscription. Absent when the daemon has no panel configured.
    */
   getPendingDecisions?: () => PendingDecision[];
+  /**
+   * Structured writes to agent definition files. Absent in contexts that
+   * have no agents directory (e.g. some tests); write routes then 501.
+   */
+  agentWriter?: AgentWriter;
+  /**
+   * Env source used for capability readiness checks. Should read fresh
+   * .env values so newly saved keys are visible without a restart.
+   */
+  getEnv?: () => EnvSource;
   apiKey?: string;
   startedAt?: string;
   host?: string;
 };
 
 const MAX_BODY_BYTES = 8_192;
+// Agent definitions carry the full prompt (up to 40k chars), so create and
+// update bodies need far more headroom than the other routes.
+const MAX_AGENT_WRITE_BODY_BYTES = 256 * 1024;
 const TriggerRunBodySchema = z.object({
   with: z.string().trim().max(4_000).optional(),
 });
+
+function isAgentWriteRequest(method: string, path: string): boolean {
+  if (method === 'POST' && path === '/agents') return true;
+  return method === 'PUT' && /^\/agents\/[^/]+$/.test(path);
+}
 
 function isAuthorized(requestKey: string | undefined, expectedKey: string): boolean {
   if (!requestKey) return false;
@@ -127,8 +158,11 @@ export function createApi(deps: ApiDependencies): Hono {
       return response;
     }
 
+    const bodyLimit = isAgentWriteRequest(c.req.method, c.req.path)
+      ? MAX_AGENT_WRITE_BODY_BYTES
+      : MAX_BODY_BYTES;
     const contentLength = parseContentLength(c.req.raw);
-    if (contentLength !== undefined && contentLength > MAX_BODY_BYTES) {
+    if (contentLength !== undefined && contentLength > bodyLimit) {
       const response = c.json({ error: 'Request body too large' }, 413);
       setSecurityHeaders(response.headers);
       return response;
@@ -174,16 +208,119 @@ export function createApi(deps: ApiDependencies): Hono {
     });
   });
 
+  const getEnv = deps.getEnv ?? ((): EnvSource => process.env);
+
+  // Agents served over HTTP get secrets masked and a derived `capabilities`
+  // array so clients can render consumer-friendly toggles without knowing
+  // YAML semantics.
+  function enrichAgent(agent: AgentConfig): Record<string, unknown> {
+    return {
+      ...redactAgentSecrets(agent),
+      capabilities: deriveCapabilities(agent, getEnv()),
+    };
+  }
+
+  function agentWriteErrorResponse(c: Context, err: unknown): Response {
+    if (err instanceof AgentWriteError) {
+      switch (err.code) {
+        case 'not_found':
+          return c.json({ error: err.message }, 404);
+        case 'already_exists':
+          return c.json({ error: err.message }, 409);
+        case 'missing_env':
+          return c.json({ error: err.message, missing_env: err.missingEnv ?? [] }, 409);
+        case 'invalid':
+          return c.json({ error: err.message }, 400);
+      }
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[api] Agent write failed: ${sanitizeText(message, 300)}`);
+    return c.json({ error: 'Agent write failed' }, 500);
+  }
+
+  async function readJsonBody(c: Context): Promise<
+    { ok: true; body: unknown } | { ok: false; response: Response }
+  > {
+    const contentType = c.req.header('content-type')?.toLowerCase() ?? '';
+    if (!contentType.includes('application/json')) {
+      return { ok: false, response: c.json({ error: 'Expected Content-Type: application/json' }, 415) };
+    }
+    try {
+      return { ok: true, body: JSON.parse(await c.req.text()) as unknown };
+    } catch {
+      return { ok: false, response: c.json({ error: 'Invalid JSON body' }, 400) };
+    }
+  }
+
   app.get('/agents', async (c) => {
     const agents = await deps.getAgents();
-    return c.json(agents);
+    return c.json(agents.map((agent) => enrichAgent(agent)));
   });
 
   app.get('/agents/:id', async (c) => {
     const agents = await deps.getAgents();
     const agent = agents.find((a) => a.id === c.req.param('id'));
     if (!agent) return c.json({ error: 'Agent not found' }, 404);
-    return c.json(agent);
+    return c.json(enrichAgent(agent));
+  });
+
+  app.get('/capabilities', (c) => {
+    return c.json({ capabilities: catalogSummary(getEnv()) });
+  });
+
+  app.put('/agents/:id', async (c) => {
+    if (!deps.agentWriter) {
+      return c.json({ error: 'Agent editing is not available on this server' }, 501);
+    }
+
+    const read = await readJsonBody(c);
+    if (!read.ok) return read.response;
+
+    const parsed = AgentPatchSchema.safeParse(read.body);
+    if (!parsed.success) {
+      return c.json({ error: `Invalid agent patch: ${parsed.error.issues[0]?.message ?? 'bad request'}` }, 400);
+    }
+
+    try {
+      const updated = await deps.agentWriter.update(c.req.param('id'), parsed.data);
+      return c.json(enrichAgent(updated));
+    } catch (err) {
+      return agentWriteErrorResponse(c, err);
+    }
+  });
+
+  app.post('/agents', async (c) => {
+    if (!deps.agentWriter) {
+      return c.json({ error: 'Agent editing is not available on this server' }, 501);
+    }
+
+    const read = await readJsonBody(c);
+    if (!read.ok) return read.response;
+
+    const parsed = NewAgentSchema.safeParse(read.body);
+    if (!parsed.success) {
+      return c.json({ error: `Invalid agent: ${parsed.error.issues[0]?.message ?? 'bad request'}` }, 400);
+    }
+
+    try {
+      const created = await deps.agentWriter.create(parsed.data);
+      return c.json(enrichAgent(created), 201);
+    } catch (err) {
+      return agentWriteErrorResponse(c, err);
+    }
+  });
+
+  app.delete('/agents/:id', async (c) => {
+    if (!deps.agentWriter) {
+      return c.json({ error: 'Agent editing is not available on this server' }, 501);
+    }
+
+    try {
+      await deps.agentWriter.remove(c.req.param('id'));
+      return c.json({ success: true, agentId: c.req.param('id') });
+    } catch (err) {
+      return agentWriteErrorResponse(c, err);
+    }
   });
 
   app.post('/agents/:id/run', async (c) => {

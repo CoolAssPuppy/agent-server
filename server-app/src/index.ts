@@ -1,6 +1,26 @@
 export { AgentConfigSchema, PermissionsSchema, parseAgentYaml, parseAgentFile, resolveEnvVars, type AgentConfig, type McpServerConfig, type Permissions } from './agents/config.js';
 export { matchesPattern, isToolAllowed, buildCanUseTool } from './execution/permissions.js';
 export { discoverAgents } from './agents/discovery.js';
+export {
+  CAPABILITY_CATALOG,
+  CapabilityError,
+  applyCapabilityChanges,
+  catalogSummary,
+  deriveCapabilities,
+  redactAgentSecrets,
+  type AgentCapability,
+  type CapabilityChange,
+  type CapabilityDefinition,
+} from './agents/capabilities.js';
+export {
+  AgentPatchSchema,
+  AgentWriteError,
+  NewAgentSchema,
+  createAgentWriter,
+  type AgentPatch,
+  type AgentWriter,
+  type NewAgentInput,
+} from './agents/writer.js';
 export { shouldRun, getNextRun, hasMissedRun } from './agents/scheduler.js';
 export { acquireLock, releaseLock, isLocked } from './execution/lockfile.js';
 export { TelemetryReporter, replayPendingTerminals, type StatusEvent, type StatusState } from './reporting/reporter.js';

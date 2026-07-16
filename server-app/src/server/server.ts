@@ -7,6 +7,8 @@ import type { AgentConfig } from '../agents/config.js';
 import type { Reporter } from '../execution/runner.js';
 import { createApi } from './api.js';
 import { discoverAgents } from '../agents/discovery.js';
+import { createAgentWriter } from '../agents/writer.js';
+import { loadEnvFile } from '../platform/config.js';
 import { RunStore } from '../reporting/store.js';
 import { runAgent } from '../execution/runner.js';
 import { executeAgent } from '../plugins/claude-code.js';
@@ -569,6 +571,10 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     getPendingDecisions: realtimeClient
       ? () => realtimeClient.getPendingDecisions()
       : undefined,
+    agentWriter: createAgentWriter(config.agentsDir),
+    // Fresh .env read per request so keys saved via the app's Connect flow
+    // are visible to capability checks without a server restart.
+    getEnv: () => loadEnvFile(join(config.agentsDir, '..'), process.env),
     apiKey: config.apiKey,
     startedAt,
     host: config.host,

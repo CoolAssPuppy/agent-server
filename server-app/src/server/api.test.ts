@@ -385,4 +385,206 @@ describe('API routes', () => {
       expect(res.status).toBe(200);
     });
   });
+
+  describe('agent capabilities enrichment', () => {
+    it('includes derived capabilities on GET /agents', async () => {
+      const app = createApp();
+      const res = await app.request('/agents');
+      const body = await res.json() as Array<{ capabilities: Array<{ id: string; enabled: boolean }> }>;
+
+      const readFiles = body[0].capabilities.find((cap) => cap.id === 'read-files');
+      expect(readFiles?.enabled).toBe(true);
+    });
+
+    it('redacts hard-coded mcp secrets on GET /agents/:id', async () => {
+      const agents = [makeAgent({
+        mcp_servers: {
+          notion: { command: 'npx', env: { NOTION_TOKEN: 'ntn_literal_secret', REF: '${NOTION_API_KEY}' } },
+        },
+      })];
+      const app = createApi({ getAgents: async () => agents, store, triggerRun });
+
+      const res = await app.request('/agents/test-agent');
+      const body = await res.json() as {
+        mcp_servers: Record<string, { env?: Record<string, string> }>;
+      };
+      expect(body.mcp_servers.notion.env?.NOTION_TOKEN).toBe('__redacted__');
+      expect(body.mcp_servers.notion.env?.REF).toBe('${NOTION_API_KEY}');
+    });
+
+    it('serves the capability catalog', async () => {
+      const app = createApi({
+        getAgents: async () => [],
+        store,
+        triggerRun,
+        getEnv: () => ({ NOTION_API_KEY: 'x' }),
+      });
+      const res = await app.request('/capabilities');
+      expect(res.status).toBe(200);
+
+      const body = await res.json() as { capabilities: Array<{ id: string; env_ready: boolean }> };
+      expect(body.capabilities.find((cap) => cap.id === 'notion')?.env_ready).toBe(true);
+      expect(body.capabilities.find((cap) => cap.id === 'slack')?.env_ready).toBe(false);
+    });
+  });
+
+  describe('agent write routes', () => {
+    function createWriterApp(writer: Partial<import('../agents/writer.js').AgentWriter>) {
+      return createApi({
+        getAgents: async () => [makeAgent()],
+        store,
+        triggerRun,
+        agentWriter: {
+          update: vi.fn().mockRejectedValue(new Error('not stubbed')),
+          create: vi.fn().mockRejectedValue(new Error('not stubbed')),
+          remove: vi.fn().mockRejectedValue(new Error('not stubbed')),
+          ...writer,
+        },
+      });
+    }
+
+    it('returns 501 when no writer is configured', async () => {
+      const app = createApp();
+      const res = await app.request('/agents/test-agent', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: '{"name":"Renamed"}',
+      });
+      expect(res.status).toBe(501);
+    });
+
+    it('updates an agent and returns the enriched result', async () => {
+      const update = vi.fn().mockResolvedValue(makeAgent({ name: 'Renamed' }));
+      const app = createWriterApp({ update });
+
+      const res = await app.request('/agents/test-agent', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Renamed', capabilities: [{ id: 'run-commands', enabled: false }] }),
+      });
+
+      expect(res.status).toBe(200);
+      expect(update).toHaveBeenCalledWith('test-agent', {
+        name: 'Renamed',
+        capabilities: [{ id: 'run-commands', enabled: false }],
+      });
+      const body = await res.json() as { name: string; capabilities: unknown[] };
+      expect(body.name).toBe('Renamed');
+      expect(Array.isArray(body.capabilities)).toBe(true);
+    });
+
+    it('rejects patches with unknown fields', async () => {
+      const app = createWriterApp({});
+      const res = await app.request('/agents/test-agent', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: '{"id":"sneaky-rename"}',
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it('maps missing_env write errors to 409 with the variable list', async () => {
+      const { AgentWriteError } = await import('../agents/writer.js');
+      const update = vi.fn().mockRejectedValue(
+        new AgentWriteError('needs env', 'missing_env', ['NOTION_API_KEY']),
+      );
+      const app = createWriterApp({ update });
+
+      const res = await app.request('/agents/test-agent', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: '{"name":"X"}',
+      });
+      expect(res.status).toBe(409);
+      const body = await res.json() as { missing_env: string[] };
+      expect(body.missing_env).toEqual(['NOTION_API_KEY']);
+    });
+
+    it('maps not_found write errors to 404', async () => {
+      const { AgentWriteError } = await import('../agents/writer.js');
+      const update = vi.fn().mockRejectedValue(new AgentWriteError('nope', 'not_found'));
+      const app = createWriterApp({ update });
+
+      const res = await app.request('/agents/ghost', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: '{"name":"X"}',
+      });
+      expect(res.status).toBe(404);
+    });
+
+    it('creates an agent and returns 201', async () => {
+      const create = vi.fn().mockResolvedValue(makeAgent({ id: 'new-agent', name: 'New Agent' }));
+      const app = createWriterApp({ create });
+
+      const res = await app.request('/agents', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'New Agent', prompt: 'Do things.' }),
+      });
+
+      expect(res.status).toBe(201);
+      expect(create).toHaveBeenCalledWith({ name: 'New Agent', prompt: 'Do things.' });
+    });
+
+    it('accepts write bodies larger than the default limit', async () => {
+      const update = vi.fn().mockResolvedValue(makeAgent());
+      const app = createWriterApp({ update });
+
+      const bigPrompt = 'x'.repeat(30_000);
+      const body = JSON.stringify({ prompt: bigPrompt });
+      const res = await app.request('/agents/test-agent', {
+        method: 'PUT',
+        headers: {
+          'content-type': 'application/json',
+          'content-length': String(Buffer.byteLength(body)),
+        },
+        body,
+      });
+      expect(res.status).toBe(200);
+    });
+
+    it('still rejects oversized bodies on other routes', async () => {
+      const app = createApp();
+      const res = await app.request('/agents/test-agent/run', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'content-length': String(30_000),
+        },
+        body: '{}',
+      });
+      expect(res.status).toBe(413);
+    });
+
+    it('deletes an agent', async () => {
+      const remove = vi.fn().mockResolvedValue(undefined);
+      const app = createWriterApp({ remove });
+
+      const res = await app.request('/agents/test-agent', { method: 'DELETE' });
+      expect(res.status).toBe(200);
+      expect(remove).toHaveBeenCalledWith('test-agent');
+    });
+
+    it('requires the api key on write routes when configured', async () => {
+      const app = createApi({
+        getAgents: async () => [makeAgent()],
+        store,
+        triggerRun,
+        agentWriter: {
+          update: vi.fn().mockResolvedValue(makeAgent()),
+          create: vi.fn(),
+          remove: vi.fn(),
+        },
+        apiKey: 'secret-key',
+      });
+
+      const res = await app.request('/agents/test-agent', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: '{"name":"X"}',
+      });
+      expect(res.status).toBe(401);
+    });
+  });
 });
