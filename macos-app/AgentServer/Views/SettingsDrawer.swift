@@ -40,6 +40,7 @@ struct SettingsDrawer: View {
     @State private var telemetrySampleSeconds: Int = 5
     @State private var telemetryMaxEntries: Int = 50
     @State private var telemetryIncludeMetadata: Bool = false
+    @State private var showAdvancedSettings: Bool = false
 
     static let height: CGFloat = 640
     static let slideDuration: Double = 0.26
@@ -118,15 +119,36 @@ struct SettingsDrawer: View {
                 notificationsCard
             }
             VStack(spacing: NSpacing.lg) {
-                panelConnectionsCard
-                telemetryCard
-            }
-            VStack(spacing: NSpacing.lg) {
                 updatesCard
                 contactCard
             }
+            // Power-user knobs (panel telemetry, raw env grid) stay one
+            // click away instead of front and center.
+            VStack(alignment: .leading, spacing: NSpacing.lg) {
+                advancedDisclosure
+                if showAdvancedSettings {
+                    panelConnectionsCard
+                    telemetryCard
+                }
+            }
         }
         .padding(.horizontal, NSpacing.xxl)
+    }
+
+    private var advancedDisclosure: some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.15)) { showAdvancedSettings.toggle() }
+        } label: {
+            HStack(spacing: NSpacing.xs) {
+                Image(systemName: showAdvancedSettings ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                Text("Advanced")
+                    .font(NTypography.labelMedium)
+            }
+            .foregroundStyle(theme.tokens.mutedForeground)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var footer: some View {

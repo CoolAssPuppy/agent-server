@@ -53,8 +53,9 @@ struct Sidebar: View {
         .frame(maxHeight: .infinity)
         .background(theme.tokens.background)
         .sheet(isPresented: $showNewAgentSheet) {
-            NewAgentSheet(isPresented: $showNewAgentSheet) { _ in
+            CreateAgentSheet(monitor: monitor, isPresented: $showNewAgentSheet) { agentId in
                 monitor.poll()
+                router.openDetail(agentId: agentId)
             }
         }
     }
@@ -134,7 +135,7 @@ struct Sidebar: View {
                 .font(NTypography.bodyMedium)
                 .foregroundStyle(theme.tokens.mutedForeground)
             Text(monitor.isServerReachable
-                 ? "Drop a markdown file into ~/.agent-server/agents to add one."
+                 ? "Click New agent below to create your first one."
                  : "Start the agent server daemon to see your agents.")
                 .font(NTypography.captionSmall)
                 .foregroundStyle(theme.tokens.mutedForeground.opacity(0.8))
