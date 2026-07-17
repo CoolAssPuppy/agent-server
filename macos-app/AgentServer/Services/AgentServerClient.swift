@@ -166,6 +166,22 @@ actor AgentServerClient {
         return response.capabilities
     }
 
+    /// The cached set of connectors the Claude runtime can reach. Read-only;
+    /// call `refreshConnections()` to force a fresh probe.
+    func connections() async throws -> ConnectionSnapshot {
+        try await get("/connections")
+    }
+
+    /// Re-probes the runtime and returns the fresh snapshot. Backs the
+    /// "Refresh connections" action; costs an MCP connection, no tokens.
+    func refreshConnections() async throws -> ConnectionSnapshot {
+        var request = URLRequest(url: baseURL.appendingPathComponent("/connections/refresh"))
+        request.httpMethod = "POST"
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response)
+        return try decoder.decode(ConnectionSnapshot.self, from: data)
+    }
+
     /// Write routes return structured errors (message + missing env vars for
     /// connection capabilities); surface those instead of a bare status code.
     private func validateWriteResponse(data: Data, response: URLResponse) throws {

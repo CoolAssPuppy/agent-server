@@ -480,6 +480,13 @@ struct CapabilityRow: View {
                         .font(NTypography.captionSmall)
                         .foregroundStyle(theme.tokens.primary)
                 }
+                // An account connector the runtime reached but that needs
+                // re-authorization: point the user back to Claude to sign in.
+                if capability.status == "needs-auth" {
+                    Text("Sign in from Claude to use this")
+                        .font(NTypography.captionSmall)
+                        .foregroundStyle(theme.tokens.warning)
+                }
             }
 
             Spacer()

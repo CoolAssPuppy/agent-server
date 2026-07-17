@@ -321,6 +321,17 @@ final class StatusMonitor: ObservableObject {
         (try? await client.capabilityCatalog()) ?? []
     }
 
+    /// The cached connectors the Claude runtime can reach. Empty snapshot on
+    /// failure so the Connections screen degrades gracefully.
+    func connections() async -> ConnectionSnapshot {
+        (try? await client.connections()) ?? .empty
+    }
+
+    /// Forces a fresh discovery probe (the "Refresh connections" action).
+    func refreshConnections() async -> ConnectionSnapshot {
+        (try? await client.refreshConnections()) ?? .empty
+    }
+
     /// Saves connection keys into ~/.agent-server/.env.local. The server reads
     /// it fresh for capability checks (and layers it over .env), so a follow-up
     /// toggle succeeds immediately; the running daemon picks the values up for

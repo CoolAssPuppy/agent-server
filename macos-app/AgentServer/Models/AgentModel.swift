@@ -105,9 +105,13 @@ struct AgentCapability: Codable, Identifiable, Equatable {
     let requiredEnv: [String]
     let envReady: Bool
     let serverName: String?
+    /// Connection status from the discovery probe when this capability maps to
+    /// a reachable runtime connector ("connected", "needs-auth", "failed", …).
+    /// Absent for local tools and unconfigured services.
+    let status: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, label, description, icon, kind, auth, enabled, custom
+        case id, label, description, icon, kind, auth, enabled, custom, status
         case requiredEnv = "required_env"
         case envReady = "env_ready"
         case serverName = "server_name"
@@ -149,6 +153,48 @@ struct CapabilityCatalogEntry: Codable, Identifiable, Equatable {
 
 struct CapabilityCatalogResponse: Codable {
     let capabilities: [CapabilityCatalogEntry]
+}
+
+/// One MCP server the Claude runtime reported it can reach — an account
+/// connector ("claude.ai Slack"), a plugin, or a local server ("eventkit").
+struct DiscoveredConnection: Codable, Identifiable, Equatable {
+    let name: String
+    let status: String
+    let error: String?
+
+    var id: String { name }
+
+    /// True when the runtime is actively connected (not needs-auth / failed).
+    var isConnected: Bool { status == "connected" }
+    var needsAuth: Bool { status == "needs-auth" }
+
+    /// A human label: drop the "claude.ai " account-connector prefix and take
+    /// the last segment of a "plugin:x:y" name, so rows read "Slack", "Figma".
+    var displayName: String {
+        var rest = name
+        if let range = rest.range(of: "claude.ai ", options: [.caseInsensitive, .anchored]) {
+            rest.removeSubrange(range)
+        }
+        if rest.lowercased().hasPrefix("plugin:") {
+            let parts = rest.split(separator: ":")
+            if let last = parts.last { rest = String(last) }
+        }
+        return rest.isEmpty ? name : rest
+    }
+}
+
+/// The cached discovery snapshot from GET /connections. `discoveredAt` is nil
+/// until the server's first probe completes.
+struct ConnectionSnapshot: Codable, Equatable {
+    let servers: [DiscoveredConnection]
+    let discoveredAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case servers
+        case discoveredAt = "discovered_at"
+    }
+
+    static let empty = ConnectionSnapshot(servers: [], discoveredAt: nil)
 }
 
 struct FileWatch: Codable {
