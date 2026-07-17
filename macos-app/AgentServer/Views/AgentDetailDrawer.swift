@@ -385,7 +385,7 @@ struct AgentDetailDrawer: View {
                     .foregroundStyle(theme.tokens.mutedForeground)
             } else {
                 FlowChips(
-                    labels: enabled.map { chip in (icon: chip.icon, label: chip.label) },
+                    capabilities: enabled,
                     trailing: offCount > 0 ? "+\(offCount) off" : nil
                 )
             }
@@ -396,7 +396,7 @@ struct AgentDetailDrawer: View {
 /// Simple wrapping chip row for capability labels. A plain HStack inside a
 /// horizontal scroll keeps this dependency-free; the list is short.
 private struct FlowChips: View {
-    let labels: [(icon: String, label: String)]
+    let capabilities: [AgentCapability]
     let trailing: String?
 
     @Environment(\.nTheme) private var theme
@@ -404,11 +404,10 @@ private struct FlowChips: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: NSpacing.xs) {
-                ForEach(Array(labels.enumerated()), id: \.offset) { _, item in
+                ForEach(capabilities) { capability in
                     HStack(spacing: NSpacing.xxs) {
-                        Image(systemName: item.icon)
-                            .font(.system(size: 10))
-                        Text(item.label)
+                        CapabilityIconView(capability: capability, size: 12, tint: theme.tokens.foreground)
+                        Text(capability.label)
                             .font(NTypography.caption)
                     }
                     .foregroundStyle(theme.tokens.foreground)

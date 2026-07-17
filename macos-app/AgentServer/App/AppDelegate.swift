@@ -43,9 +43,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // and screenshotted without driving the menu bar. Never fires in normal
         // use (no env var set).
         if let route = ProcessInfo.processInfo.environment["AGENT_SERVER_UI_AUTOOPEN"] {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
                 switch route {
                 case "settings": self?.openMainWindow(route: .settings)
+                case let r where r.hasPrefix("detail:"):
+                    self?.openMainWindow(route: .detail(agentId: String(r.dropFirst("detail:".count))))
                 default: self?.openMainWindow()
                 }
             }

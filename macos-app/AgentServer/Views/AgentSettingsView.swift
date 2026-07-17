@@ -269,12 +269,21 @@ struct AgentSettingsSheet: View {
 
             if showAdvanced {
                 if let fileURL = AgentFile.find(agentId: agentId)?.url {
-                    Text("Raw agent file (\(fileURL.lastPathComponent)). Edits here bypass the fields above.")
+                    // The fields above already cover the prompt (Instructions),
+                    // schedule, model, and capabilities. For anything the UI
+                    // doesn't model, open the raw file — no duplicated editor.
+                    Text("Everything above is saved to this agent's file. Open it to hand-edit fields the app doesn't show.")
                         .font(NTypography.caption)
                         .foregroundStyle(theme.tokens.mutedForeground)
-                    AgentPromptEditor(fileURL: fileURL, onDefinitionChanged: monitor.poll)
-                        .id(fileURL)
-                        .frame(height: 300)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button {
+                        NSWorkspace.shared.open(fileURL)
+                    } label: {
+                        Label("Open raw file (\(fileURL.lastPathComponent))", systemImage: "doc.text")
+                            .font(NTypography.caption)
+                            .foregroundStyle(theme.tokens.primary)
+                    }
+                    .buttonStyle(.plain)
                 } else {
                     Text("Could not locate the agent's file on disk.")
                         .font(NTypography.caption)
@@ -436,10 +445,12 @@ struct CapabilityRow: View {
 
     var body: some View {
         HStack(spacing: NSpacing.md) {
-            Image(systemName: capability.icon)
-                .font(.system(size: 14))
-                .foregroundStyle(capability.enabled ? theme.tokens.primary : theme.tokens.mutedForeground)
-                .frame(width: 22)
+            CapabilityIconView(
+                capability: capability,
+                size: 18,
+                tint: capability.enabled ? theme.tokens.foreground : theme.tokens.mutedForeground.opacity(0.6)
+            )
+            .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: NSpacing.xs) {

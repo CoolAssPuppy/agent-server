@@ -163,21 +163,32 @@ struct MainPane: View {
 
     // MARK: - Coming up
 
-    private var comingUpColumn: some View {
+    /// Every enabled agent whose next scheduled run falls within the next 12
+    /// hours, soonest first — so the home shows all of what's coming, not just
+    /// the single imminent one.
+    private var upcoming12h: [(agent: Agent, date: Date)] {
         let now = Date()
-        let today = monitor.agents.filter { agent in
-            guard agent.enabled, let s = agent.schedule else { return false }
-            return CronNextFire.firesToday(s, now: now)
+        let horizon = now.addingTimeInterval(12 * 3600)
+        var items: [(agent: Agent, date: Date)] = []
+        for agent in monitor.agents where agent.enabled {
+            guard let schedule = agent.schedule,
+                  let next = CronNextFire.next(schedule, after: now) else { continue }
+            if next <= horizon { items.append((agent, next)) }
         }
+        return items.sorted { $0.date < $1.date }
+    }
+
+    private var comingUpColumn: some View {
+        let upcoming = upcoming12h
         return VStack(alignment: .leading, spacing: NSpacing.sm) {
-            eyebrow("The day ahead")
-            if today.isEmpty {
-                calmEmpty("No more runs scheduled today.")
+            eyebrow("Next 12 hours")
+            if upcoming.isEmpty {
+                calmEmpty("Nothing scheduled in the next 12 hours.")
             } else {
                 VStack(spacing: 0) {
-                    ForEach(Array(today.prefix(6).enumerated()), id: \.element.id) { index, agent in
+                    ForEach(Array(upcoming.prefix(8).enumerated()), id: \.element.agent.id) { index, item in
                         if index > 0 { Divider().opacity(0.25) }
-                        ComingUpRow(agent: agent)
+                        ComingUpRow(name: item.agent.name, time: clockTime(item.date))
                     }
                 }
                 .modifier(ElevatedSurface())
@@ -347,7 +358,8 @@ private struct ActivityRow: View {
 // MARK: - Coming up row
 
 private struct ComingUpRow: View {
-    let agent: Agent
+    let name: String
+    let time: String
     @Environment(\.nTheme) private var theme
 
     var body: some View {
@@ -355,12 +367,12 @@ private struct ComingUpRow: View {
             Image(systemName: "clock")
                 .font(.system(size: 12))
                 .foregroundStyle(theme.tokens.mutedForeground)
-            Text(agent.name)
+            Text(name)
                 .font(NTypography.bodySmall)
                 .foregroundStyle(theme.tokens.foreground)
                 .lineLimit(1)
             Spacer()
-            Text(agent.scheduleDisplay)
+            Text(time)
                 .font(NTypography.captionSmall)
                 .foregroundStyle(theme.tokens.mutedForeground)
                 .lineLimit(1)
