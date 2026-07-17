@@ -79,6 +79,9 @@ struct AgentCapability: Codable, Identifiable, Equatable {
     let description: String
     let icon: String
     let kind: String
+    /// How this connection authenticates: "none", "api_key", or "oauth".
+    /// Optional so agents from an older server still decode.
+    let auth: ConnectionAuth?
     let enabled: Bool
     let custom: Bool
     let requiredEnv: [String]
@@ -86,10 +89,23 @@ struct AgentCapability: Codable, Identifiable, Equatable {
     let serverName: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, label, description, icon, kind, enabled, custom
+        case id, label, description, icon, kind, auth, enabled, custom
         case requiredEnv = "required_env"
         case envReady = "env_ready"
         case serverName = "server_name"
+    }
+}
+
+/// How a connection authenticates. Drives which Connect flow the app runs.
+/// Unknown/absent values decode as `.none` so future servers never crash us.
+enum ConnectionAuth: String, Codable, Equatable {
+    case none
+    case apiKey = "api_key"
+    case oauth
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = ConnectionAuth(rawValue: raw) ?? .none
     }
 }
 
@@ -101,12 +117,13 @@ struct CapabilityCatalogEntry: Codable, Identifiable, Equatable {
     let description: String
     let icon: String
     let kind: String
+    let auth: ConnectionAuth?
     let builtin: Bool
     let requiredEnv: [String]
     let envReady: Bool
 
     enum CodingKeys: String, CodingKey {
-        case id, label, description, icon, kind, builtin
+        case id, label, description, icon, kind, auth, builtin
         case requiredEnv = "required_env"
         case envReady = "env_ready"
     }
