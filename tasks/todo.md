@@ -210,12 +210,21 @@ never land in agent files; agent files only hold `${VAR}` references and URLs.
       before it acts. This is what makes it safe to hand to a non-technical person.
 - [ ] Approval mode for sensitive actions using the existing human-in-the-loop
       interaction system.
-- [ ] Audit every consumer screen against "simple + confident"; tokenize the
-      remaining hardcoded styles in SettingsDrawer/MenuBarPopover.
+- [~] Audit every consumer screen against "simple + confident". DONE so far:
+      redesigned the home (MainPane) — one warm "Up next" signature instead of a
+      2x2 grid of empty ops cards — and the sidebar rows (two calm lines, plain-
+      language schedule, no raw cron, no 3-line description wall). All color from
+      theme tokens so it holds across themes. Agent detail + Edit sheet reviewed
+      and already clean (Model dropdown reads well). REMAINING: soften the blue
+      monospace instructions editor; tokenize any hardcoded styles; give the
+      New Agent + Settings screens a polish pass if the user wants.
 
 ## Phase 4 — Trust, polish, ship (ongoing)
 
-- [ ] Local metrics: per-agent success/failure, duration, token/cost, last run.
+- [x] Local metrics: per-agent success/failure, duration, token/cost, last run.
+      `reporting/metrics.ts` `computeAgentMetrics()` aggregates from the durable
+      SQLite store; served at `GET /metrics` (filter `?agent_id`). TDD, 5 tests.
+      (macOS surfacing of the metrics still TODO.)
 - [ ] Reliability hardening: crash recovery, lock hygiene, sleep/wake catch-up
       (exists), timeout coverage (exists).
 - [ ] Signed + notarized release, Sparkle auto-update (integrated), docs and a
