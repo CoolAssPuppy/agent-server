@@ -32,6 +32,7 @@ export { loadConfig, ServerConfigSchema, type ServerConfig } from './platform/co
 export { runDueAgents, runSingleAgent, listAgents, startDaemon } from './server/daemon.js';
 export { RunStore, type StoredRun, type RunStoreLike } from './reporting/store.js';
 export { SqliteRunStore, type SqliteRunStoreOptions } from './reporting/sqlite-store.js';
+export { failOrphanedLocalRuns, ORPHANED_RUN_ERROR } from './reporting/local-reconcile.js';
 export { createApi } from './server/api.js';
 export { startServer, type ServerInstance } from './server/server.js';
 export { evaluateTriggers } from './agents/triggers.js';

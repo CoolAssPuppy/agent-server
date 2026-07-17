@@ -12,6 +12,7 @@ import { loadEnvFile } from '../platform/config.js';
 import type { RunStoreLike } from '../reporting/store.js';
 import { RunStore } from '../reporting/store.js';
 import { SqliteRunStore } from '../reporting/sqlite-store.js';
+import { failOrphanedLocalRuns } from '../reporting/local-reconcile.js';
 import { runAgent } from '../execution/runner.js';
 import { executeAgent } from '../plugins/claude-code.js';
 import { executeCodexAgent } from '../plugins/codex.js';
@@ -661,6 +662,15 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   const httpServer = serve({ fetch: app.fetch, port, hostname: config.host });
   injectWebSocket(httpServer);
   console.log(`Agent Server API listening on http://${config.host}:${port}`);
+
+  // Local ghost-run cleanup. A fresh process owns no in-flight runs, so any run
+  // left `running` in the durable store belongs to a previous instance that was
+  // killed mid-run. Fail them locally so the macOS app never shows a run
+  // "working" forever. This needs no panel — the server owns its own runs.
+  const orphaned = failOrphanedLocalRuns(store);
+  if (orphaned.length > 0) {
+    console.log(`[startup] Failed ${orphaned.length} local run(s) left in progress by a previous server instance`);
+  }
 
   if (panelClient) {
     void panelClient.failOrphanedRuns(serverId)

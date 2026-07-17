@@ -83,7 +83,13 @@ is dead simple.
       `panelUrl` is unset (already the case); zero dependency is preserved.
 - [ ] Move decisions/interactions fully local (they partly ride Supabase realtime
       today). Route through the local server + channels.
-- [ ] Ghost-run cleanup becomes purely local (server owns its runs; no panel).
+- [x] Ghost-run cleanup becomes purely local (server owns its runs; no panel).
+      `failOrphanedLocalRuns()` (`reporting/local-reconcile.ts`) runs at boot: a
+      fresh process owns no in-flight runs, so any run still `running` in the
+      durable store is failed with a clear reason. Needed now that history
+      persists (an in-memory store was empty on restart, so ghosts couldn't
+      exist). Panel-side cleanup stays as the optional path. Verified end-to-end:
+      a seeded `running` run boots as `failed`, a `completed` run is untouched.
 - [ ] macOS: point run history at local `/runs`; delete `PanelClient`,
       `PanelRun`, panel cleanup UI. Keep the local `/cleanup`.
 - [ ] Drop panel env vars from config/docs. Result: zero cloud dependency.
