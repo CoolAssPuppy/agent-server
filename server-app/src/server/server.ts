@@ -14,7 +14,7 @@ import { RunStore } from '../reporting/store.js';
 import { SqliteRunStore } from '../reporting/sqlite-store.js';
 import { failOrphanedLocalRuns } from '../reporting/local-reconcile.js';
 import { runAgent } from '../execution/runner.js';
-import { executeAgent } from '../plugins/claude-code.js';
+import { executeAgent, probeMcpServers } from '../plugins/claude-code.js';
 import { executeCodexAgent } from '../plugins/codex.js';
 import { ExecutorRegistry } from '../execution/executor-registry.js';
 import { discoverRuntimePaths } from '../execution/runtime-discovery.js';
@@ -617,6 +617,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     // Fresh .env read per request so keys saved via the app's Connect flow
     // are visible to capability checks without a server restart.
     getEnv: () => loadEnvFile(join(config.agentsDir, '..'), process.env),
+    discoverMcp: () => probeMcpServers(),
     apiKey: config.apiKey,
     startedAt,
     host: config.host,

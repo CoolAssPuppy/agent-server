@@ -48,6 +48,12 @@ type ApiDependencies = {
    * .env values so newly saved keys are visible without a restart.
    */
   getEnv?: () => EnvSource;
+  /**
+   * Probes the Claude runtime for the MCP servers it can reach (account
+   * connectors + injected local servers). Absent in tests/contexts without a
+   * runtime; the discover route then returns an empty list.
+   */
+  discoverMcp?: () => Promise<Array<{ name: string; status: string; error?: string }>>;
   apiKey?: string;
   startedAt?: string;
   host?: string;
@@ -380,6 +386,20 @@ export function createApi(deps: ApiDependencies): Hono {
     const run = deps.store.get(c.req.param('id'));
     if (!run) return c.json({ error: 'Run not found' }, 404);
     return c.json(sanitizeStoredRun(run));
+  });
+
+  // Probe the Claude runtime for the MCP servers it can reach (account
+  // connectors + injected local servers). A cache of what's available, not
+  // config — the app refreshes it on demand.
+  app.get('/connections/discover', async (c) => {
+    if (!deps.discoverMcp) return c.json({ servers: [] });
+    try {
+      const servers = await deps.discoverMcp();
+      return c.json({ servers });
+    } catch (err) {
+      console.error(`[api] MCP discovery failed: ${sanitizeText(String(err), 300)}`);
+      return c.json({ servers: [] });
+    }
   });
 
   // Per-agent run metrics (success rate, avg duration, cost, last run) computed

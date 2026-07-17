@@ -506,6 +506,38 @@ function logMcpStatus(servers: McpServerInfo[]): void {
   }
 }
 
+/**
+ * Discover which MCP servers the Claude runtime can reach — the account-level
+ * connectors from the user's claude.ai (Notion, Linear, Gmail, …) plus any
+ * injected local server (eventkit). Runs a `query()` only far enough to read
+ * `mcpServerStatus()`, then aborts before any model turn is consumed, so the
+ * probe costs an MCP connection but no tokens.
+ *
+ * The result is a cache of what's available, never a source of truth — it's
+ * regenerated on demand. Returns [] on any failure so the UI degrades to "no
+ * connectors discovered" rather than erroring.
+ */
+export async function probeMcpServers(): Promise<McpServerInfo[]> {
+  const abortController = new AbortController();
+  const options: Options = {
+    maxTurns: 1,
+    permissionMode: 'bypassPermissions',
+    abortController,
+    // No agent servers; account-level connectors are inherited from the
+    // subscription automatically. eventkit is injected when the app set the bin.
+    mcpServers: buildMcpServers({ mcp_servers: undefined, tools: [], disallowed_tools: [] } as unknown as AgentConfig),
+  };
+
+  try {
+    const stream = query({ prompt: 'probe', options });
+    const servers = await fetchMcpStatus(stream);
+    try { abortController.abort(); } catch { /* ignore */ }
+    return servers;
+  } catch {
+    return [];
+  }
+}
+
 async function fetchMcpStatus(stream: Query): Promise<McpServerInfo[]> {
   try {
     const statuses = await stream.mcpServerStatus();
