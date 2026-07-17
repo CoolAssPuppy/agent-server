@@ -81,8 +81,12 @@ is dead simple.
       panel on boot is pointless now), and the scheduler no longer waits on a
       seed race — it starts immediately. All panel code stays inert when
       `panelUrl` is unset (already the case); zero dependency is preserved.
-- [ ] Move decisions/interactions fully local (they partly ride Supabase realtime
-      today). Route through the local server + channels.
+- [DEFERRED] Move decisions/interactions fully local. The simple `interaction`
+      path is ALREADY fully local (channels + `on_reply`). The richer in-run
+      `decision` block still rides the panel's SSE and no-ops standalone.
+      DECIDED: defer and fold into the future bidirectional messaging-apps effort
+      (WhatsApp + Telegram, both directions) rather than build a one-off local
+      decision transport now. See Future work below.
 - [x] Ghost-run cleanup becomes purely local (server owns its runs; no panel).
       `failOrphanedLocalRuns()` (`reporting/local-reconcile.ts`) runs at boot: a
       fresh process owns no in-flight runs, so any run still `running` in the
@@ -90,9 +94,13 @@ is dead simple.
       persists (an in-memory store was empty on restart, so ghosts couldn't
       exist). Panel-side cleanup stays as the optional path. Verified end-to-end:
       a seeded `running` run boots as `failed`, a `completed` run is untouched.
-- [ ] macOS: point run history at local `/runs`; delete `PanelClient`,
-      `PanelRun`, panel cleanup UI. Keep the local `/cleanup`.
-- [ ] Drop panel env vars from config/docs. Result: zero cloud dependency.
+- [x] macOS: run history already reads local `/runs` as its primary source
+      (`AgentRunsView`, `MainPane`) and merges panel rows only when configured.
+      REVISED by keep-optional: do NOT delete `PanelClient`/`PanelRun`/cleanup
+      UI — they are the optional dashboard enrichment. Local `/cleanup` kept.
+- [REVISED] Keep panel env vars: keep-optional means the panel stays a
+      config-gated integration, so its env vars remain (inert when unset). The
+      standalone result is already zero cloud dependency without removing them.
 
 ## Phase 2 — Multi-runtime, subscriptions, custom models (1-2 weeks)
 
@@ -182,15 +190,24 @@ never land in agent files; agent files only hold `${VAR}` references and URLs.
 
 ---
 
-## Decisions to confirm before building
+## Future work (post-plan)
 
-1. Run persistence: SQLite (recommended) or flat files?
-2. Agent Panel: retire the repo entirely, or keep it alive as an optional,
-   separately-installed dashboard that a power user can point the server at?
-3. Telegram/console channels: keep as-is, or fold notifications/approvals into
-   the macOS app so there is one surface?
-4. Custom-model priority: is Kimi K2 the first target, and via Codex (fastest to
-   ship) or Claude (needs the model-wiring + base-url work)?
+- [ ] Bidirectional messaging apps: first-class WhatsApp + Telegram support that
+      both sends to and receives from the user. Fold the deferred in-run
+      `decision` local-resolution work into this channel layer (a paused run's
+      question flows out and the reply flows back through the same bidirectional
+      transport). Do not build a one-off local decision transport before this.
+
+## Decisions (resolved)
+
+1. Run persistence: **SQLite**, via Node's built-in `node:sqlite` (no native
+   dependency to bundle/sign into the macOS app). DONE.
+2. Agent Panel: **keep it optional** — a config-gated dashboard a power user can
+   point the server at; standalone runs need zero cloud. Do not delete the wiring.
+3. Telegram/console channels: keep as-is for now; a unified multi-app messaging
+   layer (WhatsApp + Telegram, bidirectional) is future work (see above).
+4. Custom-model priority: Kimi K2 first. (Path — Codex vs Claude — to confirm at
+   Phase 2.)
 
 ## Risks and unknowns to check early
 
