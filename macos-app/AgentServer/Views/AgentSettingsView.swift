@@ -472,7 +472,11 @@ struct CapabilityRow: View {
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
                     .lineLimit(2)
-                if needsConnection {
+                // Only nudge to connect when the capability is OFF. An enabled
+                // capability is already working (often through the agent's own
+                // ${VAR}, which the catalog's expected key name won't match), so
+                // "needs to be connected" would be wrong and confusing.
+                if needsConnection && !capability.enabled {
                     Text("Needs to be connected first")
                         .font(NTypography.captionSmall)
                         .foregroundStyle(theme.tokens.primary)
