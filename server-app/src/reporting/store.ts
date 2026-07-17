@@ -1,3 +1,9 @@
+import {
+  MAX_PROGRESS_MESSAGES_PER_RUN,
+  normalizeStoredRun,
+  truncateProgressMessage,
+} from './run-normalization.js';
+
 export type StoredRun = {
   runId: string;
   agentId: string;
@@ -24,34 +30,26 @@ export type StoredRun = {
   model?: string;
 };
 
+/**
+ * The contract the server depends on for run history. Both the in-memory
+ * `RunStore` and the durable `SqliteRunStore` implement it, so the server can
+ * hold either without knowing where runs live. `close()` releases any
+ * underlying handle (a no-op for the in-memory store).
+ */
+export interface RunStoreLike {
+  add(run: StoredRun): void;
+  get(runId: string): StoredRun | undefined;
+  list(): StoredRun[];
+  listByAgent(agentId: string): StoredRun[];
+  update(runId: string, updates: Partial<StoredRun>): void;
+  delete(runId: string): boolean;
+  addProgress(runId: string, message: string): void;
+  close(): void;
+}
+
 const DEFAULT_MAX_RUNS = 200;
-const MAX_PROGRESS_MESSAGES_PER_RUN = 500;
-const MAX_LIST_ITEMS = 256;
-const MAX_TEXT_LENGTH = 4_000;
 
-function truncate(value: string, maxLength = MAX_TEXT_LENGTH): string {
-  if (value.length <= maxLength) return value;
-  return `${value.slice(0, maxLength)}…`;
-}
-
-function trimArray(values: string[]): string[] {
-  return values.slice(0, MAX_LIST_ITEMS).map((v) => truncate(v));
-}
-
-function normalizeStoredRun(run: StoredRun): StoredRun {
-  return {
-    ...run,
-    summary: run.summary ? truncate(run.summary, 8_000) : undefined,
-    error: run.error ? truncate(run.error, 2_000) : undefined,
-    toolsUsed: trimArray(run.toolsUsed),
-    filesRead: trimArray(run.filesRead),
-    filesWritten: trimArray(run.filesWritten),
-    commandsRun: trimArray(run.commandsRun),
-    progressMessages: run.progressMessages.slice(-MAX_PROGRESS_MESSAGES_PER_RUN).map((v) => truncate(v, 1_000)),
-  };
-}
-
-export class RunStore {
+export class RunStore implements RunStoreLike {
   private readonly runs = new Map<string, StoredRun>();
   private readonly maxRuns: number;
 
@@ -94,12 +92,15 @@ export class RunStore {
     const run = this.runs.get(runId);
     if (!run) return;
 
-    const nextMessages = [...run.progressMessages, truncate(message, 1_000)];
+    const nextMessages = [...run.progressMessages, truncateProgressMessage(message)];
     this.runs.set(runId, {
       ...run,
       progressMessages: nextMessages.slice(-MAX_PROGRESS_MESSAGES_PER_RUN),
     });
   }
+
+  /** No-op: the in-memory store holds no external handle. */
+  close(): void {}
 
   private evictOldest(): void {
     if (this.runs.size <= this.maxRuns) return;

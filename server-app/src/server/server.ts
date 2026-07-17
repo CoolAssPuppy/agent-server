@@ -9,7 +9,9 @@ import { createApi } from './api.js';
 import { discoverAgents } from '../agents/discovery.js';
 import { createAgentWriter } from '../agents/writer.js';
 import { loadEnvFile } from '../platform/config.js';
+import type { RunStoreLike } from '../reporting/store.js';
 import { RunStore } from '../reporting/store.js';
+import { SqliteRunStore } from '../reporting/sqlite-store.js';
 import { runAgent } from '../execution/runner.js';
 import { executeAgent } from '../plugins/claude-code.js';
 import { executeCodexAgent } from '../plugins/codex.js';
@@ -176,7 +178,30 @@ export function shouldDispatchNotification(
 
 type StartServerOptions = {
   anthropicApiKey?: string;
+  /**
+   * Override the run-history store. Defaults to a durable `SqliteRunStore` at
+   * `config.runDbPath`. Injected in tests to avoid touching the real database.
+   */
+  store?: RunStoreLike;
 };
+
+/**
+ * Build the durable run store, falling back to an in-memory store if SQLite
+ * cannot be opened (corrupt file, read-only volume). Run history is valuable
+ * but never worth blocking the server from starting, so a failure degrades to
+ * ephemeral history with a warning rather than crashing.
+ */
+function createRunStore(runDbPath: string): RunStoreLike {
+  try {
+    return new SqliteRunStore({ path: runDbPath });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(
+      `[runs] Failed to open run database at ${runDbPath}; falling back to in-memory history: ${message}`,
+    );
+    return new RunStore();
+  }
+}
 
 export function startServer(config: ServerConfig, options?: StartServerOptions): ServerInstance {
   validateNetworkExposure(config.host, config.apiKey);
@@ -185,7 +210,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   const serverId = `${hostname()}-${process.pid}`;
   const panelClient = createPanelClient(config);
 
-  const store = new RunStore();
+  const store = options?.store ?? createRunStore(config.runDbPath);
   const interactionStore = new InteractionStore();
   const conversationStore = new ConversationStore();
   const channelDispatcher = new ChannelDispatcher();
@@ -932,6 +957,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       httpServer.close();
       void fileWatcherPromise.then((w) => w?.stop());
       void telegramPromise.then(() => channelDispatcher.stopAll());
+      store.close();
       console.log('Agent Server stopped.');
     },
   };

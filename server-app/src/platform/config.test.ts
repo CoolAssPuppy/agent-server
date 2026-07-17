@@ -23,6 +23,7 @@ describe('loadConfig', () => {
     expect(config.apiKey).toBeUndefined();
     expect(config.maxConcurrentRuns).toBe(8);
     expect(config.maxWebSocketClients).toBe(100);
+    expect(config.runDbPath).toBe(join(homedir(), '.agent-server', 'runs.db'));
   });
 
   it('reads from environment variables', () => {
@@ -41,7 +42,9 @@ describe('loadConfig', () => {
       AGENT_SERVER_TELEMETRY_PROGRESS_SAMPLE_MS: '7000',
       AGENT_SERVER_TELEMETRY_PROGRESS_MAX_ENTRIES: '20',
       AGENT_SERVER_TELEMETRY_PROGRESS_INCLUDE_METADATA: 'true',
+      AGENT_SERVER_RUN_DB: '/tmp/history.db',
     });
+    expect(config.runDbPath).toBe('/tmp/history.db');
     expect(config.agentsDir).toBe('/tmp/agents');
     expect(config.lockDir).toBe('/tmp/locks');
     expect(config.panelUrl).toBe('https://panel.example.com');

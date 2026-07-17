@@ -13,7 +13,7 @@ import {
   NewAgentSchema,
   type AgentWriter,
 } from '../agents/writer.js';
-import type { RunStore } from '../reporting/store.js';
+import type { RunStoreLike } from '../reporting/store.js';
 import type { PendingDecision } from '../reporting/realtime-client.js';
 import {
   AuthFailureTracker,
@@ -28,7 +28,7 @@ type EnvSource = Record<string, string | undefined>;
 
 type ApiDependencies = {
   getAgents: () => Promise<AgentConfig[]>;
-  store: RunStore;
+  store: RunStoreLike;
   triggerRun: (agentId: string, promptSuffix?: string) => Promise<string>;
   cancelRun?: (runId: string) => boolean;
   cleanupFn?: () => Promise<number>;

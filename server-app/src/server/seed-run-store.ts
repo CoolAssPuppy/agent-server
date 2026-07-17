@@ -1,5 +1,5 @@
 import type { PanelClient, PanelRunRow } from '../reporting/panel-client.js';
-import type { RunStore, StoredRun } from '../reporting/store.js';
+import type { RunStoreLike, StoredRun } from '../reporting/store.js';
 
 const PANEL_TO_STORED_STATUS: Record<string, StoredRun['status']> = {
   submitted: 'running',
@@ -67,7 +67,7 @@ export function panelRowToStoredRun(row: PanelRunRow): StoredRun | null {
 
 type SeedOptions = {
   panelClient: PanelClient;
-  store: RunStore;
+  store: RunStoreLike;
   limit?: number;
 };
 
