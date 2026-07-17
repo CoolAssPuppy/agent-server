@@ -22,6 +22,7 @@ struct AgentSettingsSheet: View {
     @State private var promptText = ""
     @State private var enabled = true
     @State private var scheduleDraft = ScheduleDraft()
+    @State private var modelDraft = ModelDraft()
 
     @State private var saving = false
     @State private var errorMessage: String?
@@ -41,6 +42,7 @@ struct AgentSettingsSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: NSpacing.xl) {
                     basicsSection
+                    modelSection
                     instructionsSection
                     capabilitiesSection
                     advancedSection
@@ -72,6 +74,7 @@ struct AgentSettingsSheet: View {
         promptText = agent.prompt
         enabled = agent.enabled
         scheduleDraft = ScheduleDraft(cron: agent.schedule)
+        modelDraft = ModelDraft(agent: agent)
     }
 
     // MARK: - Header / footer
@@ -115,7 +118,7 @@ struct AgentSettingsSheet: View {
                 }
             }
             .keyboardShortcut(.defaultAction)
-            .disabled(saving || name.trimmingCharacters(in: .whitespaces).isEmpty)
+            .disabled(saving || name.trimmingCharacters(in: .whitespaces).isEmpty || !modelDraft.isValid)
         }
         .padding(.horizontal, NSpacing.xl)
         .padding(.vertical, NSpacing.md)
@@ -143,6 +146,18 @@ struct AgentSettingsSheet: View {
                 fieldLabel("Schedule")
                 ScheduleField(draft: $scheduleDraft)
             }
+        }
+    }
+
+    // MARK: - Model
+
+    private var modelSection: some View {
+        VStack(alignment: .leading, spacing: NSpacing.sm) {
+            sectionTitle("Model")
+            Text("Which AI runs this agent.")
+                .font(NTypography.caption)
+                .foregroundStyle(theme.tokens.mutedForeground)
+            ModelField(draft: $modelDraft)
         }
     }
 
@@ -360,7 +375,39 @@ struct AgentSettingsSheet: View {
             patch["enabled"] = enabled
         }
 
+        addModelChanges(to: &patch, for: agent)
+
         return patch
+    }
+
+    /// Translate the model picker into executor/model/provider patch keys, but
+    /// only when the resolved selection differs from what the agent already has.
+    /// `NSNull()` removes a field (e.g. switching back to the default plan drops
+    /// the provider block entirely).
+    private func addModelChanges(to patch: inout [String: Any], for agent: Agent) {
+        guard modelDraft.isValid else { return }
+
+        let currentExecutor = agent.executor
+        // Treat the implicit default the same as an explicit one so picking
+        // "Claude (your plan)" on an already-default agent is a no-op.
+        let resolvedExecutor = modelDraft.resolvedExecutor
+        if resolvedExecutor != currentExecutor {
+            patch["executor"] = resolvedExecutor ?? NSNull()
+        }
+
+        if modelDraft.resolvedModel != agent.model {
+            patch["model"] = modelDraft.resolvedModel ?? NSNull()
+        }
+
+        if modelDraft.resolvedProvider != agent.provider {
+            if let provider = modelDraft.resolvedProvider {
+                var providerDict: [String: Any] = ["base_url": provider.baseURL]
+                if let apiKey = provider.apiKey { providerDict["api_key"] = apiKey }
+                patch["provider"] = providerDict
+            } else {
+                patch["provider"] = NSNull()
+            }
+        }
     }
 
     // MARK: - Small helpers

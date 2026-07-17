@@ -17,6 +17,11 @@ struct Agent: Codable, Identifiable {
     let disallowedTools: [String]?
     let timezone: String?
     let model: String?
+    /// "claude-code" (default) or "codex". Optional so older servers decode.
+    let executor: String?
+    /// Custom model provider (endpoint + ${VAR} key), when the agent runs on a
+    /// non-default model. Optional so older servers decode.
+    let provider: ProviderConfig?
     let timeout: String?
     let permissionMode: String?
     let workingDirectory: String?
@@ -26,7 +31,7 @@ struct Agent: Codable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case id, name, description, schedule, prompt, tools, enabled
-        case watch, interaction, notification, timezone, model, timeout, capabilities
+        case watch, interaction, notification, timezone, model, executor, provider, timeout, capabilities
         case maxTurns = "max_turns"
         case onComplete = "on_complete"
         case onFailure = "on_failure"
@@ -67,6 +72,19 @@ struct Agent: Codable, Identifiable {
             return CronEnglishFormatter.describe(schedule)
         }
         return AgentTriggerPresentation(schedule: nil, hasWatch: hasWatch).fallbackLabel ?? "On demand"
+    }
+}
+
+/// A custom model provider (endpoint + key reference) for an agent. `apiKey`
+/// holds a `${VAR}` reference resolved from `.env` at run time, never a literal
+/// secret.
+struct ProviderConfig: Codable, Equatable {
+    let baseURL: String
+    let apiKey: String?
+
+    enum CodingKeys: String, CodingKey {
+        case baseURL = "base_url"
+        case apiKey = "api_key"
     }
 }
 

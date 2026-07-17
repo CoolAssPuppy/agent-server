@@ -131,8 +131,16 @@ is dead simple.
       The SDK's per-session env sidesteps the global API-key-strip conflict
       cleanly — no `process.env` mutation, so concurrent subscription agents are
       unaffected. TDD (2 tests). The `provider` block is now executor-agnostic.
-- [ ] UI: a simple per-agent Model dropdown ("Claude (your plan)", "Codex (your
-      ChatGPT)", "Kimi K2", "Custom..."). Plumbing hidden.
+- [x] UI: a simple per-agent Model dropdown ("Claude (your plan)", "Codex (your
+      ChatGPT)", "Kimi K2", "Custom…"). `macos-app/.../Views/ModelField.swift`
+      (ModelDraft + ModelField, mirroring ScheduleField); wired into the gear
+      editor's new Model section. Custom reveals endpoint/model/key-variable
+      fields; the key stays a `${VAR}` ref in `.env`. Server: `executor` +
+      `provider` added to `AgentPatchSchema` + writer field list. Verified via
+      the real PUT /agents/:id route: selecting Kimi persists
+      executor/model/provider to disk (key ref intact); switching back to Claude
+      removes them. macOS build succeeds. (Still TODO: "Use my installed
+      Claude/Codex" toggle in Settings — server flags already exist.)
 - [x] Verify: tool permissions enforced regardless of provider. FIXED via
       DECIDED mapping (map toggles -> Codex sandbox). `execution/codex-safety.ts`
       derives Codex's `sandboxMode` from whether the agent may write/run

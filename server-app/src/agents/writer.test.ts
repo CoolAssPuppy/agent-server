@@ -102,6 +102,55 @@ describe('AgentWriter.update', () => {
     expect(content).not.toContain('description:');
   });
 
+  it('sets the executor, model, and custom provider block (Model dropdown)', async () => {
+    const { dir, writer } = await seededWriter({ 'briefing.yaml': YAML_AGENT });
+
+    const updated = await writer.update('briefing', {
+      executor: 'codex',
+      model: 'kimi-k2',
+      provider: { base_url: 'https://api.moonshot.ai/v1', api_key: '${MOONSHOT_API_KEY}' },
+    });
+
+    expect(updated.executor).toBe('codex');
+    expect(updated.model).toBe('kimi-k2');
+    expect(updated.provider).toEqual({ base_url: 'https://api.moonshot.ai/v1', api_key: '${MOONSHOT_API_KEY}' });
+
+    const content = await readFile(join(dir, 'briefing.yaml'), 'utf-8');
+    // Round-trip parses back to the same values (the ${VAR} ref stays literal).
+    const reparsed = parseAgentFile(content);
+    expect(reparsed.provider?.base_url).toBe('https://api.moonshot.ai/v1');
+    expect(reparsed.provider?.api_key).toBe('${MOONSHOT_API_KEY}');
+    expect(content).toContain('# Morning briefing agent'); // comment preserved
+  });
+
+  it('clears the provider and model when switching back to the default plan', async () => {
+    const { dir, writer } = await seededWriter({
+      'kimi.yaml': `id: kimi
+name: Kimi Agent
+prompt: Do the thing.
+executor: codex
+model: kimi-k2
+provider:
+  base_url: https://api.moonshot.ai/v1
+  api_key: \${MOONSHOT_API_KEY}
+tools:
+  - Read
+max_turns: 5
+enabled: true
+`,
+    });
+
+    const updated = await writer.update('kimi', { executor: null, model: null, provider: null });
+    expect(updated.executor).toBeUndefined();
+    expect(updated.model).toBeUndefined();
+    expect(updated.provider).toBeUndefined();
+
+    const content = await readFile(join(dir, 'kimi.yaml'), 'utf-8');
+    expect(content).not.toContain('provider:');
+    expect(content).not.toContain('model:');
+    expect(content).not.toContain('base_url');
+  });
+
   it('applies capability toggles on top of the existing config', async () => {
     const { dir, writer } = await seededWriter({ 'briefing.yaml': YAML_AGENT });
 
