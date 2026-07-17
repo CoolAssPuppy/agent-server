@@ -52,17 +52,41 @@ struct ConnectionsView: View {
                     servicesSection
                     messagingSection
                 }
-                .padding(NSpacing.xl)
+                .padding(.horizontal, NSpacing.xxl)
+                .padding(.vertical, NSpacing.xl)
             }
+            // The available list grows from a short "Checking…" card to the full
+            // connector list once the probe returns; anchoring to the top keeps
+            // the view pinned there instead of drifting as content grows below.
+            .defaultScrollAnchor(.top)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(theme.tokens.background)
+        // Match the Settings drawer: same fixed height, card surface, rounded
+        // bottom, and soft shadow. Content scrolls inside.
+        .frame(maxWidth: .infinity)
+        .frame(height: SettingsDrawer.height)
+        .background(theme.tokens.card)
+        .clipShape(BottomRoundedRectangle(radius: NRadius.md))
+        .compositingGroup()
+        .shadow(color: Color.black.opacity(0.25), radius: 16, x: 0, y: 6)
+        .onKeyPress(.escape) {
+            router.close()
+            return .handled
+        }
         .task {
             guard !loaded else { return }
             loaded = true
             catalog = await monitor.capabilityCatalog()
             snapshot = await monitor.connections()
             telegramConnected = Self.isTelegramConnected()
+            // The boot probe may still be in flight the first time this opens,
+            // so a fresh install shows "Checking…". Await it once — the server
+            // cache coalesces, so this joins the in-flight probe rather than
+            // starting another.
+            if snapshot.discoveredAt == nil {
+                refreshing = true
+                snapshot = await monitor.refreshConnections()
+                refreshing = false
+            }
         }
         .sheet(item: $connectTarget) { target in
             ConnectServiceSheet(monitor: monitor, entry: target.entry) {
@@ -95,8 +119,10 @@ struct ConnectionsView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Close connections")
         }
-        .padding(.horizontal, NSpacing.xl)
-        .padding(.top, NSpacing.xxl)
+        .padding(.horizontal, NSpacing.xxl)
+        // Reserve space for the transparent titlebar's traffic lights, matching
+        // the Settings drawer so the title sits just below them.
+        .padding(.top, 28)
         .padding(.bottom, NSpacing.md)
     }
 
@@ -159,7 +185,7 @@ struct ConnectionsView: View {
                     DiscoveredConnectionRow(connector: connector)
                 }
             }
-            .background(theme.tokens.card)
+            .background(theme.tokens.background)
             .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border, lineWidth: 1))
             .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
         }
@@ -181,7 +207,7 @@ struct ConnectionsView: View {
         }
         .padding(NSpacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.tokens.card)
+        .background(theme.tokens.background)
         .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
     }
@@ -205,7 +231,7 @@ struct ConnectionsView: View {
                     ConnectionRow(entry: entry) { connectTarget = CatalogConnectTarget(entry: entry) }
                 }
             }
-            .background(theme.tokens.card)
+            .background(theme.tokens.background)
             .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border, lineWidth: 1))
             .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
         }
@@ -229,7 +255,7 @@ struct ConnectionsView: View {
                     connectTarget = CatalogConnectTarget(entry: telegramEntry)
                 }
             }
-            .background(theme.tokens.card)
+            .background(theme.tokens.background)
             .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border, lineWidth: 1))
             .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
         }

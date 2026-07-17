@@ -896,7 +896,9 @@ private enum TelemetryEnvKey {
 
 // MARK: - Bottom-only rounded rectangle
 
-private struct BottomRoundedRectangle: Shape {
+/// A rectangle with only its bottom corners rounded. Shared by the Settings
+/// and Connections drawers so both read as the same sheet sliding down.
+struct BottomRoundedRectangle: Shape {
     let radius: CGFloat
 
     func path(in rect: CGRect) -> Path {
