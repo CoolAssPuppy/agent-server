@@ -169,12 +169,15 @@ export const CAPABILITY_CATALOG: CapabilityDefinition[] = [
     kind: 'mcp',
     serverName: 'tripmaster',
     match: /trip[-_]?master/i,
-    remoteServer: {
+    // Hosted at a stable URL; authenticates with a long-lived API key
+    // (tripmaster api-key create) pasted as a bearer token. Only the key
+    // is collected via the Connect flow; the URL is known.
+    staticServer: {
       type: 'http',
-      urlEnv: 'TRIPMASTER_MCP_URL',
+      url: 'https://www.tripmaster.dev/mcp',
       headers: { Authorization: 'Bearer ${TRIPMASTER_API_KEY}' },
     },
-    requiredEnv: ['TRIPMASTER_MCP_URL', 'TRIPMASTER_API_KEY'],
+    requiredEnv: ['TRIPMASTER_API_KEY'],
   },
   {
     id: 'calorienerds',
@@ -184,12 +187,14 @@ export const CAPABILITY_CATALOG: CapabilityDefinition[] = [
     kind: 'mcp',
     serverName: 'calorienerds',
     match: /calorie[-_]?nerds/i,
-    remoteServer: {
+    // OAuth-protected resource (no static key): the MCP client performs the
+    // OAuth flow, so the server entry is just the hosted URL. Enabling
+    // succeeds immediately; the run surfaces `needs-auth` until the user
+    // authorizes in the browser.
+    staticServer: {
       type: 'http',
-      urlEnv: 'CALORIENERDS_MCP_URL',
-      headers: { Authorization: 'Bearer ${CALORIENERDS_API_KEY}' },
+      url: 'https://www.calorienerds.dev/mcp',
     },
-    requiredEnv: ['CALORIENERDS_MCP_URL', 'CALORIENERDS_API_KEY'],
   },
 ];
 

@@ -85,9 +85,10 @@ describe('deriveCapabilities', () => {
     const agent = makeAgent();
     expect(capability(agent, 'notion', {}).env_ready).toBe(false);
     expect(capability(agent, 'notion', { NOTION_API_KEY: 'secret' }).env_ready).toBe(true);
-    expect(
-      capability(agent, 'tripmaster', { TRIPMASTER_MCP_URL: 'https://x', TRIPMASTER_API_KEY: 'k' }).env_ready,
-    ).toBe(true);
+    expect(capability(agent, 'tripmaster', {}).env_ready).toBe(false);
+    expect(capability(agent, 'tripmaster', { TRIPMASTER_API_KEY: 'k' }).env_ready).toBe(true);
+    // OAuth-based capabilities need no env and are always ready to enable.
+    expect(capability(agent, 'calorienerds', {}).env_ready).toBe(true);
   });
 
   it('surfaces unrecognized mcp servers as custom capabilities', () => {
@@ -165,32 +166,54 @@ describe('applyCapabilityChanges', () => {
     expect(updates.tools).toEqual(['Read', 'mcp__notion']);
   });
 
-  it('resolves remote server URLs from env at enable time', () => {
+  it('writes the hosted TripMaster server with a bearer API key on enable', () => {
     const updates = applyCapabilityChanges(
       makeAgent(),
       [{ id: 'tripmaster', enabled: true }],
-      { TRIPMASTER_MCP_URL: 'https://mcp.tripmaster.example/v1', TRIPMASTER_API_KEY: 'tm-key' },
+      { TRIPMASTER_API_KEY: 'tm-key' },
     );
     expect(updates.mcp_servers?.tripmaster).toEqual({
       type: 'http',
-      url: 'https://mcp.tripmaster.example/v1',
+      url: 'https://www.tripmaster.dev/mcp',
       headers: { Authorization: 'Bearer ${TRIPMASTER_API_KEY}' },
+    });
+  });
+
+  it('enables an OAuth mcp capability with no key and no headers', () => {
+    const updates = applyCapabilityChanges(
+      makeAgent(),
+      [{ id: 'calorienerds', enabled: true }],
+      EMPTY_ENV,
+    );
+    expect(updates.mcp_servers?.calorienerds).toEqual({
+      type: 'http',
+      url: 'https://www.calorienerds.dev/mcp',
+    });
+  });
+
+  it('resolves remote server URLs from env at enable time', () => {
+    const updates = applyCapabilityChanges(
+      makeAgent(),
+      [{ id: 'gmail', enabled: true }],
+      { GMAIL_MCP_URL: 'https://mail.example/mcp', GMAIL_MCP_TOKEN: 'g-tok' },
+    );
+    expect(updates.mcp_servers?.gmail).toEqual({
+      type: 'http',
+      url: 'https://mail.example/mcp',
+      headers: { Authorization: 'Bearer ${GMAIL_MCP_TOKEN}' },
     });
   });
 
   it('throws missing_env with the missing variable names', () => {
     let caught: unknown;
     try {
-      applyCapabilityChanges(makeAgent(), [{ id: 'calorienerds', enabled: true }], EMPTY_ENV);
+      applyCapabilityChanges(makeAgent(), [{ id: 'tripmaster', enabled: true }], EMPTY_ENV);
     } catch (err) {
       caught = err;
     }
     expect(caught).toBeInstanceOf(CapabilityError);
     expect((caught as CapabilityError).code).toBe('missing_env');
-    expect((caught as CapabilityError).missingEnv).toEqual([
-      'CALORIENERDS_MCP_URL',
-      'CALORIENERDS_API_KEY',
-    ]);
+    expect((caught as CapabilityError).missingEnv).toEqual(['TRIPMASTER_API_KEY']);
   });
 
   it('disables an mcp capability by denying the server rule, keeping the entry', () => {
