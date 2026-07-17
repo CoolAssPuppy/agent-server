@@ -19,6 +19,11 @@ type ExecuteAgentExtra = {
   abortController?: AbortController;
   decisionContext?: DecisionContext;
   runId?: string;
+  /**
+   * Path to the user's installed Claude executable. When set, the SDK uses it
+   * instead of the bundled runtime. Undefined keeps the bundled default.
+   */
+  claudeExecutablePath?: string;
 };
 
 export async function executeAgent(
@@ -49,6 +54,9 @@ export async function executeAgent(
     canUseTool: agent.permissions ? buildCanUseTool(agent.permissions) : undefined,
     abortController: extra?.abortController,
     mcpServers: buildMcpServers(agent),
+    // Use the user's installed Claude runtime when discovery found one;
+    // undefined falls back to the SDK's bundled executable.
+    pathToClaudeCodeExecutable: extra?.claudeExecutablePath,
   };
 
   let turnCount = 0;

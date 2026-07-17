@@ -8,6 +8,11 @@ import { parseInteractionBlock } from '../interaction/parser.js';
 
 type ExecuteCodexExtra = {
   abortController?: AbortController;
+  /**
+   * Path to the user's installed Codex executable. When set, Codex uses it
+   * instead of the codex-sdk's bundled binary. Undefined keeps the default.
+   */
+  codexExecutablePath?: string;
 };
 
 type CodexState = {
@@ -35,6 +40,9 @@ export async function executeCodexAgent(
   const codex = new Codex({
     env: getSubscriptionEnvironment(),
     config: getCodexConfig(agent),
+    // Use the user's installed Codex binary when discovery found one;
+    // undefined falls back to the codex-sdk's bundled binary.
+    codexPathOverride: extra?.codexExecutablePath,
   });
   const thread = codex.startThread(getThreadOptions(agent));
   const { events } = await thread.runStreamed(agent.prompt, {

@@ -4,6 +4,14 @@ import type { ExecutionResult } from './executor.js';
 
 export type ExecutorFnOptions = {
   abortController?: AbortController;
+  /**
+   * Path to the user's installed Claude executable (from runtime discovery).
+   * When set, the Claude executor uses it instead of the SDK's bundled runtime,
+   * so runs use the binary and subscription login the user already has.
+   */
+  claudeExecutablePath?: string;
+  /** Path to the user's installed Codex executable, or undefined for bundled. */
+  codexExecutablePath?: string;
 };
 
 export type ExecutorFn = (agent: AgentConfig, reporter: Reporter, options?: ExecutorFnOptions) => Promise<ExecutionResult>;

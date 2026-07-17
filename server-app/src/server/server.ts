@@ -17,6 +17,7 @@ import { runAgent } from '../execution/runner.js';
 import { executeAgent } from '../plugins/claude-code.js';
 import { executeCodexAgent } from '../plugins/codex.js';
 import { ExecutorRegistry } from '../execution/executor-registry.js';
+import { discoverRuntimePaths } from '../execution/runtime-discovery.js';
 import type { McpServerInfo } from '../execution/executor.js';
 import { createReporter } from '../reporting/reporter-factory.js';
 import { createPanelClient } from '../reporting/panel-client.js';
@@ -220,6 +221,18 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   executorRegistry.register('claude-code', executeAgent);
   executorRegistry.register('codex', executeCodexAgent);
   executorRegistry.setDefault('claude-code');
+
+  // Discover the user's installed Claude / Codex binaries once at startup so
+  // runs use the runtimes (and subscription logins) they already have, falling
+  // back to the SDK's bundled runtimes when none is found. Resolved once — a
+  // `which` lookup per run would be wasteful.
+  const runtimePaths = discoverRuntimePaths();
+  if (runtimePaths.claudeExecutablePath) {
+    console.log(`  Claude runtime: ${runtimePaths.claudeExecutablePath} (installed)`);
+  }
+  if (runtimePaths.codexExecutablePath) {
+    console.log(`  Codex runtime: ${runtimePaths.codexExecutablePath} (installed)`);
+  }
 
   const activeControllers = new Map<string, AbortController>();
   // Resolvers that fire when the reporter wrapper observes a terminal event
@@ -429,7 +442,11 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
           stop: () => reporter.stop(),
         };
         const executor = executorRegistry.resolve(a);
-        const result = await executor(a, wrappedReporter, { abortController });
+        const result = await executor(a, wrappedReporter, {
+          abortController,
+          claudeExecutablePath: runtimePaths.claudeExecutablePath,
+          codexExecutablePath: runtimePaths.codexExecutablePath,
+        });
         // Pull token / cost telemetry from ExecutionResult.usage so the
         // local server's /runs response can render duration and cost in the
         // macOS app without round-tripping through the panel.

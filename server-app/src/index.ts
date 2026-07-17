@@ -33,6 +33,14 @@ export { runDueAgents, runSingleAgent, listAgents, startDaemon } from './server/
 export { RunStore, type StoredRun, type RunStoreLike } from './reporting/store.js';
 export { SqliteRunStore, type SqliteRunStoreOptions } from './reporting/sqlite-store.js';
 export { failOrphanedLocalRuns, ORPHANED_RUN_ERROR } from './reporting/local-reconcile.js';
+export {
+  discoverRuntimePaths,
+  discoverClaudeExecutable,
+  discoverCodexExecutable,
+  createDefaultProbe,
+  type RuntimeProbe,
+  type RuntimePaths,
+} from './execution/runtime-discovery.js';
 export { createApi } from './server/api.js';
 export { startServer, type ServerInstance } from './server/server.js';
 export { evaluateTriggers } from './agents/triggers.js';
