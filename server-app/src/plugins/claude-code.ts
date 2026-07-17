@@ -1,7 +1,7 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { Options, Query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentConfig } from '../agents/config.js';
-import { resolveEnvVars } from '../agents/config.js';
+import { resolveEnvVars, resolveEnvString } from '../agents/config.js';
 import type { Reporter } from '../execution/runner.js';
 import {
   truncate,
@@ -57,6 +57,11 @@ export async function executeAgent(
     // Use the user's installed Claude runtime when discovery found one;
     // undefined falls back to the SDK's bundled executable.
     pathToClaudeCodeExecutable: extra?.claudeExecutablePath,
+    // A custom provider points Claude at an Anthropic-compatible endpoint (e.g.
+    // Moonshot for Kimi) for this run only, via per-session env — without
+    // mutating the global process.env that keeps other agents on the
+    // subscription login. Undefined leaves the subscription default.
+    env: buildProviderEnv(agent),
   };
 
   let turnCount = 0;
@@ -580,6 +585,27 @@ function reportMcpStatus(servers: McpServerInfo[], reporter: Reporter): void {
       mcp_servers: servers,
     });
   }
+}
+
+/**
+ * Build the per-session environment for a custom-provider Claude agent, so it
+ * targets an Anthropic-compatible endpoint (e.g. Moonshot for Kimi) for this
+ * run only. Returns undefined when the agent has no provider, leaving the SDK
+ * on its default (the subscription login, since `cli.ts` strips
+ * `ANTHROPIC_API_KEY` globally at startup). When a provider is set, the base URL
+ * and the resolved key are layered over the current process env so the run has
+ * PATH etc. but points at the custom endpoint.
+ */
+export function buildProviderEnv(agent: AgentConfig): Record<string, string | undefined> | undefined {
+  const provider = agent.provider;
+  if (!provider) return undefined;
+
+  const apiKey = provider.api_key ? resolveEnvString(provider.api_key) : undefined;
+  return {
+    ...process.env,
+    ANTHROPIC_BASE_URL: provider.base_url,
+    ...(apiKey ? { ANTHROPIC_API_KEY: apiKey } : {}),
+  };
 }
 
 export function buildMcpServers(agent: AgentConfig): Options['mcpServers'] {

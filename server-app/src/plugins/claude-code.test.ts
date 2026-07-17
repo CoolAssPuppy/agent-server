@@ -115,6 +115,41 @@ describe('executeAgent with Agent SDK', () => {
     expect(callArgs.options.model).toBeUndefined();
   });
 
+  it('points Claude at a custom provider via per-session env, resolving the key', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+    const previous = process.env.MOONSHOT_API_KEY;
+    process.env.MOONSHOT_API_KEY = 'sk-moonshot-abc';
+    try {
+      mockQuery.mockReturnValue(createAsyncGenerator([
+        createResultSuccess({ result: 'Done', num_turns: 1 }),
+      ]));
+
+      await executeAgent(createAgentConfig({
+        model: 'kimi-k2',
+        provider: { base_url: 'https://api.moonshot.ai/anthropic', api_key: '${MOONSHOT_API_KEY}' },
+      }), createMockReporter());
+
+      const callArgs = mockQuery.mock.calls[0][0];
+      expect(callArgs.options.env.ANTHROPIC_BASE_URL).toBe('https://api.moonshot.ai/anthropic');
+      expect(callArgs.options.env.ANTHROPIC_API_KEY).toBe('sk-moonshot-abc');
+    } finally {
+      if (previous === undefined) delete process.env.MOONSHOT_API_KEY;
+      else process.env.MOONSHOT_API_KEY = previous;
+    }
+  });
+
+  it('leaves env undefined when the agent has no provider (subscription default)', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createResultSuccess({ result: 'Done', num_turns: 1 }),
+    ]));
+
+    await executeAgent(createAgentConfig(), createMockReporter());
+
+    const callArgs = mockQuery.mock.calls[0][0];
+    expect(callArgs.options.env).toBeUndefined();
+  });
+
   it('does not pass allowedTools when tools array is empty', async () => {
     const { executeAgent } = await import('./claude-code.js');
 

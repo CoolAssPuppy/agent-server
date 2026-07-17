@@ -113,18 +113,24 @@ is dead simple.
       `AGENT_SERVER_CLAUDE_PATH/CODEX_PATH`. Verified with a real run through the
       installed Claude binary. TODO(macOS): a "Use my installed Claude/Codex"
       toggle in Settings that writes those flags (server side is done).
-- [ ] Provider/model abstraction. A per-agent model choice resolves to one of:
-      Claude (subscription), Codex (ChatGPT), or a custom Anthropic-/OpenAI-
-      compatible endpoint. Keys stay `${VAR}` in `.env`.
+- [x] Provider/model abstraction. Achieved via three agent fields: `executor`
+      (claude-code | codex) picks the runtime, `model` pins the model, and the
+      executor-agnostic `provider` block points at a custom Anthropic-/OpenAI-
+      compatible endpoint. Claude=subscription and Codex=ChatGPT by default; a
+      provider block switches either to a custom endpoint. Keys stay `${VAR}` in
+      `.env`. The only remaining piece is the macOS Model dropdown that writes
+      these fields (server plumbing done).
 - [x] Custom models (Codex path — Kimi K2): agent `provider` block
       (`base_url` + `${VAR}` `api_key`) maps to `CodexOptions.baseUrl`/`apiKey`.
       Moonshot's OpenAI-compatible endpoint + `model: kimi-k2` works directly.
       Schema `ProviderConfigSchema`; resolved via `resolveEnvString`; sample at
       `sample-agents/kimi-summarizer.yaml`. TDD (schema + wiring tests).
-- [ ] Custom models (Claude path): per-agent `ANTHROPIC_BASE_URL`+key (Kimi's
-      Anthropic-compatible endpoint), reusing the same `provider` block. Needs to
-      handle the deliberate API-key-strip conflict per agent (the SDK env would
-      need the custom key re-injected only for that agent's run).
+- [x] Custom models (Claude path): the same `provider` block drives the Claude
+      runtime via `buildProviderEnv()` -> SDK `Options.env`
+      (`ANTHROPIC_BASE_URL` + resolved `ANTHROPIC_API_KEY`) for that run only.
+      The SDK's per-session env sidesteps the global API-key-strip conflict
+      cleanly — no `process.env` mutation, so concurrent subscription agents are
+      unaffected. TDD (2 tests). The `provider` block is now executor-agnostic.
 - [ ] UI: a simple per-agent Model dropdown ("Claude (your plan)", "Codex (your
       ChatGPT)", "Kimi K2", "Custom..."). Plumbing hidden.
 - [x] Verify: tool permissions enforced regardless of provider. FIXED via
