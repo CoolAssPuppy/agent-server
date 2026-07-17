@@ -14,6 +14,7 @@ import {
   type AgentWriter,
 } from '../agents/writer.js';
 import type { RunStoreLike } from '../reporting/store.js';
+import { computeAgentMetrics } from '../reporting/metrics.js';
 import type { PendingDecision } from '../reporting/realtime-client.js';
 import {
   AuthFailureTracker,
@@ -379,6 +380,15 @@ export function createApi(deps: ApiDependencies): Hono {
     const run = deps.store.get(c.req.param('id'));
     if (!run) return c.json({ error: 'Run not found' }, 404);
     return c.json(sanitizeStoredRun(run));
+  });
+
+  // Per-agent run metrics (success rate, avg duration, cost, last run) computed
+  // from the durable run store. Local, no panel. Filter to one agent with
+  // ?agent_id=.
+  app.get('/metrics', (c) => {
+    const agentId = c.req.query('agent_id');
+    const runs = agentId ? deps.store.listByAgent(agentId) : deps.store.list();
+    return c.json({ metrics: computeAgentMetrics(runs) });
   });
 
   // Pending decisions the daemon learned about over Supabase Realtime. Served
