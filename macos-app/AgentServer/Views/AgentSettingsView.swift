@@ -53,7 +53,8 @@ struct AgentSettingsSheet: View {
             Divider().opacity(0.3)
             footerBar
         }
-        .frame(width: 640, height: 720)
+        .frame(width: 600)
+        .frame(maxHeight: .infinity)
         .background(theme.tokens.background)
         .onAppear(perform: seedIfNeeded)
         .sheet(item: $connectTarget) { target in

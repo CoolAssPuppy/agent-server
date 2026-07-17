@@ -48,14 +48,35 @@ struct AgentDetailDrawer: View {
         .onChange(of: agentId) { _ in
             showHistory = false
         }
-        .sheet(isPresented: $showSettings) {
-            AgentSettingsSheet(
-                monitor: monitor,
-                agentId: agentId,
-                isPresented: $showSettings,
-                onDeleted: { router.close() }
-            )
+        .overlay(alignment: .trailing) {
+            if showSettings {
+                ZStack(alignment: .trailing) {
+                    // Scrim: dims the page behind and dismisses on tap, the same
+                    // affordance as any drawer in the app.
+                    theme.tokens.foreground.opacity(0.18)
+                        .ignoresSafeArea()
+                        .onTapGesture { closeSettings() }
+                    AgentSettingsSheet(
+                        monitor: monitor,
+                        agentId: agentId,
+                        isPresented: $showSettings,
+                        onDeleted: { router.close() }
+                    )
+                    .compositingGroup()
+                    .shadow(color: Color.black.opacity(0.25), radius: 20, x: -8, y: 0)
+                    .transition(.move(edge: .trailing))
+                }
+                .animation(.spring(response: 0.35, dampingFraction: 0.9), value: showSettings)
+            }
         }
+    }
+
+    private func openSettings() {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) { showSettings = true }
+    }
+
+    private func closeSettings() {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) { showSettings = false }
     }
 
     /// Vertical 4pt grab bar glued to the right edge. Dragging it leftward
@@ -150,7 +171,7 @@ struct AgentDetailDrawer: View {
             Spacer()
 
             Button {
-                showSettings = true
+                openSettings()
             } label: {
                 Image(systemName: "gearshape")
                     .font(NTypography.bodyMedium)
@@ -297,6 +318,16 @@ struct AgentDetailDrawer: View {
                         Spacer()
                     }
 
+                    if let facts = runFacts(for: run) {
+                        Text(facts)
+                            .font(NTypography.captionSmall)
+                            .foregroundStyle(theme.tokens.mutedForeground)
+                    }
+
+                    if !run.filesWritten.isEmpty {
+                        producedList(run.filesWritten)
+                    }
+
                     if run.status == .failed, let error = run.error {
                         Text(error)
                             .font(NTypography.caption)
@@ -305,12 +336,17 @@ struct AgentDetailDrawer: View {
                     }
 
                     if let summary = run.summary, !summary.isEmpty {
-                        ScrollView {
-                            MarkdownContentView(source: summary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.bottom, NSpacing.md)
+                        VStack(alignment: .leading, spacing: NSpacing.xxs) {
+                            Text("THE AGENT'S NOTES")
+                                .font(NTypography.labelSmall)
+                                .foregroundStyle(theme.tokens.mutedForeground.opacity(0.8))
+                            ScrollView {
+                                MarkdownContentView(source: summary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.bottom, NSpacing.sm)
+                            }
+                            .frame(maxHeight: .infinity)
                         }
-                        .frame(maxHeight: .infinity)
                     } else if run.status == .running {
                         Text("Working on it — results will appear here.")
                             .font(NTypography.caption)
@@ -363,6 +399,58 @@ struct AgentDetailDrawer: View {
         case .failed: return "Failed \(when)"
         case .running: return "Running now"
         case .skipped: return "Skipped \(when)"
+        }
+    }
+
+    /// A concise, concrete facts line — how long it took and which model ran it —
+    /// so the box leads with something real instead of the agent's monologue.
+    private func runFacts(for run: Run) -> String? {
+        var parts: [String] = []
+        if let duration = run.duration {
+            parts.append("Took \(formatDuration(duration))")
+        }
+        if let model = run.model, !model.isEmpty, model != "<synthetic>" {
+            parts.append(prettyModel(model))
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        if seconds < 1 { return "under a second" }
+        if seconds < 60 { return "\(Int(seconds.rounded()))s" }
+        let minutes = Int(seconds) / 60
+        let rem = Int(seconds) % 60
+        return rem == 0 ? "\(minutes)m" : "\(minutes)m \(rem)s"
+    }
+
+    private func prettyModel(_ model: String) -> String {
+        let lower = model.lowercased()
+        if lower.contains("opus") { return "Claude Opus" }
+        if lower.contains("sonnet") { return "Claude Sonnet" }
+        if lower.contains("haiku") { return "Claude Haiku" }
+        if lower.contains("kimi") { return "Kimi K2" }
+        if lower.contains("gpt") || lower.contains("codex") { return "Codex" }
+        return model
+    }
+
+    /// What the run actually produced — the concrete deliverable, named plainly.
+    private func producedList(_ files: [String]) -> some View {
+        VStack(alignment: .leading, spacing: NSpacing.xxs) {
+            Text("PRODUCED")
+                .font(NTypography.labelSmall)
+                .foregroundStyle(theme.tokens.mutedForeground.opacity(0.8))
+            ForEach(files.prefix(6), id: \.self) { file in
+                HStack(spacing: NSpacing.xs) {
+                    Image(systemName: "doc.text")
+                        .font(.system(size: 11))
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                    Text((file as NSString).lastPathComponent)
+                        .font(NTypography.caption)
+                        .foregroundStyle(theme.tokens.foreground)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
         }
     }
 

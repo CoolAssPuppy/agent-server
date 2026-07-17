@@ -13,30 +13,14 @@ struct MainPane: View {
 
     private var runningRun: Run? { monitor.activeRuns.first }
 
-    /// The soonest upcoming scheduled run across all enabled agents.
-    private var upNext: (agent: Agent, date: Date)? {
-        let now = Date()
-        var best: (agent: Agent, date: Date)?
-        for agent in monitor.agents where agent.enabled {
-            guard let schedule = agent.schedule,
-                  let next = CronNextFire.next(schedule, after: now) else { continue }
-            if best == nil || next < best!.date {
-                best = (agent, next)
-            }
-        }
-        return best
-    }
 
     var body: some View {
         VStack(spacing: 0) {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: NSpacing.xl) {
                     hero
-                    upNextSignature
-                    HStack(alignment: .top, spacing: NSpacing.lg) {
-                        activityColumn.frame(maxWidth: .infinity, alignment: .topLeading)
-                        comingUpColumn.frame(width: 320, alignment: .topLeading)
-                    }
+                    next12HoursCard
+                    activityColumn
                 }
                 .padding(.horizontal, NSpacing.xxl)
                 .padding(.top, NSpacing.xxl)
@@ -109,36 +93,53 @@ struct MainPane: View {
 
     // MARK: - Up next (signature)
 
-    @ViewBuilder
-    private var upNextSignature: some View {
-        if let run = runningRun {
-            SignatureRow(
-                eyebrow: "Working now",
-                title: run.agentName,
-                detail: run.summary ?? "In progress…",
-                glyph: "sparkles",
-                tint: theme.tokens.warning,
-                pulse: true
-            )
-        } else if let next = upNext {
-            SignatureRow(
-                eyebrow: "Up next",
-                title: next.agent.name,
-                detail: "\(relativeFuture(next.date)) · \(clockTime(next.date))",
-                glyph: "clock",
-                tint: theme.tokens.accent,
-                pulse: false
-            )
-        } else {
-            SignatureRow(
-                eyebrow: "Up next",
-                title: "Nothing scheduled",
-                detail: "Give an agent a schedule and it will show up here.",
-                glyph: "moon.stars",
-                tint: theme.tokens.mutedForeground,
-                pulse: false
-            )
+    /// The home's one warm signature: everything happening in the next 12
+    /// hours. A live run sits at the top; then each upcoming scheduled run with
+    /// its time. This is the single "what's happening" surface — no duplicate
+    /// column below.
+    private var next12HoursCard: some View {
+        let upcoming = upcoming12h
+        let running = runningRun
+        return VStack(alignment: .leading, spacing: NSpacing.md) {
+            Text("NEXT 12 HOURS")
+                .font(NTypography.labelSmall)
+                .tracking(0.8)
+                .foregroundStyle(theme.tokens.accent)
+
+            if running == nil && upcoming.isEmpty {
+                Text("Nothing scheduled in the next 12 hours.")
+                    .font(NTypography.bodyMedium)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            } else {
+                VStack(spacing: 0) {
+                    if let run = running {
+                        WorkingNowRow(name: run.agentName)
+                        if !upcoming.isEmpty { Divider().opacity(0.2) }
+                    }
+                    ForEach(Array(upcoming.prefix(8).enumerated()), id: \.element.agent.id) { index, item in
+                        if index > 0 { Divider().opacity(0.2) }
+                        UpcomingRunRow(
+                            name: item.agent.name,
+                            relative: relativeFuture(item.date),
+                            time: clockTime(item.date)
+                        )
+                    }
+                }
+            }
         }
+        .padding(NSpacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            ZStack {
+                theme.tokens.card
+                LinearGradient(
+                    colors: [theme.tokens.accent.opacity(0.10), .clear],
+                    startPoint: .leading, endPoint: .trailing
+                )
+            }
+        )
+        .overlay(RoundedRectangle(cornerRadius: NRadius.lg).stroke(theme.tokens.accent.opacity(0.30), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: NRadius.lg))
     }
 
     // MARK: - Activity
@@ -176,24 +177,6 @@ struct MainPane: View {
             if next <= horizon { items.append((agent, next)) }
         }
         return items.sorted { $0.date < $1.date }
-    }
-
-    private var comingUpColumn: some View {
-        let upcoming = upcoming12h
-        return VStack(alignment: .leading, spacing: NSpacing.sm) {
-            eyebrow("Next 12 hours")
-            if upcoming.isEmpty {
-                calmEmpty("Nothing scheduled in the next 12 hours.")
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(upcoming.prefix(8).enumerated()), id: \.element.agent.id) { index, item in
-                        if index > 0 { Divider().opacity(0.25) }
-                        ComingUpRow(name: item.agent.name, time: clockTime(item.date))
-                    }
-                }
-                .modifier(ElevatedSurface())
-            }
-        }
     }
 
     // MARK: - Footer
@@ -249,75 +232,72 @@ struct MainPane: View {
     }
 }
 
-// MARK: - Signature row
+// MARK: - Next-12-hours rows
 
-/// The one loud element on the home: a wide, warmly-tinted row that says what
-/// the app is about to do (or is doing). Everything else stays quiet around it.
-private struct SignatureRow: View {
-    let eyebrow: String
-    let title: String
-    let detail: String
-    let glyph: String
-    let tint: Color
-    let pulse: Bool
-
+/// A live run at the top of the Next 12 hours card, with a soft pulse so it
+/// reads as happening right now.
+private struct WorkingNowRow: View {
+    let name: String
     @Environment(\.nTheme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var animating = false
 
     var body: some View {
-        HStack(spacing: NSpacing.lg) {
+        HStack(spacing: NSpacing.md) {
             ZStack {
-                Circle().fill(tint.opacity(0.16))
-                Image(systemName: glyph)
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(tint)
+                Circle().fill(theme.tokens.warning.opacity(0.5))
+                    .scaleEffect(animating ? 1.8 : 1.0)
+                    .opacity(animating ? 0 : 0.7)
+                Circle().fill(theme.tokens.warning).frame(width: 8, height: 8)
             }
-            .frame(width: 46, height: 46)
-            .overlay {
-                if pulse {
-                    Circle()
-                        .stroke(tint.opacity(0.5), lineWidth: 2)
-                        .scaleEffect(animating ? 1.35 : 1.0)
-                        .opacity(animating ? 0 : 0.6)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(eyebrow.uppercased())
-                    .font(NTypography.labelSmall)
-                    .tracking(0.8)
-                    .foregroundStyle(tint)
-                Text(title)
-                    .font(NTypography.titleMedium)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(theme.tokens.foreground)
-                    .lineLimit(1)
-                Text(detail)
-                    .font(NTypography.bodySmall)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                    .lineLimit(1)
-            }
+            .frame(width: 14, height: 14)
+            Text(name)
+                .font(NTypography.bodyMedium)
+                .fontWeight(.medium)
+                .foregroundStyle(theme.tokens.foreground)
+                .lineLimit(1)
             Spacer()
+            Text("Working now")
+                .font(NTypography.captionSmall)
+                .foregroundStyle(theme.tokens.warning)
         }
-        .padding(NSpacing.lg)
-        .background(
-            ZStack {
-                theme.tokens.card
-                LinearGradient(
-                    colors: [tint.opacity(0.10), .clear],
-                    startPoint: .leading, endPoint: .trailing
-                )
-            }
-        )
-        .overlay(RoundedRectangle(cornerRadius: NRadius.lg).stroke(tint.opacity(0.30), lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: NRadius.lg))
+        .padding(.vertical, NSpacing.sm)
         .onAppear {
-            guard pulse, !reduceMotion else { return }
-            withAnimation(.easeOut(duration: 1.6).repeatForever(autoreverses: false)) {
-                animating = true
-            }
+            guard !reduceMotion else { return }
+            withAnimation(.easeOut(duration: 1.6).repeatForever(autoreverses: false)) { animating = true }
         }
+    }
+}
+
+/// One upcoming scheduled run: name, plain-language "in N hours", and the clock
+/// time.
+private struct UpcomingRunRow: View {
+    let name: String
+    let relative: String
+    let time: String
+    @Environment(\.nTheme) private var theme
+
+    var body: some View {
+        HStack(spacing: NSpacing.md) {
+            Image(systemName: "clock")
+                .font(.system(size: 12))
+                .foregroundStyle(theme.tokens.mutedForeground)
+            Text(name)
+                .font(NTypography.bodyMedium)
+                .foregroundStyle(theme.tokens.foreground)
+                .lineLimit(1)
+            Spacer()
+            Text(relative)
+                .font(NTypography.captionSmall)
+                .foregroundStyle(theme.tokens.mutedForeground)
+                .lineLimit(1)
+            Text(time)
+                .font(NTypography.captionSmall)
+                .fontWeight(.medium)
+                .foregroundStyle(theme.tokens.foreground)
+                .lineLimit(1)
+        }
+        .padding(.vertical, NSpacing.sm)
     }
 }
 
@@ -346,33 +326,6 @@ private struct ActivityRow: View {
             }
             Spacer()
             Text(run.startedAt.formatted(.relative(presentation: .numeric)))
-                .font(NTypography.captionSmall)
-                .foregroundStyle(theme.tokens.mutedForeground)
-                .lineLimit(1)
-        }
-        .padding(.horizontal, NSpacing.lg)
-        .padding(.vertical, NSpacing.md)
-    }
-}
-
-// MARK: - Coming up row
-
-private struct ComingUpRow: View {
-    let name: String
-    let time: String
-    @Environment(\.nTheme) private var theme
-
-    var body: some View {
-        HStack(spacing: NSpacing.md) {
-            Image(systemName: "clock")
-                .font(.system(size: 12))
-                .foregroundStyle(theme.tokens.mutedForeground)
-            Text(name)
-                .font(NTypography.bodySmall)
-                .foregroundStyle(theme.tokens.foreground)
-                .lineLimit(1)
-            Spacer()
-            Text(time)
                 .font(NTypography.captionSmall)
                 .foregroundStyle(theme.tokens.mutedForeground)
                 .lineLimit(1)
