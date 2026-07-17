@@ -118,6 +118,8 @@ Runs use the user's installed Claude/Codex binaries and subscription logins when
 
 Agents can point at a custom model provider via the `provider` block (`base_url` + optional `api_key`). For the Codex runtime this maps to `CodexOptions.baseUrl`/`apiKey`, so an OpenAI-compatible endpoint like Moonshot's Kimi K2 works directly (see `sample-agents/kimi-summarizer.yaml`). `base_url` is a literal URL; `api_key` holds a `${VAR}` reference resolved from `.env` at run time (via `resolveEnvString`), never a literal secret in the agent file.
 
+**Codex safety mapping.** Codex ignores the Claude tool allowlist (`tools`/`disallowed_tools`/`canUseTool`), so `execution/codex-safety.ts` translates an agent's capability/permission model into Codex's own safety knobs, keeping the UI toggles meaningful on the Codex path (which every custom-model/Kimi agent uses). `deriveCodexSandbox()` maps write/exec permission onto `sandboxMode` (read-only when the agent may neither write files nor run commands, else workspace-write; an explicit `codex_sandbox` and `permission_mode: plan` still win; `danger-full-access` is never derived). `deriveCodexNetworkAccess()` maps an explicit web-tool grant onto `networkAccessEnabled` (off by default). The mapping is deliberately coarse — Codex safety is broad tiers, not per-tool. MCP-based capabilities carry over directly (the Codex executor passes `mcp_servers`).
+
 ### Panel client and ghost run cleanup
 
 `PanelClient` in `reporting/panel-client.ts` cleans up orphaned ("ghost") runs in the panel:

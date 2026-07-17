@@ -127,16 +127,15 @@ is dead simple.
       need the custom key re-injected only for that agent's run).
 - [ ] UI: a simple per-agent Model dropdown ("Claude (your plan)", "Codex (your
       ChatGPT)", "Kimi K2", "Custom..."). Plumbing hidden.
-- [!] Verify: tool permissions enforced regardless of provider. FINDING: they
-      are NOT on the Codex path. Claude enforces `tools`/`disallowed_tools`/
-      `canUseTool` (all wired in `plugins/claude-code.ts`). Codex ignores them
-      and uses a DIFFERENT model — `sandboxMode` (read-only/workspace-write/
-      danger-full-access), `approvalPolicy: never`, `networkAccessEnabled: false`.
-      So the UI capability toggles (which map to tools/disallowed_tools) do NOT
-      gate a Codex agent — and every custom-model/Kimi agent runs on Codex.
-      MCP-based capabilities DO carry over (codex passes `mcp_servers`). Needs a
-      decision: how capability toggles map onto Codex's sandbox model. Flagged to
-      the user — safety-relevant, central to the consumer mission.
+- [x] Verify: tool permissions enforced regardless of provider. FIXED via
+      DECIDED mapping (map toggles -> Codex sandbox). `execution/codex-safety.ts`
+      derives Codex's `sandboxMode` from whether the agent may write/run
+      (read-only when it may do neither, workspace-write otherwise; explicit
+      `codex_sandbox` and `plan` mode still win) and `networkAccessEnabled` from
+      an explicit web-tool grant. Preserves prior Codex defaults (unrestricted ->
+      workspace-write, network off) while making the UI toggles gate a Codex
+      agent. MCP capabilities already carried over. TDD (17 tests). Note: mapping
+      is coarse — Codex safety is broad tiers, not per-tool.
 
 ## Phase 2.5 — Connections and auth: API key, MCP, OAuth all first-class (1-2 weeks)
 

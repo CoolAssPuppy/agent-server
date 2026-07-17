@@ -1,6 +1,7 @@
 import { Codex, type ThreadEvent, type ThreadItem, type ThreadOptions } from '@openai/codex-sdk';
 import type { AgentConfig, McpServerConfig } from '../agents/config.js';
 import { resolveEnvString } from '../agents/config.js';
+import { deriveCodexSandbox, deriveCodexNetworkAccess } from '../execution/codex-safety.js';
 import { expandHome } from '../agents/file-watcher.js';
 import type { ExecutionResult, ToolCallTrace } from '../execution/executor.js';
 import { truncate } from '../execution/executor.js';
@@ -62,12 +63,12 @@ export async function executeCodexAgent(
 }
 
 function getThreadOptions(agent: AgentConfig): ThreadOptions {
-  const configuredSandbox = getStringField(agent, 'codex_sandbox');
-  const sandboxMode = configuredSandbox === 'read-only'
-    || configuredSandbox === 'workspace-write'
-    || configuredSandbox === 'danger-full-access'
-    ? configuredSandbox
-    : agent.permission_mode === 'plan' ? 'read-only' : 'workspace-write';
+  // Codex ignores the Claude tool allowlist, so the UI capability toggles are
+  // translated into Codex's own safety knobs here: read-only vs workspace-write
+  // sandbox from whether the agent may write/run, and network access from an
+  // explicit web-tool grant. This keeps the toggles meaningful on Codex.
+  const sandboxMode = deriveCodexSandbox(agent);
+  const networkAccessEnabled = deriveCodexNetworkAccess(agent);
 
   return {
     workingDirectory: agent.working_directory
@@ -77,7 +78,7 @@ function getThreadOptions(agent: AgentConfig): ThreadOptions {
     model: getStringField(agent, 'model'),
     sandboxMode,
     approvalPolicy: 'never',
-    networkAccessEnabled: false,
+    networkAccessEnabled,
     webSearchMode: 'disabled',
   };
 }
