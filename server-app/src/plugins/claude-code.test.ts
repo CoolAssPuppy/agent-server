@@ -89,6 +89,32 @@ describe('executeAgent with Agent SDK', () => {
     });
   });
 
+  it('passes the agent model to the SDK when set', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createResultSuccess({ result: 'Done', num_turns: 1 }),
+    ]));
+
+    await executeAgent(createAgentConfig({ model: 'claude-opus-4-8' }), createMockReporter());
+
+    const callArgs = mockQuery.mock.calls[0][0];
+    expect(callArgs.options.model).toBe('claude-opus-4-8');
+  });
+
+  it('leaves model undefined when the agent does not set one', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createResultSuccess({ result: 'Done', num_turns: 1 }),
+    ]));
+
+    await executeAgent(createAgentConfig(), createMockReporter());
+
+    const callArgs = mockQuery.mock.calls[0][0];
+    expect(callArgs.options.model).toBeUndefined();
+  });
+
   it('does not pass allowedTools when tools array is empty', async () => {
     const { executeAgent } = await import('./claude-code.js');
 

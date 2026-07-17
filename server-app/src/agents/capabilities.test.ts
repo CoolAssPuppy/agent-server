@@ -91,6 +91,23 @@ describe('deriveCapabilities', () => {
     expect(capability(agent, 'calorienerds', {}).env_ready).toBe(true);
   });
 
+  it('reports the auth model for each capability', () => {
+    const agent = makeAgent();
+    expect(capability(agent, 'read-files').auth).toBe('none'); // local tools
+    expect(capability(agent, 'calendar').auth).toBe('none'); // builtin eventkit
+    expect(capability(agent, 'notion').auth).toBe('api_key'); // needs a key
+    expect(capability(agent, 'tripmaster').auth).toBe('api_key');
+    expect(capability(agent, 'linear').auth).toBe('oauth'); // browser sign-in
+    expect(capability(agent, 'calorienerds').auth).toBe('oauth');
+  });
+
+  it('marks custom connections as no-auth (user-configured)', () => {
+    const agent = makeAgent({
+      mcp_servers: { 'my-thing': { type: 'http', url: 'https://x.example/mcp' } },
+    });
+    expect(capability(agent, 'mcp:my-thing').auth).toBe('none');
+  });
+
   it('surfaces unrecognized mcp servers as custom capabilities', () => {
     const agent = makeAgent({
       mcp_servers: { 'my-weather': { type: 'http', url: 'https://weather.example/mcp' } },

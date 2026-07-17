@@ -36,6 +36,11 @@ export async function executeAgent(
     maxTurns: agent.max_turns,
     cwd,
     permissionMode,
+    // Per-agent model selection. Undefined falls back to the runtime's default
+    // model (the user's Claude Code default), so unset agents are unaffected.
+    // This is what lets an agent pin a specific model or point at a custom
+    // provider's model name.
+    model: agent.model,
     allowDangerouslySkipPermissions: permissionMode === 'bypassPermissions' ? true : undefined,
     allowedTools: agent.tools.length > 0 ? agent.tools : undefined,
     disallowedTools: agent.disallowed_tools && agent.disallowed_tools.length > 0

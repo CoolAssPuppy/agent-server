@@ -24,6 +24,15 @@ import type { AgentConfig, McpServerConfig } from './config.js';
 
 export type CapabilityKind = 'tools' | 'mcp';
 
+/**
+ * How a connection authenticates, so the app can pick the right Connect flow:
+ * - `none`   -- no credentials (local tools, builtin eventkit).
+ * - `api_key` -- one or more secrets pasted once, stored in `.env` as `${VAR}`.
+ * - `oauth`  -- interactive browser sign-in; the app runs the OAuth handshake
+ *               and stores tokens in the Keychain. No key ever touches a file.
+ */
+export type CapabilityAuth = 'none' | 'api_key' | 'oauth';
+
 type EnvSource = Record<string, string | undefined>;
 
 type RemoteServerTemplate = {
@@ -41,6 +50,13 @@ export type CapabilityDefinition = {
   /** SF Symbol name rendered by the macOS app. */
   icon: string;
   kind: CapabilityKind;
+  /**
+   * How this connection authenticates. Drives the app's Connect flow. Defaults
+   * to `none` for tool capabilities and builtins; `api_key` when `requiredEnv`
+   * is set; `oauth` must be declared explicitly (it cannot be inferred, since an
+   * OAuth server and a builtin both have no required env).
+   */
+  auth?: CapabilityAuth;
   /** kind 'tools': the Claude Code tools this capability covers. */
   tools?: string[];
   /** kind 'mcp': canonical mcp_servers key written when enabling. */
@@ -141,6 +157,7 @@ export const CAPABILITY_CATALOG: CapabilityDefinition[] = [
     kind: 'mcp',
     serverName: 'linear',
     match: /linear/i,
+    auth: 'oauth',
     staticServer: {
       type: 'sse',
       url: 'https://mcp.linear.app/sse',
@@ -187,6 +204,7 @@ export const CAPABILITY_CATALOG: CapabilityDefinition[] = [
     kind: 'mcp',
     serverName: 'calorienerds',
     match: /calorie[-_]?nerds/i,
+    auth: 'oauth',
     // OAuth-protected resource (no static key): the MCP client performs the
     // OAuth flow, so the server entry is just the hosted URL. Enabling
     // succeeds immediately; the run surfaces `needs-auth` until the user
@@ -205,6 +223,7 @@ export type AgentCapability = {
   description: string;
   icon: string;
   kind: CapabilityKind;
+  auth: CapabilityAuth;
   enabled: boolean;
   custom: boolean;
   required_env: string[];
@@ -268,6 +287,16 @@ function envReady(def: Pick<CapabilityDefinition, 'requiredEnv'>, env: EnvSource
   return (def.requiredEnv ?? []).every((v) => Boolean(env[v]?.trim()));
 }
 
+/**
+ * The auth model for a catalog entry: explicit `auth` wins; otherwise infer
+ * `api_key` when the entry needs env vars, else `none`. `oauth` is never
+ * inferred (see the field docs) so it must be declared on the entry.
+ */
+function resolveAuth(def: Pick<CapabilityDefinition, 'auth' | 'requiredEnv'>): CapabilityAuth {
+  if (def.auth) return def.auth;
+  return (def.requiredEnv ?? []).length > 0 ? 'api_key' : 'none';
+}
+
 function prettifyKey(key: string): string {
   return key
     .split(/[-_\s]+/)
@@ -302,6 +331,7 @@ export function deriveCapabilities(
         description: def.description,
         icon: def.icon,
         kind: 'tools',
+        auth: resolveAuth(def),
         enabled: (def.tools ?? []).some((t) => isToolEffectivelyAllowed(agent, t)),
         custom: false,
         required_env: def.requiredEnv ?? [],
@@ -320,6 +350,7 @@ export function deriveCapabilities(
       description: def.description,
       icon: def.icon,
       kind: 'mcp',
+      auth: resolveAuth(def),
       enabled:
         present &&
         !isServerDisallowed(agent, serverKey) &&
@@ -339,6 +370,7 @@ export function deriveCapabilities(
       description: `Custom connection: ${key}`,
       icon: 'puzzlepiece.extension',
       kind: 'mcp',
+      auth: 'none',
       enabled:
         !isServerDisallowed(agent, key) && isServerCoveredByAllowlist(agent, key),
       custom: true,
@@ -356,6 +388,7 @@ export function deriveCapabilities(
       description: `Custom tool: ${tool}`,
       icon: 'wrench.and.screwdriver',
       kind: 'tools',
+      auth: 'none',
       enabled: isToolEffectivelyAllowed(agent, tool),
       custom: true,
       required_env: [],
@@ -373,6 +406,7 @@ export function catalogSummary(env: EnvSource = process.env): Array<{
   description: string;
   icon: string;
   kind: CapabilityKind;
+  auth: CapabilityAuth;
   builtin: boolean;
   required_env: string[];
   env_ready: boolean;
@@ -383,6 +417,7 @@ export function catalogSummary(env: EnvSource = process.env): Array<{
     description: def.description,
     icon: def.icon,
     kind: def.kind,
+    auth: resolveAuth(def),
     builtin: def.builtin ?? false,
     required_env: def.requiredEnv ?? [],
     env_ready: envReady(def, env),
