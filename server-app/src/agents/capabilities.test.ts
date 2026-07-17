@@ -54,6 +54,35 @@ describe('deriveCapabilities', () => {
     expect(notion.server_name).toBe('notion-personal');
   });
 
+  it('enables an mcp capability granted through a permissions block', () => {
+    // Mirrors a hand-written agent that uses permissions (allow/deny globs)
+    // rather than the tools allowlist — the tools list here is non-empty but
+    // does not mention Notion, so only the permissions block grants it.
+    const agent = makeAgent({
+      tools: ['Read', 'Write'],
+      mcp_servers: { 'notion-personal': { command: 'npx', args: ['-y', '@notionhq/notion-mcp-server'] } },
+      permissions: {
+        allow: ['Read', 'Write', 'mcp__notion-personal__notion-search', 'mcp__notion-personal__notion-create-pages'],
+        deny: ['mcp__notion-personal__notion-update-*'],
+      },
+    });
+    expect(capability(agent, 'notion').enabled).toBe(true);
+    expect(capability(agent, 'read-files').enabled).toBe(true);
+    // A service the permissions block never mentions stays off.
+    expect(capability(agent, 'slack').enabled).toBe(false);
+  });
+
+  it('reflects a permissions allowlist for tool capabilities', () => {
+    const agent = makeAgent({
+      tools: ['Read', 'Write', 'Bash'],
+      permissions: { allow: ['Read'], deny: [] },
+    });
+    // Only Read is allowed by permissions, so write/run read as off even though
+    // they are in the tools list — permissions win when present.
+    expect(capability(agent, 'read-files').enabled).toBe(true);
+    expect(capability(agent, 'run-commands').enabled).toBe(false);
+  });
+
   it('disables an mcp capability when the server-level rule is disallowed', () => {
     const agent = makeAgent({
       mcp_servers: { notion: { command: 'npx' } },

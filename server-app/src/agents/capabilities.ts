@@ -1,4 +1,5 @@
 import type { AgentConfig, McpServerConfig } from './config.js';
+import { isToolAllowed } from '../execution/permissions.js';
 
 /**
  * The capability catalog is the translation layer between agent YAML
@@ -255,9 +256,27 @@ const CUSTOM_MCP_PREFIX = 'mcp:';
 const CUSTOM_TOOL_PREFIX = 'tool:';
 
 function isToolEffectivelyAllowed(agent: AgentConfig, tool: string): boolean {
+  // A permissions block (allow/deny globs) is the authoritative gate when
+  // present, so a capability granted only through permissions still reads as
+  // enabled instead of falsely "off".
+  if (agent.permissions) return isToolAllowed(tool, agent.permissions);
   if (agent.disallowed_tools.includes(tool)) return false;
   if (agent.tools.length === 0) return true;
   return agent.tools.includes(tool);
+}
+
+/**
+ * Whether a `permissions` block grants any tool on an MCP server — i.e. an
+ * `allow` pattern targets `mcp__<serverKey>__*` (or a broad wildcard). Deny
+ * rules only narrow which tools are usable; as long as something on the server
+ * is allowed, the capability is on.
+ */
+function isServerAllowedByPermissions(agent: AgentConfig, serverKey: string): boolean {
+  if (!agent.permissions) return false;
+  const prefix = `mcp__${serverKey}`;
+  return agent.permissions.allow.some(
+    (p) => p === '*' || p === 'mcp__*' || p === prefix || p.startsWith(`${prefix}__`),
+  );
 }
 
 function serverRule(serverKey: string): string {
@@ -353,8 +372,9 @@ export function deriveCapabilities(
       auth: resolveAuth(def),
       enabled:
         present &&
-        !isServerDisallowed(agent, serverKey) &&
-        isServerCoveredByAllowlist(agent, serverKey),
+        (agent.permissions
+          ? isServerAllowedByPermissions(agent, serverKey)
+          : !isServerDisallowed(agent, serverKey) && isServerCoveredByAllowlist(agent, serverKey)),
       custom: false,
       required_env: def.requiredEnv ?? [],
       env_ready: envReady(def, env),
