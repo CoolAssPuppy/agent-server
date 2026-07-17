@@ -43,20 +43,26 @@ public enum CronEnglishFormatter {
             return "Every hour"
         }
 
-        // Patterns with an hour range (e.g. "9-16") in the hour field.
-        // These cover the common "during trading hours / work hours" schedules
-        // like `*/30 9-16 * * 1-5`.
-        if dayOfMonth == "*", month == "*", let hourRange = describeHourRange(hour) {
+        // Patterns with an hour range (e.g. "9-16"), optionally stepped
+        // ("7-19/3"), in the hour field. These cover "during trading / work
+        // hours" schedules like `*/30 9-16 * * 1-5` and "every N hours from
+        // start to end" schedules like `0 7-19/3 * * *`.
+        if dayOfMonth == "*", month == "*", let hourRange = parseHourRange(hour) {
             let dowSuffix = dayOfWeekSuffix(dayOfWeek)
+            // A stepped hour range at minute 0 reads as "Every N hours, range".
+            if let hourStep = hourRange.step, minute == "0" {
+                let head = hourStep == 1 ? "Hourly" : "Every \(hourStep) hours"
+                return "\(head), \(hourRange.label)\(dowSuffix)"
+            }
             if let step = stepValue(minute) {
                 let head = step == 1 ? "Every minute" : "Every \(step) minutes"
-                return "\(head), \(hourRange)\(dowSuffix)"
+                return "\(head), \(hourRange.label)\(dowSuffix)"
             }
             if minute == "0" {
-                return "Hourly, \(hourRange)\(dowSuffix)"
+                return "Hourly, \(hourRange.label)\(dowSuffix)"
             }
             if let minuteValue = Int(minute), (0...59).contains(minuteValue) {
-                return "At :\(String(format: "%02d", minuteValue)), \(hourRange)\(dowSuffix)"
+                return "At :\(String(format: "%02d", minuteValue)), \(hourRange.label)\(dowSuffix)"
             }
         }
 
@@ -97,16 +103,24 @@ public enum CronEnglishFormatter {
         return expression
     }
 
-    /// Formats an hour range field like `9-16` into `9 AM–4 PM`. Returns nil
-    /// if the field isn't a simple integer range in 0–23.
-    private static func describeHourRange(_ field: String) -> String? {
+    /// Parses an hour range field like `9-16`, or a stepped range like
+    /// `7-19/3`, into a formatted label (`9 AM–4 PM`) plus the optional step.
+    /// Returns nil if the field isn't a simple integer range in 0–23.
+    private static func parseHourRange(_ field: String) -> (label: String, step: Int?)? {
         guard field.contains("-"), !field.contains(",") else { return nil }
-        let parts = field.split(separator: "-")
+        var rangePart = field
+        var step: Int?
+        if let slash = field.firstIndex(of: "/") {
+            guard let parsed = Int(field[field.index(after: slash)...]), parsed > 0 else { return nil }
+            step = parsed
+            rangePart = String(field[..<slash])
+        }
+        let parts = rangePart.split(separator: "-")
         guard parts.count == 2,
               let start = Int(parts[0]), (0...23).contains(start),
               let end = Int(parts[1]), (0...23).contains(end),
               start < end else { return nil }
-        return "\(formatHour(start))–\(formatHour(end))"
+        return ("\(formatHour(start))–\(formatHour(end))", step)
     }
 
     /// Human-readable hour without minutes: `9 AM`, `4 PM`, `12 PM`.

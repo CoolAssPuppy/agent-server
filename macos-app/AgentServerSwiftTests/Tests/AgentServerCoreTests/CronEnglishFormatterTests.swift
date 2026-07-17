@@ -103,4 +103,26 @@ final class CronEnglishFormatterTests: XCTestCase {
             "Every 10 minutes, weekdays"
         )
     }
+
+    func testStepHoursWithinRange() {
+        // "0 7-19/3 * * *" runs at minute 0 every 3 hours from 7 to 19.
+        XCTAssertEqual(
+            CronEnglishFormatter.describe("0 7-19/3 * * *"),
+            "Every 3 hours, 7 AM–7 PM"
+        )
+    }
+
+    func testStepHoursWithinRangeAndWeekdays() {
+        XCTAssertEqual(
+            CronEnglishFormatter.describe("0 9-17/2 * * 1-5"),
+            "Every 2 hours, 9 AM–5 PM, weekdays"
+        )
+    }
+
+    func testStepHoursOfOneReadsHourly() {
+        XCTAssertEqual(
+            CronEnglishFormatter.describe("0 9-17/1 * * *"),
+            "Hourly, 9 AM–5 PM"
+        )
+    }
 }
