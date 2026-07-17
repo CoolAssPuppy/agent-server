@@ -73,9 +73,14 @@ is dead simple.
       equivalent of a "local reporter" and keeps every downstream caller
       unchanged via `RunStoreLike`. Seeding from the panel still works but is now
       redundant — removed in the next step.
-- [ ] Remove panel paths: `reporter.ts` HTTP telemetry, `sync-schedule.ts`,
-      `panel-client.ts`, `realtime-client.ts`, `seed-run-store.ts`. Keep the
-      registry seams; delete the wiring.
+- [~] Remove panel paths. DECISION (revised): keep Agent Panel OPTIONAL, so the
+      server keeps its config-gated panel wiring (`reporter.ts` telemetry,
+      `sync-schedule.ts`, `panel-client.ts`, `realtime-client.ts`) as an opt-in
+      integration a power user can point at. Only pruned what durable local
+      history makes dead: `seed-run-store.ts` deleted (seeding history FROM the
+      panel on boot is pointless now), and the scheduler no longer waits on a
+      seed race — it starts immediately. All panel code stays inert when
+      `panelUrl` is unset (already the case); zero dependency is preserved.
 - [ ] Move decisions/interactions fully local (they partly ride Supabase realtime
       today). Route through the local server + channels.
 - [ ] Ghost-run cleanup becomes purely local (server owns its runs; no panel).

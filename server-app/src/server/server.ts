@@ -19,7 +19,6 @@ import { ExecutorRegistry } from '../execution/executor-registry.js';
 import type { McpServerInfo } from '../execution/executor.js';
 import { createReporter } from '../reporting/reporter-factory.js';
 import { createPanelClient } from '../reporting/panel-client.js';
-import { seedRunStoreFromPanel } from './seed-run-store.js';
 import { replayPendingTerminals } from '../reporting/reporter.js';
 import { ScheduleSync } from '../reporting/sync-schedule.js';
 import { RealtimeClient } from '../reporting/realtime-client.js';
@@ -721,41 +720,18 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       })
     : undefined;
 
-  // Seed the in-memory RunStore from the panel so the macOS app's Feed /
-  // Artifacts cards are populated on daemon restart. We don't block on this:
-  // start the scheduler after the seed finishes OR a 2-second timeout, so a
-  // slow or offline panel doesn't delay daemon readiness.
-  const SEED_TIMEOUT_MS = 2_000;
-  const seedPromise: Promise<void> = panelClient
-    ? seedRunStoreFromPanel({ panelClient, store })
-        .then((result) => {
-          console.log(
-            `[seed] Seeded RunStore from panel: inserted=${result.inserted}, skipped=${result.skipped}, fetched=${result.fetched}`,
-          );
-        })
-        .catch((err) => {
-          const message = err instanceof Error ? err.message : String(err);
-          console.warn(`[seed] Failed to seed RunStore from panel: ${message}`);
-        })
-    : Promise.resolve();
+  // Run history lives in the durable local SQLite store, so there is nothing to
+  // seed from the panel on boot and no seed to wait on — the scheduler starts
+  // immediately. When a panel is configured, ScheduleSync / RealtimeClient /
+  // TriggerHandler still run as optional, config-gated integrations.
+  if (scheduleSync) void scheduleSync.start();
+  if (triggerHandler) triggerHandler.start();
+  if (realtimeClient) void realtimeClient.start();
 
-  const seedOrTimeout = Promise.race([
-    seedPromise,
-    new Promise<void>((resolve) => setTimeout(resolve, SEED_TIMEOUT_MS)),
-  ]);
-
-  let interval: NodeJS.Timeout | undefined;
-
-  void seedOrTimeout.then(() => {
-    if (scheduleSync) void scheduleSync.start();
-    if (triggerHandler) triggerHandler.start();
-    if (realtimeClient) void realtimeClient.start();
-
+  void runDueAgents();
+  const interval: NodeJS.Timeout = setInterval(() => {
     void runDueAgents();
-    interval = setInterval(() => {
-      void runDueAgents();
-    }, config.checkIntervalMs);
-  });
+  }, config.checkIntervalMs);
 
   async function setupFileWatchers(): Promise<FileWatcher | null> {
     const agents = await discoverAgents(config.agentsDir);
