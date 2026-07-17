@@ -48,6 +48,7 @@ enum CapabilityBrand {
         "slack": "BrandSlack",
         "linear": "BrandLinear",
         "gmail": "BrandGmail",
+        "telegram": "BrandTelegram",
     ]
 
     private static let byServerNeedle: [(String, String)] = [

@@ -13,6 +13,26 @@ struct ConnectionsView: View {
     @State private var catalog: [CapabilityCatalogEntry] = []
     @State private var loaded = false
     @State private var connectTarget: CatalogConnectTarget?
+    @State private var telegramConnected = false
+
+    private static let telegramTokenKey = "AGENT_SERVER_TELEGRAM_BOT_TOKEN"
+
+    /// Telegram is a server-wide messaging channel (bot token), not a per-agent
+    /// capability, so it isn't in the catalog. Present it here as its own
+    /// connection with the same Add-keys flow.
+    private var telegramEntry: CapabilityCatalogEntry {
+        CapabilityCatalogEntry(
+            id: "telegram",
+            label: "Telegram",
+            description: "Message your agents and get their replies through a Telegram bot",
+            icon: "paperplane.fill",
+            kind: "channel",
+            auth: .apiKey,
+            builtin: false,
+            requiredEnv: [Self.telegramTokenKey],
+            envReady: telegramConnected
+        )
+    }
 
     /// Only the service connections (MCP) — the file/command/web capabilities
     /// are agent permissions, not connections, and belong on the agent page.
@@ -28,6 +48,7 @@ struct ConnectionsView: View {
                 VStack(alignment: .leading, spacing: NSpacing.xl) {
                     subscriptionCard
                     servicesSection
+                    messagingSection
                 }
                 .padding(NSpacing.xl)
             }
@@ -38,6 +59,7 @@ struct ConnectionsView: View {
             guard !loaded else { return }
             loaded = true
             catalog = await monitor.capabilityCatalog()
+            telegramConnected = Self.isTelegramConnected()
         }
         .sheet(item: $connectTarget) { target in
             ConnectServiceSheet(monitor: monitor, entry: target.entry) {
@@ -128,6 +150,44 @@ struct ConnectionsView: View {
             .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border, lineWidth: 1))
             .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
         }
+    }
+
+    // MARK: - Messaging
+
+    private var messagingSection: some View {
+        VStack(alignment: .leading, spacing: NSpacing.sm) {
+            Text("MESSAGING")
+                .font(NTypography.labelSmall)
+                .tracking(0.8)
+                .foregroundStyle(theme.tokens.mutedForeground)
+            Text("Chat with your agents from your phone. Add a Telegram bot token and your agents can message you and take your replies.")
+                .font(NTypography.caption)
+                .foregroundStyle(theme.tokens.mutedForeground)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(spacing: 0) {
+                ConnectionRow(entry: telegramEntry) {
+                    connectTarget = CatalogConnectTarget(entry: telegramEntry)
+                }
+            }
+            .background(theme.tokens.card)
+            .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border, lineWidth: 1))
+            .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
+        }
+    }
+
+    /// Whether the Telegram bot token is already set in either env file.
+    private static func isTelegramConnected() -> Bool {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        for name in [".agent-server/.env.local", ".agent-server/.env"] {
+            let url = home.appendingPathComponent(name)
+            if let pairs = try? EnvFileStore.load(from: url),
+               let pair = pairs.first(where: { $0.key == telegramTokenKey }),
+               !pair.value.trimmingCharacters(in: .whitespaces).isEmpty {
+                return true
+            }
+        }
+        return false
     }
 }
 

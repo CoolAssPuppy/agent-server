@@ -25,17 +25,38 @@ struct AgentDetailDrawer: View {
         monitor.agents.first(where: { $0.id == agentId })
     }
 
-    var body: some View {
-        ZStack(alignment: .trailing) {
-            VStack(spacing: 0) {
-                header
-                Divider().opacity(0.3)
-                content
-            }
+    /// Width of the settings pane when it's open beside the detail.
+    private static let settingsPaneWidth: CGFloat = 460
 
-            grabBar
+    var body: some View {
+        HStack(spacing: 0) {
+            // Detail pane. Fills the space left of the settings pane; when
+            // settings opens, this shrinks and the agent "draws left".
+            ZStack(alignment: .trailing) {
+                VStack(spacing: 0) {
+                    header
+                    Divider().opacity(0.3)
+                    content
+                }
+                if !showSettings { grabBar }
+            }
+            .frame(maxWidth: .infinity)
+
+            // Settings pane. Slides in from the right, sitting beside the
+            // detail rather than covering it — one continuous surface.
+            if showSettings {
+                Divider().opacity(0.3)
+                AgentSettingsSheet(
+                    monitor: monitor,
+                    agentId: agentId,
+                    isPresented: $showSettings,
+                    onDeleted: { router.close() }
+                )
+                .frame(width: Self.settingsPaneWidth)
+                .transition(.move(edge: .trailing))
+            }
         }
-        .frame(width: Self.width)
+        .frame(maxWidth: showSettings ? .infinity : Self.width)
         .frame(maxHeight: .infinity)
         .background(theme.tokens.background)
         .overlay(leadingBorder, alignment: .leading)
@@ -47,27 +68,6 @@ struct AgentDetailDrawer: View {
         .offset(x: dragOffset)
         .onChange(of: agentId) { _ in
             showHistory = false
-        }
-        .overlay(alignment: .trailing) {
-            if showSettings {
-                ZStack(alignment: .trailing) {
-                    // Scrim: dims the page behind and dismisses on tap, the same
-                    // affordance as any drawer in the app.
-                    theme.tokens.foreground.opacity(0.18)
-                        .ignoresSafeArea()
-                        .onTapGesture { closeSettings() }
-                    AgentSettingsSheet(
-                        monitor: monitor,
-                        agentId: agentId,
-                        isPresented: $showSettings,
-                        onDeleted: { router.close() }
-                    )
-                    .compositingGroup()
-                    .shadow(color: Color.black.opacity(0.25), radius: 20, x: -8, y: 0)
-                    .transition(.move(edge: .trailing))
-                }
-                .animation(.spring(response: 0.35, dampingFraction: 0.9), value: showSettings)
-            }
         }
     }
 
