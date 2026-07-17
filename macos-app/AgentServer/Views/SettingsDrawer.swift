@@ -28,6 +28,8 @@ struct SettingsDrawer: View {
     @State private var selectedIndex: Int? = nil
     @State private var launchAtLogin: Bool = LaunchAtLoginManager.shared.isEnabled
     @State private var resumeAfterWake: Bool = true
+    @State private var useInstalledClaude: Bool = true
+    @State private var useInstalledCodex: Bool = true
     @State private var autoUpdates: Bool = true
     @State private var telemetryOptIn: Bool = Telemetry.isOptedIn
     @State private var didLoad: Bool = false
@@ -175,6 +177,20 @@ struct SettingsDrawer: View {
                 }
 
             settingsToggle("Resume scheduled agents after wake", isOn: $resumeAfterWake)
+
+            settingsToggle("Use my installed Claude", isOn: $useInstalledClaude)
+                .onChange(of: useInstalledClaude) { _, newValue in
+                    persistRuntimeFlag(RuntimeEnvKey.useInstalledClaude, useInstalled: newValue)
+                }
+
+            settingsToggle("Use my installed Codex", isOn: $useInstalledCodex)
+                .onChange(of: useInstalledCodex) { _, newValue in
+                    persistRuntimeFlag(RuntimeEnvKey.useInstalledCodex, useInstalled: newValue)
+                }
+
+            Text("Runtime changes take effect after the server restarts.")
+                .font(NTypography.captionSmall)
+                .foregroundStyle(theme.tokens.mutedForeground)
 
             settingsToggle("Help improve Agent Server", isOn: $telemetryOptIn)
                 .onChange(of: telemetryOptIn) { _, newValue in
@@ -726,6 +742,30 @@ struct SettingsDrawer: View {
         }
         refreshValidation()
         loadTelemetryFromPairs()
+        loadRuntimeFromPairs()
+    }
+
+    // MARK: - Runtime flag persistence
+
+    private func loadRuntimeFromPairs() {
+        let lookup = Dictionary(uniqueKeysWithValues: pairs.map { ($0.key, $0.value) })
+        // Absent means the default (on); only an explicit "false" turns it off.
+        useInstalledClaude = lookup[RuntimeEnvKey.useInstalledClaude] != "false"
+        useInstalledCodex = lookup[RuntimeEnvKey.useInstalledCodex] != "false"
+    }
+
+    /// Persist a "use my installed runtime" toggle. The default is on, so we
+    /// keep `.env` clean by removing the key when enabled and writing an
+    /// explicit `false` only when the user opts out.
+    private func persistRuntimeFlag(_ key: String, useInstalled: Bool) {
+        if useInstalled {
+            pairs.removeAll { $0.key == key }
+        } else if let idx = pairs.firstIndex(where: { $0.key == key }) {
+            pairs[idx] = EnvPair(key: key, value: "false", isSecret: false)
+        } else {
+            pairs.append(EnvPair(key: key, value: "false", isSecret: false))
+        }
+        persistIfValid()
     }
 
     // MARK: - Telemetry persistence
@@ -838,6 +878,11 @@ private struct SettingsCard<Content: View>: View {
 enum TelemetryMode: String, Hashable {
     case live
     case batched
+}
+
+private enum RuntimeEnvKey {
+    static let useInstalledClaude = "AGENT_SERVER_USE_INSTALLED_CLAUDE"
+    static let useInstalledCodex = "AGENT_SERVER_USE_INSTALLED_CODEX"
 }
 
 private enum TelemetryEnvKey {

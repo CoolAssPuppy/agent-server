@@ -139,8 +139,11 @@ is dead simple.
       `provider` added to `AgentPatchSchema` + writer field list. Verified via
       the real PUT /agents/:id route: selecting Kimi persists
       executor/model/provider to disk (key ref intact); switching back to Claude
-      removes them. macOS build succeeds. (Still TODO: "Use my installed
-      Claude/Codex" toggle in Settings — server flags already exist.)
+      removes them. macOS build succeeds.
+- [x] "Use my installed Claude / Codex" toggles in Settings (General card),
+      default on, writing `AGENT_SERVER_USE_INSTALLED_CLAUDE/CODEX` to `.env`
+      (key removed when on to keep `.env` clean, explicit `false` when off).
+      Note that runtime changes take effect after the next server restart.
 - [x] Verify: tool permissions enforced regardless of provider. FIXED via
       DECIDED mapping (map toggles -> Codex sandbox). `execution/codex-safety.ts`
       derives Codex's `sandboxMode` from whether the agent may write/run
