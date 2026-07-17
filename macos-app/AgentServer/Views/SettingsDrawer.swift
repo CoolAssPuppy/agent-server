@@ -120,14 +120,16 @@ struct SettingsDrawer: View {
                 generalCard
                 notificationsCard
             }
-            VStack(spacing: NSpacing.lg) {
+            VStack(alignment: .trailing, spacing: NSpacing.lg) {
                 updatesCard
                 contactCard
-            }
-            // Power-user knobs (panel telemetry, raw env grid) stay one
-            // click away instead of front and center.
-            VStack(alignment: .leading, spacing: NSpacing.lg) {
+                // Advanced sits under Contact, right-aligned; toggling it opens
+                // the power-user panels in the column to the right.
                 advancedDisclosure
+            }
+            // Power-user knobs (panel telemetry, raw env grid) stay one click
+            // away instead of front and center.
+            VStack(alignment: .leading, spacing: NSpacing.lg) {
                 if showAdvancedSettings {
                     panelConnectionsCard
                     telemetryCard
