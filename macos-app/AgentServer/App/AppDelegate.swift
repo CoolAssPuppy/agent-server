@@ -38,6 +38,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             await serverProcess.startIfNeeded()
             monitor.start()
         }
+
+        // Dev affordance: auto-open a screen on launch so UI can be inspected
+        // and screenshotted without driving the menu bar. Never fires in normal
+        // use (no env var set).
+        if let route = ProcessInfo.processInfo.environment["AGENT_SERVER_UI_AUTOOPEN"] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                switch route {
+                case "settings": self?.openMainWindow(route: .settings)
+                default: self?.openMainWindow()
+                }
+            }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
