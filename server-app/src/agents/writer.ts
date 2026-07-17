@@ -17,7 +17,9 @@ import {
   CAPABILITY_CATALOG,
   CapabilityError,
   applyCapabilityChanges,
+  mcpServerKey,
   type CapabilityChange,
+  type DiscoveredConnection,
 } from './capabilities.js';
 
 /**
@@ -158,6 +160,7 @@ function collectFieldWrites(
   config: AgentConfig,
   patch: AgentPatch,
   env: EnvSource,
+  discovered: DiscoveredConnection[],
 ): Map<string, unknown> {
   const fields = new Map<string, unknown>();
 
@@ -189,7 +192,7 @@ function collectFieldWrites(
     };
     let updates;
     try {
-      updates = applyCapabilityChanges(working, patch.capabilities as CapabilityChange[], env);
+      updates = applyCapabilityChanges(working, patch.capabilities as CapabilityChange[], env, discovered);
     } catch (err) {
       if (err instanceof CapabilityError) {
         throw new AgentWriteError(
@@ -227,10 +230,11 @@ export function applyPatchToContent(
   config: AgentConfig,
   patch: AgentPatch,
   env: EnvSource,
+  discovered: DiscoveredConnection[] = [],
 ): string {
   if (patch.schedule) assertValidSchedule(patch.schedule);
 
-  const fields = collectFieldWrites(config, patch, env);
+  const fields = collectFieldWrites(config, patch, env, discovered);
 
   if (hasFrontmatter(content)) {
     const { yaml, body } = splitFrontmatter(content);
@@ -271,7 +275,12 @@ function slugify(name: string): string {
  * off; without capabilities the file stays unrestricted like hand-written
  * agents.
  */
-export function renderNewAgentFile(input: NewAgentInput, id: string, env: EnvSource): string {
+export function renderNewAgentFile(
+  input: NewAgentInput,
+  id: string,
+  env: EnvSource,
+  discovered: DiscoveredConnection[] = [],
+): string {
   const frontmatter: Record<string, unknown> = { id, name: input.name };
   if (input.description) frontmatter.description = input.description;
   if (input.schedule) frontmatter.schedule = input.schedule;
@@ -299,9 +308,14 @@ export function renderNewAgentFile(input: NewAgentInput, id: string, env: EnvSou
         }
         continue;
       }
-      const serverKey = def.serverName ?? def.id;
+      // An account connector the runtime already reaches is keyed by its
+      // runtime name (mcp__claude_ai_Slack), not the catalog's BYO name.
+      const connector = discovered.find(
+        (d) => def.match?.test(d.name) || (def.serverName && mcpServerKey(d.name) === mcpServerKey(def.serverName)),
+      );
+      const serverKey = connector ? mcpServerKey(connector.name) : def.serverName ?? def.id;
       if (change.enabled) {
-        if (!def.builtin) {
+        if (!def.builtin && !connector) {
           const enableResult = applyCapabilityChanges(
             // A minimal agent shape is enough for template instantiation.
             { id, name: input.name, prompt: input.prompt, tools: [], disallowed_tools: [], max_turns: 20, enabled: true } as AgentConfig,
@@ -336,12 +350,15 @@ export function renderNewAgentFile(input: NewAgentInput, id: string, env: EnvSou
 
 export function createAgentWriter(
   directory: string,
-  options?: { env?: () => EnvSource },
+  options?: { env?: () => EnvSource; connections?: () => DiscoveredConnection[] },
 ): AgentWriter {
   // Fresh read of ~/.agent-server/.env on every call so keys the user just
   // saved (e.g. via the app's Connect flow) are visible without a server
   // restart. Shell env still wins, matching CLI startup precedence.
   const getEnv = options?.env ?? (() => loadEnvFile(join(directory, '..'), process.env));
+  // Cached discovery snapshot so a toggle of an account connector resolves to
+  // the runtime server key (and skips writing a bring-your-own server).
+  const getConnections = options?.connections ?? ((): DiscoveredConnection[] => []);
 
   return {
     async update(id: string, patch: AgentPatch): Promise<AgentConfig> {
@@ -350,7 +367,7 @@ export function createAgentWriter(
         throw new AgentWriteError(`Agent not found: ${id}`, 'not_found');
       }
 
-      const newContent = applyPatchToContent(located.content, located.config, patch, getEnv());
+      const newContent = applyPatchToContent(located.content, located.config, patch, getEnv(), getConnections());
 
       let updated: AgentConfig;
       try {
@@ -384,7 +401,7 @@ export function createAgentWriter(
 
       let content: string;
       try {
-        content = renderNewAgentFile(input, id, getEnv());
+        content = renderNewAgentFile(input, id, getEnv(), getConnections());
       } catch (err) {
         if (err instanceof CapabilityError) {
           throw new AgentWriteError(

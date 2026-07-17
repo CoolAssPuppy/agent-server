@@ -6,6 +6,7 @@ import {
   catalogSummary,
   deriveCapabilities,
   redactAgentSecrets,
+  type DiscoveredConnection,
 } from '../agents/capabilities.js';
 import {
   AgentPatchSchema,
@@ -26,6 +27,17 @@ import {
 } from './security-utils.js';
 
 type EnvSource = Record<string, string | undefined>;
+
+type ConnectionSnapshot = {
+  servers: DiscoveredConnection[];
+  discovered_at: string | null;
+};
+
+/** Read/refresh surface over the app-wide connection discovery cache. */
+type ConnectionSource = {
+  get: () => ConnectionSnapshot;
+  refresh: () => Promise<ConnectionSnapshot>;
+};
 
 type ApiDependencies = {
   getAgents: () => Promise<AgentConfig[]>;
@@ -49,11 +61,13 @@ type ApiDependencies = {
    */
   getEnv?: () => EnvSource;
   /**
-   * Probes the Claude runtime for the MCP servers it can reach (account
-   * connectors + injected local servers). Absent in tests/contexts without a
-   * runtime; the discover route then returns an empty list.
+   * App-wide cache of the MCP discovery probe (the connectors the Claude
+   * runtime can reach). `get()` is a synchronous read of the last snapshot;
+   * `refresh()` re-probes (the "Refresh connections" action). Absent in
+   * tests/contexts without a runtime; the connection routes then serve an
+   * empty snapshot and capability lists fall back to built-ins + configured.
    */
-  discoverMcp?: () => Promise<Array<{ name: string; status: string; error?: string }>>;
+  connections?: ConnectionSource;
   apiKey?: string;
   startedAt?: string;
   host?: string;
@@ -220,10 +234,12 @@ export function createApi(deps: ApiDependencies): Hono {
   // Agents served over HTTP get secrets masked and a derived `capabilities`
   // array so clients can render consumer-friendly toggles without knowing
   // YAML semantics.
+  const getConnections = (): DiscoveredConnection[] => deps.connections?.get().servers ?? [];
+
   function enrichAgent(agent: AgentConfig): Record<string, unknown> {
     return {
       ...redactAgentSecrets(agent),
-      capabilities: deriveCapabilities(agent, getEnv()),
+      capabilities: deriveCapabilities(agent, getEnv(), getConnections()),
     };
   }
 
@@ -388,18 +404,28 @@ export function createApi(deps: ApiDependencies): Hono {
     return c.json(sanitizeStoredRun(run));
   });
 
-  // Probe the Claude runtime for the MCP servers it can reach (account
-  // connectors + injected local servers). A cache of what's available, not
-  // config — the app refreshes it on demand.
-  app.get('/connections/discover', async (c) => {
-    if (!deps.discoverMcp) return c.json({ servers: [] });
+  const emptySnapshot: ConnectionSnapshot = { servers: [], discovered_at: null };
+
+  // The connectors the Claude runtime can reach (account connectors + injected
+  // local servers). A regenerable cache of what's available, never config.
+  // GET reads the cached snapshot; POST /connections/refresh re-probes.
+  app.get('/connections', (c) => {
+    return c.json(deps.connections?.get() ?? emptySnapshot);
+  });
+
+  app.post('/connections/refresh', async (c) => {
+    if (!deps.connections) return c.json(emptySnapshot);
     try {
-      const servers = await deps.discoverMcp();
-      return c.json({ servers });
+      return c.json(await deps.connections.refresh());
     } catch (err) {
-      console.error(`[api] MCP discovery failed: ${sanitizeText(String(err), 300)}`);
-      return c.json({ servers: [] });
+      console.error(`[api] Connection refresh failed: ${sanitizeText(String(err), 300)}`);
+      return c.json(deps.connections.get());
     }
+  });
+
+  // Back-compat alias for older clients that expect `{ servers }`.
+  app.get('/connections/discover', (c) => {
+    return c.json({ servers: deps.connections?.get().servers ?? [] });
   });
 
   // Per-agent run metrics (success rate, avg duration, cost, last run) computed

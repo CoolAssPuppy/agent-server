@@ -3,21 +3,79 @@ import { makeAgent } from '../test-factories.js';
 import {
   CAPABILITY_CATALOG,
   CapabilityError,
+  type DiscoveredConnection,
   applyCapabilityChanges,
   catalogSummary,
   deriveCapabilities,
+  mcpServerKey,
   redactAgentSecrets,
 } from './capabilities.js';
 
 const EMPTY_ENV: Record<string, string | undefined> = {};
 
-function capability(agent = makeAgent(), id: string, env = EMPTY_ENV) {
-  const found = deriveCapabilities(agent, env).find((c) => c.id === id);
+const discovered = (...names: string[]): DiscoveredConnection[] =>
+  names.map((name) => ({ name, status: 'connected' }));
+
+function capability(
+  agent = makeAgent(),
+  id: string,
+  env = EMPTY_ENV,
+  conns: DiscoveredConnection[] = [],
+) {
+  const found = deriveCapabilities(agent, env, conns).find((c) => c.id === id);
   if (!found) throw new Error(`capability ${id} not derived`);
   return found;
 }
 
 describe('deriveCapabilities', () => {
+  it('shows only built-in abilities on a bare agent (no service clutter)', () => {
+    // A fresh agent with no configured keys and no discovered connectors should
+    // list its local abilities and Calendar, but NOT every catalog service.
+    const ids = deriveCapabilities(makeAgent(), EMPTY_ENV, []).map((c) => c.id);
+    expect(ids).toEqual(['read-files', 'write-files', 'run-commands', 'browse-web', 'calendar']);
+    expect(ids).not.toContain('notion');
+    expect(ids).not.toContain('slack');
+    expect(ids).not.toContain('linear');
+  });
+
+  it('surfaces a catalog service once its keys are configured', () => {
+    // Configuring a key makes the service available to add — present in the
+    // list, but off until it is actually wired into the agent.
+    const notion = capability(makeAgent(), 'notion', { NOTION_API_KEY: 'secret' });
+    expect(notion.env_ready).toBe(true);
+    expect(notion.enabled).toBe(false);
+  });
+
+  it('surfaces an account connector the runtime can reach', () => {
+    // "claude.ai Slack" is an account connector inherited from the subscription.
+    // It maps onto the Slack catalog entry for its label/logo, keyed by the
+    // runtime server name, and reads as on for an unrestricted agent.
+    const slack = capability(makeAgent(), 'slack', EMPTY_ENV, discovered('claude.ai Slack'));
+    expect(slack.enabled).toBe(true);
+    expect(slack.server_name).toBe('claude_ai_Slack');
+    expect(slack.status).toBe('connected');
+  });
+
+  it('surfaces an unknown account connector as a generic entry', () => {
+    const hex = capability(makeAgent(), 'mcp:claude_ai_Hex', EMPTY_ENV, discovered('claude.ai Hex'));
+    expect(hex.custom).toBe(true);
+    expect(hex.label).toBe('Hex');
+    expect(hex.server_name).toBe('claude_ai_Hex');
+    expect(hex.enabled).toBe(true);
+  });
+
+  it('reflects a needs-auth account connector status', () => {
+    const conns: DiscoveredConnection[] = [{ name: 'claude.ai Linear', status: 'needs-auth' }];
+    const linear = capability(makeAgent(), 'linear', EMPTY_ENV, conns);
+    expect(linear.status).toBe('needs-auth');
+  });
+
+  it('disables an account connector via a server-level denial', () => {
+    const agent = makeAgent({ disallowed_tools: ['mcp__claude_ai_Slack'] });
+    const slack = capability(agent, 'slack', EMPTY_ENV, discovered('claude.ai Slack'));
+    expect(slack.enabled).toBe(false);
+  });
+
   it('marks tool capabilities enabled on an unrestricted agent', () => {
     const agent = makeAgent({ tools: [], disallowed_tools: [] });
     expect(capability(agent, 'read-files').enabled).toBe(true);
@@ -68,8 +126,10 @@ describe('deriveCapabilities', () => {
     });
     expect(capability(agent, 'notion').enabled).toBe(true);
     expect(capability(agent, 'read-files').enabled).toBe(true);
-    // A service the permissions block never mentions stays off.
-    expect(capability(agent, 'slack').enabled).toBe(false);
+    // A service the agent never references (no server, no key, no connector)
+    // does not appear at all.
+    const ids = deriveCapabilities(agent, EMPTY_ENV, []).map((c) => c.id);
+    expect(ids).not.toContain('slack');
   });
 
   it('reflects a permissions allowlist for tool capabilities', () => {
@@ -110,24 +170,38 @@ describe('deriveCapabilities', () => {
     expect(capability(disabled, 'calendar').enabled).toBe(false);
   });
 
-  it('reports env readiness from the provided env source', () => {
+  it('reports env readiness once a service is configured', () => {
     const agent = makeAgent();
-    expect(capability(agent, 'notion', {}).env_ready).toBe(false);
+    // With the key present the service surfaces and reads ready.
     expect(capability(agent, 'notion', { NOTION_API_KEY: 'secret' }).env_ready).toBe(true);
-    expect(capability(agent, 'tripmaster', {}).env_ready).toBe(false);
     expect(capability(agent, 'tripmaster', { TRIPMASTER_API_KEY: 'k' }).env_ready).toBe(true);
-    // OAuth-based capabilities need no env and are always ready to enable.
-    expect(capability(agent, 'calorienerds', {}).env_ready).toBe(true);
+    // Without the key the service does not appear (no clutter).
+    const bare = deriveCapabilities(agent, {}, []).map((c) => c.id);
+    expect(bare).not.toContain('notion');
+    expect(bare).not.toContain('tripmaster');
   });
 
   it('reports the auth model for each capability', () => {
     const agent = makeAgent();
+    // Local abilities and the builtin are always present.
     expect(capability(agent, 'read-files').auth).toBe('none'); // local tools
     expect(capability(agent, 'calendar').auth).toBe('none'); // builtin eventkit
-    expect(capability(agent, 'notion').auth).toBe('api_key'); // needs a key
-    expect(capability(agent, 'tripmaster').auth).toBe('api_key');
-    expect(capability(agent, 'linear').auth).toBe('oauth'); // browser sign-in
-    expect(capability(agent, 'calorienerds').auth).toBe('oauth');
+    // Key- and OAuth-based services need to be configured or discovered first.
+    expect(capability(agent, 'notion', { NOTION_API_KEY: 'x' }).auth).toBe('api_key');
+    expect(capability(agent, 'tripmaster', { TRIPMASTER_API_KEY: 'x' }).auth).toBe('api_key');
+    const conns = discovered('claude.ai Linear', 'claude.ai CalorieNerds');
+    expect(capability(agent, 'linear', EMPTY_ENV, conns).auth).toBe('oauth');
+    expect(capability(agent, 'calorienerds', EMPTY_ENV, conns).auth).toBe('oauth');
+  });
+
+  it('normalizes runtime server names to their mcp tool key', () => {
+    expect(mcpServerKey('claude.ai Slack')).toBe('claude_ai_Slack');
+    expect(mcpServerKey('claude.ai Customer.io')).toBe('claude_ai_Customer_io');
+    expect(mcpServerKey('plugin:figma:figma')).toBe('plugin_figma_figma');
+    expect(mcpServerKey('eventkit')).toBe('eventkit');
+    expect(mcpServerKey('claude.ai Name: Parallel Search MCP')).toBe(
+      'claude_ai_Name_Parallel_Search_MCP',
+    );
   });
 
   it('marks custom connections as no-auth (user-configured)', () => {
@@ -302,6 +376,54 @@ describe('applyCapabilityChanges', () => {
     expect(() =>
       applyCapabilityChanges(makeAgent(), [{ id: 'jetpack', enabled: true }], EMPTY_ENV),
     ).toThrow(CapabilityError);
+  });
+
+  it('enables an account connector without writing a server or needing a key', () => {
+    // Slack is available as an account connector, so enabling it just grants
+    // allowlist coverage on the runtime key — no BYO server, no missing_env.
+    const agent = makeAgent({ tools: ['Read'] });
+    const updates = applyCapabilityChanges(
+      agent,
+      [{ id: 'slack', enabled: true }],
+      EMPTY_ENV,
+      discovered('claude.ai Slack'),
+    );
+    expect(updates.mcp_servers).toBeUndefined();
+    expect(updates.tools).toEqual(['Read', 'mcp__claude_ai_Slack']);
+  });
+
+  it('disables an account connector by denying its runtime key', () => {
+    const updates = applyCapabilityChanges(
+      makeAgent(),
+      [{ id: 'slack', enabled: false }],
+      EMPTY_ENV,
+      discovered('claude.ai Slack'),
+    );
+    expect(updates.disallowed_tools).toEqual(['mcp__claude_ai_Slack']);
+    expect(updates.mcp_servers).toBeUndefined();
+  });
+
+  it('toggles a discovered non-catalog connector that the agent does not declare', () => {
+    const agent = makeAgent({ tools: ['Read'] });
+    const updates = applyCapabilityChanges(
+      agent,
+      [{ id: 'mcp:claude_ai_Hex', enabled: true }],
+      EMPTY_ENV,
+      discovered('claude.ai Hex'),
+    );
+    expect(updates.tools).toEqual(['Read', 'mcp__claude_ai_Hex']);
+    expect(updates.mcp_servers).toBeUndefined();
+  });
+
+  it('still writes a BYO server when the service is not an account connector', () => {
+    // No discovered Notion connector: enabling falls back to the BYO server.
+    const updates = applyCapabilityChanges(
+      makeAgent(),
+      [{ id: 'notion', enabled: true }],
+      { NOTION_API_KEY: 'secret' },
+      discovered('claude.ai Slack'),
+    );
+    expect(updates.mcp_servers?.notion).toBeDefined();
   });
 
   it('does not mutate the input agent', () => {

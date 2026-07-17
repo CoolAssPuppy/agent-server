@@ -34,6 +34,15 @@ export type CapabilityKind = 'tools' | 'mcp';
  */
 export type CapabilityAuth = 'none' | 'api_key' | 'oauth';
 
+/**
+ * One MCP server the Claude runtime reported it can reach — an account
+ * connector (`claude.ai Slack`), a plugin (`plugin:figma:figma`), or a local
+ * server (`eventkit`). Produced by the discovery probe and cached app-wide.
+ * Same shape as `McpServerInfo`; declared here to keep this module free of a
+ * dependency on the executor.
+ */
+export type DiscoveredConnection = { name: string; status: string; error?: string };
+
 type EnvSource = Record<string, string | undefined>;
 
 type RemoteServerTemplate = {
@@ -230,6 +239,9 @@ export type AgentCapability = {
   required_env: string[];
   env_ready: boolean;
   server_name?: string;
+  /** Connection status from the discovery probe, when this maps to a reachable
+   * runtime connector (`connected` | `needs-auth` | `failed` | …). */
+  status?: string;
 };
 
 export type CapabilityChange = { id: string; enabled: boolean };
@@ -307,6 +319,57 @@ function envReady(def: Pick<CapabilityDefinition, 'requiredEnv'>, env: EnvSource
 }
 
 /**
+ * Whether the user has configured this service with its own keys. Only entries
+ * that actually declare `requiredEnv` count — an OAuth entry with no env is not
+ * "configured" just because it needs nothing, so it stays hidden until it is
+ * discovered or declared on an agent.
+ */
+function isConfigured(def: CapabilityDefinition, env: EnvSource): boolean {
+  return (def.requiredEnv?.length ?? 0) > 0 && envReady(def, env);
+}
+
+/**
+ * Normalizes an MCP server's display name to the key used in its tool names
+ * (`mcp__<key>__<tool>`): every run of non-alphanumeric characters collapses to
+ * a single underscore, trimmed at the ends. So `claude.ai Slack` -> `claude_ai_Slack`.
+ * Consistency here is what makes a per-agent allow/deny of an account connector
+ * actually match the tools the runtime exposes.
+ */
+export function mcpServerKey(name: string): string {
+  return name.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+/**
+ * Finds the discovered connector that backs a catalog capability, if any.
+ * Prefers a `claude.ai …` account connector when several names match (e.g. an
+ * account Slack over a bring-your-own plugin Slack).
+ */
+function matchDiscovered(
+  def: CapabilityDefinition,
+  discovered: DiscoveredConnection[],
+): DiscoveredConnection | undefined {
+  if (def.kind !== 'mcp') return undefined;
+  const candidates = discovered.filter((d) => {
+    if (def.match?.test(d.name)) return true;
+    if (def.serverName && mcpServerKey(d.name) === mcpServerKey(def.serverName)) return true;
+    return false;
+  });
+  if (candidates.length === 0) return undefined;
+  return candidates.find((d) => /^claude\.ai\s/i.test(d.name)) ?? candidates[0];
+}
+
+/** Human label for a discovered connector with no catalog entry. */
+function prettifyConnectionName(name: string): string {
+  let rest = name.replace(/^claude\.ai\s+/i, '');
+  const plugin = /^plugin:(.+)$/i.exec(rest);
+  if (plugin) {
+    const parts = plugin[1].split(':');
+    rest = parts[parts.length - 1] ?? plugin[1];
+  }
+  return prettifyKey(rest);
+}
+
+/**
  * The auth model for a catalog entry: explicit `auth` wins; otherwise infer
  * `api_key` when the entry needs env vars, else `none`. `oauth` is never
  * inferred (see the field docs) so it must be declared on the entry.
@@ -328,22 +391,43 @@ function isMcpToolName(tool: string): boolean {
   return tool.startsWith('mcp__');
 }
 
+/** Permission-aware on/off state for an MCP server the agent can reach. */
+function isServerEnabled(agent: AgentConfig, serverKey: string): boolean {
+  return agent.permissions
+    ? isServerAllowedByPermissions(agent, serverKey)
+    : !isServerDisallowed(agent, serverKey) && isServerCoveredByAllowlist(agent, serverKey);
+}
+
 /**
- * Derives the consumer-facing capability list for one agent: every catalog
- * entry with its current on/off state, plus generic entries for any custom
- * MCP servers or tools the catalog does not recognize. Custom entries are
- * never hidden — the UI shows them as "Custom: <name>" rows.
+ * Derives the consumer-facing capability list for ONE agent from what is
+ * actually available to it — never the full static catalog. The list is:
+ *
+ *  - built-in local abilities (read/write files, run commands, browse web) and
+ *    the builtin Calendar — always shown;
+ *  - catalog services that are available: the user configured their keys, the
+ *    Claude runtime can reach them as an account connector, or the agent
+ *    already declares them. Unconfigured, unreachable services are hidden so
+ *    they don't clutter every agent;
+ *  - generic entries for any reachable connector or declared MCP server the
+ *    catalog doesn't recognize, and any allowlisted tool it doesn't recognize.
+ *
+ * The catalog supplies only presentation (label, logo, description, auth,
+ * env mapping) over this live set. `discovered` is the cached probe result.
  */
 export function deriveCapabilities(
   agent: AgentConfig,
   env: EnvSource = process.env,
+  discovered: DiscoveredConnection[] = [],
 ): AgentCapability[] {
   const result: AgentCapability[] = [];
   const claimedServerKeys = new Set<string>();
+  const consumedConnectors = new Set<string>();
+  const emittedIds = new Set<string>();
   const catalogTools = new Set(CAPABILITY_CATALOG.flatMap((d) => d.tools ?? []));
 
   for (const def of CAPABILITY_CATALOG) {
     if (def.kind === 'tools') {
+      // Local abilities are always shown — they are what the Mac itself can do.
       result.push({
         id: def.id,
         label: def.label,
@@ -356,13 +440,26 @@ export function deriveCapabilities(
         required_env: def.requiredEnv ?? [],
         env_ready: envReady(def, env),
       });
+      emittedIds.add(def.id);
       continue;
     }
 
     const existingKey = matchedServerKey(agent, def);
     if (existingKey) claimedServerKeys.add(existingKey);
-    const serverKey = existingKey ?? def.serverName ?? def.id;
-    const present = Boolean(existingKey) || Boolean(def.builtin);
+    const connector = matchDiscovered(def, discovered);
+    if (connector) consumedConnectors.add(connector.name);
+
+    // Hide a service the agent has no relationship to: not declared, not
+    // reachable at run time, not configured, not a builtin.
+    const available =
+      Boolean(existingKey) || Boolean(connector) || isConfigured(def, env) || Boolean(def.builtin);
+    if (!available) continue;
+
+    const serverKey =
+      existingKey ?? (connector ? mcpServerKey(connector.name) : def.serverName ?? def.id);
+    // "Configured but not wired in" reads as available-yet-off: env is ready but
+    // there is no server entry, connector, or builtin backing it on this agent.
+    const present = Boolean(existingKey) || Boolean(connector) || Boolean(def.builtin);
     result.push({
       id: def.id,
       label: def.label,
@@ -370,34 +467,60 @@ export function deriveCapabilities(
       icon: def.icon,
       kind: 'mcp',
       auth: resolveAuth(def),
-      enabled:
-        present &&
-        (agent.permissions
-          ? isServerAllowedByPermissions(agent, serverKey)
-          : !isServerDisallowed(agent, serverKey) && isServerCoveredByAllowlist(agent, serverKey)),
+      enabled: present && isServerEnabled(agent, serverKey),
       custom: false,
       required_env: def.requiredEnv ?? [],
       env_ready: envReady(def, env),
       server_name: serverKey,
+      ...(connector ? { status: connector.status } : {}),
     });
+    emittedIds.add(def.id);
+  }
+
+  // Reachable connectors the catalog doesn't recognize (account connectors and
+  // plugins without a branded entry). Skip any the agent also declares — the
+  // per-agent loop below owns those.
+  for (const connector of discovered) {
+    if (consumedConnectors.has(connector.name)) continue;
+    const key = mcpServerKey(connector.name);
+    const id = `${CUSTOM_MCP_PREFIX}${key}`;
+    if (emittedIds.has(id)) continue;
+    if (agent.mcp_servers && key in agent.mcp_servers) continue;
+    result.push({
+      id,
+      label: prettifyConnectionName(connector.name),
+      description: 'Available through your Claude connections',
+      icon: 'puzzlepiece.extension',
+      kind: 'mcp',
+      auth: 'none',
+      enabled: isServerEnabled(agent, key),
+      custom: true,
+      required_env: [],
+      env_ready: true,
+      server_name: key,
+      status: connector.status,
+    });
+    emittedIds.add(id);
   }
 
   for (const key of Object.keys(agent.mcp_servers ?? {})) {
     if (claimedServerKeys.has(key)) continue;
+    const id = `${CUSTOM_MCP_PREFIX}${key}`;
+    if (emittedIds.has(id)) continue;
     result.push({
-      id: `${CUSTOM_MCP_PREFIX}${key}`,
+      id,
       label: prettifyKey(key),
       description: `Custom connection: ${key}`,
       icon: 'puzzlepiece.extension',
       kind: 'mcp',
       auth: 'none',
-      enabled:
-        !isServerDisallowed(agent, key) && isServerCoveredByAllowlist(agent, key),
+      enabled: !isServerDisallowed(agent, key) && isServerCoveredByAllowlist(agent, key),
       custom: true,
       required_env: [],
       env_ready: true,
       server_name: key,
     });
+    emittedIds.add(id);
   }
 
   for (const tool of agent.tools) {
@@ -503,6 +626,7 @@ export function applyCapabilityChanges(
   agent: AgentConfig,
   changes: CapabilityChange[],
   env: EnvSource = process.env,
+  discovered: DiscoveredConnection[] = [],
 ): CapabilityFieldUpdates {
   const tools = [...agent.tools];
   const disallowed = [...agent.disallowed_tools];
@@ -538,7 +662,10 @@ export function applyCapabilityChanges(
   for (const change of changes) {
     if (change.id.startsWith(CUSTOM_MCP_PREFIX)) {
       const key = change.id.slice(CUSTOM_MCP_PREFIX.length);
-      if (!servers[key]) {
+      // Either the agent declares this server, or the runtime reaches it as a
+      // connector (ambient — nothing to write, just gate access).
+      const isDiscovered = discovered.some((d) => mcpServerKey(d.name) === key);
+      if (!servers[key] && !isDiscovered) {
         throw new CapabilityError(
           `Unknown MCP server "${key}" on agent "${agent.id}"`,
           'unknown_capability',
@@ -592,9 +719,13 @@ export function applyCapabilityChanges(
 
     // Catalog MCP capability.
     const existingKey = matchedServerKey(agent, def);
-    const serverKey = existingKey ?? def.serverName ?? def.id;
+    const connector = matchDiscovered(def, discovered);
+    const serverKey =
+      existingKey ?? (connector ? mcpServerKey(connector.name) : def.serverName ?? def.id);
     if (change.enabled) {
-      if (!existingKey && !def.builtin) {
+      // Write a bring-your-own server only when the service is not already
+      // declared, not a builtin, and not reachable as an account connector.
+      if (!existingKey && !def.builtin && !connector) {
         servers[serverKey] = buildServerConfig(def, env);
         serversChanged = true;
       }

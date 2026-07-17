@@ -587,4 +587,65 @@ describe('API routes', () => {
       expect(res.status).toBe(401);
     });
   });
+
+  describe('connections', () => {
+    it('GET /connections serves an empty snapshot when no cache is wired', async () => {
+      const app = createApp();
+      const res = await app.request('/connections');
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ servers: [], discovered_at: null });
+    });
+
+    it('GET /connections returns the cached snapshot', async () => {
+      const snapshot = {
+        servers: [{ name: 'claude.ai Slack', status: 'connected' }],
+        discovered_at: '2026-07-18T00:00:00.000Z',
+      };
+      const app = createApi({
+        getAgents: async () => [makeAgent()],
+        store,
+        triggerRun,
+        connections: { get: () => snapshot, refresh: async () => snapshot },
+      });
+      const res = await app.request('/connections');
+      expect(await res.json()).toEqual(snapshot);
+    });
+
+    it('POST /connections/refresh re-probes and returns the new snapshot', async () => {
+      const refreshed = {
+        servers: [{ name: 'eventkit', status: 'connected' }],
+        discovered_at: '2026-07-18T01:00:00.000Z',
+      };
+      const refresh = vi.fn().mockResolvedValue(refreshed);
+      const app = createApi({
+        getAgents: async () => [makeAgent()],
+        store,
+        triggerRun,
+        connections: { get: () => ({ servers: [], discovered_at: null }), refresh },
+      });
+      const res = await app.request('/connections/refresh', { method: 'POST' });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual(refreshed);
+      expect(refresh).toHaveBeenCalledOnce();
+    });
+
+    it('enriches agents with capabilities derived from discovered connectors', async () => {
+      const snapshot = {
+        servers: [{ name: 'claude.ai Slack', status: 'connected' }],
+        discovered_at: '2026-07-18T00:00:00.000Z',
+      };
+      const app = createApi({
+        getAgents: async () => [makeAgent()],
+        store,
+        triggerRun,
+        connections: { get: () => snapshot, refresh: async () => snapshot },
+      });
+      const res = await app.request('/agents/test-agent');
+      const body = await res.json();
+      const slack = body.capabilities.find((cap: { id: string }) => cap.id === 'slack');
+      expect(slack).toBeDefined();
+      expect(slack.server_name).toBe('claude_ai_Slack');
+      expect(slack.status).toBe('connected');
+    });
+  });
 });

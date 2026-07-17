@@ -7,11 +7,14 @@ export {
   applyCapabilityChanges,
   catalogSummary,
   deriveCapabilities,
+  mcpServerKey,
   redactAgentSecrets,
   type AgentCapability,
   type CapabilityChange,
   type CapabilityDefinition,
+  type DiscoveredConnection,
 } from './agents/capabilities.js';
+export { ConnectionCache, type ConnectionSnapshot } from './connections/cache.js';
 export {
   AgentPatchSchema,
   AgentWriteError,

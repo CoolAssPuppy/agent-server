@@ -8,6 +8,7 @@ import type { Reporter } from '../execution/runner.js';
 import { createApi } from './api.js';
 import { discoverAgents } from '../agents/discovery.js';
 import { createAgentWriter } from '../agents/writer.js';
+import { ConnectionCache } from '../connections/cache.js';
 import { loadEnvFile } from '../platform/config.js';
 import type { RunStoreLike } from '../reporting/store.js';
 import { RunStore } from '../reporting/store.js';
@@ -602,6 +603,12 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     }
   }
 
+  // App-wide, regenerable cache of the MCP discovery probe. Warmed in the
+  // background at boot so the first capability read has connectors populated;
+  // the app can force a re-probe via POST /connections/refresh.
+  const connectionCache = new ConnectionCache(() => probeMcpServers());
+  void connectionCache.refresh().catch(() => {});
+
   const app = createApi({
     getAgents: () => discoverAgents(config.agentsDir),
     store,
@@ -613,11 +620,16 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     getPendingDecisions: realtimeClient
       ? () => realtimeClient.getPendingDecisions()
       : undefined,
-    agentWriter: createAgentWriter(config.agentsDir),
+    agentWriter: createAgentWriter(config.agentsDir, {
+      connections: () => connectionCache.servers(),
+    }),
     // Fresh .env read per request so keys saved via the app's Connect flow
     // are visible to capability checks without a server restart.
     getEnv: () => loadEnvFile(join(config.agentsDir, '..'), process.env),
-    discoverMcp: () => probeMcpServers(),
+    connections: {
+      get: () => connectionCache.get(),
+      refresh: () => connectionCache.refresh(),
+    },
     apiKey: config.apiKey,
     startedAt,
     host: config.host,
