@@ -120,4 +120,28 @@ describe('loadEnvFile', () => {
     expect(env.AGENT_SERVER_PANEL_URL).toBe('https://from-file.com');
     rmSync(dir, { recursive: true, force: true });
   });
+
+  it('reads .env.local and lets it override .env', () => {
+    const dir = createTempDir();
+    writeFileSync(join(dir, '.env'), 'NOTION_API_KEY=from-env\nSHARED=base\n');
+    writeFileSync(join(dir, '.env.local'), 'NOTION_API_KEY=from-local\nLOCAL_ONLY=secret\n');
+
+    const env = loadEnvFile(dir);
+
+    expect(env.NOTION_API_KEY).toBe('from-local'); // .env.local wins over .env
+    expect(env.SHARED).toBe('base'); // .env fills what .env.local doesn't set
+    expect(env.LOCAL_ONLY).toBe('secret');
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('keeps shell env above both .env.local and .env', () => {
+    const dir = createTempDir();
+    writeFileSync(join(dir, '.env'), 'NOTION_API_KEY=from-env\n');
+    writeFileSync(join(dir, '.env.local'), 'NOTION_API_KEY=from-local\n');
+
+    const env = loadEnvFile(dir, { NOTION_API_KEY: 'from-shell' });
+
+    expect(env.NOTION_API_KEY).toBe('from-shell');
+    rmSync(dir, { recursive: true, force: true });
+  });
 });

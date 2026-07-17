@@ -182,8 +182,20 @@ struct MainPane: View {
     // MARK: - Footer
 
     private var footer: some View {
-        HStack {
+        HStack(spacing: NSpacing.md) {
+            Button {
+                router.openConnections()
+            } label: {
+                Label("Connections", systemImage: "link")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Services your agents can use")
+
             Spacer()
+
             Button {
                 router.openSettings()
             } label: {

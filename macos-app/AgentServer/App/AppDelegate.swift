@@ -46,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
                 switch route {
                 case "settings": self?.openMainWindow(route: .settings)
+                case "connections": self?.openMainWindow(route: .connections)
                 case let r where r.hasPrefix("detail:"):
                     self?.openMainWindow(route: .detail(agentId: String(r.dropFirst("detail:".count))))
                 default: self?.openMainWindow()

@@ -321,13 +321,15 @@ final class StatusMonitor: ObservableObject {
         (try? await client.capabilityCatalog()) ?? []
     }
 
-    /// Saves connection keys into ~/.agent-server/.env. The server reads the
-    /// file fresh for capability checks, so a follow-up toggle succeeds
-    /// immediately; the running daemon picks the values up for agent runs on
-    /// its next restart, which we trigger here only when nothing is running.
+    /// Saves connection keys into ~/.agent-server/.env.local. The server reads
+    /// it fresh for capability checks (and layers it over .env), so a follow-up
+    /// toggle succeeds immediately; the running daemon picks the values up for
+    /// agent runs on its next restart, which we trigger here only when nothing
+    /// is running. Keeping secrets in .env.local (separate from the general
+    /// .env) is a deliberate, temporary choice.
     func saveConnectionKeys(_ values: [String: String]) throws {
         let url = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".agent-server/.env")
+            .appendingPathComponent(".agent-server/.env.local")
         var pairs = try EnvFileStore.load(from: url)
         for (key, value) in values {
             if let index = pairs.firstIndex(where: { $0.key == key }) {
