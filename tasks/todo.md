@@ -104,17 +104,27 @@ is dead simple.
 
 ## Phase 2 — Multi-runtime, subscriptions, custom models (1-2 weeks)
 
-- [ ] Discover the user's installed binaries (`which claude`,
-      `~/.claude/local/claude`; `which codex`) with fallback to bundled.
-- [ ] Wire `pathToClaudeCodeExecutable` and `codexPathOverride`; add a "Use my
-      installed Claude / Codex" setting, auto-detected and on by default when found.
+- [x] Discover the user's installed binaries (`~/.claude/local/claude`,
+      `which claude`; `which codex`) with fallback to bundled.
+      `execution/runtime-discovery.ts`, resolved once at startup.
+- [x] Wire `pathToClaudeCodeExecutable` and `codexPathOverride` (threaded through
+      `ExecutorFnOptions`). Auto-detected and on by default; opt out with
+      `AGENT_SERVER_USE_INSTALLED_CLAUDE/CODEX=false`, override path with
+      `AGENT_SERVER_CLAUDE_PATH/CODEX_PATH`. Verified with a real run through the
+      installed Claude binary. TODO(macOS): a "Use my installed Claude/Codex"
+      toggle in Settings that writes those flags (server side is done).
 - [ ] Provider/model abstraction. A per-agent model choice resolves to one of:
       Claude (subscription), Codex (ChatGPT), or a custom Anthropic-/OpenAI-
       compatible endpoint. Keys stay `${VAR}` in `.env`.
-- [ ] Custom models: Codex via `baseUrl`+`apiKey` (Kimi's OpenAI-compatible
-      endpoint, model `kimi-k2`); Claude via per-agent `ANTHROPIC_BASE_URL`+key
-      (Kimi's Anthropic-compatible endpoint). Handle the API-key-strip conflict
-      per agent.
+- [x] Custom models (Codex path — Kimi K2): agent `provider` block
+      (`base_url` + `${VAR}` `api_key`) maps to `CodexOptions.baseUrl`/`apiKey`.
+      Moonshot's OpenAI-compatible endpoint + `model: kimi-k2` works directly.
+      Schema `ProviderConfigSchema`; resolved via `resolveEnvString`; sample at
+      `sample-agents/kimi-summarizer.yaml`. TDD (schema + wiring tests).
+- [ ] Custom models (Claude path): per-agent `ANTHROPIC_BASE_URL`+key (Kimi's
+      Anthropic-compatible endpoint), reusing the same `provider` block. Needs to
+      handle the deliberate API-key-strip conflict per agent (the SDK env would
+      need the custom key re-injected only for that agent's run).
 - [ ] UI: a simple per-agent Model dropdown ("Claude (your plan)", "Codex (your
       ChatGPT)", "Kimi K2", "Custom..."). Plumbing hidden.
 - [ ] Verify: tool permissions (allow/deny/canUseTool) are enforced regardless of

@@ -228,6 +228,47 @@ describe('AgentConfigSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  it('accepts a custom provider block with a ${VAR} api key', () => {
+    const result = AgentConfigSchema.parse({
+      id: 'kimi-agent',
+      name: 'Kimi Agent',
+      prompt: 'Run with Kimi K2.',
+      executor: 'codex',
+      model: 'kimi-k2',
+      provider: {
+        base_url: 'https://api.moonshot.ai/v1',
+        api_key: '${MOONSHOT_API_KEY}',
+      },
+    });
+
+    expect(result.provider?.base_url).toBe('https://api.moonshot.ai/v1');
+    expect(result.provider?.api_key).toBe('${MOONSHOT_API_KEY}');
+  });
+
+  it('accepts a provider without an api key (public or env-configured endpoint)', () => {
+    const result = AgentConfigSchema.parse({
+      id: 'local-model',
+      name: 'Local Model',
+      prompt: 'Run against a local endpoint.',
+      executor: 'codex',
+      provider: { base_url: 'http://localhost:11434/v1' },
+    });
+
+    expect(result.provider?.base_url).toBe('http://localhost:11434/v1');
+    expect(result.provider?.api_key).toBeUndefined();
+  });
+
+  it('rejects a provider whose base_url is not a URL', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'bad-provider',
+      name: 'Bad Provider',
+      prompt: 'Do something.',
+      provider: { base_url: 'not-a-url' },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it('accepts config with permissions block', () => {
     const result = AgentConfigSchema.safeParse({
       id: 'restricted',

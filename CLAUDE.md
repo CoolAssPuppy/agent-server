@@ -108,6 +108,16 @@ The `Reporter` type in `execution/runner.ts` is the interface all reporters impl
 
 The reporter includes `worker_id` (hostname-pid) in metadata on every event, allowing the panel to track which server instance owns each run.
 
+### Local run persistence (SQLite)
+
+Run history is durable, backed by SQLite via Node's built-in `node:sqlite` (no native dependency to compile or code-sign into the macOS app bundle). `SqliteRunStore` (`reporting/sqlite-store.ts`) is a drop-in for the in-memory `RunStore` behind the shared `RunStoreLike` interface; both normalize through `reporting/run-normalization.ts`. The database lives at `~/.agent-server/runs.db` (`AGENT_SERVER_RUN_DB`; `:memory:` for ephemeral). `startServer` builds it with a graceful fallback to in-memory history if the file is unusable, and closes it on shutdown. Because history now survives restarts, `failOrphanedLocalRuns()` (`reporting/local-reconcile.ts`) runs at boot to fail any run left `running` by a killed previous instance — local ghost-run cleanup that needs no panel.
+
+### Runtime discovery and custom model providers
+
+Runs use the user's installed Claude/Codex binaries and subscription logins when found. `execution/runtime-discovery.ts` resolves both once at startup (opt-out flag > explicit `AGENT_SERVER_CLAUDE_PATH`/`AGENT_SERVER_CODEX_PATH` > `~/.claude/local/claude` > PATH; set `AGENT_SERVER_USE_INSTALLED_CLAUDE`/`_CODEX=false` to force bundled). The resolved paths thread through `ExecutorFnOptions` into `Options.pathToClaudeCodeExecutable` (Claude) and `CodexOptions.codexPathOverride` (Codex); undefined falls back to the SDK's bundled runtime.
+
+Agents can point at a custom model provider via the `provider` block (`base_url` + optional `api_key`). For the Codex runtime this maps to `CodexOptions.baseUrl`/`apiKey`, so an OpenAI-compatible endpoint like Moonshot's Kimi K2 works directly (see `sample-agents/kimi-summarizer.yaml`). `base_url` is a literal URL; `api_key` holds a `${VAR}` reference resolved from `.env` at run time (via `resolveEnvString`), never a literal secret in the agent file.
+
 ### Panel client and ghost run cleanup
 
 `PanelClient` in `reporting/panel-client.ts` cleans up orphaned ("ghost") runs in the panel:
@@ -358,6 +368,10 @@ permissions:             # optional, glob-based tool permissions (allowlist mode
   deny:
     - "mcp__*__create_*"
 executor: claude-code    # optional, defaults to claude-code
+model: kimi-k2           # optional per-agent model name
+provider:                # optional custom model provider (see below)
+  base_url: https://api.moonshot.ai/v1   # literal URL (OpenAI- or Anthropic-compatible)
+  api_key: "${MOONSHOT_API_KEY}"         # ${VAR} ref resolved from .env; never a literal secret
 mcp_servers:             # optional, additional MCP servers for this agent
   my-server:
     command: npx
@@ -443,6 +457,11 @@ The CLI loads `~/.agent-server/.env` at startup. Shell env vars and Doppler (`do
 | AGENT_SERVER_AGENTS_DIR | ~/.agent-server/agents | Directory containing agent definition files |
 | AGENT_SERVER_LOCK_DIR | ~/.agent-server/locks | Lock file directory |
 | AGENT_SERVER_LOGS_DIR | ~/.agent-server/logs | Log directory |
+| AGENT_SERVER_RUN_DB | ~/.agent-server/runs.db | Durable run-history SQLite database. `:memory:` for ephemeral. |
+| AGENT_SERVER_USE_INSTALLED_CLAUDE | true | Use the user's installed Claude binary when found. Set `false` to force the bundled runtime. |
+| AGENT_SERVER_USE_INSTALLED_CODEX | true | Use the user's installed Codex binary when found. Set `false` to force the bundled runtime. |
+| AGENT_SERVER_CLAUDE_PATH | (auto) | Explicit path to the Claude executable, overriding auto-discovery. |
+| AGENT_SERVER_CODEX_PATH | (auto) | Explicit path to the Codex executable, overriding auto-discovery. |
 | AGENT_SERVER_CHECK_INTERVAL_MS | 60000 | Daemon check interval |
 | AGENT_SERVER_PANEL_URL | (none) | Agent Panel URL for telemetry |
 | AGENT_SERVER_PANEL_API_KEY | (none) | API key for Agent Panel |

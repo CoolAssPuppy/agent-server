@@ -1,4 +1,4 @@
-export { AgentConfigSchema, PermissionsSchema, parseAgentYaml, parseAgentFile, resolveEnvVars, type AgentConfig, type McpServerConfig, type Permissions } from './agents/config.js';
+export { AgentConfigSchema, PermissionsSchema, ProviderConfigSchema, parseAgentYaml, parseAgentFile, resolveEnvVars, resolveEnvString, type AgentConfig, type McpServerConfig, type Permissions, type ProviderConfig } from './agents/config.js';
 export { matchesPattern, isToolAllowed, buildCanUseTool } from './execution/permissions.js';
 export { discoverAgents } from './agents/discovery.js';
 export {

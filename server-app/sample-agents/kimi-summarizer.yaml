@@ -1,0 +1,17 @@
+# Runs on Kimi K2 through the Codex runtime pointed at Moonshot's
+# OpenAI-compatible endpoint. The API key stays in ~/.agent-server/.env as
+# MOONSHOT_API_KEY; only the ${VAR} reference lives in this file.
+id: kimi-summarizer
+name: Kimi Summarizer
+description: Summarize a document using Kimi K2 via the Codex runtime.
+executor: codex
+model: kimi-k2
+provider:
+  base_url: https://api.moonshot.ai/v1
+  api_key: ${MOONSHOT_API_KEY}
+tools:
+  - Read
+prompt: |
+  Read ~/Documents/notes.md and summarize it in three concise bullet points.
+max_turns: 3
+enabled: false

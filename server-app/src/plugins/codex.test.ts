@@ -61,6 +61,48 @@ describe('executeCodexAgent', () => {
     expect(runStreamed).toHaveBeenCalledWith('Summarize the repo', { signal: abortController.signal });
   });
 
+  it('points Codex at a custom provider, resolving the api key from env', async () => {
+    const { executeCodexAgent } = await import('./codex.js');
+    const previous = process.env.MOONSHOT_API_KEY;
+    process.env.MOONSHOT_API_KEY = 'sk-moonshot-123';
+    try {
+      runStreamed.mockResolvedValue({ events: streamEvents([
+        { type: 'thread.started', thread_id: 'thread-1' },
+        { type: 'item.completed', item: { id: 'm1', type: 'agent_message', text: 'ok' } },
+        { type: 'turn.completed', usage: { input_tokens: 1, cached_input_tokens: 0, output_tokens: 1, reasoning_output_tokens: 0 } },
+      ]) });
+
+      await executeCodexAgent(makeAgent({
+        executor: 'codex',
+        model: 'kimi-k2',
+        provider: { base_url: 'https://api.moonshot.ai/v1', api_key: '${MOONSHOT_API_KEY}' },
+      }), createMockReporter());
+
+      expect(codexConstructor).toHaveBeenCalledWith(expect.objectContaining({
+        baseUrl: 'https://api.moonshot.ai/v1',
+        apiKey: 'sk-moonshot-123',
+      }));
+    } finally {
+      if (previous === undefined) delete process.env.MOONSHOT_API_KEY;
+      else process.env.MOONSHOT_API_KEY = previous;
+    }
+  });
+
+  it('omits provider options when the agent has no provider', async () => {
+    const { executeCodexAgent } = await import('./codex.js');
+    runStreamed.mockResolvedValue({ events: streamEvents([
+      { type: 'thread.started', thread_id: 'thread-1' },
+      { type: 'item.completed', item: { id: 'm1', type: 'agent_message', text: 'ok' } },
+      { type: 'turn.completed', usage: { input_tokens: 1, cached_input_tokens: 0, output_tokens: 1, reasoning_output_tokens: 0 } },
+    ]) });
+
+    await executeCodexAgent(makeAgent({ executor: 'codex' }), createMockReporter());
+
+    const options = codexConstructor.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(options.baseUrl).toBeUndefined();
+    expect(options.apiKey).toBeUndefined();
+  });
+
   it('maps Codex events into provider-neutral execution telemetry', async () => {
     const { executeCodexAgent } = await import('./codex.js');
     const reporter = createMockReporter();
