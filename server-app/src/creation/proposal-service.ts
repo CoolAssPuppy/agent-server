@@ -217,6 +217,16 @@ function needsContactAccess(intent: string): boolean {
     || /\b(?:from|in|use|using|search|read|review)\s+(?:my\s+)?contacts\b/.test(intent);
 }
 
+function unavailableCapabilityQuestion(request: ProposalRequest): ProposalFallbackQuestion | undefined {
+  if (!/\b(?:apple\s+music|music\s+(?:app|library|playlists?))\b/i.test(request.request)) return undefined;
+  return {
+    id: 'apple-music-unavailable',
+    question: 'Apple Music access is not available in this build.',
+    control: 'unavailable',
+    required: true,
+  };
+}
+
 function fallbackQuestions(request: ProposalRequest): ProposalFallbackQuestion[] {
   const intent = request.request.toLowerCase();
   if (needsFileAccess(intent)) {
@@ -458,7 +468,9 @@ export async function createAgentProposal(input: CreateProposalInput): Promise<P
     availableContactGroups: input.availableContactGroups,
     answers: input.answers,
   });
-  const scopeQuestion = unansweredConnectionQuestion(request) ?? unansweredScopeQuestion(request);
+  const scopeQuestion = unavailableCapabilityQuestion(request)
+    ?? unansweredConnectionQuestion(request)
+    ?? unansweredScopeQuestion(request);
   if (scopeQuestion) {
     return {
       status: 'needs_information',

@@ -26,6 +26,17 @@ final class GuidanceServerPayloadTests: XCTestCase {
         XCTAssertTrue(questions.first?.requiresConnectionSetup == true)
     }
 
+    func testUnavailableCapabilityCannotBeAnsweredOrContinued() throws {
+        let data = Data(#"{"status":"needs_information","questions":[{"id":"apple-music-unavailable","question":"Apple Music is not available in this build.","control":"unavailable","required":true}],"explanation":"No access was added."}"#.utf8)
+
+        let response = try JSONDecoder().decode(GuidanceProposalResponse.self, from: data)
+
+        guard case .needsInformation(let questions, _) = response else {
+            return XCTFail("Expected an unavailable capability")
+        }
+        XCTAssertEqual(questions.first?.kind, .unavailable)
+    }
+
     func testFileAccessQuestionAndAnswerKeepEachReviewedGrant() throws {
         let data = Data(#"{"status":"needs_information","questions":[{"id":"file-access","question":"Which files or folders?","control":"file_access","required":true}],"explanation":"Choose access."}"#.utf8)
         let response = try JSONDecoder().decode(GuidanceProposalResponse.self, from: data)

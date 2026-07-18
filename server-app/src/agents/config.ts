@@ -4,6 +4,7 @@ import { InteractionConfigSchema, NotificationConfigSchema } from '../interactio
 import { ConversationConfigSchema } from '../conversation/schema.js';
 import { areApprovedMcpReferences, isApprovedProviderReference, mcpCredentialOwner } from './environment-policy.js';
 import { NativeServicesSchema } from './native-services.js';
+export { NativeServicesSchema } from './native-services.js';
 
 const TriggerRefSchema = z.object({
   agent: z.string().min(1),
@@ -16,9 +17,10 @@ const FileWatchSchema = z.object({
   glob: z.string().optional(),
 });
 
-const CalendarAccessSchema = z.object({
+export const CalendarAccessSchema = z.object({
   id: z.string().trim().min(1).max(512),
   name: z.string().trim().min(1).max(160),
+  account: z.string().trim().min(1).max(160).optional(),
   access: z.enum(['read_only', 'read_write']),
 });
 

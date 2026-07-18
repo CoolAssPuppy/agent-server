@@ -44,6 +44,7 @@ export type NativeServices = z.infer<typeof NativeServicesSchema>;
 type LegacyCalendarGrant = {
   id: string;
   name: string;
+  account?: string;
   access: 'read_only' | 'read_write';
 };
 
@@ -55,6 +56,7 @@ export function nativeServiceGrantEnvironment(agent: {
     resources: agent.calendar_access.map((grant) => ({
       id: grant.id,
       name: grant.name,
+      account: grant.account,
       actions: grant.access === 'read_write'
         ? ['read', 'create', 'update'] as const
         : ['read'] as const,

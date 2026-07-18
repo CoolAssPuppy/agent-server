@@ -2,6 +2,17 @@ import XCTest
 @testable import AgentServerCore
 
 final class SecurityServerPayloadTests: XCTestCase {
+    func testFindingWithValidatedPatchOffersAReviewFix() throws {
+        let data = Data(Self.analysisJSON.replacingOccurrences(
+            of: #""confidence": 0.94"#,
+            with: #""confidence": 0.94,"patch":{"schema_version":1,"agent_id":"reader","expected_content_hash":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","source":"security_analyzer","reason":"Turn off command access","changes":{"tools":["Read"]}}"#
+        ).utf8)
+
+        let analysis = try JSONDecoder().decode(SecurityAnalysisPayload.self, from: data)
+
+        XCTAssertNotNil(analysis.findings.first?.patch)
+        XCTAssertTrue(analysis.findings.first?.presentation.canFix == true)
+    }
     func testDecodesAgentSecurityAnalysisIntoConsumerFinding() throws {
         let payload = try JSONDecoder().decode(SecurityAnalysisPayload.self, from: Data(Self.analysisJSON.utf8))
         let presentation = payload.presentation

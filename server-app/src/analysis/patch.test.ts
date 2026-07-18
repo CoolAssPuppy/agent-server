@@ -234,6 +234,57 @@ describe('structured configuration patches', () => {
     }).changes).toMatchObject({ max_turns: 12, timeout: '10m' });
   });
 
+  it('previews exact native service grants and preserves them after apply', async () => {
+    const repository = new InMemoryAgentContentRepository({ reports: original });
+    const service = new StructuredPatchService(repository);
+    const patch = ConfigurationPatchSchema.parse({
+      ...safePatch(),
+      changes: {
+        native_services: {
+          contacts: {
+            resources: [{
+              id: 'family', name: 'Family', account: 'iCloud', actions: ['read'], fields: ['name', 'email'],
+            }],
+          },
+        },
+      },
+    });
+
+    const preview = await service.preview(patch);
+    expect(preview.changes).toContainEqual({
+      field: 'native_services', summary: 'Change access to Mac apps',
+    });
+    expect(preview.risk_reasons).toContain('Changes access to personal information');
+
+    await service.apply(ConfigurationPatchSchema.parse({
+      ...patch,
+      confirmation: { approved: true, preview_content_hash: preview.result_content_hash },
+    }));
+    expect(parseAgentFile(await repository.read('reports')).native_services).toEqual(
+      patch.changes.native_services,
+    );
+  });
+
+  it('rejects broad file grants and reviews narrow writable grants as high risk', async () => {
+    const repository = new InMemoryAgentContentRepository({ reports: original });
+    const service = new StructuredPatchService(repository);
+    const broad = ConfigurationPatchSchema.parse({
+      ...safePatch(),
+      changes: { file_access: [{ path: '/Users/example', kind: 'folder', access: 'read_only' }] },
+    });
+    await expect(service.preview(broad)).rejects.toBeInstanceOf(PatchPolicyError);
+
+    const narrow = ConfigurationPatchSchema.parse({
+      ...safePatch(),
+      changes: {
+        file_access: [{ path: '/Users/example/Documents/Reports', kind: 'folder', access: 'read_write' }],
+      },
+    });
+    await expect(service.preview(narrow)).resolves.toMatchObject({
+      risk: 'high', risk_reasons: ['Changes file or folder access'],
+    });
+  });
+
   it('keeps only the fifty newest rollback backups', async () => {
     const repository = new InMemoryAgentContentRepository({ reports: original });
     const service = new StructuredPatchService(repository);

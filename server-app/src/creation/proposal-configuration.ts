@@ -118,9 +118,10 @@ export function proposalToAgentConfig(
     working_directory: workingDirectory ?? proposal.trigger.watched_path,
     file_access: proposal.file_access.map(({ path, kind, access }) => ({ path, kind, access })),
     watch,
-    calendar_access: proposal.calendar_access.map(({ id: calendarId, name, access }) => ({
+    calendar_access: proposal.calendar_access.map(({ id: calendarId, name, account, access }) => ({
       id: calendarId,
       name,
+      account,
       access,
     })),
     native_services: proposal.native_services,

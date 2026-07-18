@@ -62,16 +62,7 @@ struct SecurityCenterView: View {
     private func agentActions(agentId: String) -> AgentSecurityActions {
         AgentSecurityActions(
             scan: { await monitor.analyzeSecurity(agentId: agentId) },
-            applyFix: { _ in
-                .failure(ConsumerFlowFailure(
-                    title: "Review this change in agent settings",
-                    message: "This fix cannot be applied from the security check yet.",
-                    recovery: "Open agent settings and make the recommended change.",
-                    technicalDetails: "No validated configuration patch was supplied.",
-                    didSave: false,
-                    canRetry: false
-                ))
-            },
+            applyFix: { await monitor.applySecurityFix(agentId: agentId, findingId: $0) },
             ignore: { findingId, _ in
                 await monitor.acknowledgeSecurityFinding(agentId: agentId, findingId: findingId)
             },

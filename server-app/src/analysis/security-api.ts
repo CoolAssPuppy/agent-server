@@ -10,6 +10,8 @@ import {
   type PatchPreview,
   type StructuredPatchService,
 } from './patch.js';
+import { computeAgentContentHash } from './security-rules.js';
+import type { Finding } from './models.js';
 import type { SecurityAnalysisService } from './security-service.js';
 
 export type SecurityContentSource = {
@@ -59,6 +61,66 @@ function publicPreview(preview: PatchPreview | PatchApplyResult): Record<string,
   };
 }
 
+const COMMAND_TOOL = /^(?:Bash|bash|shell|terminal|command)(?:$|[_:*])/i;
+
+function safeSecurityPatch(
+  finding: Finding,
+  agent: AgentConfig,
+  content: string,
+) {
+  const base = {
+    schema_version: 1 as const,
+    agent_id: agent.id,
+    expected_content_hash: computeAgentContentHash(content),
+    source: 'security_analyzer' as const,
+    reason: finding.recommendation.label,
+  };
+  if (finding.rule_id === 'permissions.commands') {
+    const removed = [...new Set([
+      ...agent.tools.filter((tool) => COMMAND_TOOL.test(tool)),
+      ...(agent.permissions?.allow ?? []).filter((tool) => COMMAND_TOOL.test(tool)),
+    ])];
+    return ConfigurationPatchSchema.parse({
+      ...base,
+      changes: {
+        tools: agent.tools.filter((tool) => !COMMAND_TOOL.test(tool)),
+        disallowed_tools: [...new Set([...agent.disallowed_tools, ...removed])],
+        ...(agent.permissions ? {
+          permissions: {
+            allow: agent.permissions.allow.filter((tool) => !COMMAND_TOOL.test(tool)),
+            deny: [...new Set([...agent.permissions.deny, ...removed])],
+          },
+        } : {}),
+      },
+    });
+  }
+  if (finding.rule_id === 'native.state_change') {
+    const nativeServices = agent.native_services ? {
+      ...agent.native_services,
+      ...(agent.native_services.calendar ? {
+        calendar: { resources: agent.native_services.calendar.resources.map((resource) => ({
+          ...resource, actions: ['read'] as const,
+        })) },
+      } : {}),
+      ...(agent.native_services.reminders ? {
+        reminders: { resources: agent.native_services.reminders.resources.map((resource) => ({
+          ...resource, actions: ['read'] as const,
+        })) },
+      } : {}),
+    } : undefined;
+    return ConfigurationPatchSchema.parse({
+      ...base,
+      changes: {
+        ...(agent.calendar_access ? {
+          calendar_access: agent.calendar_access.map((resource) => ({ ...resource, access: 'read_only' as const })),
+        } : {}),
+        ...(nativeServices ? { native_services: nativeServices } : {}),
+      },
+    });
+  }
+  return undefined;
+}
+
 export function createAnalysisApi(dependencies: AnalysisApiDependencies): Hono {
   const app = new Hono();
 
@@ -68,6 +130,10 @@ export function createAnalysisApi(dependencies: AnalysisApiDependencies): Hono {
     const analysis = await dependencies.security.analyze(input);
     return context.json({
       ...analysis,
+      findings: analysis.findings.map((finding) => {
+        const patch = safeSecurityPatch(finding, input.agent, input.content);
+        return patch ? { ...finding, patch } : finding;
+      }),
       review_state: dependencies.security.getReviewState(analysis.agent_id, analysis.content_hash),
     });
   });

@@ -4,6 +4,9 @@ import { Document, Scalar, parseDocument } from 'yaml';
 import { z } from 'zod';
 import {
   AgentTelemetrySchema,
+  CalendarAccessSchema,
+  FileAccessSchema,
+  NativeServicesSchema,
   parseAgentFile,
   hasFrontmatter,
   splitFrontmatter,
@@ -27,6 +30,9 @@ export const ConfigurationChangesSchema = z.object({
   max_turns: z.number().int().positive().optional(),
   timeout: z.string().trim().min(1).max(16).nullable().optional(),
   working_directory: OptionalText,
+  file_access: z.array(FileAccessSchema).max(32).nullable().optional(),
+  calendar_access: z.array(CalendarAccessSchema).max(128).nullable().optional(),
+  native_services: NativeServicesSchema.nullable().optional(),
   tools: ToolListSchema.optional(),
   disallowed_tools: ToolListSchema.optional(),
   permissions: z.object({ allow: ToolListSchema, deny: ToolListSchema }).strict().nullable().optional(),
@@ -103,6 +109,8 @@ const FIELD_SUMMARIES: Record<string, string> = {
   watch: 'Change watched folders', on_complete: 'Change follow-up agents', on_failure: 'Change failure handling',
   max_turns: 'Change the run step limit', timeout: 'Change the run time limit',
   conversation: 'Change conversation memory', telemetry: 'Change progress reporting',
+  file_access: 'Change file or folder access', calendar_access: 'Change Calendar access',
+  native_services: 'Change access to Mac apps',
   network_access: 'Change internet access',
 };
 
@@ -113,6 +121,11 @@ const LITERAL_CREDENTIAL_PATTERN = /\b(?:sk-(?:ant|live|test)?[-_a-z0-9]{12,}|xo
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isBroadPath(path: string): boolean {
+  return path === '~' || path === '~/' || path === '/'
+    || /^\/Users\/[^/]+\/?$/.test(path);
 }
 
 function classifyPatchRisk(
@@ -133,10 +146,18 @@ function classifyPatchRisk(
   if (changes.codex_sandbox === 'workspace-write' && current.codex_sandbox !== 'workspace-write') {
     reasons.push('Allows changes inside the working folder');
   }
-  if (changes.working_directory === '~'
-    || changes.working_directory === '/'
-    || /^\/Users\/[^/]+\/?$/.test(changes.working_directory ?? '')) {
+  if (changes.working_directory && isBroadPath(changes.working_directory)) {
     throw new PatchPolicyError('Automated patches cannot grant broad file access');
+  }
+  if (changes.file_access?.some((grant) => isBroadPath(grant.path))) {
+    throw new PatchPolicyError('Automated patches cannot grant broad file access');
+  }
+  if (changes.file_access !== undefined) reasons.push('Changes file or folder access');
+  if (changes.calendar_access !== undefined) reasons.push('Changes Calendar access');
+  if (changes.native_services !== undefined) {
+    reasons.push(changes.native_services?.contacts
+      ? 'Changes access to personal information'
+      : 'Changes access to Mac apps');
   }
   if (changes.network_access === true) reasons.push('Enables internet access');
   if (changes.tools?.length === 0 || changes.tools?.includes('*')) {

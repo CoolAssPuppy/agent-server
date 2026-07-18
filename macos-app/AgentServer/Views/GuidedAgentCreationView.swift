@@ -266,6 +266,14 @@ struct GuidedAgentCreationView: View {
                 Text("Yes").tag("Yes")
                 Text("No").tag("No")
             }
+        case .unavailable:
+            VStack(alignment: .leading, spacing: NSpacing.sm) {
+                Label("No access was added", systemImage: "exclamationmark.triangle")
+                Text("Agent Server needs a verified, signed MusicKit capability before it can safely offer Apple Music access.")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                Button("Edit request") { flow.returnToRequest() }
+            }
         }
     }
 
@@ -311,7 +319,8 @@ struct GuidedAgentCreationView: View {
                 .disabled(request.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .accessibilityIdentifier(ConsumerFlowAccessibility.creationContinue)
         case .questions:
-            if flow.nextQuestion?.requiresConnectionSetup != true {
+            if flow.nextQuestion?.requiresConnectionSetup != true,
+               flow.nextQuestion?.kind != .unavailable {
                 Button("Continue", action: answerQuestion)
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)

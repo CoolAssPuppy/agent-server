@@ -423,6 +423,20 @@ describe('guided agent proposal creation', () => {
     });
   });
 
+  it('explains that Apple Music cannot be granted instead of generating a false proposal', async () => {
+    const result = await createAgentProposal({
+      request: 'Review my Apple Music library every Friday.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      model: modelReturning(completeProposal()).model,
+    });
+
+    expect(result).toMatchObject({
+      status: 'needs_information',
+      questions: [{ id: 'apple-music-unavailable', control: 'unavailable', required: true }],
+    });
+  });
+
   it('re-asks when a Reminder answer is no longer available or allowed', async () => {
     const fake = modelReturning(completeProposal());
     const base = {
@@ -492,7 +506,7 @@ describe('guided agent proposal creation', () => {
       id: 'calendar', name: 'Calendar', required: true, status: 'connected', reason: 'Reads upcoming events.',
     }];
     proposal.calendar_access = [{
-      id: 'work-id', name: 'Work', access: 'read_only', reason: 'Reads work events.',
+      id: 'work-id', name: 'Work', account: 'Personal', access: 'read_only', reason: 'Reads work events.',
     }];
     proposal.permissions = {
       can_modify_files: false,
@@ -506,7 +520,9 @@ describe('guided agent proposal creation', () => {
     const parsed = CreationProposalSchema.parse(proposal);
     const config = proposalToAgentConfig(parsed, 'calendar-summary');
 
-    expect(config.calendar_access).toEqual([{ id: 'work-id', name: 'Work', access: 'read_only' }]);
+    expect(config.calendar_access).toEqual([{
+      id: 'work-id', name: 'Work', account: 'Personal', access: 'read_only',
+    }]);
     expect(config.permissions?.allow).toContain('mcp__eventkit__list_events');
     expect(config.permissions?.allow).not.toContain('mcp__eventkit__create_event');
     expect(config.permissions?.allow).not.toContain('mcp__eventkit__delete_event');

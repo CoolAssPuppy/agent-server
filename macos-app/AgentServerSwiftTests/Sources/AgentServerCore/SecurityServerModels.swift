@@ -80,9 +80,10 @@ public struct SecurityFindingPayload: Decodable, Equatable, Sendable {
     public let canIgnore: Bool
     public let modelGenerated: Bool
     public let confidence: Double
+    public let patch: GuidanceConfigurationPatch?
 
     enum CodingKeys: String, CodingKey {
-        case id, severity, title, explanation, trigger, recommendation, confidence
+        case id, severity, title, explanation, trigger, recommendation, confidence, patch
         case ruleId = "rule_id"
         case potentialImpact = "potential_impact"
         case canIgnore = "can_ignore"
@@ -101,7 +102,7 @@ public struct SecurityFindingPayload: Decodable, Equatable, Sendable {
             functionalityImpact: recommendation.affectsFunctionality
                 ? "This change may limit part of the agent's current task."
                 : "This change should not affect the agent's intended task.",
-            canFix: false
+            canFix: patch != nil
         )
     }
 }

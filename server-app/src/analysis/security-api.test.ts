@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { parseAgentFile } from '../agents/config.js';
 import { computeAgentContentHash } from './security-rules.js';
 import { createAnalysisApi } from './security-api.js';
-import { InMemoryAgentContentRepository, StructuredPatchService } from './patch.js';
+import { ConfigurationPatchSchema, InMemoryAgentContentRepository, StructuredPatchService } from './patch.js';
 import { SqliteSecurityReviewStore } from './review-store.js';
 import { SecurityAnalysisService } from './security-service.js';
 
@@ -31,6 +31,15 @@ function createFixture() {
   }));
   return { app, repository, reviewStore };
 }
+
+const commandContent = `---
+id: reader
+name: Reader
+tools: [Read, Bash]
+codex_sandbox: workspace-write
+---
+Review notes with a local command.
+`;
 
 describe('security and patch API', () => {
   it('analyzes one agent and the full local collection', async () => {
@@ -91,6 +100,32 @@ describe('security and patch API', () => {
       agent_id: 'reader', decision: 'allow', acknowledgement_required: false,
     });
     fixture.reviewStore.close();
+  });
+
+  it('returns a validated patch for a deterministic safe security fix', async () => {
+    const repository = new InMemoryAgentContentRepository({ reader: commandContent });
+    const reviewStore = new SqliteSecurityReviewStore({ path: ':memory:' });
+    const security = new SecurityAnalysisService({ reviewStore, homeDir: '/Users/example' });
+    const app = new Hono();
+    app.route('/', createAnalysisApi({
+      security,
+      patches: new StructuredPatchService(repository),
+      content: {
+        get: async (id) => ({ content: await repository.read(id), agent: parseAgentFile(await repository.read(id)) }),
+        list: async () => [],
+      },
+    }));
+
+    const response = await app.request('/security/agents/reader');
+    const body = await response.json();
+    const finding = body.findings.find((candidate: { rule_id: string }) => candidate.rule_id === 'permissions.commands');
+
+    expect(finding.patch).toMatchObject({
+      source: 'security_analyzer',
+      changes: { tools: ['Read'], disallowed_tools: ['Bash'] },
+    });
+    await expect(ConfigurationPatchSchema.parseAsync(finding.patch)).resolves.toBeDefined();
+    reviewStore.close();
   });
 
   it('previews and applies a safe patch, then rolls it back', async () => {

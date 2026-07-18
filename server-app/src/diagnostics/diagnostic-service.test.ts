@@ -297,6 +297,25 @@ describe('guided run diagnostics', () => {
     expect(guarded.rejected_reasons).toEqual([]);
   });
 
+  it('validates exact native grants and requires review before changing personal access', () => {
+    const guarded = guardRepairProposal({
+      summary: 'Read names from the selected Contacts group.',
+      operations: [{
+        field: 'native_services',
+        value: {
+          contacts: {
+            resources: [{ id: 'family', name: 'Family', actions: ['read'], fields: ['name'] }],
+          },
+        },
+      }],
+      risk: 'needs_review',
+      rerun_after_apply: true,
+    });
+
+    expect(guarded.can_automate).toBe(true);
+    expect(guarded.requires_confirmation).toBe(true);
+  });
+
   it('builds a minimal diagnostic prompt without the full agent instructions', () => {
     const prompt = buildDiagnosticPrompt({
       agent: makeAgent({ prompt: 'Private instructions that must not be copied.' }),

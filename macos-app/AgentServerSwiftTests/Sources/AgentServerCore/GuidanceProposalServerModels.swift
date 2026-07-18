@@ -292,6 +292,7 @@ private struct GuidanceQuestionPayload: Decodable, Equatable, Sendable {
         case "permission": return .confirmation
         case "single_choice": return .choice(choices?.map(\.label) ?? [])
         case "service": return .service(name: serviceName, choices: choices?.map(\.label) ?? [])
+        case "unavailable": return .unavailable
         default: return .text
         }
     }

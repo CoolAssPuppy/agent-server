@@ -177,7 +177,7 @@ export type ProposalRequestInput = z.input<typeof ProposalRequestSchema>;
 export const ProposalFallbackQuestionSchema = z.object({
   id: z.string().trim().min(1).max(120),
   question: z.string().trim().min(1).max(500),
-  control: z.enum(['text', 'single_choice', 'schedule', 'path', 'file_access', 'permission', 'service']),
+  control: z.enum(['text', 'single_choice', 'schedule', 'path', 'file_access', 'permission', 'service', 'unavailable']),
   service_name: z.string().trim().min(1).max(120).optional(),
   required: z.boolean(),
   choices: z.array(z.object({

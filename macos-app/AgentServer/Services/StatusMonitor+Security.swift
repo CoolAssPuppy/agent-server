@@ -101,6 +101,35 @@ extension StatusMonitor {
         }
     }
 
+    func applySecurityFix(
+        agentId: String,
+        findingId: String
+    ) async -> Result<SecurityScanPresentation, ConsumerFlowFailure> {
+        guard let finding = securityAnalyses[agentId]?.findings.first(where: { $0.id == findingId }),
+              let proposedPatch = finding.patch else {
+            return .failure(securityFailure(
+                title: "This change needs manual review",
+                error: ClientError.invalidResponse,
+                recovery: "Open agent settings and make the recommended change."
+            ))
+        }
+        do {
+            let preview = try await client.previewGuidancePatch(proposedPatch)
+            guard preview.canApply else { throw ClientError.invalidResponse }
+            let approvedPatch = preview.requiresConfirmation
+                ? proposedPatch.confirming(previewContentHash: preview.resultContentHash)
+                : proposedPatch
+            _ = try await client.applyGuidancePatch(approvedPatch)
+            return await analyzeSecurity(agentId: agentId)
+        } catch {
+            return .failure(securityFailure(
+                title: "Could not apply the reviewed change",
+                error: error,
+                recovery: "The agent may have changed. Check it again, then review the fix."
+            ))
+        }
+    }
+
     func redactedSecurityReport() -> String {
         let header = "Agent Server security report\nGenerated \(Date().formatted())\n"
         let entries = securityAnalyses.values.sorted { $0.agentId < $1.agentId }.map { analysis in

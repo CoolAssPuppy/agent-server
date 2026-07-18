@@ -46,6 +46,7 @@ public struct CreationQuestion: Identifiable, Equatable, Sendable {
         case choice([String])
         case service(name: String?, choices: [String])
         case confirmation
+        case unavailable
     }
 
     public let id: String
