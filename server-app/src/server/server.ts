@@ -4,7 +4,6 @@ import { hostname, homedir } from 'os';
 import { join } from 'path';
 import type { ServerConfig } from '../platform/config.js';
 import type { AgentConfig } from '../agents/config.js';
-import type { Reporter } from '../execution/runner.js';
 import { createApi } from './api.js';
 import { discoverAgents } from '../agents/discovery.js';
 import { createAgentWriter } from '../agents/writer.js';
@@ -14,12 +13,10 @@ import type { RunStoreLike } from '../reporting/store.js';
 import { RunStore } from '../reporting/store.js';
 import { SqliteRunStore } from '../reporting/sqlite-store.js';
 import { failOrphanedLocalRuns } from '../reporting/local-reconcile.js';
-import { runAgent } from '../execution/runner.js';
 import { executeAgent, probeMcpServers } from '../plugins/claude-code.js';
 import { executeCodexAgent } from '../plugins/codex.js';
 import { ExecutorRegistry } from '../execution/executor-registry.js';
 import { discoverRuntimePaths } from '../execution/runtime-discovery.js';
-import type { McpServerInfo } from '../execution/executor.js';
 import { createReporter } from '../reporting/reporter-factory.js';
 import { createPanelClient } from '../reporting/panel-client.js';
 import { replayPendingTerminals } from '../reporting/reporter.js';
@@ -51,6 +48,10 @@ import { createRunPreflightGate } from '../analysis/run-preflight-gate.js';
 import { PreflightSkipRecorder } from '../analysis/preflight-skip-recorder.js';
 import type { RunTriggerSource } from '../analysis/run-preflight.js';
 import { createSafeTestTrigger } from '../creation/safe-test.js';
+import {
+  createRunLifecycle,
+  type TriggerRunOptions,
+} from './run-lifecycle.js';
 
 export type ServerInstance = {
   stop: () => Promise<void> | void;
@@ -71,18 +72,7 @@ const SHUTDOWN_PER_RUN_TIMEOUT_MS = 3_000;
 const DEFAULT_INTERACTION_TIMEOUT_MS = 30 * 60 * 1000;
 const DEFAULT_CONVERSATION_TTL_MS = 30 * 60 * 1000;
 
-function isNeedsAuthMcpServer(value: unknown): value is McpServerInfo {
-  if (typeof value !== 'object' || value === null) return false;
-  const s = value as Partial<McpServerInfo>;
-  return s.status === 'needs-auth' && typeof s.name === 'string';
-}
-
-export function extractMcpNeedsAuthServers(meta: Record<string, unknown> | undefined): string[] {
-  if (!meta) return [];
-  const servers = meta.mcp_servers;
-  if (!Array.isArray(servers)) return [];
-  return servers.filter(isNeedsAuthMcpServer).map((s) => s.name);
-}
+export { extractMcpNeedsAuthServers } from './run-lifecycle.js';
 
 /**
  * Resolves the wall-clock run timeout in order of precedence: the agent's
@@ -275,11 +265,6 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     console.log(`  Codex runtime: ${runtimePaths.codexExecutablePath} (installed)`);
   }
 
-  const activeControllers = new Map<string, AbortController>();
-  // Resolvers that fire when the reporter wrapper observes a terminal event
-  // for a run. Used by shutdown() to wait until the panel has been notified.
-  const terminalWaiters = new Map<string, Promise<void>>();
-  const terminalResolvers = new Map<string, () => void>();
   const broadcaster = new ProgressBroadcaster();
   let wsClientCount = 0;
 
@@ -380,214 +365,35 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     }
   }
 
-  type RunDoneCallback = (result: { status: 'completed' | 'failed'; summary?: string; error?: string }) => void;
-
-  type TriggerRunOptions = {
-    promptSuffix?: string;
-    onDone?: RunDoneCallback;
-    conversationId?: string;
-    mode?: 'normal' | 'safe_test';
-    retryOfRunId?: string;
-    repairId?: string;
-  };
+  const runLifecycle = createRunLifecycle({
+    maxConcurrentRuns: config.maxConcurrentRuns,
+    lockDir: config.lockDir,
+    runTimeoutMs: config.runTimeoutMs,
+    store,
+    broadcaster,
+    execute: (agent, reporter, executorOptions) => executorRegistry.resolve(agent)(
+      agent,
+      reporter,
+      {
+        ...executorOptions,
+        claudeExecutablePath: runtimePaths.claudeExecutablePath,
+        codexExecutablePath: runtimePaths.codexExecutablePath,
+      },
+    ),
+    createReporter: (runId, name, conversationId, agent) => createReporter(config, runId, name, {
+      serverId,
+      conversationId,
+      agentTelemetry: agent.telemetry,
+    }),
+    buildDecisionContext,
+    resolveTimeoutMs: (agent) => resolveRunTimeoutMs(agent, config),
+    notify: sendNotification,
+    onInteraction: handleInteractionResult,
+    onTerminal: (agent, status) => fireDownstreamTriggers(agent.id, status),
+  });
 
   function triggerRunForAgent(agent: AgentConfig, options: TriggerRunOptions = {}): string {
-    const { promptSuffix, onDone, conversationId, mode = 'normal', retryOfRunId, repairId } = options;
-    if (activeControllers.size >= config.maxConcurrentRuns) {
-      throw new Error('Too many active runs. Please retry later.');
-    }
-
-    const runId = randomUUID();
-    const abortController = new AbortController();
-    activeControllers.set(runId, abortController);
-    terminalWaiters.set(runId, new Promise<void>((resolve) => {
-      terminalResolvers.set(runId, resolve);
-    }));
-
-    const now = new Date();
-    store.add({
-      runId,
-      agentId: agent.id,
-      agentName: agent.name,
-      status: 'running',
-      startedAt: now,
-      turnCount: 0,
-      toolsUsed: [],
-      filesRead: [],
-      filesWritten: [],
-      commandsRun: [],
-      progressMessages: [],
-      conversationId,
-      mode,
-      retryOfRunId,
-      repairId,
-    });
-
-    broadcaster.emit(sanitizeProgressEvent({
-      type: 'run_started',
-      runId,
-      agentId: agent.id,
-      timestamp: now.toISOString(),
-    }));
-
-    runAgent({
-      runId,
-      agent,
-      lockDir: config.lockDir,
-      buildDecisionContext,
-      execute: async (a, reporter) => {
-        // The Claude Code executor publishes mcp_servers on most progress
-        // events. Without dedup, every turn would re-broadcast the same
-        // needs-auth list, firing a duplicate mcp_status notification on
-        // every tick until the user re-authenticates. Track the last-sent
-        // set per run and only broadcast on change.
-        let lastNeedsAuthKey: string | null = null;
-        const wrappedReporter: Reporter = {
-          start: () => reporter.start(),
-          progress: (msg, meta) => {
-            store.addProgress(runId, msg);
-            if (meta) {
-              const rawTools = meta.tools_used;
-              const toolsUsed = Array.isArray(rawTools)
-                ? rawTools.filter((t): t is string => typeof t === 'string')
-                : [];
-              store.update(runId, {
-                turnCount: typeof meta.turns_completed === 'number' ? meta.turns_completed : 0,
-                toolsUsed,
-              });
-            }
-            broadcaster.emit(sanitizeProgressEvent({
-              type: 'run_progress',
-              runId,
-              agentId: agent.id,
-              message: msg,
-              metadata: meta,
-              timestamp: new Date().toISOString(),
-            }));
-
-            const mcpNeedsAuth = extractMcpNeedsAuthServers(meta);
-            if (mcpNeedsAuth.length > 0) {
-              const key = [...mcpNeedsAuth].sort().join('|');
-              if (key !== lastNeedsAuthKey) {
-                lastNeedsAuthKey = key;
-                broadcaster.emit(sanitizeProgressEvent({
-                  type: 'mcp_status',
-                  runId,
-                  agentId: agent.id,
-                  mcp_needs_auth_servers: mcpNeedsAuth,
-                  timestamp: new Date().toISOString(),
-                }));
-              }
-            }
-
-            return reporter.progress(msg, meta);
-          },
-          complete: (result) => reporter.complete(result),
-          fail: (error) => reporter.fail(error),
-          stop: () => reporter.stop(),
-        };
-        const executor = executorRegistry.resolve(a);
-        const result = await executor(a, wrappedReporter, {
-          abortController,
-          claudeExecutablePath: runtimePaths.claudeExecutablePath,
-          codexExecutablePath: runtimePaths.codexExecutablePath,
-          disableMcpServers: mode === 'safe_test',
-        });
-        // Pull token / cost telemetry from ExecutionResult.usage so the
-        // local server's /runs response can render duration and cost in the
-        // macOS app without round-tripping through the panel.
-        const usage = (result.usage ?? {}) as Record<string, unknown>;
-        const coerceNumber = (value: unknown): number | undefined =>
-          typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-        store.update(runId, {
-          status: 'completed',
-          completedAt: new Date(),
-          summary: result.summary,
-          turnCount: result.turnCount,
-          toolsUsed: result.toolsUsed,
-          filesRead: result.filesRead,
-          filesWritten: result.filesWritten,
-          commandsRun: result.commandsRun,
-          durationMs: coerceNumber(result.durationMs) ?? coerceNumber(usage.duration_ms),
-          estimatedCostUsd: coerceNumber(usage.estimated_cost_usd),
-          inputTokens: coerceNumber(usage.input_tokens),
-          outputTokens: coerceNumber(usage.output_tokens),
-          model: typeof result.model === 'string' ? result.model : undefined,
-        });
-        if (result.interaction && agent.interaction) {
-          void handleInteractionResult(runId, agent, result.interaction);
-        }
-        broadcaster.emit(sanitizeProgressEvent({
-          type: 'run_completed',
-          runId,
-          agentId: agent.id,
-          summary: result.summary,
-          timestamp: new Date().toISOString(),
-        }));
-        sendNotification(agent, runId, {
-          status: 'completed',
-          summary: result.summary,
-          turnCount: result.turnCount,
-          toolsUsed: result.toolsUsed,
-          filesWritten: result.filesWritten,
-        });
-        onDone?.({ status: 'completed', summary: result.summary });
-        if (mode !== 'safe_test') void fireDownstreamTriggers(agent.id, 'completed');
-        return result;
-      },
-      createReporter: (rid, name, convId) => createReporter(config, rid, name, {
-        serverId,
-        conversationId: convId ?? conversationId,
-        agentTelemetry: agent.telemetry,
-      }),
-      promptSuffix,
-      timeoutMs: resolveRunTimeoutMs(agent, config),
-      abortController,
-    }).then((result) => {
-      if (result.status === 'skipped') {
-        store.update(runId, {
-          status: 'skipped',
-          completedAt: new Date(),
-        });
-        return;
-      }
-      if (result.status === 'failed') {
-        emitRunFailure(result.error ?? 'Unknown error', result.code);
-      }
-    }).catch((err) => {
-      const errorMsg = toErrorMessage(err);
-      emitRunFailure(errorMsg);
-    }).finally(() => {
-      // Cleanup bookkeeping on every terminal path — success, failure, throw.
-      activeControllers.delete(runId);
-      terminalResolvers.get(runId)?.();
-      terminalResolvers.delete(runId);
-      terminalWaiters.delete(runId);
-    });
-
-    // Shared failure-emit used by both the `.then()` branch (runner returned a
-    // failed result) and `.catch()` branch (runner threw). Centralizing
-    // eliminates drift between the two paths.
-    function emitRunFailure(errorMsg: string, code?: string): void {
-      store.update(runId, {
-        status: 'failed',
-        completedAt: new Date(),
-        error: errorMsg,
-      });
-      broadcaster.emit(sanitizeProgressEvent({
-        type: 'run_failed',
-        runId,
-        agentId: agent.id,
-        error: errorMsg,
-        code,
-        timestamp: new Date().toISOString(),
-      }));
-      sendNotification(agent, runId, { status: 'failed', error: errorMsg });
-      onDone?.({ status: 'failed', error: errorMsg });
-      if (mode !== 'safe_test') void fireDownstreamTriggers(agent.id, 'failed');
-    }
-
-    return runId;
+    return runLifecycle.trigger(agent, options);
   }
 
   async function triggerRun(
@@ -643,15 +449,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   });
 
   function cancelRun(runId: string): boolean {
-    const controller = activeControllers.get(runId);
-    if (!controller) return false;
-
-    // Abort only — the runner's finally block invokes reporter.cancel(),
-    // which posts the canonical `canceled` state to the panel. The `.then()`
-    // continuation then updates the local RunStore. Writing `failed` here
-    // would double-write and report a different status than the panel sees.
-    controller.abort();
-    return true;
+    return runLifecycle.cancel(runId);
   }
 
   let lastCheckedAt = new Date();
@@ -874,7 +672,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
             await onRunStart(runId);
             // TriggerHandler expects to report a terminal state to the panel
             // after invokeRun resolves; wait for this run's terminal waiter.
-            await terminalWaiters.get(runId);
+            await runLifecycle.waitForTerminal(runId);
             const stored = store.get(runId);
             if (!stored) return { status: 'failed', error: 'run record disappeared' };
             if (stored.status === 'completed') return { runId, status: 'completed' };
@@ -1119,30 +917,6 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     }
   }, 60_000);
 
-  async function drainActiveRuns(): Promise<void> {
-    const runIds = [...activeControllers.keys()];
-    if (runIds.length === 0) return;
-
-    console.log(`[shutdown] Aborting ${runIds.length} active run(s); draining terminals`);
-    for (const [, controller] of activeControllers) {
-      try { controller.abort(); } catch { /* ignore */ }
-    }
-
-    const waiters = runIds
-      .map((id) => terminalWaiters.get(id))
-      .filter((p): p is Promise<void> => Boolean(p));
-
-    const perRun = waiters.map((p) => Promise.race([
-      p,
-      new Promise<void>((resolve) => setTimeout(resolve, SHUTDOWN_PER_RUN_TIMEOUT_MS)),
-    ]));
-
-    await Promise.race([
-      Promise.all(perRun),
-      new Promise<void>((resolve) => setTimeout(resolve, SHUTDOWN_DRAIN_TIMEOUT_MS)),
-    ]);
-  }
-
   return {
     stop: async () => {
       if (interval) clearInterval(interval);
@@ -1151,7 +925,10 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       scheduleSync?.stop();
       triggerHandler?.stop();
       realtimeClient?.stop();
-      await drainActiveRuns();
+      await runLifecycle.drain({
+        overallTimeoutMs: SHUTDOWN_DRAIN_TIMEOUT_MS,
+        perRunTimeoutMs: SHUTDOWN_PER_RUN_TIMEOUT_MS,
+      });
       httpServer.close();
       void fileWatcherPromise.then((w) => w?.stop());
       // Wait for both channel setups to finish registering before stopping all.
