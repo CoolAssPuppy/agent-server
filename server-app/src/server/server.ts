@@ -391,11 +391,8 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     repairId?: string;
   };
 
-  function triggerRunForAgent(agent: AgentConfig, optionsOrSuffix?: string | TriggerRunOptions, onDoneArg?: RunDoneCallback): string {
-    const opts: TriggerRunOptions = typeof optionsOrSuffix === 'string'
-      ? { promptSuffix: optionsOrSuffix, onDone: onDoneArg }
-      : optionsOrSuffix ?? {};
-    const { promptSuffix, onDone, conversationId, mode = 'normal', retryOfRunId, repairId } = opts;
+  function triggerRunForAgent(agent: AgentConfig, options: TriggerRunOptions = {}): string {
+    const { promptSuffix, onDone, conversationId, mode = 'normal', retryOfRunId, repairId } = options;
     if (activeControllers.size >= config.maxConcurrentRuns) {
       throw new Error('Too many active runs. Please retry later.');
     }
