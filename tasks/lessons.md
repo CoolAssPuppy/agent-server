@@ -24,3 +24,5 @@
 - When a model fallback repeats a question that already has a structured answer, stop in a retryable error state. Do not recursively call the proposal service or discard the user's selected resources.
 - Exact file scopes need default-deny tool permissions, canonical path precedence, and a runtime that can enforce individual paths. Never widen a selected file to its parent folder or combine scoped paths with unrestricted commands.
 - Treat every model-provided connection label and risk summary as untrusted presentation data. Replace connection metadata from the current registry and recompute risk after server-owned resource grants are applied, before showing the proposal.
+- A server-side patch preview is not user review. Show the exact consumer summary and sanitized advanced changes, then bind approval to the preview hash before applying a high-risk fix.
+- Apple framework authorization cases differ by platform even inside shared SDKs. Compile the actual macOS target before accepting an iOS-family authorization state as available.

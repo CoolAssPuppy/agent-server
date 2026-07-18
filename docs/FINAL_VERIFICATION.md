@@ -17,7 +17,7 @@ This report records automated verification for the `creation-experience` branch.
 
 - Baseline: `5b779736985e918874b80b390372be71645dc19a`
 - Branch: `creation-experience`
-- Verified feature head: `4ad6581`
+- Verified feature head: `f810f4e`
 - Worktree clean before closeout documentation edits: Yes
 - Primary Codex session ID: `019f7458-705a-7fe2-8819-b2bf9f383298`
 
@@ -59,17 +59,21 @@ This report records automated verification for the `creation-experience` branch.
 34. `3c0d89e` Simplify native access review flow
 35. `f464e56` Add scoped read-only Contacts access
 36. `4ad6581` Harden Contacts scope and review
+37. `d1096b7` Harden Contacts privacy and document verification
+38. `7140f72` Unify native grants with reviewed fixes
+39. `2ef3217` Harden reviewed security fixes
+40. `f810f4e` Block relocated home folder grants
 
 ## Automated checks
 
 | Check | Result | Evidence |
 |---|---|---|
-| Server behavior tests | Passed | 1,123 tests across 82 files |
+| Server behavior tests | Passed | 1,133 tests across 82 files |
 | Server coverage | Passed before final scoped-access batch | 78.82% statements, 74.59% branches, 80.28% functions, 80.23% lines |
 | Server lint | Passed | `pnpm lint` exited successfully |
 | TypeScript strict check | Passed | `pnpm type-check` exited successfully |
 | Server production build | Passed | `pnpm build` exited successfully |
-| Swift behavior tests | Passed | 202 tests |
+| Swift behavior tests | Passed | 204 tests |
 | Signed macOS UI tests | Passed once | All four tests completed in 34.8 seconds. A later redundant rerun was interrupted after another app stole focus and UI testing stopped at the user's request. |
 | macOS application build | Passed | `AgentServer` scheme built successfully during final verification |
 | Native service helper build | Passed | `AgentServerEventKit` scheme built with scoped Calendar, Reminders, and Contacts support |
@@ -141,7 +145,8 @@ The UI results below come from the complete signed four-test run. They were not 
 - Critical risk blocks preflight until resolved: Passed in server behavior tests
 - Automated patch policy rejects unrestricted access and arbitrary commands: Passed in server behavior tests
 - Native Calendar and Reminder grants enforce exact resource IDs and approved actions in the helper: Passed in server and Swift policy tests
-- Contacts grants enforce an approved group or account and return only approved fields: Passed in server, Swift policy, and helper build checks
+- Contacts grant policy limits access to an approved group or account and approved fields: Passed in server and Swift policy tests; the native helper compiles successfully
+- Reviewed Security Analyzer fixes show a sanitized exact patch preview before apply: Passed in server patch tests, Swift decoding tests, and the unsigned app build
 - Review state becomes stale after content change: Passed in server behavior tests
 - Demo fixtures contain no credentials or personal paths: Passed during documentation batch
 

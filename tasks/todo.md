@@ -1,6 +1,6 @@
 # Build Week plan: Guided creation, debugging, and security
 
-Status: Native service integration and final release verification are in progress.
+Status: Native service integration and final release verification are complete.
 
 ## Unified services and resource grants
 
@@ -9,10 +9,10 @@ Status: Native service integration and final release verification are in progres
 - [x] Add multiple file and folder grants with independent View only or Can make changes access, preserving every grant in generated agent configuration and security analysis.
 - [x] Add scoped Calendar and Reminders grants with exact resource and action review.
 - [x] Add read-only Contacts grants with exact group and field review.
-- [ ] Keep Apple Music visibly unavailable until the signed app has the required MusicKit capability and a tested read-only runtime.
-- [ ] Reuse the grant models in proposal review, safe tests, debugger patches, and security preflight checks.
+- [x] Keep Apple Music visibly unavailable until the signed app has the required MusicKit capability and a tested read-only runtime.
+- [x] Reuse the grant models in proposal review, safe tests, debugger patches, and security preflight checks.
 - [x] Add server and Swift behavior coverage first, then run full server tests, Swift tests, type-check, server build, and unsigned Xcode build without UI automation.
-- [ ] Run a simplification review after every consequential commit, record the final verification here, and launch the verified build.
+- [x] Run a simplification review after every consequential commit, record the final verification here, and launch the verified build.
 
 ### Services and file grants review
 
@@ -39,7 +39,7 @@ Status: Native service integration and final release verification are in progres
 - Contacts is read-only, does not return stable contact IDs, limits returned fields, and disables linked-contact unification so an approved account cannot pull details from another account.
 - Contacts combined with network, messaging, or any non-EventKit MCP output is classified as high risk.
 - Apple Music remains a documented unavailable capability until MusicKit signing and a read-only runtime are verified.
-- Verification: 1,123 server tests across 82 files, 202 Swift tests, TypeScript type-check and build, plus unsigned app and helper builds. UI automation was not run.
+- Verification: 1,133 server tests across 82 files, 204 Swift tests, TypeScript type-check and build, plus unsigned app and helper builds. UI automation was not run.
 
 ## Consumer correction batch
 

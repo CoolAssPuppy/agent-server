@@ -85,7 +85,7 @@ The feature work adds server behavior coverage for shared schemas, environment a
 
 Swift behavior coverage includes proposal and debugger state changes, consumer risk and schedule presentation, security payloads, accessibility identifiers, drawer routing, transport recovery, and stale state protection. Four signed macOS UI tests cover the requested creation, missing-connection, safe-test, debugger, low-risk repair, embedded-secret, folder-narrowing, and high-risk review behaviors using deterministic launch scenarios.
 
-The latest non-interactive run passed 1,123 server tests across 82 files and 202 Swift tests. TypeScript checking, the server build, and unsigned builds of the app and native helper passed. The full four-flow signed UI suite passed once earlier in the feature cycle. Later UI automation stopped at the user's request because it took keyboard focus. See [FINAL_VERIFICATION.md](FINAL_VERIFICATION.md) for the full record.
+The latest non-interactive run passed 1,133 server tests across 82 files and 204 Swift tests. TypeScript checking, the server build, and unsigned builds of the app and native helper passed. The full four-flow signed UI suite passed once earlier in the feature cycle. Later UI automation stopped at the user's request because it took keyboard focus. See [FINAL_VERIFICATION.md](FINAL_VERIFICATION.md) for the full record.
 
 ## Demo
 
@@ -159,3 +159,7 @@ Use [BUILD_WEEK_DEMO.md](BUILD_WEEK_DEMO.md) and the redacted fixtures under `se
 34. `3c0d89e` Simplify native access review flow
 35. `f464e56` Add scoped read-only Contacts access
 36. `4ad6581` Harden Contacts scope and review
+37. `d1096b7` Harden Contacts privacy and document verification
+38. `7140f72` Unify native grants with reviewed fixes
+39. `2ef3217` Harden reviewed security fixes
+40. `f810f4e` Block relocated home folder grants
