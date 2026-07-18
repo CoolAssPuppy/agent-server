@@ -59,7 +59,12 @@ final class EventKitPermissionManager {
         return containers.flatMap { container in
             let predicate = CNGroup.predicateForGroupsInContainer(withIdentifier: container.identifier)
             let groups = (try? contactStore.groups(matching: predicate)) ?? []
-            return groups.map {
+            let allContacts = GuidanceContactGroupResource(
+                id: "container:\(container.identifier)",
+                name: "All contacts",
+                account: container.name
+            )
+            return [allContacts] + groups.map {
                 GuidanceContactGroupResource(id: $0.identifier, name: $0.name, account: container.name)
             }
         }.sorted {

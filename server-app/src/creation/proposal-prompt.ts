@@ -54,6 +54,13 @@ export function buildAgentProposalPrompt(request: ProposalRequest): string {
   const calendars = selectedCalendars.length > 0
     ? selectedCalendars.map((calendar) => `${sanitizeText(calendar.name, 160)} (${calendar.id})`).join(', ')
     : 'None';
+  const selectedContactId = (request.answers ?? []).find((answer) => answer.question_id === 'contact-group-id')?.value;
+  const selectedContactFields = (request.answers ?? []).find((answer) => answer.question_id === 'contact-fields')?.value;
+  const selectedContactGroup = (request.availableContactGroups ?? []).find((group) => group.id === selectedContactId);
+  const contacts = selectedContactGroup
+    ? `${sanitizeText(selectedContactGroup.name, 160)} (${sanitizeText(selectedContactGroup.account, 160)}), `
+      + `resource id ${sanitizeText(selectedContactGroup.id, 512)}, fields ${sanitizeText(String(selectedContactFields ?? ''), 120)}`
+    : 'None';
 
-  return `${SYSTEM_INSTRUCTIONS}\n\nUser request:\n${safeRequest}\n\nUser time zone: ${request.timezone}\nConnected apps and services: ${services}\nConfirmed file access: ${fileSummary}\nSelected calendars: ${calendars}\nConfirmed answers:\n${answers}`;
+  return `${SYSTEM_INSTRUCTIONS}\n\nUser request:\n${safeRequest}\n\nUser time zone: ${request.timezone}\nConnected apps and services: ${services}\nConfirmed file access: ${fileSummary}\nSelected calendars: ${calendars}\nSelected Contacts scope: ${contacts}\nConfirmed answers:\n${answers}`;
 }

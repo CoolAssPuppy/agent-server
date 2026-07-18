@@ -395,6 +395,20 @@ describe('guided agent proposal creation', () => {
     expect(config.permissions?.allow).not.toContain('mcp__eventkit__create_contact');
   });
 
+  it('does not treat the verb contact as macOS Contacts access', async () => {
+    const result = await createAgentProposal({
+      request: 'Contact my editor in Slack when the report is ready.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      availableContactGroups: [{ id: 'family', name: 'Family', account: 'iCloud' }],
+      model: modelReturning(completeProposal()).model,
+    });
+
+    expect(result).not.toMatchObject({
+      status: 'needs_information', questions: [{ id: 'contact-group-id' }],
+    });
+  });
+
   it('re-asks when a Reminder answer is no longer available or allowed', async () => {
     const fake = modelReturning(completeProposal());
     const base = {

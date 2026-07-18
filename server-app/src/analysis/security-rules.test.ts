@@ -280,6 +280,45 @@ describe('deterministic security analysis', () => {
     expect(result.findings.map((item) => item.rule_id)).toContain('native.sensitive_contacts');
   });
 
+  it('treats contact details plus external access as high risk', () => {
+    const result = analyzeAgentSecurity({
+      agent: makeAgent({
+        schedule: undefined,
+        permissions: { allow: ['mcp__eventkit__list_contacts', 'mcp__slack__send_message'], deny: [] },
+        native_services: {
+          contacts: {
+            resources: [{ id: 'family', name: 'Family', actions: ['read'], fields: ['name', 'email'] }],
+          },
+        },
+        notification: { channel: 'slack', on_complete: true, on_failure: true },
+      }),
+      rawContent: 'Send the selected contact summary to Slack.',
+      homeDir: '/Users/tester',
+    });
+
+    expect(result.risk.level).toBe('high');
+    expect(result.findings.map((item) => item.rule_id)).toContain('native.contacts_external_access');
+  });
+
+  it('treats an entire Contacts account as high risk', () => {
+    const result = analyzeAgentSecurity({
+      agent: makeAgent({
+        schedule: undefined,
+        permissions: { allow: ['mcp__eventkit__list_contacts'], deny: [] },
+        native_services: {
+          contacts: {
+            resources: [{ id: 'container:icloud', name: 'All contacts', actions: ['read'], fields: ['name'] }],
+          },
+        },
+      }),
+      rawContent: 'Summarize all contacts in the selected account.',
+      homeDir: '/Users/tester',
+    });
+
+    expect(result.risk.level).toBe('high');
+    expect(result.findings.map((item) => item.rule_id)).toContain('native.broad_contacts');
+  });
+
   it('produces a stable SHA-256 content hash', () => {
     expect(computeAgentContentHash('same content')).toBe(computeAgentContentHash('same content'));
     expect(computeAgentContentHash('same content')).toMatch(/^sha256:[a-f0-9]{64}$/);

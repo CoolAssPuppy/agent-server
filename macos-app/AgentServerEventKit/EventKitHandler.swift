@@ -160,11 +160,11 @@ final class EventKitHandler: MCPHandler {
             "properties": [
                 "groupId": ["type": "string", "description": "Selected contact group identifier"]
             ],
-            "required": ["groupId"]
+            "required": []
         ]
         result.append(MCPTool(
             name: "list_contacts",
-            description: "List the approved details for contacts in one selected group.",
+            description: "List the approved details for the selected contacts.",
             inputSchema: listContactsSchema
         ))
 
@@ -605,8 +605,15 @@ final class EventKitHandler: MCPHandler {
     }
 
     private func listContacts(args: [String: Any]) throws -> String {
-        guard let groupId = args["groupId"] as? String, !groupId.isEmpty else {
-            throw MCPError.invalidParams("groupId is required")
+        let approvedIds = grantPolicy.availableResourceIds(service: .contacts, action: "read")
+        let requestedId = (args["groupId"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let groupId: String
+        if let requestedId, !requestedId.isEmpty {
+            groupId = requestedId
+        } else if approvedIds.count == 1, let approvedId = approvedIds.first {
+            groupId = approvedId
+        } else {
+            throw MCPError.invalidParams("Choose one approved Contacts group or account")
         }
         guard grantPolicy.allows(service: .contacts, resourceId: groupId, action: "read") else {
             throw MCPError.invalidParams("That contact group is not available to this agent")
@@ -614,7 +621,7 @@ final class EventKitHandler: MCPHandler {
         try ensureContactAccess()
 
         let fields = Set(grantPolicy.availableFields(service: .contacts, resourceId: groupId))
-        var keys: [CNKeyDescriptor] = [CNContactIdentifierKey as CNKeyDescriptor]
+        var keys: [CNKeyDescriptor] = []
         if fields.contains("name") {
             keys.append(contentsOf: [CNContactGivenNameKey as CNKeyDescriptor, CNContactFamilyNameKey as CNKeyDescriptor])
         }
@@ -622,7 +629,14 @@ final class EventKitHandler: MCPHandler {
         if fields.contains("phone") { keys.append(CNContactPhoneNumbersKey as CNKeyDescriptor) }
         if fields.contains("birthday") { keys.append(CNContactBirthdayKey as CNKeyDescriptor) }
 
-        let predicate = CNContact.predicateForContactsInGroup(withIdentifier: groupId)
+        let predicate: NSPredicate
+        if groupId.hasPrefix("container:") {
+            predicate = CNContact.predicateForContactsInContainer(
+                withIdentifier: String(groupId.dropFirst("container:".count))
+            )
+        } else {
+            predicate = CNContact.predicateForContactsInGroup(withIdentifier: groupId)
+        }
         let contacts: [CNContact]
         do {
             contacts = try contactStore.unifiedContacts(matching: predicate, keysToFetch: keys)
@@ -630,7 +644,7 @@ final class EventKitHandler: MCPHandler {
             throw MCPError.toolFailed("Failed to read the selected contact group: \(error.localizedDescription)")
         }
         let values = contacts.map { contact -> [String: Any] in
-            var value: [String: Any] = ["id": contact.identifier]
+            var value: [String: Any] = [:]
             if fields.contains("name") {
                 value["name"] = [contact.givenName, contact.familyName].filter { !$0.isEmpty }.joined(separator: " ")
             }

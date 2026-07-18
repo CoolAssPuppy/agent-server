@@ -181,10 +181,12 @@ public struct AgentCreationFlow: Equatable, Sendable {
         failure = nil
     }
 
-    public mutating func beginQuestionRefresh() {
-        guard phase == .questions else { return }
+    @discardableResult
+    public mutating func beginQuestionRefresh() -> Bool {
+        guard phase == .questions else { return false }
         failure = nil
         phase = .preparingProposal
+        return true
     }
 
     public mutating func receiveProposal(_ proposal: AgentProposalPresentation) {

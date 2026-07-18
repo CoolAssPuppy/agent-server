@@ -336,7 +336,8 @@ function analyzePromptAndTriggers(agent: AgentConfig, rawContent: string): Findi
 
 function analyzeConnectionsAndAutomation(agent: AgentConfig): Finding[] {
   const findings: Finding[] = [];
-  if ((agent.native_services?.contacts?.resources.length ?? 0) > 0) {
+  const hasContactAccess = (agent.native_services?.contacts?.resources.length ?? 0) > 0;
+  if (hasContactAccess) {
     findings.push(finding(
       'native.sensitive_contacts', 'needs_review', 'This agent can read selected contact details',
       'Contact names, email addresses, phone numbers, and birthdays are personal information.',
@@ -344,6 +345,29 @@ function analyzeConnectionsAndAutomation(agent: AgentConfig): Finding[] {
       'At least one Contacts group has been selected for read access.',
       [evidence('native-service', 'Contacts access', 'Selected groups only', 'configuration')],
       action('native.sensitive_contacts', 'Review contact details', 'Keep only the groups and detail types needed for this task.', 'needs_review', true),
+    ));
+  }
+  if (agent.native_services?.contacts?.resources.some((resource) => resource.id.startsWith('container:'))) {
+    findings.push(finding(
+      'native.broad_contacts', 'high', 'This agent can read an entire Contacts account',
+      'Account access is broader than choosing a contact group.',
+      'The agent could read every contact stored in the selected account.',
+      'All contacts were selected instead of a narrower group.',
+      [evidence('native-service', 'Contacts scope', 'Entire selected account', 'configuration')],
+      action('native.broad_contacts', 'Choose a contact group', 'Create or select a narrower group when the task does not need every contact.', 'needs_review', true),
+    ));
+  }
+  const hasExternalOutput = hasEffectiveNetworkAccess(agent)
+    || Boolean(agent.notification)
+    || Boolean(agent.interaction);
+  if (hasContactAccess && hasExternalOutput) {
+    findings.push(finding(
+      'native.contacts_external_access', 'high', 'Contact details could be sent outside Contacts',
+      'This agent can read selected contact details and use an external app or internet service.',
+      'Names, addresses, phone numbers, or birthdays could be included in an external message.',
+      'Contacts access and external communication are both enabled.',
+      [evidence('native-service', 'Combined access', 'Contacts and external services', 'configuration')],
+      action('native.contacts_external_access', 'Limit external sharing', 'Remove external access or keep only the contact fields required for the task.', 'high', true),
     ));
   }
   for (const [name, server] of Object.entries(agent.mcp_servers ?? {})) {

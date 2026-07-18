@@ -341,7 +341,7 @@ struct GuidedAgentCreationView: View {
     }
 
     private func refreshQuestion() {
-        flow.beginQuestionRefresh()
+        guard flow.beginQuestionRefresh() else { return }
         prepare()
     }
 

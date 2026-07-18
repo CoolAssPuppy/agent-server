@@ -212,7 +212,8 @@ function needsCalendarAccess(intent: string): boolean {
 }
 
 function needsContactAccess(intent: string): boolean {
-  return /\bcontacts?|address book\b/.test(intent);
+  return /\b(?:my|selected|mac(?:os)?|apple) contacts\b/.test(intent)
+    || /\bcontacts app\b|\baddress book\b|\bcontact groups?\b/.test(intent);
 }
 
 function fallbackQuestions(request: ProposalRequest): ProposalFallbackQuestion[] {
@@ -369,7 +370,7 @@ function unansweredScopeQuestion(request: ProposalRequest): ProposalFallbackQues
     if (!answers.has('contact-group-id') || !selected) {
       return {
         id: 'contact-group-id',
-        question: 'Which contact group may this agent use?',
+        question: 'Which contacts may this agent use?',
         control: 'single_choice',
         required: true,
         choices: request.availableContactGroups.map((group) => ({

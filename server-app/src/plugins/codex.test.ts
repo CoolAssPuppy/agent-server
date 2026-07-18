@@ -75,6 +75,29 @@ describe('executeCodexAgent', () => {
     else process.env.AGENT_SERVER_EVENTKIT_BIN = original;
   });
 
+  it('injects exact Contacts fields into the bundled helper', async () => {
+    const original = process.env.AGENT_SERVER_EVENTKIT_BIN;
+    process.env.AGENT_SERVER_EVENTKIT_BIN = '/path/to/helper';
+    const { executeCodexAgent } = await import('./codex.js');
+    runStreamed.mockResolvedValue({ events: streamEvents([]) });
+
+    await executeCodexAgent(makeAgent({
+      native_services: {
+        contacts: {
+          resources: [{ id: 'family', name: 'Family', actions: ['read'], fields: ['name', 'birthday'] }],
+        },
+      },
+    }), createMockReporter());
+
+    expect(codexConstructor).toHaveBeenLastCalledWith(expect.objectContaining({
+      config: { mcp_servers: { eventkit: expect.objectContaining({
+        env: { AGENT_SERVER_NATIVE_SERVICE_GRANTS: expect.stringContaining('"birthday"') },
+      }) } },
+    }));
+    if (original === undefined) delete process.env.AGENT_SERVER_EVENTKIT_BIN;
+    else process.env.AGENT_SERVER_EVENTKIT_BIN = original;
+  });
+
   it('runs a streamed Codex thread with the agent settings', async () => {
     const { executeCodexAgent } = await import('./codex.js');
     runStreamed.mockResolvedValue({ events: streamEvents([
