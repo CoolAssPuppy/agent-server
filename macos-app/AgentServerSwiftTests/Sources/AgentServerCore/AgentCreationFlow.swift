@@ -19,6 +19,20 @@ public struct CreationFileGrant: Codable, Equatable, Sendable, Identifiable {
     }
 }
 
+public enum CreationResourcePickerMode: Equatable, Sendable {
+    case files
+    case folder
+
+    public var allowsMultipleSelection: Bool { self == .files }
+
+    public func accepts(isDirectory: Bool) -> Bool {
+        switch self {
+        case .files: !isDirectory
+        case .folder: isDirectory
+        }
+    }
+}
+
 public enum CreationAnswerValue: Equatable, Sendable {
     case string(String)
     case fileGrants([CreationFileGrant])

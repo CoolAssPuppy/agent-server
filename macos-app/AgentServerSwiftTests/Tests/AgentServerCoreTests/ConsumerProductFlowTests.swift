@@ -2,6 +2,22 @@ import XCTest
 @testable import AgentServerCore
 
 final class ConsumerProductFlowTests: XCTestCase {
+    func testFolderPickerAcceptsOnlyOneDirectory() {
+        let picker = CreationResourcePickerMode.folder
+
+        XCTAssertFalse(picker.allowsMultipleSelection)
+        XCTAssertTrue(picker.accepts(isDirectory: true))
+        XCTAssertFalse(picker.accepts(isDirectory: false))
+    }
+
+    func testFilePickerAcceptsMultipleFilesWithoutTreatingFoldersAsFiles() {
+        let picker = CreationResourcePickerMode.files
+
+        XCTAssertTrue(picker.allowsMultipleSelection)
+        XCTAssertTrue(picker.accepts(isDirectory: false))
+        XCTAssertFalse(picker.accepts(isDirectory: true))
+    }
+
     func testEmptyCalendarQuestionExplainsHowToRestoreAccess() {
         let question = CreationQuestion(
             id: "calendar-id",

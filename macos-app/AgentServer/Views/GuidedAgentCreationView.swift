@@ -61,6 +61,7 @@ struct GuidedAgentCreationView: View {
     @State private var fileGrants: [CreationFileGrant] = []
     @State private var pickerError: String?
     @State private var isChoosingFolder = false
+    @State private var resourcePickerMode = CreationResourcePickerMode.folder
     @State private var flow = AgentCreationFlow(request: "")
     @State private var pendingHighRiskSave: Bool?
 
@@ -81,8 +82,8 @@ struct GuidedAgentCreationView: View {
         .shadow(color: Color.black.opacity(0.18), radius: 14, x: 5, y: 0)
         .fileImporter(
             isPresented: $isChoosingFolder,
-            allowedContentTypes: flow.nextQuestion?.kind == .folder ? [.folder] : [.item],
-            allowsMultipleSelection: flow.nextQuestion?.kind == .fileAccess,
+            allowedContentTypes: resourcePickerMode == .folder ? [.folder] : [.item],
+            allowsMultipleSelection: resourcePickerMode.allowsMultipleSelection,
             onCompletion: chooseFiles
         )
         .confirmationDialog(
@@ -172,7 +173,7 @@ struct GuidedAgentCreationView: View {
                         .foregroundStyle(answer.isEmpty ? theme.tokens.mutedForeground : theme.tokens.foreground)
                         .lineLimit(1)
                     Spacer()
-                    Button("Choose folder") { isChoosingFolder = true }
+                    Button("Choose folder") { presentResourcePicker(.folder) }
                         .accessibilityIdentifier(ConsumerFlowAccessibility.creationFolderPicker)
                 }
                 pickerFailure
@@ -205,10 +206,16 @@ struct GuidedAgentCreationView: View {
                     .background(theme.tokens.card)
                     .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
                 }
-                Button(fileGrants.isEmpty ? "Choose files or folders" : "Add another file or folder") {
-                    isChoosingFolder = true
+                HStack {
+                    Button(fileGrants.isEmpty ? "Choose files" : "Add files") {
+                        presentResourcePicker(.files)
+                    }
+                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationFilePicker)
+                    Button(fileGrants.isEmpty ? "Choose a folder" : "Add a folder") {
+                        presentResourcePicker(.folder)
+                    }
+                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationFolderPicker)
                 }
-                .accessibilityIdentifier(ConsumerFlowAccessibility.creationFolderPicker)
                 Text("Set access for each item. View only is the safer default.")
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
@@ -468,6 +475,12 @@ struct GuidedAgentCreationView: View {
                 pickerError = "One selected item could not be identified. Choose it again."
                 return nil
             }
+            guard resourcePickerMode.accepts(isDirectory: isDirectory) else {
+                pickerError = resourcePickerMode == .folder
+                    ? "Choose a folder, not a file."
+                    : "Choose files. Use Choose a folder to add a folder."
+                return nil
+            }
             return CreationFileGrant(
                 path: url.path(percentEncoded: false),
                 kind: isDirectory ? .folder : .file,
@@ -476,6 +489,12 @@ struct GuidedAgentCreationView: View {
         }
         let existing = Set(fileGrants.map(\.path))
         fileGrants.append(contentsOf: additions.filter { !existing.contains($0.path) })
+    }
+
+    private func presentResourcePicker(_ mode: CreationResourcePickerMode) {
+        resourcePickerMode = mode
+        pickerError = nil
+        isChoosingFolder = true
     }
 
     @ViewBuilder

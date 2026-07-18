@@ -2,6 +2,15 @@
 
 Status: Native service integration and final release verification are complete.
 
+## Folder picker correction
+
+- [x] Add a failing behavior test for a folder-only creation picker.
+- [x] Give file-access questions separate native actions for choosing files and choosing a folder.
+- [x] Verify 206 Swift tests and the unsigned app build, then relaunch without UI automation.
+- [x] Commit the tested correction and run a post-commit simplification review.
+
+The folder picker now opens explicitly in directory mode and accepts one folder. File selection remains a separate multiple-selection action, and both paths keep View only as the default.
+
 ## Unified services and resource grants
 
 - [x] Add a tested local Services registry that presents discovered MCP accounts, configured API-key services, and safe reusable agent-defined MCP services as stable named connections. Native macOS services remain in the next batch.
