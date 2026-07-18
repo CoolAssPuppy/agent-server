@@ -9,10 +9,10 @@ final class EventKitHandler: MCPHandler {
               let values = try? JSONSerialization.jsonObject(with: data) as? [[String: String]] else {
             return nil
         }
-        return Dictionary(uniqueKeysWithValues: values.compactMap { value in
-            guard let id = value["id"], let access = value["access"] else { return nil }
-            return (id, access)
-        })
+        return values.reduce(into: [String: String]()) { result, value in
+            guard let id = value["id"], let access = value["access"] else { return }
+            result[id] = access
+        }
     }()
     private let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()

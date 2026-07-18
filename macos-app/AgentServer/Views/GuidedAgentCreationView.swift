@@ -1,6 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import NerdsUI
+import AppKit
 
 enum CreationPreparation {
     case questions([CreationQuestion])
@@ -142,10 +143,27 @@ struct GuidedAgentCreationView: View {
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("Choose when this agent runs")
         case .choice(let choices):
-            Picker("Choose one", selection: $answer) {
-                Text("Choose…").tag("")
-                ForEach(Array(choices.enumerated()), id: \.offset) { index, label in
-                    Text(label).tag(index < question.choiceValues.count ? question.choiceValues[index] : label)
+            if choices.isEmpty, question.id == "calendar-id" {
+                VStack(alignment: .leading, spacing: NSpacing.sm) {
+                    Label(
+                        "Calendar access is not available yet.",
+                        systemImage: "calendar.badge.exclamationmark"
+                    )
+                    Text("Allow Agent Server to view calendars in System Settings, then check again.")
+                        .font(NTypography.caption)
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                    HStack {
+                        Button("Open System Settings", action: openCalendarPrivacySettings)
+                        Button("Check again", action: startPreparation)
+                            .buttonStyle(.borderedProminent)
+                    }
+                }
+            } else {
+                Picker("Choose one", selection: $answer) {
+                    Text("Choose…").tag("")
+                    ForEach(Array(choices.enumerated()), id: \.offset) { index, label in
+                        Text(label).tag(index < question.choiceValues.count ? question.choiceValues[index] : label)
+                    }
                 }
             }
         case .confirmation:
@@ -224,6 +242,11 @@ struct GuidedAgentCreationView: View {
         flow = AgentCreationFlow(request: request)
         flow.beginProposalRequest()
         prepare()
+    }
+
+    private func openCalendarPrivacySettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars") else { return }
+        NSWorkspace.shared.open(url)
     }
 
     private func answerQuestion() {
