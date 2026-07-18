@@ -98,9 +98,10 @@ describe('guided agent proposal creation', () => {
       questions: [{
         id: 'connection-notion',
         control: 'service',
+        service_name: 'Notion',
         choices: [
-          { label: 'notion-personal', value: 'notion-personal' },
-          { label: 'Notion Work', value: 'Notion Work' },
+          { label: 'Personal Notion', value: 'notion-personal' },
+          { label: 'Work Notion', value: 'Notion Work' },
         ],
       }],
     });
@@ -126,6 +127,7 @@ describe('guided agent proposal creation', () => {
         id: 'connection-notion',
         question: 'Set up Notion before choosing files or permissions.',
         control: 'service',
+        service_name: 'Notion',
         choices: [],
       }],
     });

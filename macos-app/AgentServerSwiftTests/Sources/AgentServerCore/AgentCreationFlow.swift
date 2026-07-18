@@ -6,7 +6,7 @@ public struct CreationQuestion: Identifiable, Equatable, Sendable {
         case folder
         case schedule
         case choice([String])
-        case service([String])
+        case service(name: String?, choices: [String])
         case confirmation
     }
 
@@ -15,6 +15,11 @@ public struct CreationQuestion: Identifiable, Equatable, Sendable {
     public let kind: Kind
     public let isRequired: Bool
     public let choiceValues: [String]
+
+    public var requiresConnectionSetup: Bool {
+        if case .service(_, let choices) = kind { return choices.isEmpty }
+        return false
+    }
 
     public init(id: String, prompt: String, kind: Kind, isRequired: Bool, choiceValues: [String] = []) {
         self.id = id

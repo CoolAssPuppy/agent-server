@@ -15,14 +15,27 @@ final class GuidanceServerPayloadTests: XCTestCase {
     }
 
     func testServiceQuestionKeepsConnectionSetupSemantics() throws {
-        let data = Data(#"{"status":"needs_information","questions":[{"id":"connection-notion","question":"Set up Notion.","control":"service","required":true,"choices":[]}],"explanation":"Connect first."}"#.utf8)
+        let data = Data(#"{"status":"needs_information","questions":[{"id":"connection-notion","question":"Set up Notion.","control":"service","service_name":"Notion","required":true,"choices":[]}],"explanation":"Connect first."}"#.utf8)
 
         let response = try JSONDecoder().decode(GuidanceProposalResponse.self, from: data)
 
         guard case .needsInformation(let questions, _) = response else {
             return XCTFail("Expected a question")
         }
-        XCTAssertEqual(questions.first?.kind, .service([]))
+        XCTAssertEqual(questions.first?.kind, .service(name: "Notion", choices: []))
+        XCTAssertTrue(questions.first?.requiresConnectionSetup == true)
+    }
+
+    func testGenericServiceQuestionDoesNotBecomeNotionSpecific() throws {
+        let data = Data(#"{"status":"needs_information","questions":[{"id":"destination","question":"Where should the result be sent?","control":"service","required":true,"choices":[{"label":"Slack","value":"slack"}]}],"explanation":"Choose a destination."}"#.utf8)
+
+        let response = try JSONDecoder().decode(GuidanceProposalResponse.self, from: data)
+
+        guard case .needsInformation(let questions, _) = response else {
+            return XCTFail("Expected a question")
+        }
+        XCTAssertEqual(questions.first?.kind, .service(name: nil, choices: ["Slack"]))
+        XCTAssertFalse(questions.first?.requiresConnectionSetup == true)
     }
 
     func testProposalResponseRetainsReviewIdAndMapsConsumerState() throws {

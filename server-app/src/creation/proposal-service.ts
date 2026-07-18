@@ -51,9 +51,13 @@ function parseModelValue(value: unknown): CreationProposal | undefined {
   return parsed.success ? parsed.data : undefined;
 }
 
+function needsFileAccess(intent: string): boolean {
+  return /\b(files?|folders?|documents?|directory|manuscripts?)\b/.test(intent);
+}
+
 function fallbackQuestions(request: ProposalRequest): ProposalFallbackQuestion[] {
   const intent = request.request.toLowerCase();
-  if (/\b(files?|folders?|documents?|directory|manuscripts?)\b/.test(intent)) {
+  if (needsFileAccess(intent)) {
     return [{
       id: 'file-location',
       question: 'Which folder should this agent use?',
@@ -100,6 +104,7 @@ function unansweredConnectionQuestion(request: ProposalRequest): ProposalFallbac
       id: 'connection-notion',
       question: 'Set up Notion before choosing files or permissions.',
       control: 'service',
+      service_name: 'Notion',
       required: true,
       choices: [],
     };
@@ -108,15 +113,26 @@ function unansweredConnectionQuestion(request: ProposalRequest): ProposalFallbac
     id: 'connection-notion',
     question: 'Which Notion connection should this agent use?',
     control: 'service',
+    service_name: 'Notion',
     required: true,
-    choices: connections.map((connection) => ({ label: connection, value: connection })),
+    choices: connections.map((connection) => ({
+      label: notionConnectionLabel(connection),
+      value: connection,
+    })),
   };
+}
+
+function notionConnectionLabel(connection: string): string {
+  const normalized = connection.toLowerCase();
+  if (normalized.includes('personal')) return 'Personal Notion';
+  if (normalized.includes('work')) return 'Work Notion';
+  return 'Notion';
 }
 
 function unansweredScopeQuestion(request: ProposalRequest): ProposalFallbackQuestion | undefined {
   const intent = request.request.toLowerCase();
   const answers = new Set(request.answers.map((answer) => answer.question_id));
-  if (/\b(files?|folders?|documents?|directory|manuscripts?)\b/.test(intent)) {
+  if (needsFileAccess(intent)) {
     if (!answers.has('file-location')) {
       return { id: 'file-location', question: 'Which folder may this agent use?', control: 'path', required: true };
     }

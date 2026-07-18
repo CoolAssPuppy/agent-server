@@ -124,6 +124,7 @@ export const ProposalFallbackQuestionSchema = z.object({
   id: z.string().trim().min(1).max(120),
   question: z.string().trim().min(1).max(500),
   control: z.enum(['text', 'single_choice', 'schedule', 'path', 'permission', 'service']),
+  service_name: z.string().trim().min(1).max(120).optional(),
   required: z.boolean(),
   choices: z.array(z.object({
     label: z.string().trim().min(1).max(160),

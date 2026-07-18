@@ -158,8 +158,14 @@ private struct GuidanceQuestionPayload: Decodable, Equatable, Sendable {
     let id: String
     let question: String
     let control: String
+    let serviceName: String?
     let required: Bool
     let choices: [Choice]?
+
+    enum CodingKeys: String, CodingKey {
+        case id, question, control, required, choices
+        case serviceName = "service_name"
+    }
 
     var presentation: CreationQuestion {
         CreationQuestion(
@@ -177,7 +183,7 @@ private struct GuidanceQuestionPayload: Decodable, Equatable, Sendable {
         case "schedule": return .schedule
         case "permission": return .confirmation
         case "single_choice": return .choice(choices?.map(\.label) ?? [])
-        case "service": return .service(choices?.map(\.label) ?? [])
+        case "service": return .service(name: serviceName, choices: choices?.map(\.label) ?? [])
         default: return .text
         }
     }

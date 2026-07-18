@@ -166,18 +166,17 @@ struct GuidedAgentCreationView: View {
                     }
                 }
             }
-        case .service(let choices):
+        case .service(let serviceName, let choices):
             if choices.isEmpty {
                 VStack(alignment: .leading, spacing: NSpacing.sm) {
-                    Label("Notion needs to be connected", systemImage: "link.badge.plus")
-                    Text("Choose an existing Notion connection or add one before this agent can save results.")
+                    Text("Agent Server will use this connection only for the access shown in your proposal.")
                         .font(NTypography.caption)
                         .foregroundStyle(theme.tokens.mutedForeground)
                     Button("Set up apps and services", action: requestConnectionSetup)
                         .buttonStyle(.borderedProminent)
                 }
             } else {
-                Picker("Notion connection", selection: $answer) {
+                Picker("\(serviceName ?? "App or service") connection", selection: $answer) {
                     Text("Choose…").tag("")
                     ForEach(Array(choices.enumerated()), id: \.offset) { index, label in
                         Text(label).tag(index < question.choiceValues.count ? question.choiceValues[index] : label)
@@ -235,10 +234,12 @@ struct GuidedAgentCreationView: View {
                 .disabled(request.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .accessibilityIdentifier(ConsumerFlowAccessibility.creationContinue)
         case .questions:
-            Button("Continue", action: answerQuestion)
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .disabled(currentAnswer.isEmpty)
+            if flow.nextQuestion?.requiresConnectionSetup != true {
+                Button("Continue", action: answerQuestion)
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(currentAnswer.isEmpty)
+            }
         case .proposal:
             Button("Edit details") { flow.returnToRequest() }
             Button("Save agent") { requestSave(runSafeTest: false) }
