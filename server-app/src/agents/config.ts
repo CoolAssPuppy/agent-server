@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { parse as parseYaml } from 'yaml';
 import { InteractionConfigSchema, NotificationConfigSchema } from '../interaction/schema.js';
 import { ConversationConfigSchema } from '../conversation/schema.js';
-import { areApprovedMcpReferences, isApprovedProviderReference } from './environment-policy.js';
+import { areApprovedMcpReferences, isApprovedProviderReference, mcpCredentialOwner } from './environment-policy.js';
 
 const TriggerRefSchema = z.object({
   agent: z.string().min(1),
@@ -203,9 +203,7 @@ export const AgentConfigSchema = z
   .superRefine((agent, ctx) => {
     for (const [serverName, server] of Object.entries(agent.mcp_servers ?? {})) {
       const values = 'command' in server ? server.env : server.headers;
-      const owner = 'command' in server
-        ? { name: serverName, command: server.command, args: server.args }
-        : { name: serverName, url: server.url };
+      const owner = mcpCredentialOwner(serverName, server);
       if (values && !areApprovedMcpReferences(owner, values)) {
         ctx.addIssue({
           code: 'custom',

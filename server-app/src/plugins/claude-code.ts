@@ -3,6 +3,7 @@ import type { Options, Query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentConfig } from '../agents/config.js';
 import {
   buildClaudeChildEnvironment,
+  mcpCredentialOwner,
   resolveApprovedMcpValues,
 } from '../agents/environment-policy.js';
 import type { Reporter } from '../execution/runner.js';
@@ -643,16 +644,14 @@ export function buildMcpServers(agent: AgentConfig): Options['mcpServers'] {
       if ('command' in config) {
         servers[name] = {
           ...config,
-          env: config.env ? resolveApprovedMcpValues({
-            name,
-            command: config.command,
-            args: config.args,
-          }, config.env) : undefined,
+          env: config.env ? resolveApprovedMcpValues(mcpCredentialOwner(name, config), config.env) : undefined,
         };
       } else if ('url' in config) {
         servers[name] = {
           ...config,
-          headers: config.headers ? resolveApprovedMcpValues({ name, url: config.url }, config.headers) : undefined,
+          headers: config.headers
+            ? resolveApprovedMcpValues(mcpCredentialOwner(name, config), config.headers)
+            : undefined,
         };
       }
     }

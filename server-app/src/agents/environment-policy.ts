@@ -16,6 +16,16 @@ export type McpCredentialOwner = {
   url?: string;
 };
 
+type McpCredentialSettings =
+  | { command: string; args?: readonly string[] }
+  | { url: string };
+
+export function mcpCredentialOwner(name: string, settings: McpCredentialSettings): McpCredentialOwner {
+  return 'command' in settings
+    ? { name, command: settings.command, args: settings.args }
+    : { name, url: settings.url };
+}
+
 const EXACT_ENV_REFERENCE = /^\$\{([A-Z][A-Z0-9_]*)}$/;
 const ENV_REFERENCE = /\$\{([A-Z][A-Z0-9_]*)}/g;
 
@@ -63,7 +73,8 @@ const MCP_CREDENTIALS: ReadonlyArray<{
     variables: new Set(['NOTION_PERSONAL_API_KEY']),
   },
   {
-    matches: (owner) => /(?:^|[-_])notion(?:$|[-_])/i.test(owner.name),
+    matches: (owner) => owner.name !== 'notion-personal'
+      && /(?:^|[-_])notion(?:$|[-_])/i.test(owner.name),
     variables: new Set(['NOTION_API_KEY']),
   },
   {
