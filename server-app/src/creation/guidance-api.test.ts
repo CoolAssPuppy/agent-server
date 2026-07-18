@@ -470,7 +470,7 @@ describe('consumer guidance API', () => {
     expect(await response.json()).toMatchObject({ error: expect.stringMatching(/already exists/i), saved: false });
   });
 
-  it('diagnoses a failed run locally before asking the model and redacts evidence', async () => {
+  it('diagnoses a failed run locally without broadening unreviewed file access', async () => {
     const model = { generate: vi.fn(async () => ({ invalid: true })) };
     const { app, runStore } = createFixture({ model });
     runStore.add(makeStoredRun({
@@ -487,12 +487,8 @@ describe('consumer guidance API', () => {
     expect(response.status).toBe(200);
     expect(body.source).toBe('deterministic');
     expect(body.resolution).toMatchObject({
-      type: 'configuration_patch',
-      confirmation_required: true,
-      patch: {
-        source: 'debugger',
-        changes: { codex_sandbox: 'workspace-write' },
-      },
+      type: 'manual',
+      limitation: 'Choose the exact file or folder before allowing changes.',
     });
     expect(JSON.stringify(body)).not.toContain('secret-token-value');
     expect(model.generate).not.toHaveBeenCalled();
