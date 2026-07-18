@@ -219,7 +219,7 @@ final class ServerProcessManager {
     private nonisolated static func externalServerPIDs() async throws -> [Int32] {
         try await Task.detached(priority: .utility) {
             let task = Process()
-            task.executableURL = URL(fileURLWithPath: ExternalProcessInspector.executablePath)
+            task.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
             task.arguments = ["-ti", "tcp:47821"]
             let pipe = Pipe()
             task.standardOutput = pipe

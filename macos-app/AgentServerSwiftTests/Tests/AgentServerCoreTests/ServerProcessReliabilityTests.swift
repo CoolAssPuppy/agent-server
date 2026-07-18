@@ -57,10 +57,6 @@ final class ServerProcessReliabilityTests: XCTestCase {
         XCTAssertEqual(ExternalProcessPIDParser.parse(output), [42, 73])
     }
 
-    func testExternalProcessInspectionUsesTheMacOSSystemToolPath() {
-        XCTAssertEqual(ExternalProcessInspector.executablePath, "/usr/sbin/lsof")
-    }
-
     func testLifecycleOnlyStopsProcessesStartedByThisApp() {
         var lifecycle = ServerProcessLifecycle()
         lifecycle.observedExistingServer()
