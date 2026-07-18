@@ -18,7 +18,9 @@ Instructions must include success criteria, expected output, missing-data handli
 export function buildAgentProposalPrompt(request: ProposalRequest): string {
   const safeRequest = sanitizeText(request.request, 8_000);
   const services = request.connectedServices.length > 0
-    ? request.connectedServices.map((service) => sanitizeText(service, 120)).join(', ')
+    ? request.connectedServices.map((service) => (
+      `${sanitizeText(service.name, 160)} (${sanitizeText(service.id, 240)})`
+    )).join(', ')
     : 'None';
   const answers = (request.answers ?? []).length > 0
     ? (request.answers ?? []).map((answer) => `${answer.question_id}: ${sanitizeText(String(answer.value), 1_000)}`).join('\n')

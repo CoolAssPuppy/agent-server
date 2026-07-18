@@ -81,14 +81,20 @@ describe('guided agent proposal creation', () => {
     const connection = await createAgentProposal({
       request,
       timezone: 'Europe/Lisbon',
-      connectedServices: ['notion-personal', 'Notion Work'],
+      connectedServices: [
+        { id: 'notion-personal', name: 'Personal Notion' },
+        { id: 'claude.ai Notion Work', name: 'Work Notion' },
+      ],
       answers: [],
       model: fake.model,
     });
     const file = await createAgentProposal({
       request,
       timezone: 'Europe/Lisbon',
-      connectedServices: ['notion-personal', 'Notion Work'],
+      connectedServices: [
+        { id: 'notion-personal', name: 'Personal Notion' },
+        { id: 'claude.ai Notion Work', name: 'Work Notion' },
+      ],
       answers: [{ question_id: 'connection-notion', value: 'notion-personal' }],
       model: fake.model,
     });
@@ -101,7 +107,7 @@ describe('guided agent proposal creation', () => {
         service_name: 'Notion',
         choices: [
           { label: 'Personal Notion', value: 'notion-personal' },
-          { label: 'Work Notion', value: 'Notion Work' },
+          { label: 'Work Notion', value: 'claude.ai Notion Work' },
         ],
       }],
     });
@@ -125,7 +131,7 @@ describe('guided agent proposal creation', () => {
       status: 'needs_information',
       questions: [{
         id: 'connection-notion',
-        question: 'Set up Notion before choosing files or permissions.',
+        question: 'Set up Notion before choosing what this agent can access.',
         control: 'service',
         service_name: 'Notion',
         choices: [],
@@ -321,7 +327,7 @@ describe('guided agent proposal creation', () => {
     const prompt = buildAgentProposalPrompt({
       request: 'Use api_key="sk-ant-secretvalue123456" to send a report.',
       timezone: 'Europe/Lisbon',
-      connectedServices: ['slack'],
+      connectedServices: [{ id: 'claude.ai Slack', name: 'Slack' }],
     });
 
     expect(prompt).not.toContain('sk-ant-secretvalue123456');

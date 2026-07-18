@@ -168,7 +168,7 @@ extension StatusMonitor {
         let snapshot = try await client.connections()
         let connectedServices = snapshot.servers
             .filter(\.isConnected)
-            .map { $0.displayName.lowercased() }
+            .map { GuidanceConnectedService(id: $0.name, name: $0.displayName) }
         let answerPayloads = answers.sorted(by: { $0.key < $1.key }).map {
             GuidanceProposalAnswer(questionId: $0.key, value: Self.guidanceValue($0.value))
         }

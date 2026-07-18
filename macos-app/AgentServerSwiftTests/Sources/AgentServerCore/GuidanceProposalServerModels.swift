@@ -91,17 +91,27 @@ public struct GuidanceCalendarResource: Encodable, Equatable, Sendable {
     }
 }
 
+public struct GuidanceConnectedService: Encodable, Equatable, Sendable {
+    public let id: String
+    public let name: String
+
+    public init(id: String, name: String) {
+        self.id = id
+        self.name = name
+    }
+}
+
 public struct GuidanceProposalRequest: Encodable, Equatable, Sendable {
     public let request: String
     public let timezone: String
-    public let connectedServices: [String]
+    public let connectedServices: [GuidanceConnectedService]
     public let availableCalendars: [GuidanceCalendarResource]
     public let answers: [GuidanceProposalAnswer]
 
     public init(
         request: String,
         timezone: String,
-        connectedServices: [String],
+        connectedServices: [GuidanceConnectedService],
         availableCalendars: [GuidanceCalendarResource] = [],
         answers: [GuidanceProposalAnswer] = []
     ) {

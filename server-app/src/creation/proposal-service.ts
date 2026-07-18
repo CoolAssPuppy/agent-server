@@ -6,6 +6,7 @@ import {
   type CreationProposal,
   type ProposalFallbackQuestion,
   type ProposalRequest,
+  type ProposalRequestInput,
 } from './proposal-schema.js';
 
 export { buildAgentProposalPrompt } from './proposal-prompt.js';
@@ -19,7 +20,7 @@ export type ProposalModel = {
   ) => Promise<unknown>;
 };
 
-export type CreateProposalInput = ProposalRequest & { model?: ProposalModel };
+export type CreateProposalInput = ProposalRequestInput & { model?: ProposalModel };
 
 export type ProposalServiceResult =
   | { status: 'proposal'; proposal: CreationProposal; usedFallback: false }
@@ -97,12 +98,14 @@ function unansweredConnectionQuestion(request: ProposalRequest): ProposalFallbac
   if (!/\bnotion\b/i.test(request.request)) return undefined;
   if (request.answers.some((answer) => answer.question_id === 'connection-notion')) return undefined;
 
-  const connections = request.connectedServices.filter((service) => /\bnotion\b/i.test(service));
+  const connections = request.connectedServices.filter((service) => (
+    /\bnotion\b/i.test(service.id) || /\bnotion\b/i.test(service.name)
+  ));
   if (connections.length === 1) return undefined;
   if (connections.length === 0) {
     return {
       id: 'connection-notion',
-      question: 'Set up Notion before choosing files or permissions.',
+      question: 'Set up Notion before choosing what this agent can access.',
       control: 'service',
       service_name: 'Notion',
       required: true,
@@ -115,18 +118,8 @@ function unansweredConnectionQuestion(request: ProposalRequest): ProposalFallbac
     control: 'service',
     service_name: 'Notion',
     required: true,
-    choices: connections.map((connection) => ({
-      label: notionConnectionLabel(connection),
-      value: connection,
-    })),
+    choices: connections.map((connection) => ({ label: connection.name, value: connection.id })),
   };
-}
-
-function notionConnectionLabel(connection: string): string {
-  const normalized = connection.toLowerCase();
-  if (normalized.includes('personal')) return 'Personal Notion';
-  if (normalized.includes('work')) return 'Work Notion';
-  return 'Notion';
 }
 
 function unansweredScopeQuestion(request: ProposalRequest): ProposalFallbackQuestion | undefined {

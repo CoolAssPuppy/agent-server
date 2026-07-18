@@ -106,10 +106,18 @@ export const ProposalAnswerSchema = z.object({
 }).strict();
 export type ProposalAnswer = z.infer<typeof ProposalAnswerSchema>;
 
+const ConnectedServiceSchema = z.object({
+  id: z.string().trim().min(1).max(240),
+  name: z.string().trim().min(1).max(160),
+}).strict();
+
 export const ProposalRequestSchema = z.object({
   request: z.string().trim().min(1).max(8_000),
   timezone: z.string().trim().min(1).max(120),
-  connectedServices: z.array(z.string().trim().min(1).max(120)).max(64),
+  connectedServices: z.array(z.union([
+    ConnectedServiceSchema,
+    z.string().trim().min(1).max(160).transform((value) => ({ id: value, name: value })),
+  ])).max(64),
   availableCalendars: z.array(z.object({
     id: z.string().trim().min(1).max(512),
     name: z.string().trim().min(1).max(160),
@@ -119,6 +127,9 @@ export const ProposalRequestSchema = z.object({
   answers: z.array(ProposalAnswerSchema).max(12).default([]),
 }).strict();
 export type ProposalRequest = z.infer<typeof ProposalRequestSchema>;
+export type ProposalRequestInput = Omit<ProposalRequest, 'connectedServices'> & {
+  connectedServices: Array<ProposalRequest['connectedServices'][number] | string>;
+};
 
 export const ProposalFallbackQuestionSchema = z.object({
   id: z.string().trim().min(1).max(120),

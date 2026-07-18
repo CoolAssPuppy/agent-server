@@ -65,7 +65,7 @@ final class GuidanceServerPayloadTests: XCTestCase {
         let request = GuidanceProposalRequest(
             request: "Summarize GitHub",
             timezone: "Europe/Lisbon",
-            connectedServices: ["github"],
+            connectedServices: [GuidanceConnectedService(id: "claude.ai GitHub", name: "GitHub")],
             availableCalendars: [
                 GuidanceCalendarResource(id: "work-id", name: "Work", account: "iCloud", canModify: true)
             ],
@@ -75,7 +75,8 @@ final class GuidanceServerPayloadTests: XCTestCase {
         let answers = try XCTUnwrap(object["answers"] as? [[String: Any]])
 
         XCTAssertEqual(Set(object.keys), Set(["request", "timezone", "connected_services", "available_calendars", "answers"]))
-        XCTAssertEqual(object["connected_services"] as? [String], ["github"])
+        let services = try XCTUnwrap(object["connected_services"] as? [[String: String]])
+        XCTAssertEqual(services, [["id": "claude.ai GitHub", "name": "GitHub"]])
         let calendars = try XCTUnwrap(object["available_calendars"] as? [[String: Any]])
         XCTAssertEqual(calendars.first?["id"] as? String, "work-id")
         XCTAssertEqual(calendars.first?["can_modify"] as? Bool, true)
