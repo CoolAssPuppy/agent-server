@@ -13,7 +13,11 @@ import type { RunStoreLike } from '../reporting/store.js';
 import { analyzeRunFailure, type DiagnosticReadiness } from '../diagnostics/diagnostic-service.js';
 import { buildDiagnosticResolution } from '../diagnostics/resolution.js';
 import { createAgentProposal, type ProposalModel } from './proposal-service.js';
-import { deriveProposalAgentId, proposalToAgentConfig } from './proposal-configuration.js';
+import {
+  deriveProposalAgentId,
+  proposalToAgentConfig,
+  type ProposalServiceBinding,
+} from './proposal-configuration.js';
 import {
   ConnectedServiceInputSchema,
   CreationProposalSchema,
@@ -22,6 +26,7 @@ import {
 } from './proposal-schema.js';
 import { prepareSafeTestAgent } from './safe-test.js';
 import { buildSimilarAgentRequest } from './similar-agent.js';
+import type { ServiceConnection, ServiceRegistry } from '../services/registry.js';
 
 const ProposalApiRequestSchema = z.object({
   request: z.string().trim().min(1).max(8_000),
@@ -65,10 +70,11 @@ export type GuidanceApiDependencies = {
   content?: { get(agentId: string): Promise<{ agent: AgentConfig; content: string } | undefined> };
   triggerRun?: (agentId: string, metadata: GuidanceRetryMetadata) => Promise<string>;
   diagnosticReadiness?: (agent: AgentConfig) => DiagnosticReadiness;
+  getServiceRegistry?: () => Promise<ServiceRegistry>;
   now?: () => number;
 };
 
-type PendingProposal = { proposal: CreationProposal; expiresAt: number };
+type PendingProposal = { proposal: CreationProposal; offeredServiceIds: ReadonlySet<string>; expiresAt: number };
 const PROPOSAL_TTL_MS = 30 * 60 * 1_000;
 const MAX_PENDING_PROPOSALS = 100;
 
@@ -96,9 +102,13 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
   const pending = new Map<string, PendingProposal>();
   const now = dependencies.now ?? Date.now;
 
-  function remember(proposal: CreationProposal): string {
+  function remember(proposal: CreationProposal, services: readonly { id: string }[]): string {
     const id = randomUUID();
-    pending.set(id, { proposal, expiresAt: now() + PROPOSAL_TTL_MS });
+    pending.set(id, {
+      proposal,
+      offeredServiceIds: new Set(services.map((service) => service.id)),
+      expiresAt: now() + PROPOSAL_TTL_MS,
+    });
     while (pending.size > MAX_PENDING_PROPOSALS) {
       const oldest = pending.keys().next().value as string | undefined;
       if (!oldest) break;
@@ -107,23 +117,59 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
     return id;
   }
 
-  function findProposal(id: string): CreationProposal | undefined {
+  function findProposal(id: string): PendingProposal | undefined {
     const entry = pending.get(id);
     if (!entry) return undefined;
     if (entry.expiresAt <= now()) {
       pending.delete(id);
       return undefined;
     }
-    return entry.proposal;
+    return entry;
+  }
+
+  async function currentConnectedServices(
+    requested: readonly { id: string }[],
+  ): Promise<ServiceConnection[] | undefined> {
+    if (!dependencies.getServiceRegistry) return undefined;
+    const registry = await dependencies.getServiceRegistry();
+    const available = new Map(registry.connections
+      .filter((connection) => connection.status === 'connected')
+      .map((connection) => [connection.id, connection]));
+    const resolved = requested.map((service) => available.get(service.id));
+    return resolved.every((service): service is ServiceConnection => service !== undefined)
+      ? resolved
+      : undefined;
+  }
+
+  function proposalServiceInputs(services: readonly ServiceConnection[]) {
+    return services.map((service) => ({
+      id: service.id,
+      service_id: service.service_id,
+      name: service.name,
+      source: service.source,
+      actions: service.actions,
+      actions_known: service.actions_known,
+    }));
   }
 
   app.post('/guidance/agent-proposals', async (context) => {
     try {
       const request = ProposalApiRequestSchema.parse(await readJson(context.req.raw));
+      const authoritativeServices = await currentConnectedServices(request.connected_services);
+      if (dependencies.getServiceRegistry && !authoritativeServices) {
+        return context.json({
+          error: 'Your available services changed. Refresh the service list and review your choice.',
+          saved: false,
+          refresh_services: true,
+        }, 409);
+      }
+      const connectedServices = authoritativeServices
+        ? proposalServiceInputs(authoritativeServices)
+        : request.connected_services;
       const result = await createAgentProposal({
         request: request.request,
         timezone: request.timezone,
-        connectedServices: request.connected_services,
+        connectedServices,
         availableCalendars: request.available_calendars.map((calendar) => ({
           id: calendar.id,
           name: calendar.name,
@@ -134,7 +180,7 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
         model: dependencies.model,
       });
       if (result.status !== 'proposal') return context.json(result);
-      return context.json({ ...result, proposal_id: remember(result.proposal) });
+      return context.json({ ...result, proposal_id: remember(result.proposal, connectedServices) });
     } catch (error) {
       return context.json({
         error: error instanceof TypeError ? error.message : 'The agent request is invalid.',
@@ -146,6 +192,17 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
   app.post('/guidance/agents/:agentId/similar-proposals', async (context) => {
     try {
       const request = ProposalApiRequestSchema.parse(await readJson(context.req.raw));
+      const authoritativeServices = await currentConnectedServices(request.connected_services);
+      if (dependencies.getServiceRegistry && !authoritativeServices) {
+        return context.json({
+          error: 'Your available services changed. Refresh the service list and review your choice.',
+          saved: false,
+          refresh_services: true,
+        }, 409);
+      }
+      const connectedServices = authoritativeServices
+        ? proposalServiceInputs(authoritativeServices)
+        : request.connected_services;
       const source = (await dependencies.getAgents())
         .find((agent) => agent.id === context.req.param('agentId'));
       if (!source) {
@@ -154,7 +211,7 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
       const result = await createAgentProposal({
         request: buildSimilarAgentRequest(source, request.request),
         timezone: request.timezone,
-        connectedServices: request.connected_services,
+        connectedServices,
         availableCalendars: request.available_calendars.map((calendar) => ({
           id: calendar.id,
           name: calendar.name,
@@ -165,7 +222,7 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
         model: dependencies.model,
       });
       if (result.status !== 'proposal') return context.json(result);
-      return context.json({ ...result, proposal_id: remember(result.proposal) });
+      return context.json({ ...result, proposal_id: remember(result.proposal, connectedServices) });
     } catch (error) {
       return context.json({
         error: error instanceof TypeError ? error.message : 'The similar agent request is invalid.',
@@ -178,11 +235,40 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
     try {
       SaveProposalRequestSchema.parse(await readJson(context.req.raw));
       const proposalId = context.req.param('proposalId');
-      const proposal = findProposal(proposalId);
-      if (!proposal) return context.json({ error: 'This proposal is no longer available for review.', saved: false }, 404);
+      const pendingProposal = findProposal(proposalId);
+      if (!pendingProposal) {
+        return context.json({ error: 'This proposal is no longer available for review.', saved: false }, 404);
+      }
 
-      const reviewed = CreationProposalSchema.parse(proposal);
-      const agent = proposalToAgentConfig(reviewed, deriveProposalAgentId(reviewed.name));
+      const reviewed = CreationProposalSchema.parse(pendingProposal.proposal);
+      const requiredServiceIds = reviewed.connections
+        .filter((connection) => connection.required)
+        .map((connection) => connection.id);
+      let serviceBindings: ProposalServiceBinding[] | undefined;
+      if (dependencies.getServiceRegistry) {
+        const registry = await dependencies.getServiceRegistry();
+        const connectedIds = new Set(registry.connections
+          .filter((connection) => connection.status === 'connected')
+          .map((connection) => connection.id));
+        const isCurrent = requiredServiceIds.every((id) => (
+          pendingProposal.offeredServiceIds.has(id)
+          && connectedIds.has(id)
+          && registry.bindings.has(id)
+        ));
+        if (!isCurrent) {
+          return context.json({
+            error: 'A selected service is no longer ready. Refresh services and review the proposal again.',
+            saved: false,
+            refresh_services: true,
+          }, 409);
+        }
+        serviceBindings = [];
+        for (const id of requiredServiceIds) {
+          const binding = registry.bindings.get(id);
+          if (binding) serviceBindings.push({ id, ...binding });
+        }
+      }
+      const agent = proposalToAgentConfig(reviewed, deriveProposalAgentId(reviewed.name), { serviceBindings });
       const candidateContent = renderReviewedAgentFile(agent);
       const analysis = dependencies.security
         ? await dependencies.security.analyze({ agent, content: candidateContent })

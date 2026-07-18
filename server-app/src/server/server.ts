@@ -52,6 +52,7 @@ import {
   createRunLifecycle,
   type TriggerRunOptions,
 } from './run-lifecycle.js';
+import { buildServiceRegistry } from '../services/registry.js';
 
 export type ServerInstance = {
   stop: () => Promise<void> | void;
@@ -540,6 +541,11 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     security: analysisRuntime.security,
     content: analysisRuntime.content,
     triggerRun: triggerGuidanceRetry,
+    getServiceRegistry: async () => buildServiceRegistry({
+      agents: await getAgents(),
+      environment: loadEnvFile(join(config.agentsDir, '..'), process.env),
+      discovered: connectionCache.servers(),
+    }),
   });
 
   const app = createApi({

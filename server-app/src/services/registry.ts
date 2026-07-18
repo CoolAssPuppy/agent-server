@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { AgentConfig, McpServerConfig } from '../agents/config.js';
+import { areApprovedMcpReferences, mcpCredentialOwner } from '../agents/environment-policy.js';
 import {
   CAPABILITY_CATALOG,
   mcpServerKey,
@@ -8,7 +9,7 @@ import {
 } from '../agents/capabilities.js';
 
 type EnvironmentSource = Record<string, string | undefined>;
-type RuntimeConfiguration = { serverName: string; config: McpServerConfig };
+export type ServiceRuntimeBinding = { serverName: string; config?: McpServerConfig };
 
 export type ServiceConnectionStatus = 'connected' | 'needs_setup' | 'unavailable' | 'conflict';
 export type ServiceConnectionSource = 'account' | 'configured_api' | 'mcp' | 'macos';
@@ -33,7 +34,7 @@ export type ServiceConnection = {
 
 export type ServiceRegistry = {
   connections: ServiceConnection[];
-  runtimeConfigurations: ReadonlyMap<string, RuntimeConfiguration>;
+  bindings: ReadonlyMap<string, ServiceRuntimeBinding>;
 };
 
 type RegistryInput = {
@@ -62,12 +63,20 @@ function stableValue(value: unknown): unknown {
     .map(([key, entry]) => [key, stableValue(entry)]));
 }
 
+function safeDisplayName(value: string, maxLength = 120): string {
+  return value.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, maxLength);
+}
+
+function safeIdentifier(value: string, maxLength = 72): string {
+  return value.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, maxLength);
+}
+
 function configurationId(serverName: string, config: McpServerConfig): string {
   const digest = createHash('sha256')
     .update(JSON.stringify(stableValue(config)))
     .digest('hex')
     .slice(0, 16);
-  return `mcp:${serverName}:${digest}`;
+  return `mcp:${safeIdentifier(serverName) || 'connection'}:${digest}`;
 }
 
 function credentialValues(config: McpServerConfig): string[] {
@@ -85,6 +94,17 @@ function hasOnlyReferencedCredentials(config: McpServerConfig): boolean {
     const fixedText = value.replace(ENV_REFERENCE, '').trim();
     return references.length > 0 && /^(?:Bearer|Basic|Token)?$/i.test(fixedText);
   });
+}
+
+function isReusableConfiguration(
+  serverName: string,
+  config: McpServerConfig,
+  environment: EnvironmentSource,
+): boolean {
+  if (!hasOnlyReferencedCredentials(config)) return false;
+  const values = 'command' in config ? config.env : config.headers;
+  if (!values || environmentReferences(config).length === 0) return true;
+  return areApprovedMcpReferences(mcpCredentialOwner(serverName, config), values, environment);
 }
 
 function connectionStatus(config: McpServerConfig, environment: EnvironmentSource): ServiceConnectionStatus {
@@ -121,29 +141,28 @@ function connectionName(serverName: string, serviceName: string): string {
   const tokens = serverName.toLowerCase().split(/[^a-z0-9]+/);
   if (tokens.includes('personal')) return `Personal ${serviceName}`;
   if (tokens.includes('work')) return `Work ${serviceName}`;
-  return `${serviceName} connection`;
+  return `${safeDisplayName(serviceName)} connection`.slice(0, 160);
 }
 
 function customServiceId(serverName: string): string {
-  const normalized = serverName.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-|-$/g, '');
-  return `custom:${normalized}`;
+  return `custom:${safeIdentifier(serverName) || 'connection'}`;
 }
 
 function configuredAgentConnections(
   agents: AgentConfig[],
   environment: EnvironmentSource,
-): { connections: ServiceConnection[]; runtime: Map<string, RuntimeConfiguration> } {
-  const candidates = new Map<string, { connection: ServiceConnection; runtime: RuntimeConfiguration }>();
+): { connections: ServiceConnection[]; runtime: Map<string, ServiceRuntimeBinding> } {
+  const candidates = new Map<string, { connection: ServiceConnection; runtime: ServiceRuntimeBinding }>();
   const idsByServerName = new Map<string, Set<string>>();
 
   for (const agent of agents) {
     for (const [serverName, config] of Object.entries(agent.mcp_servers ?? {})) {
-      if (!hasOnlyReferencedCredentials(config)) continue;
+      if (!isReusableConfiguration(serverName, config, environment)) continue;
       const id = configurationId(serverName, config);
       if (candidates.has(id)) continue;
       const definition = configuredDefinition(config);
       const actions = definition ? (CATALOG_ACTIONS[definition.id] ?? []) : [];
-      const label = definition?.label ?? serverName.replaceAll(/[-_]+/g, ' ');
+      const label = definition?.label ?? safeDisplayName(serverName.replaceAll(/[-_]+/g, ' '));
       candidates.set(id, {
         connection: {
           id,
@@ -162,7 +181,7 @@ function configuredAgentConnections(
     }
   }
 
-  const runtime = new Map<string, RuntimeConfiguration>();
+  const runtime = new Map<string, ServiceRuntimeBinding>();
   const connections = [...candidates.values()].map(({ connection, runtime: binding }) => {
     if ((idsByServerName.get(binding.serverName)?.size ?? 0) > 1) {
       return { ...connection, status: 'conflict' as const };
@@ -188,9 +207,9 @@ function catalogConfiguration(
 function configuredCatalogConnections(
   environment: EnvironmentSource,
   occupiedIds: ReadonlySet<string>,
-): { connections: ServiceConnection[]; runtime: Map<string, RuntimeConfiguration> } {
+): { connections: ServiceConnection[]; runtime: Map<string, ServiceRuntimeBinding> } {
   const connections: ServiceConnection[] = [];
-  const runtime = new Map<string, RuntimeConfiguration>();
+  const runtime = new Map<string, ServiceRuntimeBinding>();
   for (const definition of CAPABILITY_CATALOG) {
     if (definition.kind !== 'mcp' || definition.builtin) continue;
     const id = `catalog:${definition.id}`;
@@ -225,9 +244,9 @@ function accountConnections(discovered: DiscoveredConnection[]): ServiceConnecti
     const definition = discoveredDefinition(connection.name);
     const serviceId = definition?.id ?? customServiceId(connection.name);
     const actions = definition ? (CATALOG_ACTIONS[definition.id] ?? []) : [];
-    const baseName = definition?.label ?? connection.name.replace(/^claude\.ai\s+/i, '');
+    const baseName = definition?.label ?? safeDisplayName(connection.name.replace(/^claude\.ai\s+/i, ''));
     return {
-      id: `runtime:${encodeURIComponent(connection.name)}`,
+      id: `runtime:${encodeURIComponent(safeDisplayName(connection.name, 120))}`,
       service_id: serviceId,
       name: definition ? `${baseName} (Claude account)` : `${baseName} account`,
       source: 'account',
@@ -241,6 +260,11 @@ function accountConnections(discovered: DiscoveredConnection[]): ServiceConnecti
 export function buildServiceRegistry(input: RegistryInput): ServiceRegistry {
   const configured = configuredAgentConnections(input.agents, input.environment);
   const catalog = configuredCatalogConnections(input.environment, new Set(configured.connections.map(({ id }) => id)));
+  const accounts = accountConnections(input.discovered);
+  const accountBindings = accounts.map((connection, index) => {
+    const discoveredName = input.discovered[index]?.name ?? '';
+    return [connection.id, { serverName: discoveredName }] as const;
+  });
   const native = (input.nativeServices ?? []).map((service): ServiceConnection => ({
     id: `macos:${service.id}`,
     service_id: service.id,
@@ -251,7 +275,7 @@ export function buildServiceRegistry(input: RegistryInput): ServiceRegistry {
     actions_known: true,
   }));
   return {
-    connections: [...configured.connections, ...catalog.connections, ...accountConnections(input.discovered), ...native],
-    runtimeConfigurations: new Map([...configured.runtime, ...catalog.runtime]),
+    connections: [...configured.connections, ...catalog.connections, ...accounts, ...native],
+    bindings: new Map([...configured.runtime, ...catalog.runtime, ...accountBindings]),
   };
 }

@@ -392,7 +392,7 @@ describe('guided agent proposal creation', () => {
     });
 
     expect(prompt).toContain('Personal Notion (mcp:notion-personal:abc123)');
-    expect(prompt).toContain('Allowed actions: read, write');
+    expect(prompt).toContain('Known capabilities: read, write');
     expect(prompt).toContain('Connection type: configured_api');
   });
 
@@ -508,5 +508,43 @@ describe('guided agent proposal creation', () => {
     expect(agent.notification).toEqual({ channel: 'slack', on_complete: true, on_failure: true });
     expect(agent.permissions?.allow).toContain('mcp__slack__*');
     expect(agent.permissions?.allow).toContain('Read');
+  });
+
+  it('materializes the exact reviewed service binding instead of its public identifier', () => {
+    const proposal = completeProposal();
+    proposal.connections = [{
+      id: 'mcp:notion-personal:abc123',
+      name: 'Personal Notion',
+      required: true,
+      status: 'connected',
+      reason: 'Stores the review in Personal Notion.',
+    }];
+    proposal.notification_destination = null;
+    proposal.permissions = {
+      can_modify_files: false,
+      can_run_commands: false,
+      requires_network: true,
+      can_use_connected_apps: true,
+      can_send_messages: false,
+    };
+    const binding = {
+      id: 'mcp:notion-personal:abc123',
+      serverName: 'notion-personal',
+      config: {
+        command: 'npx',
+        args: ['-y', '@notionhq/notion-mcp-server'],
+        env: { NOTION_TOKEN: '${NOTION_PERSONAL_API_KEY}' },
+      },
+    } as const;
+
+    const agent = proposalToAgentConfig(
+      CreationProposalSchema.parse(proposal),
+      'manuscript-review',
+      { serviceBindings: [binding] },
+    );
+
+    expect(agent.mcp_servers).toEqual({ 'notion-personal': binding.config });
+    expect(agent.permissions?.allow).toContain('mcp__notion_personal__*');
+    expect(agent.permissions?.allow).not.toContain('mcp__mcp_notion_personal_abc123__*');
   });
 });

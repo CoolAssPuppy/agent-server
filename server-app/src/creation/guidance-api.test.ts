@@ -6,6 +6,7 @@ import { AgentWriteError, type AgentWriter } from '../agents/writer.js';
 import { PreflightResultSchema, SecurityAnalysisSchema } from '../analysis/models.js';
 import { createGuidanceApi, type GuidanceApiDependencies } from './guidance-api.js';
 import { RunPreflightDeniedError } from '../analysis/run-preflight-gate.js';
+import type { ServiceRegistry } from '../services/registry.js';
 
 const API_KEY = 'guidance-test-key-1234567890';
 const CONTENT_HASH = `sha256:${'a'.repeat(64)}`;
@@ -132,6 +133,124 @@ describe('consumer guidance API', () => {
     expect(body.status).toBe('proposal');
     expect(body.proposal_id).toEqual(expect.any(String));
     expect(body.proposal.permissions.can_modify_files).toBe(false);
+  });
+
+  it('uses current server-owned service metadata and rejects stale client identities', async () => {
+    const registry: ServiceRegistry = {
+      connections: [{
+        id: 'mcp:notion-personal:abc123',
+        service_id: 'notion',
+        name: 'Personal Notion',
+        source: 'configured_api',
+        status: 'connected',
+        actions: ['read', 'write'],
+        actions_known: true,
+      }],
+      bindings: new Map(),
+    };
+    const model = { generate: vi.fn(async () => completeProposal()) };
+    const { app } = createFixture({ model, getServiceRegistry: async () => registry });
+
+    const accepted = await request(app, '/guidance/agent-proposals', {
+      method: 'POST',
+      body: JSON.stringify({
+        request: 'Store a note in Personal Notion.',
+        timezone: 'Europe/Lisbon',
+        connected_services: [{
+          id: 'mcp:notion-personal:abc123',
+          service_id: 'notion',
+          name: 'Hostile renamed service',
+          source: 'account',
+          actions: ['delete'],
+          actions_known: true,
+        }],
+      }),
+    });
+
+    expect(accepted.status).toBe(200);
+    expect(model.generate).toHaveBeenCalledWith(
+      expect.stringContaining('Personal Notion'),
+      expect.any(Object),
+      expect.any(Object),
+    );
+    expect(model.generate).not.toHaveBeenCalledWith(
+      expect.stringContaining('Hostile renamed service'),
+      expect.any(Object),
+      expect.any(Object),
+    );
+
+    const stale = await request(app, '/guidance/agent-proposals', {
+      method: 'POST',
+      body: JSON.stringify({
+        request: 'Store a note in Notion.',
+        timezone: 'Europe/Lisbon',
+        connected_services: [{ id: 'removed-service', name: 'Removed service' }],
+      }),
+    });
+    expect(stale.status).toBe(409);
+    expect(await stale.json()).toMatchObject({ saved: false, refresh_services: true });
+  });
+
+  it('resolves the reviewed service identity into its exact runtime binding when saving', async () => {
+    const proposal = completeProposal();
+    proposal.connections = [{
+      id: 'mcp:notion-personal:abc123',
+      name: 'Personal Notion',
+      required: true,
+      status: 'connected',
+      reason: 'Stores the note.',
+    }];
+    proposal.notification_destination = null;
+    proposal.permissions = {
+      can_modify_files: false,
+      can_run_commands: false,
+      requires_network: true,
+      can_use_connected_apps: true,
+      can_send_messages: false,
+    };
+    const config = {
+      command: 'npx',
+      args: ['-y', '@notionhq/notion-mcp-server'],
+      env: { NOTION_TOKEN: '${NOTION_PERSONAL_API_KEY}' },
+    } as const;
+    const registry: ServiceRegistry = {
+      connections: [{
+        id: 'mcp:notion-personal:abc123', service_id: 'notion', name: 'Personal Notion',
+        source: 'configured_api', status: 'connected', actions: ['read', 'write'], actions_known: true,
+      }],
+      bindings: new Map([['mcp:notion-personal:abc123', { serverName: 'notion-personal', config }]]),
+    };
+    const { app, writer } = createFixture({
+      model: { generate: vi.fn(async () => proposal) },
+      getServiceRegistry: async () => registry,
+    });
+    const generated = await request(app, '/guidance/agent-proposals', {
+      method: 'POST',
+      body: JSON.stringify({
+        request: 'Store a note in Personal Notion.',
+        timezone: 'Europe/Lisbon',
+        connected_services: [{
+          id: 'mcp:notion-personal:abc123',
+          service_id: 'notion',
+          name: 'Personal Notion',
+          source: 'configured_api',
+          actions: ['read', 'write'],
+          actions_known: true,
+        }],
+      }),
+    }).then((response) => response.json());
+    expect(generated.status, JSON.stringify(generated)).toBe('proposal');
+
+    const response = await request(app, `/guidance/agent-proposals/${generated.proposal_id}/save`, {
+      method: 'POST',
+      body: JSON.stringify({ confirmed: true }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(writer.createReviewed).toHaveBeenCalledWith(expect.objectContaining({
+      mcp_servers: { 'notion-personal': config },
+      permissions: expect.objectContaining({ allow: expect.arrayContaining(['mcp__notion_personal__*']) }),
+    }));
   });
 
   it('returns safe follow-up questions when model output remains malformed', async () => {

@@ -21,7 +21,7 @@ export function buildAgentProposalPrompt(request: ProposalRequest): string {
     ? request.connectedServices.map((service) => (
       `${sanitizeText(service.name, 160)} (${sanitizeText(service.id, 240)}); `
       + `Connection type: ${'source' in service ? service.source ?? 'legacy' : 'legacy'}; `
-      + `Allowed actions: ${service.actions_known ? service.actions.join(', ') || 'none' : 'not verified'}`
+      + `Known capabilities: ${service.actions_known ? service.actions.join(', ') || 'none' : 'not verified'}`
     )).join(', ')
     : 'None';
   const answers = (request.answers ?? []).length > 0

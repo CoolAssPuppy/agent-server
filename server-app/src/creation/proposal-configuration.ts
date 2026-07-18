@@ -1,5 +1,6 @@
 import type { AgentConfig } from '../agents/config.js';
 import { mcpServerKey } from '../agents/capabilities.js';
+import type { McpServerConfig } from '../agents/config.js';
 import type { CreationProposal } from './proposal-schema.js';
 
 const FILE_READ_TOOLS = ['Read', 'Glob', 'Grep'] as const;
@@ -13,7 +14,20 @@ function serviceToolPattern(id: string): string | undefined {
   return normalized.length > 0 ? `mcp__${normalized}__*` : undefined;
 }
 
-function explicitToolAllowlist(proposal: CreationProposal): string[] {
+export type ProposalServiceBinding = {
+  id: string;
+  serverName: string;
+  config?: McpServerConfig;
+};
+
+export type ProposalConfigurationOptions = {
+  serviceBindings?: readonly ProposalServiceBinding[];
+};
+
+function explicitToolAllowlist(
+  proposal: CreationProposal,
+  bindings: ReadonlyMap<string, ProposalServiceBinding>,
+): string[] {
   const allow = new Set<string>();
   if (proposal.file_access.length > 0) FILE_READ_TOOLS.forEach((tool) => allow.add(tool));
   if (proposal.permissions.can_modify_files) FILE_WRITE_TOOLS.forEach((tool) => allow.add(tool));
@@ -31,7 +45,7 @@ function explicitToolAllowlist(proposal: CreationProposal): string[] {
   }
   if (proposal.permissions.can_use_connected_apps) {
     proposal.connections.filter((connection) => connection.required).forEach((connection) => {
-      const tool = serviceToolPattern(connection.id);
+      const tool = serviceToolPattern(bindings.get(connection.id)?.serverName ?? connection.id);
       if (tool) allow.add(tool);
     });
   }
@@ -39,8 +53,21 @@ function explicitToolAllowlist(proposal: CreationProposal): string[] {
 }
 
 /** Convert a reviewed proposal into a default-deny runtime configuration. */
-export function proposalToAgentConfig(proposal: CreationProposal, id: string): AgentConfig {
-  const allow = explicitToolAllowlist(proposal);
+export function proposalToAgentConfig(
+  proposal: CreationProposal,
+  id: string,
+  options: ProposalConfigurationOptions = {},
+): AgentConfig {
+  const bindings = new Map((options.serviceBindings ?? []).map((binding) => [binding.id, binding]));
+  const allow = explicitToolAllowlist(proposal, bindings);
+  const mcpServers = Object.fromEntries(
+    proposal.connections
+      .filter((connection) => connection.required)
+      .flatMap((connection) => {
+        const binding = bindings.get(connection.id);
+        return binding?.config ? [[binding.serverName, binding.config] as const] : [];
+      }),
+  );
   const primaryPath = proposal.file_access[0]?.path;
   const watch = proposal.trigger.type === 'watch' && proposal.trigger.watched_path
     ? [{ path: proposal.trigger.watched_path }]
@@ -66,6 +93,7 @@ export function proposalToAgentConfig(proposal: CreationProposal, id: string): A
     tools: allow,
     disallowed_tools: [],
     permissions: { allow, deny: [] },
+    mcp_servers: Object.keys(mcpServers).length > 0 ? mcpServers : undefined,
     max_turns: 20,
     enabled: false,
     executor: proposal.runtime?.executor,
