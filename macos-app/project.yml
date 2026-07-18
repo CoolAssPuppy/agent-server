@@ -52,7 +52,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.strategicnerds.agent-server
         PRODUCT_NAME: Agent Server
-        MARKETING_VERSION: "3.0.1"
+        MARKETING_VERSION: "3.0.2"
         CURRENT_PROJECT_VERSION: "26"
         INFOPLIST_FILE: AgentServer/Info.plist
         CODE_SIGN_ENTITLEMENTS: AgentServer/AgentServer.entitlements

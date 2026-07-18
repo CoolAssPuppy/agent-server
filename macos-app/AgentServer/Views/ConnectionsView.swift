@@ -289,7 +289,33 @@ struct ConnectionsView: View {
             .background(theme.tokens.background)
             .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border, lineWidth: 1))
             .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
+
+            if telegramConnected || slackMessagingConnected {
+                pairingHint
+            }
         }
+    }
+
+    /// Shown once a messaging bot token is saved: the bot only learns where to
+    /// reach you from your first message, so an unpaired bot silently drops its
+    /// first notification. This tells the user to close that loop.
+    private var pairingHint: some View {
+        HStack(alignment: .top, spacing: NSpacing.sm) {
+            Image(systemName: "hand.wave")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(theme.tokens.accent)
+                .frame(width: 18)
+            Text("One more step: send your bot a message (a quick \u{201C}hi\u{201D}) so it learns where to reach you. Until you do, its first notification has nowhere to go.")
+                .font(NTypography.caption)
+                .foregroundStyle(theme.tokens.mutedForeground)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(NSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: NRadius.md).fill(theme.tokens.accent.opacity(0.08))
+        )
+        .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.accent.opacity(0.25), lineWidth: 1))
     }
 
     /// Whether an env key is set (non-empty) in either env file.
