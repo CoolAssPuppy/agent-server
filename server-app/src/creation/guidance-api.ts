@@ -44,6 +44,11 @@ const ProposalApiRequestSchema = z.object({
     account: z.string().trim().min(1).max(160),
     can_modify: z.boolean(),
   }).strict()).max(128).default([]),
+  available_contact_groups: z.array(z.object({
+    id: z.string().trim().min(1).max(512),
+    name: z.string().trim().min(1).max(160),
+    account: z.string().trim().min(1).max(160),
+  }).strict()).max(128).default([]),
   answers: z.array(ProposalAnswerSchema).max(12).default([]),
 }).strict();
 
@@ -180,6 +185,7 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
           account: list.account,
           canModify: list.can_modify,
         })),
+        availableContactGroups: request.available_contact_groups,
         answers: request.answers,
       };
       const result = await createAgentProposal({
@@ -232,6 +238,7 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
           account: list.account,
           canModify: list.can_modify,
         })),
+        availableContactGroups: request.available_contact_groups,
         answers: request.answers,
       };
       const result = await createAgentProposal({

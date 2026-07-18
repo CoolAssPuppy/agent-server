@@ -164,6 +164,11 @@ export const ProposalRequestSchema = z.object({
     account: z.string().trim().min(1).max(160),
     canModify: z.boolean(),
   }).strict()).max(128).default([]),
+  availableContactGroups: z.array(z.object({
+    id: z.string().trim().min(1).max(512),
+    name: z.string().trim().min(1).max(160),
+    account: z.string().trim().min(1).max(160),
+  }).strict()).max(128).default([]),
   answers: z.array(ProposalAnswerSchema).max(12).default([]),
 }).strict();
 export type ProposalRequest = z.infer<typeof ProposalRequestSchema>;

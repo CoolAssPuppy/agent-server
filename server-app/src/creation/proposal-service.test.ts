@@ -309,6 +309,20 @@ describe('guided agent proposal creation', () => {
     });
   });
 
+  it('does not treat generic software events as Calendar access', async () => {
+    const result = await createAgentProposal({
+      request: 'Summarize GitHub webhook events.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      availableCalendars: [{ id: 'work', name: 'Work', account: 'iCloud', canModify: true }],
+      model: modelReturning(completeProposal()).model,
+    });
+
+    expect(result).not.toMatchObject({
+      status: 'needs_information', questions: [{ id: 'calendar-id' }],
+    });
+  });
+
   it('does not treat generic project tasks as Apple Reminders', async () => {
     const result = await createAgentProposal({
       request: 'Summarize my Notion project tasks.',
@@ -335,6 +349,50 @@ describe('guided agent proposal creation', () => {
     expect(result).toMatchObject({
       status: 'needs_information', questions: [{ id: 'calendar-id' }],
     });
+  });
+
+  it('asks which Contacts group and which details it may read', async () => {
+    const proposal = completeProposal();
+    proposal.connections = [];
+    proposal.notification_destination = null;
+    proposal.permissions.can_use_connected_apps = true;
+    proposal.permissions.can_send_messages = false;
+    proposal.permissions.requires_network = false;
+    const fake = modelReturning(proposal);
+    const base = {
+      request: 'Create a birthday summary from my contacts.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      availableContactGroups: [
+        { id: 'family-id', name: 'Family', account: 'iCloud' },
+        { id: 'work-id', name: 'Coworkers', account: 'Google' },
+      ],
+      model: fake.model,
+    };
+
+    const group = await createAgentProposal({ ...base, answers: [] });
+    const fields = await createAgentProposal({
+      ...base, answers: [{ question_id: 'contact-group-id', value: 'family-id' }],
+    });
+    const ready = await createAgentProposal({
+      ...base,
+      answers: [
+        { question_id: 'contact-group-id', value: 'family-id' },
+        { question_id: 'contact-fields', value: 'name_email' },
+      ],
+    });
+
+    expect(group).toMatchObject({ status: 'needs_information', questions: [{ id: 'contact-group-id' }] });
+    expect(fields).toMatchObject({ status: 'needs_information', questions: [{ id: 'contact-fields' }] });
+    expect(ready).toMatchObject({
+      status: 'proposal', proposal: { native_services: { contacts: { resources: [{
+        id: 'family-id', name: 'Family', account: 'iCloud', actions: ['read'], fields: ['name', 'email'],
+      }] } } },
+    });
+    if (ready.status !== 'proposal') throw new Error('Expected proposal');
+    const config = proposalToAgentConfig(ready.proposal, 'birthday-summary');
+    expect(config.permissions?.allow).toContain('mcp__eventkit__list_contacts');
+    expect(config.permissions?.allow).not.toContain('mcp__eventkit__create_contact');
   });
 
   it('re-asks when a Reminder answer is no longer available or allowed', async () => {

@@ -9,6 +9,7 @@ public struct NativeServiceGrantPolicy: Sendable {
     public enum Service: String, Sendable {
         case calendar
         case reminders
+        case contacts
     }
 
     private struct Envelope: Decodable {
@@ -19,6 +20,7 @@ public struct NativeServiceGrantPolicy: Sendable {
     private struct Services: Decodable {
         let calendar: Collection?
         let reminders: Collection?
+        let contacts: Collection?
     }
 
     private struct Collection: Decodable {
@@ -29,6 +31,7 @@ public struct NativeServiceGrantPolicy: Sendable {
         let id: String
         let name: String
         let actions: [String]
+        let fields: [String]?
     }
 
     public let mode: Mode
@@ -51,6 +54,7 @@ public struct NativeServiceGrantPolicy: Sendable {
         resources = [
             .calendar: envelope.services.calendar?.resources ?? [],
             .reminders: envelope.services.reminders?.resources ?? [],
+            .contacts: envelope.services.contacts?.resources ?? [],
         ]
     }
 
@@ -68,7 +72,7 @@ public struct NativeServiceGrantPolicy: Sendable {
     }
 
     public func permitsTool(_ name: String) -> Bool {
-        guard mode == .scoped else { return true }
+        guard mode == .scoped else { return name != "list_contacts" }
         let requirement: (Service, String)? = switch name {
         case "list_calendars", "list_events": (.calendar, "read")
         case "create_event": (.calendar, "create")
@@ -76,18 +80,29 @@ public struct NativeServiceGrantPolicy: Sendable {
         case "list_reminder_lists", "list_reminders": (.reminders, "read")
         case "create_reminder": (.reminders, "create")
         case "complete_reminder": (.reminders, "complete")
+        case "list_contacts": (.contacts, "read")
         default: nil
         }
         guard let requirement else { return false }
         return !availableResourceIds(service: requirement.0, action: requirement.1).isEmpty
     }
 
+    public func availableFields(service: Service, resourceId: String) -> [String] {
+        guard mode == .scoped else { return [] }
+        return resources[service]?.first(where: { $0.id == resourceId })?.fields ?? []
+    }
+
     private static func isValid(_ services: Services) -> Bool {
         isValid(services.calendar?.resources ?? [], allowedActions: ["read", "create", "update"])
             && isValid(services.reminders?.resources ?? [], allowedActions: ["read", "create", "complete"])
+            && isValid(services.contacts?.resources ?? [], allowedActions: ["read"], allowedFields: ["name", "email", "phone", "birthday"])
     }
 
-    private static func isValid(_ resources: [Resource], allowedActions: Set<String>) -> Bool {
+    private static func isValid(
+        _ resources: [Resource],
+        allowedActions: Set<String>,
+        allowedFields: Set<String>? = nil
+    ) -> Bool {
         guard Set(resources.map(\.id)).count == resources.count else { return false }
         return resources.allSatisfy { resource in
             !resource.id.isEmpty
@@ -95,6 +110,11 @@ public struct NativeServiceGrantPolicy: Sendable {
                 && !resource.actions.isEmpty
                 && Set(resource.actions).count == resource.actions.count
                 && Set(resource.actions).isSubset(of: allowedActions)
+                && (allowedFields == nil || (
+                    resource.fields?.isEmpty == false
+                    && Set(resource.fields ?? []).isSubset(of: allowedFields ?? [])
+                    && Set(resource.fields ?? []).count == resource.fields?.count
+                ))
         }
     }
 }

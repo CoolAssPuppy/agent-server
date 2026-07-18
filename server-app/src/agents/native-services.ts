@@ -20,6 +20,11 @@ const ReminderResourceGrantSchema = ResourceIdentitySchema.extend({
   actions: uniqueActions(z.enum(['read', 'create', 'complete'])),
 }).strict();
 
+const ContactResourceGrantSchema = ResourceIdentitySchema.extend({
+  actions: z.tuple([z.literal('read')]),
+  fields: uniqueActions(z.enum(['name', 'email', 'phone', 'birthday'])),
+}).strict();
+
 const resourceCollection = <T extends z.ZodTypeAny>(schema: T) => z.object({
   resources: z.array(schema).max(128).superRefine((resources, ctx) => {
     if (new Set(resources.map((resource) => (resource as { id: string }).id)).size !== resources.length) {
@@ -31,6 +36,7 @@ const resourceCollection = <T extends z.ZodTypeAny>(schema: T) => z.object({
 export const NativeServicesSchema = z.object({
   calendar: resourceCollection(CalendarResourceGrantSchema).optional(),
   reminders: resourceCollection(ReminderResourceGrantSchema).optional(),
+  contacts: resourceCollection(ContactResourceGrantSchema).optional(),
 }).strict();
 
 export type NativeServices = z.infer<typeof NativeServicesSchema>;

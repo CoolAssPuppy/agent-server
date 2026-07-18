@@ -1,8 +1,10 @@
 import EventKit
 import Foundation
+import Contacts
 
 final class EventKitHandler: MCPHandler {
     private let store = EKEventStore()
+    private let contactStore = CNContactStore()
     private let grantPolicy = NativeServiceGrantPolicy(
         environmentValue: ProcessInfo.processInfo.environment["AGENT_SERVER_NATIVE_SERVICE_GRANTS"]
     )
@@ -153,6 +155,19 @@ final class EventKitHandler: MCPHandler {
             inputSchema: completeReminderSchema
         ))
 
+        let listContactsSchema: [String: Any] = [
+            "type": "object",
+            "properties": [
+                "groupId": ["type": "string", "description": "Selected contact group identifier"]
+            ],
+            "required": ["groupId"]
+        ]
+        result.append(MCPTool(
+            name: "list_contacts",
+            description: "List the approved details for contacts in one selected group.",
+            inputSchema: listContactsSchema
+        ))
+
         return result.filter { grantPolicy.permitsTool($0.name) }
     }
 
@@ -170,6 +185,7 @@ final class EventKitHandler: MCPHandler {
         case "list_reminders": return try listReminders(args: arguments)
         case "create_reminder": return try createReminder(args: arguments)
         case "complete_reminder": return try completeReminder(args: arguments)
+        case "list_contacts": return try listContacts(args: arguments)
         default:
             throw MCPError.methodNotFound(name)
         }
@@ -233,6 +249,32 @@ final class EventKitHandler: MCPHandler {
         if !granted {
             let entityName = entity == .event ? "Calendar" : "Reminder"
             throw MCPError.toolFailed("\(entityName) access not granted.")
+        }
+    }
+
+    private func ensureContactAccess() throws {
+        switch CNContactStore.authorizationStatus(for: .contacts) {
+        case .authorized: return
+        case .denied, .restricted:
+            throw MCPError.toolFailed("Contacts access denied. Grant permission in System Settings > Privacy & Security > Contacts.")
+        case .notDetermined:
+            let semaphore = DispatchSemaphore(value: 0)
+            var granted = false
+            var requestError: Error?
+            contactStore.requestAccess(for: .contacts) { result, error in
+                granted = result
+                requestError = error
+                semaphore.signal()
+            }
+            semaphore.wait()
+            if let requestError {
+                throw MCPError.toolFailed("Contacts access request failed: \(requestError.localizedDescription)")
+            }
+            if !granted { throw MCPError.toolFailed("Contacts access not granted.") }
+        case .limited:
+            return
+        @unknown default:
+            throw MCPError.toolFailed("Contacts access is unavailable.")
         }
     }
 
@@ -560,6 +602,46 @@ final class EventKitHandler: MCPHandler {
         }
 
         return try jsonString(["completed": true, "id": id])
+    }
+
+    private func listContacts(args: [String: Any]) throws -> String {
+        guard let groupId = args["groupId"] as? String, !groupId.isEmpty else {
+            throw MCPError.invalidParams("groupId is required")
+        }
+        guard grantPolicy.allows(service: .contacts, resourceId: groupId, action: "read") else {
+            throw MCPError.invalidParams("That contact group is not available to this agent")
+        }
+        try ensureContactAccess()
+
+        let fields = Set(grantPolicy.availableFields(service: .contacts, resourceId: groupId))
+        var keys: [CNKeyDescriptor] = [CNContactIdentifierKey as CNKeyDescriptor]
+        if fields.contains("name") {
+            keys.append(contentsOf: [CNContactGivenNameKey as CNKeyDescriptor, CNContactFamilyNameKey as CNKeyDescriptor])
+        }
+        if fields.contains("email") { keys.append(CNContactEmailAddressesKey as CNKeyDescriptor) }
+        if fields.contains("phone") { keys.append(CNContactPhoneNumbersKey as CNKeyDescriptor) }
+        if fields.contains("birthday") { keys.append(CNContactBirthdayKey as CNKeyDescriptor) }
+
+        let predicate = CNContact.predicateForContactsInGroup(withIdentifier: groupId)
+        let contacts: [CNContact]
+        do {
+            contacts = try contactStore.unifiedContacts(matching: predicate, keysToFetch: keys)
+        } catch {
+            throw MCPError.toolFailed("Failed to read the selected contact group: \(error.localizedDescription)")
+        }
+        let values = contacts.map { contact -> [String: Any] in
+            var value: [String: Any] = ["id": contact.identifier]
+            if fields.contains("name") {
+                value["name"] = [contact.givenName, contact.familyName].filter { !$0.isEmpty }.joined(separator: " ")
+            }
+            if fields.contains("email") { value["emails"] = contact.emailAddresses.map { $0.value as String } }
+            if fields.contains("phone") { value["phones"] = contact.phoneNumbers.map { $0.value.stringValue } }
+            if fields.contains("birthday"), let birthday = contact.birthday {
+                value["birthday"] = String(format: "%02d-%02d", birthday.month ?? 0, birthday.day ?? 0)
+            }
+            return value
+        }
+        return try jsonString(["contacts": values])
     }
 
     // MARK: - Helpers

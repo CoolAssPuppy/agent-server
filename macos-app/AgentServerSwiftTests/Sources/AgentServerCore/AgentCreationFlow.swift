@@ -35,6 +35,7 @@ public struct CreationQuestion: Identifiable, Equatable, Sendable {
     public enum NativeResource: Equatable, Sendable {
         case calendar
         case reminders
+        case contacts
     }
 
     public enum Kind: Equatable, Sendable {
@@ -63,6 +64,7 @@ public struct CreationQuestion: Identifiable, Equatable, Sendable {
         switch id {
         case "calendar-id": return .calendar
         case "reminder-list-id": return .reminders
+        case "contact-group-id": return .contacts
         default: return nil
         }
     }
@@ -158,6 +160,7 @@ public struct AgentCreationFlow: Equatable, Sendable {
             }
             if question.id == "calendar-id" { answers.removeValue(forKey: "calendar-access") }
             if question.id == "reminder-list-id" { answers.removeValue(forKey: "reminder-actions") }
+            if question.id == "contact-group-id" { answers.removeValue(forKey: "contact-fields") }
         }
         self.questions = questions
         phase = .questions

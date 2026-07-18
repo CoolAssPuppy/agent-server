@@ -1,5 +1,6 @@
 import EventKit
 import Foundation
+import Contacts
 
 @MainActor
 final class EventKitPermissionManager {
@@ -9,6 +10,7 @@ final class EventKitPermissionManager {
         switch resource {
         case .calendar: await requestEventAccess()
         case .reminders: await requestReminderAccess()
+        case .contacts: await requestContactAccess()
         }
     }
 
@@ -50,6 +52,24 @@ final class EventKitPermissionManager {
             }
     }
 
+    static func availableContactGroups() -> [GuidanceContactGroupResource] {
+        guard CNContactStore.authorizationStatus(for: .contacts) == .authorized else { return [] }
+        let contactStore = CNContactStore()
+        guard let containers = try? contactStore.containers(matching: nil) else { return [] }
+        return containers.flatMap { container in
+            let predicate = CNGroup.predicateForGroupsInContainer(withIdentifier: container.identifier)
+            let groups = (try? contactStore.groups(matching: predicate)) ?? []
+            return groups.map {
+                GuidanceContactGroupResource(id: $0.identifier, name: $0.name, account: container.name)
+            }
+        }.sorted {
+            let accountOrder = $0.account.localizedStandardCompare($1.account)
+            return accountOrder == .orderedSame
+                ? $0.name.localizedStandardCompare($1.name) == .orderedAscending
+                : accountOrder == .orderedAscending
+        }
+    }
+
     private func requestEventAccess() async {
         let status = EKEventStore.authorizationStatus(for: .event)
         guard status == .notDetermined else { return }
@@ -60,5 +80,10 @@ final class EventKitPermissionManager {
         let status = EKEventStore.authorizationStatus(for: .reminder)
         guard status == .notDetermined else { return }
         _ = try? await store.requestFullAccessToReminders()
+    }
+
+    private func requestContactAccess() async {
+        guard CNContactStore.authorizationStatus(for: .contacts) == .notDetermined else { return }
+        _ = try? await CNContactStore().requestAccess(for: .contacts)
     }
 }

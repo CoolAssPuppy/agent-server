@@ -18,6 +18,38 @@ describe('native Mac service grants', () => {
     });
   });
 
+  it('parses read-only Contacts groups with explicit fields', () => {
+    const agent = AgentConfigSchema.parse(makeAgent({
+      native_services: {
+        contacts: {
+          resources: [{
+            id: 'family-group', name: 'Family', account: 'iCloud', actions: ['read'], fields: ['name', 'email'],
+          }],
+        },
+      },
+    }));
+
+    expect(agent.native_services?.contacts?.resources[0]).toEqual({
+      id: 'family-group', name: 'Family', account: 'iCloud', actions: ['read'], fields: ['name', 'email'],
+    });
+  });
+
+  it('rejects Contacts write access and empty contact fields', () => {
+    const write = AgentConfigSchema.safeParse(makeAgent({
+      native_services: {
+        contacts: { resources: [{ id: 'family', name: 'Family', actions: ['write'], fields: ['name'] }] },
+      },
+    }));
+    const noFields = AgentConfigSchema.safeParse(makeAgent({
+      native_services: {
+        contacts: { resources: [{ id: 'family', name: 'Family', actions: ['read'], fields: [] }] },
+      },
+    }));
+
+    expect(write.success).toBe(false);
+    expect(noFields.success).toBe(false);
+  });
+
   it('rejects duplicate resources, duplicate actions, and unsupported Reminder actions', () => {
     const duplicateResources = AgentConfigSchema.safeParse(makeAgent({
       native_services: {

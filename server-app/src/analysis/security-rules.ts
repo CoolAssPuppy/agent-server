@@ -336,6 +336,16 @@ function analyzePromptAndTriggers(agent: AgentConfig, rawContent: string): Findi
 
 function analyzeConnectionsAndAutomation(agent: AgentConfig): Finding[] {
   const findings: Finding[] = [];
+  if ((agent.native_services?.contacts?.resources.length ?? 0) > 0) {
+    findings.push(finding(
+      'native.sensitive_contacts', 'needs_review', 'This agent can read selected contact details',
+      'Contact names, email addresses, phone numbers, and birthdays are personal information.',
+      'The agent could include approved contact details in its output.',
+      'At least one Contacts group has been selected for read access.',
+      [evidence('native-service', 'Contacts access', 'Selected groups only', 'configuration')],
+      action('native.sensitive_contacts', 'Review contact details', 'Keep only the groups and detail types needed for this task.', 'needs_review', true),
+    ));
+  }
   for (const [name, server] of Object.entries(agent.mcp_servers ?? {})) {
     if ('url' in server) {
       const url = new URL(server.url);

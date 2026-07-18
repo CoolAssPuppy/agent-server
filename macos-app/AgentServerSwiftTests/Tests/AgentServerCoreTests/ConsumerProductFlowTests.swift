@@ -24,6 +24,17 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(question.unavailableNativeResource, .reminders)
     }
 
+    func testEmptyContactsQuestionExplainsHowToRestoreAccess() {
+        let question = CreationQuestion(
+            id: "contact-group-id",
+            prompt: "Which contact group may this agent use?",
+            kind: .choice([]),
+            isRequired: true
+        )
+
+        XCTAssertEqual(question.unavailableNativeResource, .contacts)
+    }
+
     func testReissuedNativeResourceQuestionClearsItsDependentPermission() {
         var flow = AgentCreationFlow(request: "Review my reminders")
         flow.receiveQuestions([

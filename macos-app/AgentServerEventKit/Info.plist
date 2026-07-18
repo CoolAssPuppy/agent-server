@@ -22,5 +22,7 @@
 	<string>Agent Server reads and writes calendar events on behalf of agents you configure.</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
 	<string>Agent Server reads and writes reminders on behalf of agents you configure.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>Agent Server reads only the contact groups and details you choose for an agent.</string>
 </dict>
 </plist>

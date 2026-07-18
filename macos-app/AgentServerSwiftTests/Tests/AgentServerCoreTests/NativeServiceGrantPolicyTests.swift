@@ -3,7 +3,9 @@ import XCTest
 
 final class NativeServiceGrantPolicyTests: XCTestCase {
     func testMissingScopeKeepsLegacyModeWhileMalformedScopeDeniesEverything() {
-        XCTAssertEqual(NativeServiceGrantPolicy(environmentValue: nil).mode, .legacy)
+        let legacy = NativeServiceGrantPolicy(environmentValue: nil)
+        XCTAssertEqual(legacy.mode, .legacy)
+        XCTAssertFalse(legacy.permitsTool("list_contacts"))
 
         let malformed = NativeServiceGrantPolicy(environmentValue: "not-json")
         XCTAssertEqual(malformed.mode, .scoped)
@@ -43,5 +45,17 @@ final class NativeServiceGrantPolicyTests: XCTestCase {
 
         XCTAssertTrue(unknown.availableResourceIds(service: .calendar).isEmpty)
         XCTAssertTrue(duplicate.availableResourceIds(service: .calendar).isEmpty)
+    }
+
+    func testContactsStayReadOnlyAndExposeOnlyApprovedFields() {
+        let policy = NativeServiceGrantPolicy(environmentValue: """
+        {"version":1,"services":{"contacts":{"resources":[
+          {"id":"family","name":"Family","actions":["read"],"fields":["name","email"]}
+        ]}}}
+        """)
+
+        XCTAssertTrue(policy.permitsTool("list_contacts"))
+        XCTAssertFalse(policy.permitsTool("create_contact"))
+        XCTAssertEqual(policy.availableFields(service: .contacts, resourceId: "family"), ["name", "email"])
     }
 }

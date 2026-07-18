@@ -24,6 +24,7 @@ struct AgentProposalView: View {
             if !proposal.fileAccess.isEmpty { files }
             if !proposal.calendarAccess.isEmpty { calendars }
             if !proposal.reminderAccess.isEmpty { reminders }
+            if !proposal.contactAccess.isEmpty { contacts }
             permissions
             safety
             instructions
@@ -39,6 +40,23 @@ struct AgentProposalView: View {
                         Text(resourceLabel(name: access.name, account: access.account))
                         Spacer()
                         Text(access.actions.joined(separator: ", "))
+                            .font(NTypography.badge)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+            }
+        }
+    }
+
+    private var contacts: some View {
+        ConsumerSection("Contacts this agent can access") {
+            VStack(spacing: NSpacing.xs) {
+                ForEach(proposal.contactAccess, id: \.id) { access in
+                    HStack {
+                        Image(systemName: "person.2")
+                        Text(resourceLabel(name: access.name, account: access.account))
+                        Spacer()
+                        Text(access.details.joined(separator: ", "))
                             .font(NTypography.badge)
                     }
                     .accessibilityElement(children: .combine)

@@ -46,6 +46,9 @@ function explicitToolAllowlist(
   if (reminderActions.has('read')) REMINDER_READ_TOOLS.forEach((tool) => allow.add(tool));
   if (reminderActions.has('create')) allow.add(REMINDER_CREATE_TOOL);
   if (reminderActions.has('complete')) allow.add(REMINDER_COMPLETE_TOOL);
+  if ((proposal.native_services.contacts?.resources.length ?? 0) > 0) {
+    allow.add('mcp__eventkit__list_contacts');
+  }
 
   const hasWebCapability = proposal.capabilities.some((capability) => (
     capability.required && ['browse-web', 'web', 'internet'].includes(capability.id.toLowerCase())

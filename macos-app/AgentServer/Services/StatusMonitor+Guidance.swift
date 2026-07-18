@@ -179,6 +179,7 @@ extension StatusMonitor {
             connectedServices: connectedServices,
             availableCalendars: EventKitPermissionManager.availableCalendars(),
             availableReminderLists: EventKitPermissionManager.availableReminderLists(),
+            availableContactGroups: EventKitPermissionManager.availableContactGroups(),
             answers: answerPayloads
         )
     }

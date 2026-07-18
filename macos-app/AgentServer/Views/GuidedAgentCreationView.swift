@@ -8,6 +8,7 @@ private extension CreationQuestion.NativeResource {
         switch self {
         case .calendar: "Calendar access is not available yet."
         case .reminders: "Reminder access is not available yet."
+        case .contacts: "Contacts access is not available yet."
         }
     }
 
@@ -15,6 +16,7 @@ private extension CreationQuestion.NativeResource {
         switch self {
         case .calendar: "Allow Agent Server to view calendars in System Settings, then check again."
         case .reminders: "Allow Agent Server to view reminders in System Settings, then check again."
+        case .contacts: "Allow Agent Server to view contacts in System Settings, then check again."
         }
     }
 
@@ -22,6 +24,7 @@ private extension CreationQuestion.NativeResource {
         switch self {
         case .calendar: "calendar.badge.exclamationmark"
         case .reminders: "list.bullet.clipboard"
+        case .contacts: "person.crop.circle.badge.exclamationmark"
         }
     }
 
@@ -29,6 +32,7 @@ private extension CreationQuestion.NativeResource {
         switch self {
         case .calendar: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars"
         case .reminders: "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders"
+        case .contacts: "x-apple.systempreferences:com.apple.preference.security?Privacy_Contacts"
         }
     }
 }

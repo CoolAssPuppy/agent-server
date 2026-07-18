@@ -128,11 +128,34 @@ function confirmedCalendarAccess(request: ProposalRequest) {
   }];
 }
 
+function confirmedContactAccess(request: ProposalRequest) {
+  const selectedId = request.answers.find((answer) => answer.question_id === 'contact-group-id')?.value;
+  const selectedFields = request.answers.find((answer) => answer.question_id === 'contact-fields')?.value;
+  if (typeof selectedId !== 'string' || typeof selectedFields !== 'string') return undefined;
+  const resource = request.availableContactGroups.find((candidate) => candidate.id === selectedId);
+  const fields = {
+    name_only: ['name'],
+    name_email: ['name', 'email'],
+    name_phone: ['name', 'phone'],
+    name_birthday: ['name', 'birthday'],
+    all_details: ['name', 'email', 'phone', 'birthday'],
+  }[selectedFields];
+  if (!resource || !fields) return undefined;
+  return {
+    contacts: {
+      resources: [{ ...resource, actions: ['read'] as const, fields }],
+    },
+  };
+}
+
 function applyConfirmedNativeAccess(proposal: CreationProposal, request: ProposalRequest): CreationProposal | undefined {
   const candidate = {
     ...proposal,
     calendar_access: confirmedCalendarAccess(request) ?? [],
-    native_services: confirmedReminderAccess(request) ?? {},
+    native_services: {
+      ...(confirmedReminderAccess(request) ?? {}),
+      ...(confirmedContactAccess(request) ?? {}),
+    },
   };
   const parsed = AgentProposalSchema.safeParse(candidate);
   return parsed.success ? parsed.data : undefined;
@@ -183,8 +206,13 @@ function needsReminderAccess(intent: string): boolean {
 }
 
 function needsCalendarAccess(intent: string): boolean {
-  return /\b(calendar|calendars|events|appointments?|meetings?)\b/.test(intent)
+  return /\b(calendar|calendars|appointments?|meetings?)\b/.test(intent)
+    || /\b(?:create|add|update|schedule|book)\s+(?:an?\s+)?events?\b/.test(intent)
     || /\b(?:schedule|book|block)\s+(?:a\s+|some\s+)?time\b/.test(intent);
+}
+
+function needsContactAccess(intent: string): boolean {
+  return /\bcontacts?|address book\b/.test(intent);
 }
 
 function fallbackQuestions(request: ProposalRequest): ProposalFallbackQuestion[] {
@@ -335,6 +363,41 @@ function unansweredScopeQuestion(request: ProposalRequest): ProposalFallbackQues
       };
     }
   }
+  if (needsContactAccess(intent)) {
+    const selectedId = request.answers.find((answer) => answer.question_id === 'contact-group-id')?.value;
+    const selected = request.availableContactGroups.find((group) => group.id === selectedId);
+    if (!answers.has('contact-group-id') || !selected) {
+      return {
+        id: 'contact-group-id',
+        question: 'Which contact group may this agent use?',
+        control: 'single_choice',
+        required: true,
+        choices: request.availableContactGroups.map((group) => ({
+          label: `${group.name} (${group.account})`,
+          value: group.id,
+        })),
+      };
+    }
+    const selectedFields = request.answers.find((answer) => answer.question_id === 'contact-fields')?.value;
+    const allowedFields = new Set(['name_only', 'name_email', 'name_phone', 'name_birthday', 'all_details']);
+    if (!answers.has('contact-fields')
+      || typeof selectedFields !== 'string'
+      || !allowedFields.has(selectedFields)) {
+      return {
+        id: 'contact-fields',
+        question: 'Which contact details may this agent read?',
+        control: 'single_choice',
+        required: true,
+        choices: [
+          { label: 'Names only', value: 'name_only' },
+          { label: 'Names and email addresses', value: 'name_email' },
+          { label: 'Names and phone numbers', value: 'name_phone' },
+          { label: 'Names and birthdays', value: 'name_birthday' },
+          { label: 'Names, email addresses, phone numbers, and birthdays', value: 'all_details' },
+        ],
+      };
+    }
+  }
   if (needsFileAccess(intent)) {
     if (!answers.has('file-access')) {
       return {
@@ -390,6 +453,7 @@ export async function createAgentProposal(input: CreateProposalInput): Promise<P
     connectedServices: input.connectedServices,
     availableCalendars: input.availableCalendars,
     availableReminderLists: input.availableReminderLists,
+    availableContactGroups: input.availableContactGroups,
     answers: input.answers,
   });
   const scopeQuestion = unansweredConnectionQuestion(request) ?? unansweredScopeQuestion(request);

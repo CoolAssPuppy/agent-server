@@ -768,6 +768,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 27;
 				INFOPLIST_FILE = AgentServer/Info.plist;
+				INFOPLIST_KEY_NSContactsUsageDescription = "Agent Server reads only the contact groups and details you choose for an agent.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -858,6 +859,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 27;
 				INFOPLIST_FILE = AgentServer/Info.plist;
+				INFOPLIST_KEY_NSContactsUsageDescription = "Agent Server reads only the contact groups and details you choose for an agent.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

@@ -7,7 +7,9 @@ Status: Native service integration and final release verification are in progres
 - [x] Add a tested local Services registry that presents discovered MCP accounts, configured API-key services, and safe reusable agent-defined MCP services as stable named connections. Native macOS services remain in the next batch.
 - [x] Make agent creation select an exact service connection, clearly distinguishing Personal Notion from Work Notion, and materialize the selected runtime configuration without copying secrets.
 - [x] Add multiple file and folder grants with independent View only or Can make changes access, preserving every grant in generated agent configuration and security analysis.
-- [ ] Add native macOS service grants for Calendar, Reminders, Contacts, and Apple Music, with resource/action scope and clear unavailable states where the operating system cannot provide the requested access.
+- [x] Add scoped Calendar and Reminders grants with exact resource and action review.
+- [x] Add read-only Contacts grants with exact group and field review.
+- [ ] Keep Apple Music visibly unavailable until the signed app has the required MusicKit capability and a tested read-only runtime.
 - [ ] Reuse the grant models in proposal review, safe tests, debugger patches, and security preflight checks.
 - [ ] Add server and Swift behavior coverage first, then run full server tests, Swift tests, type-check, server build, and unsigned Xcode build without UI automation.
 - [ ] Run a simplification review after every consequential commit, record the final verification here, and launch the verified build.

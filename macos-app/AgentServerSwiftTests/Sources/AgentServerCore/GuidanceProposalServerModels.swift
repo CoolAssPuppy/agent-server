@@ -112,6 +112,18 @@ public struct GuidanceReminderListResource: Encodable, Equatable, Sendable {
     }
 }
 
+public struct GuidanceContactGroupResource: Encodable, Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let account: String
+
+    public init(id: String, name: String, account: String) {
+        self.id = id
+        self.name = name
+        self.account = account
+    }
+}
+
 public struct GuidanceServiceRegistryResponse: Decodable, Equatable, Sendable {
     public let connections: [GuidanceServiceConnection]
 
@@ -184,6 +196,7 @@ public struct GuidanceProposalRequest: Encodable, Equatable, Sendable {
     public let connectedServices: [GuidanceConnectedService]
     public let availableCalendars: [GuidanceCalendarResource]
     public let availableReminderLists: [GuidanceReminderListResource]
+    public let availableContactGroups: [GuidanceContactGroupResource]
     public let answers: [GuidanceProposalAnswer]
 
     public init(
@@ -192,6 +205,7 @@ public struct GuidanceProposalRequest: Encodable, Equatable, Sendable {
         connectedServices: [GuidanceConnectedService],
         availableCalendars: [GuidanceCalendarResource] = [],
         availableReminderLists: [GuidanceReminderListResource] = [],
+        availableContactGroups: [GuidanceContactGroupResource] = [],
         answers: [GuidanceProposalAnswer] = []
     ) {
         self.request = request
@@ -199,6 +213,7 @@ public struct GuidanceProposalRequest: Encodable, Equatable, Sendable {
         self.connectedServices = connectedServices
         self.availableCalendars = availableCalendars
         self.availableReminderLists = availableReminderLists
+        self.availableContactGroups = availableContactGroups
         self.answers = answers
     }
 
@@ -207,6 +222,7 @@ public struct GuidanceProposalRequest: Encodable, Equatable, Sendable {
         case connectedServices = "connected_services"
         case availableCalendars = "available_calendars"
         case availableReminderLists = "available_reminder_lists"
+        case availableContactGroups = "available_contact_groups"
     }
 }
 
@@ -332,6 +348,7 @@ private struct GuidanceProposalPayload: Decodable, Equatable, Sendable {
                 let name: String
                 let account: String?
                 let actions: [String]
+                let fields: [String]?
 
                 var reminderPresentation: ReminderAccessPresentation {
                     let labels = actions.compactMap { action in
@@ -344,12 +361,26 @@ private struct GuidanceProposalPayload: Decodable, Equatable, Sendable {
                     }
                     return ReminderAccessPresentation(id: id, name: name, account: account, actions: labels)
                 }
+
+                var contactPresentation: ContactAccessPresentation {
+                    let labels = (fields ?? []).compactMap { field in
+                        switch field {
+                        case "name": "Names"
+                        case "email": "Email addresses"
+                        case "phone": "Phone numbers"
+                        case "birthday": "Birthdays"
+                        default: nil
+                        }
+                    }
+                    return ContactAccessPresentation(id: id, name: name, account: account, details: labels)
+                }
             }
 
             let resources: [Resource]
         }
 
         let reminders: Service?
+        let contacts: Service?
     }
 
     struct Permissions: Decodable, Equatable, Sendable {
@@ -409,6 +440,7 @@ private struct GuidanceProposalPayload: Decodable, Equatable, Sendable {
             fileAccess: fileAccess.map(\.presentation),
             calendarAccess: (calendarAccess ?? []).map(\.presentation),
             reminderAccess: nativeServices?.reminders?.resources.map(\.reminderPresentation) ?? [],
+            contactAccess: nativeServices?.contacts?.resources.map(\.contactPresentation) ?? [],
             connections: connections.map(\.presentation),
             instructions: markdownInstructions,
             risk: risk.consumerLevel,

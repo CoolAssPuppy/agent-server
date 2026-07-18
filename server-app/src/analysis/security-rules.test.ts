@@ -261,6 +261,25 @@ describe('deterministic security analysis', () => {
     expect(result.findings.map((item) => item.rule_id)).toContain('native.state_change');
   });
 
+  it('requires review for contact details even when access is read-only', () => {
+    const result = analyzeAgentSecurity({
+      agent: makeAgent({
+        schedule: undefined,
+        permissions: { allow: ['mcp__eventkit__list_contacts'], deny: [] },
+        native_services: {
+          contacts: {
+            resources: [{ id: 'family', name: 'Family', actions: ['read'], fields: ['name', 'email'] }],
+          },
+        },
+      }),
+      rawContent: 'Summarize the selected contact group.',
+      homeDir: '/Users/tester',
+    });
+
+    expect(result.risk.level).toBe('needs_review');
+    expect(result.findings.map((item) => item.rule_id)).toContain('native.sensitive_contacts');
+  });
+
   it('produces a stable SHA-256 content hash', () => {
     expect(computeAgentContentHash('same content')).toBe(computeAgentContentHash('same content'));
     expect(computeAgentContentHash('same content')).toMatch(/^sha256:[a-f0-9]{64}$/);

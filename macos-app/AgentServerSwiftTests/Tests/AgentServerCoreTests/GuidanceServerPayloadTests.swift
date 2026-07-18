@@ -79,6 +79,9 @@ final class GuidanceServerPayloadTests: XCTestCase {
         XCTAssertEqual(review.presentation.reminderAccess.first?.name, "Book ideas")
         XCTAssertEqual(review.presentation.reminderAccess.first?.account, "Personal")
         XCTAssertEqual(review.presentation.reminderAccess.first?.actions, ["View", "Add", "Mark complete"])
+        XCTAssertEqual(review.presentation.contactAccess.first?.name, "Family")
+        XCTAssertEqual(review.presentation.contactAccess.first?.account, "iCloud")
+        XCTAssertEqual(review.presentation.contactAccess.first?.details, ["Names", "Birthdays"])
         XCTAssertTrue(review.presentation.permissions.contains("Use the internet"))
     }
 
@@ -107,13 +110,16 @@ final class GuidanceServerPayloadTests: XCTestCase {
             availableReminderLists: [
                 GuidanceReminderListResource(id: "personal-id", name: "Personal", account: "iCloud", canModify: true)
             ],
+            availableContactGroups: [
+                GuidanceContactGroupResource(id: "family-id", name: "Family", account: "iCloud")
+            ],
             answers: [GuidanceProposalAnswer(questionId: "send", value: .boolean(true))]
         )
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(request)) as? [String: Any])
         let answers = try XCTUnwrap(object["answers"] as? [[String: Any]])
 
         XCTAssertEqual(Set(object.keys), Set([
-            "request", "timezone", "connected_services", "available_calendars", "available_reminder_lists", "answers"
+            "request", "timezone", "connected_services", "available_calendars", "available_reminder_lists", "available_contact_groups", "answers"
         ]))
         let services = try XCTUnwrap(object["connected_services"] as? [[String: Any]])
         XCTAssertEqual(services.first?["id"] as? String, "runtime:claude.ai%20GitHub")
@@ -126,6 +132,8 @@ final class GuidanceServerPayloadTests: XCTestCase {
         let reminderLists = try XCTUnwrap(object["available_reminder_lists"] as? [[String: Any]])
         XCTAssertEqual(reminderLists.first?["id"] as? String, "personal-id")
         XCTAssertEqual(reminderLists.first?["can_modify"] as? Bool, true)
+        let contactGroups = try XCTUnwrap(object["available_contact_groups"] as? [[String: Any]])
+        XCTAssertEqual(contactGroups.first?["id"] as? String, "family-id")
         XCTAssertEqual(answers.first?["question_id"] as? String, "send")
         XCTAssertEqual(answers.first?["value"] as? Bool, true)
     }
@@ -211,7 +219,7 @@ final class GuidanceServerPayloadTests: XCTestCase {
       "capabilities":[],"connections":[{"id":"slack","name":"Slack","required":true,"status":"needs_setup","reason":"Sends the summary"}],
       "file_access":[{"path":"~/Documents/Reports","access":"read_only","is_suggestion":false,"reason":"Reads reports"}],
       "calendar_access":[{"id":"work-id","name":"Work","account":"iCloud","access":"read_only","reason":"Reads work events"}],
-      "native_services":{"reminders":{"resources":[{"id":"book-ideas-id","name":"Book ideas","account":"Personal","actions":["read","create","complete"]}]}},
+      "native_services":{"reminders":{"resources":[{"id":"book-ideas-id","name":"Book ideas","account":"Personal","actions":["read","create","complete"]}]},"contacts":{"resources":[{"id":"family-id","name":"Family","account":"iCloud","actions":["read"],"fields":["name","birthday"]}]}},
       "permissions":{"can_modify_files":false,"can_run_commands":false,"requires_network":true,"can_use_connected_apps":true,"can_send_messages":true},
       "notification_destination":{"kind":"slack","label":"Slack","configured":false},"runtime":null,
       "risk":{"level":"needs_review","reasons":["External messaging"],"finding_count":1},"missing_information":[],"questions":[],"markdown_instructions":"# Friday summary"
