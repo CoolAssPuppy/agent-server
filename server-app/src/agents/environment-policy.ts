@@ -46,7 +46,11 @@ const PROVIDER_CREDENTIALS: Readonly<Record<string, ReadonlySet<string>>> = {
 };
 
 const MCP_CREDENTIALS: ReadonlyArray<{ name: RegExp; variables: ReadonlySet<string> }> = [
-  { name: /(?:^|[-_])notion(?:$|[-_])/i, variables: new Set(['NOTION_API_KEY']) },
+  {
+    name: /(?:^|[-_])notion(?:$|[-_])/i,
+    variables: new Set(['NOTION_API_KEY', 'NOTION_PERSONAL_API_KEY']),
+  },
+  { name: /^hex$/i, variables: new Set(['HEX_PERSONAL_ACCESS_TOKEN']) },
   { name: /(?:^|[-_])slack(?:$|[-_])/i, variables: new Set(['SLACK_BOT_TOKEN', 'SLACK_TEAM_ID']) },
   { name: /(?:^|[-_])gmail(?:$|[-_])/i, variables: new Set(['GMAIL_MCP_TOKEN']) },
   { name: /trip[-_]?master/i, variables: new Set(['TRIPMASTER_API_KEY']) },

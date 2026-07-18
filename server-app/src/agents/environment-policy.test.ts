@@ -72,4 +72,22 @@ describe('agent environment policy', () => {
       source,
     )).toThrow(/not approved/i);
   });
+
+  it('keeps existing Personal Notion and Hex connection references compatible', () => {
+    const source = {
+      NOTION_PERSONAL_API_KEY: 'personal-notion-secret',
+      HEX_PERSONAL_ACCESS_TOKEN: 'hex-secret',
+    };
+
+    expect(resolveApprovedMcpValues(
+      'notion-personal',
+      { NOTION_TOKEN: '${NOTION_PERSONAL_API_KEY}' },
+      source,
+    )).toEqual({ NOTION_TOKEN: 'personal-notion-secret' });
+    expect(resolveApprovedMcpValues(
+      'hex',
+      { Authorization: 'Bearer ${HEX_PERSONAL_ACCESS_TOKEN}' },
+      source,
+    )).toEqual({ Authorization: 'Bearer hex-secret' });
+  });
 });
