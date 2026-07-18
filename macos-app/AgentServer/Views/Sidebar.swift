@@ -181,25 +181,38 @@ struct Sidebar: View {
     private var emptyStateMessage: String {
         if let error = monitor.localAPISetupError { return error }
         return monitor.isServerReachable
-            ? "Click New agent below to create your first one."
+            ? "Choose Create Agent below to create your first one."
             : "Start the agent server daemon to see your agents."
     }
 
     private var footer: some View {
-        HStack(spacing: NSpacing.sm) {
-            Button(action: onOpenFolder) {
-                Label("Open folder", systemImage: "folder")
-                    .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.mutedForeground)
+        VStack(alignment: .leading, spacing: NSpacing.sm) {
+            Button(action: onNewAgent) {
+                HStack(spacing: NSpacing.xs) {
+                    Image(systemName: "plus")
+                    Text("Create Agent")
+                    Spacer(minLength: 0)
+                }
+                .font(NTypography.bodyMedium)
+                .foregroundStyle(theme.tokens.primary)
+                .padding(.horizontal, NSpacing.sm)
+                .padding(.vertical, NSpacing.sm)
+                .frame(maxWidth: .infinity)
+                .background(theme.tokens.primary.opacity(0.1))
+                .overlay {
+                    RoundedRectangle(cornerRadius: NRadius.sm)
+                        .stroke(theme.tokens.primary.opacity(0.3), lineWidth: 1)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Create Agent")
+            .accessibilityIdentifier(ConsumerFlowAccessibility.sidebarCreateAgent)
 
-            Spacer()
-
-            Button(action: onNewAgent) {
-                Label("New agent", systemImage: "plus")
+            Button(action: onOpenFolder) {
+                Label("Open agents folder", systemImage: "folder")
                     .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.primary)
+                    .foregroundStyle(theme.tokens.mutedForeground)
             }
             .buttonStyle(.plain)
         }

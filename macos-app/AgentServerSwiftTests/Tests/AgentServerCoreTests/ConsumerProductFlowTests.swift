@@ -191,6 +191,7 @@ final class ConsumerProductFlowTests: XCTestCase {
     }
 
     func testCriticalControlsHaveStableAccessibilityIdentifiers() {
+        XCTAssertEqual(ConsumerFlowAccessibility.sidebarCreateAgent, "sidebar.createAgent")
         XCTAssertEqual(ConsumerFlowAccessibility.creationRequest, "creation.request")
         XCTAssertEqual(ConsumerFlowAccessibility.creationReview, "creation.review")
         XCTAssertEqual(ConsumerFlowAccessibility.creationSimilar, "creation.similar")
