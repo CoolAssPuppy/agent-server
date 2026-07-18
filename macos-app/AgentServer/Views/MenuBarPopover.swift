@@ -70,6 +70,7 @@ struct MenuBarPopover: View {
             bottomBar
         }
         .frame(width: 360, height: 520)
+        .textSelection(.enabled)
         .nTheme(themeManager.themeConfig)
         .background(themeManager.themeConfig.tokens.background)
         .environment(\.colorScheme, themeManager.currentTheme.palette.isDark ? .dark : .light)

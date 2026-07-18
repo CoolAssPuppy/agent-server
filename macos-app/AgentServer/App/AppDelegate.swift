@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var eventMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        setupMainMenu()
 #if DEBUG
         if let scenario = UITestScenario.current {
             mainWindow = UITestScenarioWindow.makeWindow(for: scenario)
@@ -31,7 +32,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         NSApp.setActivationPolicy(.accessory)
         Telemetry.setup()
         Telemetry.capture("app_launched")
-        setupMainMenu()
         setupStatusItem()
         setupPopover()
         subscribeToUpdates()
@@ -70,16 +70,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        DispatchQueue.main.async { [weak self] in
+            self?.installMainMenuIfNeeded()
+        }
+    }
 }
 
 // MARK: - Setup
 
 private extension AppDelegate {
+    func installMainMenuIfNeeded() {
+        let submenuTitles = NSApp.mainMenu?.items.compactMap { $0.submenu?.title } ?? []
+        if ApplicationMenuPolicy.needsInstallation(submenuTitles: submenuTitles) {
+            setupMainMenu()
+        }
+    }
+
     func setupMainMenu() {
         let mainMenu = NSMenu()
 
         // App menu (titled by macOS with the process name)
-        let appMenuItem = NSMenuItem()
+        let appMenuItem = NSMenuItem(title: "Agent Server", action: nil, keyEquivalent: "")
         let appMenu = NSMenu()
 
         let about = NSMenuItem(
@@ -143,7 +156,7 @@ private extension AppDelegate {
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
 
-        let fileMenuItem = NSMenuItem()
+        let fileMenuItem = NSMenuItem(title: "File", action: nil, keyEquivalent: "")
         let fileMenu = NSMenu(title: "File")
         let newAgent = NSMenuItem(title: "New Agent", action: #selector(showNewAgent), keyEquivalent: "n")
         newAgent.target = self
@@ -152,21 +165,12 @@ private extension AppDelegate {
         mainMenu.addItem(fileMenuItem)
 
         // Edit menu — standard text editing shortcuts
-        let editMenuItem = NSMenuItem()
-        let editMenu = NSMenu(title: "Edit")
-        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
-        let redo = editMenu.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
-        redo.keyEquivalentModifierMask = [.command, .shift]
-        editMenu.addItem(.separator())
-        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
-        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
-        editMenuItem.submenu = editMenu
+        let editMenuItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
+        editMenuItem.submenu = StandardEditMenu.make()
         mainMenu.addItem(editMenuItem)
 
         // Window menu
-        let windowMenuItem = NSMenuItem()
+        let windowMenuItem = NSMenuItem(title: "Window", action: nil, keyEquivalent: "")
         let windowMenu = NSMenu(title: "Window")
         windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
         windowMenu.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")

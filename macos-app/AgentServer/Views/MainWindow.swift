@@ -44,6 +44,7 @@ struct MainWindow: View {
             debuggerDrawerLayer
         }
         .frame(minWidth: 1080, minHeight: 640)
+        .textSelection(.enabled)
         .nTheme(themeManager.themeConfig)
         .background(themeManager.themeConfig.tokens.background)
         .environment(\.colorScheme, isDark ? .dark : .light)

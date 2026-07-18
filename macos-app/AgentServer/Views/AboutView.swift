@@ -33,5 +33,6 @@ struct AboutView: View {
         .padding(.horizontal, 32)
         .padding(.bottom, 24)
         .frame(width: 360)
+        .textSelection(.enabled)
     }
 }
