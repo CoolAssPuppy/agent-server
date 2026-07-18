@@ -44,6 +44,7 @@ import { ProgressBroadcaster, type ProgressEvent } from './websocket.js';
 import { sanitizeProgressEvent, sanitizeText } from './security-utils.js';
 import { parseDuration } from '../agents/duration.js';
 import { toErrorMessage } from '../util/errors.js';
+import { createAnalysisRuntime } from '../analysis/runtime.js';
 
 export type ServerInstance = {
   stop: () => Promise<void> | void;
@@ -642,6 +643,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   // the app can force a re-probe via POST /connections/refresh.
   const connectionCache = new ConnectionCache(() => probeMcpServers());
   void connectionCache.refresh().catch(() => {});
+  const analysisRuntime = createAnalysisRuntime({ agentsDir: config.agentsDir });
 
   const app = createApi({
     getAgents: () => discoverAgents(config.agentsDir),
@@ -667,6 +669,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     apiKey,
     startedAt,
     host: config.host,
+    analysisApi: analysisRuntime.api,
   });
 
   const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
@@ -1041,6 +1044,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       // Wait for both channel setups to finish registering before stopping all.
       void Promise.allSettled([telegramPromise, slackPromise]).then(() => channelDispatcher.stopAll());
       store.close();
+      analysisRuntime.close();
       console.log('Agent Server stopped.');
     },
   };

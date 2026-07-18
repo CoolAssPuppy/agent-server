@@ -70,6 +70,8 @@ type ApiDependencies = {
    * empty snapshot and capability lists fall back to built-ins + configured.
    */
   connections?: ConnectionSource;
+  /** Optional local security analysis and configuration patch routes. */
+  analysisApi?: Hono;
   apiKey: string;
   startedAt?: string;
   host?: string;
@@ -242,6 +244,8 @@ export function createApi(deps: ApiDependencies): Hono {
       ...(deps.startedAt ? { started_at: deps.startedAt } : {}),
     });
   });
+
+  if (deps.analysisApi) app.route('/', deps.analysisApi);
 
   const getEnv = deps.getEnv ?? ((): EnvSource => process.env);
 

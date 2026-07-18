@@ -46,6 +46,24 @@ export {
   type RuntimePaths,
 } from './execution/runtime-discovery.js';
 export { createApi } from './server/api.js';
+export {
+  ConfigurationChangesSchema,
+  ConfigurationPatchSchema,
+  InMemoryAgentContentRepository,
+  PatchConflictError,
+  PatchPolicyError,
+  StructuredPatchService,
+  type AgentContentRepository,
+  type ConfigurationChanges,
+  type ConfigurationPatch,
+  type PatchApplyResult,
+  type PatchPreview,
+} from './analysis/patch.js';
+export { FileAgentContentRepository } from './analysis/patch-repository.js';
+export { SqliteSecurityReviewStore, type SecurityReviewRecord } from './analysis/review-store.js';
+export { SecurityAnalysisService, ANALYZER_VERSION } from './analysis/security-service.js';
+export { createAnalysisApi, type AnalysisApiDependencies, type SecurityContentSource } from './analysis/security-api.js';
+export { createAnalysisRuntime } from './analysis/runtime.js';
 export { startServer, type ServerInstance } from './server/server.js';
 export { evaluateTriggers } from './agents/triggers.js';
 export { FileWatcher, extractWatchConfigs, expandHome, type FileWatchConfig } from './agents/file-watcher.js';

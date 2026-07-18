@@ -26,6 +26,21 @@ const CLAUDE_RUNTIME_VARIABLES = [
   'XDG_CONFIG_HOME',
 ] as const;
 
+const CODEX_RUNTIME_VARIABLES = [
+  'CODEX_HOME',
+  'COLORTERM',
+  'HOME',
+  'LANG',
+  'LC_ALL',
+  'LOGNAME',
+  'PATH',
+  'SHELL',
+  'TERM',
+  'TMPDIR',
+  'USER',
+  'XDG_CONFIG_HOME',
+] as const;
+
 const PROVIDER_CREDENTIALS: Readonly<Record<string, ReadonlySet<string>>> = {
   'api.moonshot.ai': new Set(['MOONSHOT_API_KEY']),
 };
@@ -116,5 +131,17 @@ export function buildClaudeChildEnvironment(
   environment.ANTHROPIC_BASE_URL = agent.provider.base_url;
   const apiKey = resolveApprovedProviderKey(agent.provider, source);
   if (apiKey) environment.ANTHROPIC_API_KEY = apiKey;
+  return environment;
+}
+
+/** Build a Codex child environment without inheriting server or provider secrets. */
+export function buildCodexChildEnvironment(
+  source: EnvironmentSource = process.env,
+): Record<string, string> {
+  const environment: Record<string, string> = {};
+  for (const name of CODEX_RUNTIME_VARIABLES) {
+    const value = source[name];
+    if (value !== undefined) environment[name] = value;
+  }
   return environment;
 }

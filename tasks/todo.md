@@ -8,7 +8,7 @@ The audit at `~/Desktop/codebase-cleanup.md` is part of this plan. Its work is
 sequenced as follows so security and reliability fixes land before model-backed
 features depend on them:
 
-- [ ] Milestone 1 prerequisites: wrong-agent draft overwrite, persistent
+- [x] Milestone 1 prerequisites: wrong-agent draft overwrite, persistent
   WebSocket reconnect, always-on local API key, authenticated macOS client,
   Claude child environment allowlist, safer default permissions, restricted
   environment substitution, same-origin and Host validation, WebSocket and
@@ -34,7 +34,7 @@ Security fixes receive behavior tests before production changes.
 ## Verified baseline
 
 - [x] Baseline commit: `5b779736985e918874b80b390372be71645dc19a`
-- [x] Branch: `main`
+- [x] Branch: `creation-experience`
 - [x] Worktree clean before discovery
 - [x] Server tests: 862 passed across 60 files
 - [x] Swift tests: 126 passed
@@ -167,15 +167,15 @@ narrow capability that can be tested without side effects.
 
 ### 1. Shared schemas, redaction, and run identity
 
-- [ ] Write failing tests for shared schemas, redaction, content hashes, and the
+- [x] Write failing tests for shared schemas, redaction, content hashes, and the
   current duplicate run-ID behavior.
-- [ ] Add shared analysis models and discriminated unions.
-- [ ] Replace narrow regex-only redaction with bounded, context-aware redaction.
+- [x] Add shared analysis models and discriminated unions.
+- [x] Replace narrow regex-only redaction with bounded, context-aware redaction.
 - [ ] Reject literal provider credentials at schema and patch boundaries.
-- [ ] Sanitize WebSocket metadata and stored diagnostic evidence.
-- [ ] Unify run IDs across API, store, reporter, WebSocket, cancellation, and
+- [x] Sanitize WebSocket metadata and stored diagnostic evidence.
+- [x] Unify run IDs across API, store, reporter, WebSocket, cancellation, and
   lock-contention paths.
-- [ ] Run server tests, lint, type check, and build.
+- [x] Run server tests, lint, type check, and build.
 
 ### 2. Security analyzer and review state
 
@@ -306,18 +306,19 @@ narrow capability that can be tested without side effects.
 - [ ] Record results, known limitations, file links, commit IDs, and the final
   verification report in this document.
 
-## Planned commits
+## Commits
 
 Each commit includes its tests and keeps the repository buildable:
 
-1. `Unify run identity and add analysis schemas`
-2. `Add local security analysis and review state`
-3. `Add safe patch preview apply and undo`
-4. `Add structured agent proposal generation`
-5. `Add guided run diagnosis and retry links`
-6. `Build native creation debugger and security views`
-7. `Add UI fixtures accessibility coverage and previews`
-8. `Document Build Week features and verification`
+1. `65d033a Harden local execution and add analysis foundation`
+2. `919c6fe Simplify local security and reliability policies`
+3. `Add local security analysis and review state`
+4. `Add safe patch preview apply and undo`
+5. `Add structured agent proposal generation`
+6. `Add guided run diagnosis and retry links`
+7. `Build native creation debugger and security views`
+8. `Add UI fixtures accessibility coverage and previews`
+9. `Document Build Week features and verification`
 
 Commit IDs will be recorded after each verified milestone. No commit will mix
 unrelated cleanup with this work.
@@ -334,8 +335,9 @@ unrelated cleanup with this work.
 
 ## Review notes
 
-- Production implementation has not started.
-- Discovery changed only this plan and the correction note in `tasks/lessons.md`.
+- Production implementation is in progress on `creation-experience`.
+- The first two verified batches pass 913 server tests, 143 Swift tests, lint,
+  TypeScript checking, the server build, and the unsigned macOS build.
 - The existing v2 plan remains below for historical context.
 
 # Agent Server v2 plan

@@ -1,6 +1,6 @@
 import { Codex, type ThreadEvent, type ThreadItem, type ThreadOptions } from '@openai/codex-sdk';
 import type { AgentConfig, McpServerConfig } from '../agents/config.js';
-import { resolveApprovedProviderKey } from '../agents/environment-policy.js';
+import { buildCodexChildEnvironment, resolveApprovedProviderKey } from '../agents/environment-policy.js';
 import { deriveCodexSandbox, deriveCodexNetworkAccess } from '../execution/codex-safety.js';
 import { expandHome } from '../agents/file-watcher.js';
 import type { ExecutionResult, ToolCallTrace } from '../execution/executor.js';
@@ -40,7 +40,7 @@ export async function executeCodexAgent(
   const startedAt = performance.now();
   const state = createState();
   const codex = new Codex({
-    env: getSubscriptionEnvironment(),
+    env: buildCodexChildEnvironment(),
     config: getCodexConfig(agent),
     // Use the user's installed Codex binary when discovery found one;
     // undefined falls back to the codex-sdk's bundled binary.
@@ -81,29 +81,6 @@ function getThreadOptions(agent: AgentConfig): ThreadOptions {
     networkAccessEnabled,
     webSearchMode: 'disabled',
   };
-}
-
-function getSubscriptionEnvironment(): Record<string, string> {
-  const allowedNames = [
-    'CODEX_HOME',
-    'COLORTERM',
-    'HOME',
-    'LANG',
-    'LC_ALL',
-    'LOGNAME',
-    'PATH',
-    'SHELL',
-    'TERM',
-    'TMPDIR',
-    'USER',
-    'XDG_CONFIG_HOME',
-  ];
-  const environment: Record<string, string> = {};
-  for (const name of allowedNames) {
-    const value = process.env[name];
-    if (value !== undefined) environment[name] = value;
-  }
-  return environment;
 }
 
 /**

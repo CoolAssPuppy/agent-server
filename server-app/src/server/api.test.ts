@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Hono } from 'hono';
 import { createApi as createProductionApi } from './api.js';
 import { RunStore } from '../reporting/store.js';
 import { makeAgent, makeStoredRun } from '../test-factories.js';
@@ -691,6 +692,36 @@ describe('API routes', () => {
       expect(slack).toBeDefined();
       expect(slack.server_name).toBe('claude_ai_Slack');
       expect(slack.status).toBe('connected');
+    });
+  });
+
+  describe('analysis routes', () => {
+    function createAnalysisApp() {
+      const analysisApi = new Hono().post('/security/scan', (context) => context.json({ total: 1 }));
+      return createApi({
+        getAgents: async () => [makeAgent()],
+        store,
+        triggerRun,
+        host: '127.0.0.1',
+        analysisApi,
+      });
+    }
+
+    it('mounts configured analysis routes behind local API authentication', async () => {
+      const app = createAnalysisApp();
+      expect((await app.request('/security/scan', { method: 'POST' })).status).toBe(401);
+
+      const response = await authenticatedRequest(app, '/security/scan', { method: 'POST' });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ total: 1 });
+    });
+
+    it('applies existing origin protection to analysis mutations', async () => {
+      const response = await authenticatedRequest(createAnalysisApp(), '/security/scan', {
+        method: 'POST',
+        headers: { origin: 'https://outside.example' },
+      });
+      expect(response.status).toBe(403);
     });
   });
 });

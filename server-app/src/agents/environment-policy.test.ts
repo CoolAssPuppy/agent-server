@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { makeAgent } from '../test-factories.js';
 import {
   buildClaudeChildEnvironment,
+  buildCodexChildEnvironment,
   resolveApprovedMcpValues,
   resolveApprovedProviderKey,
 } from './environment-policy.js';
@@ -25,6 +26,24 @@ describe('agent environment policy', () => {
     expect(environment.HOME).toBe('/Users/tester');
     expect(environment.AGENT_SERVER_API_KEY).toBeUndefined();
     expect(environment.DATABASE_URL).toBeUndefined();
+  });
+
+  it('keeps Codex login settings without passing unrelated server secrets', () => {
+    const environment = buildCodexChildEnvironment({
+      CODEX_HOME: '/Users/tester/.codex',
+      HOME: '/Users/tester',
+      PATH: '/usr/bin',
+      AGENT_SERVER_API_KEY: 'server-secret',
+      OPENAI_API_KEY: 'unneeded-key',
+    });
+
+    expect(environment).toMatchObject({
+      CODEX_HOME: '/Users/tester/.codex',
+      HOME: '/Users/tester',
+      PATH: '/usr/bin',
+    });
+    expect(environment.AGENT_SERVER_API_KEY).toBeUndefined();
+    expect(environment.OPENAI_API_KEY).toBeUndefined();
   });
 
   it('adds only an approved provider credential', () => {
