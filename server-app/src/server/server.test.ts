@@ -3,8 +3,10 @@ import { evaluateTriggers } from '../agents/triggers.js';
 import { makeAgent } from '../test-factories.js';
 import type { AgentConfig } from '../agents/config.js';
 import {
+  chatKeyFromString,
   extractMcpNeedsAuthServers,
   shouldDispatchNotification,
+  shouldSendChannelRunNotification,
   shouldSendTelegramRunNotification,
 } from './server.js';
 
@@ -135,6 +137,29 @@ describe('shouldSendTelegramRunNotification', () => {
     });
 
     expect(shouldSendTelegramRunNotification(agent, 'completed')).toBe(true);
+  });
+});
+
+describe('shouldSendChannelRunNotification', () => {
+  it('suppresses only the channel the agent already notifies on', () => {
+    const agent = makeAgent({
+      notification: { channel: 'slack', on_complete: true, on_failure: true },
+    });
+    // Slack notification is already configured, so the ad-hoc run stays quiet.
+    expect(shouldSendChannelRunNotification(agent, 'completed', 'slack')).toBe(false);
+    // A different channel is unaffected.
+    expect(shouldSendChannelRunNotification(agent, 'completed', 'telegram')).toBe(true);
+  });
+});
+
+describe('chatKeyFromString', () => {
+  it('is deterministic and positive', () => {
+    expect(chatKeyFromString('D123')).toBe(chatKeyFromString('D123'));
+    expect(chatKeyFromString('D123')).toBeGreaterThanOrEqual(0);
+  });
+
+  it('separates distinct channel ids', () => {
+    expect(chatKeyFromString('D123')).not.toBe(chatKeyFromString('D999'));
   });
 });
 

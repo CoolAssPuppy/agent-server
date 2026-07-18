@@ -58,6 +58,10 @@ export const ServerConfigSchema = z.object({
    * pair via `/start` and all callbacks from other chats are ignored.
    */
   telegramAllowedChatId: z.number().int().optional(),
+  /** Slack bot token (xoxb-…): drives the Web API for sending messages. */
+  slackBotToken: z.string().optional(),
+  /** Slack app-level token (xapp-…): opens the Socket Mode connection. */
+  slackAppToken: z.string().optional(),
   apiKey: z.string().min(16).optional(),
   catchUp: z.boolean().default(false),
   maxConcurrentRuns: z.number().int().positive().default(8),
@@ -103,6 +107,11 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     telegramAllowedChatId: env.AGENT_SERVER_TELEGRAM_CHAT_ID
       ? Number(env.AGENT_SERVER_TELEGRAM_CHAT_ID)
       : undefined,
+    // Accept both the AGENT_SERVER_-prefixed names (consistent with the rest of
+    // our config) and the bare SLACK_* names (Slack's own convention, and what
+    // users typically already keep in Doppler/.env).
+    slackBotToken: env.AGENT_SERVER_SLACK_BOT_TOKEN || env.SLACK_BOT_TOKEN || undefined,
+    slackAppToken: env.AGENT_SERVER_SLACK_APP_TOKEN || env.SLACK_APP_TOKEN || undefined,
     apiKey: env.AGENT_SERVER_API_KEY || undefined,
     catchUp: env.AGENT_SERVER_CATCH_UP === 'true',
     maxConcurrentRuns: env.AGENT_SERVER_MAX_CONCURRENT_RUNS

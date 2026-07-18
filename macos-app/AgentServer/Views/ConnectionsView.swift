@@ -16,8 +16,13 @@ struct ConnectionsView: View {
     @State private var refreshing = false
     @State private var connectTarget: CatalogConnectTarget?
     @State private var telegramConnected = false
+    @State private var slackMessagingConnected = false
 
     private static let telegramTokenKey = "AGENT_SERVER_TELEGRAM_BOT_TOKEN"
+    // Bare Slack token names (no AGENT_SERVER_ prefix): what Slack's own docs use
+    // and what the user keeps in Doppler/.env. The server accepts both forms.
+    private static let slackBotTokenKey = "SLACK_BOT_TOKEN"
+    private static let slackAppTokenKey = "SLACK_APP_TOKEN"
 
     /// Telegram is a server-wide messaging channel (bot token), not a per-agent
     /// capability, so it isn't in the catalog. Present it here as its own
@@ -33,6 +38,23 @@ struct ConnectionsView: View {
             builtin: false,
             requiredEnv: [Self.telegramTokenKey],
             envReady: telegramConnected
+        )
+    }
+
+    /// Slack as a two-way messaging channel (chat with a bot) — distinct from
+    /// the Slack data connection above. Socket Mode needs a bot token (sending)
+    /// and an app-level token (receiving), so it collects both keys.
+    private var slackMessagingEntry: CapabilityCatalogEntry {
+        CapabilityCatalogEntry(
+            id: "slack-bot",
+            label: "Slack",
+            description: "Message your agents and get their replies through a Slack bot",
+            icon: "bubble.left.and.bubble.right",
+            kind: "channel",
+            auth: .apiKey,
+            builtin: false,
+            requiredEnv: [Self.slackBotTokenKey, Self.slackAppTokenKey],
+            envReady: slackMessagingConnected
         )
     }
 
@@ -77,7 +99,9 @@ struct ConnectionsView: View {
             loaded = true
             catalog = await monitor.capabilityCatalog()
             snapshot = await monitor.connections()
-            telegramConnected = Self.isTelegramConnected()
+            telegramConnected = Self.isConnected(Self.telegramTokenKey)
+            slackMessagingConnected = Self.isConnected(Self.slackBotTokenKey)
+                && Self.isConnected(Self.slackAppTokenKey)
             // The boot probe may still be in flight the first time this opens,
             // so a fresh install shows "Checking…". Await it once — the server
             // cache coalesces, so this joins the in-flight probe rather than
@@ -91,6 +115,9 @@ struct ConnectionsView: View {
         .sheet(item: $connectTarget) { target in
             ConnectServiceSheet(monitor: monitor, entry: target.entry) {
                 connectTarget = nil
+                telegramConnected = Self.isConnected(Self.telegramTokenKey)
+                slackMessagingConnected = Self.isConnected(Self.slackBotTokenKey)
+                    && Self.isConnected(Self.slackAppTokenKey)
                 Task { catalog = await monitor.capabilityCatalog() }
             }
         }
@@ -245,7 +272,7 @@ struct ConnectionsView: View {
                 .font(NTypography.labelSmall)
                 .tracking(0.8)
                 .foregroundStyle(theme.tokens.mutedForeground)
-            Text("Chat with your agents from your phone. Add a Telegram bot token and your agents can message you and take your replies.")
+            Text("Chat with your agents from Telegram or Slack. Add a bot token and your agents can message you and take your replies.")
                 .font(NTypography.caption)
                 .foregroundStyle(theme.tokens.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
@@ -254,6 +281,10 @@ struct ConnectionsView: View {
                 ConnectionRow(entry: telegramEntry) {
                     connectTarget = CatalogConnectTarget(entry: telegramEntry)
                 }
+                Divider().opacity(0.25)
+                ConnectionRow(entry: slackMessagingEntry) {
+                    connectTarget = CatalogConnectTarget(entry: slackMessagingEntry)
+                }
             }
             .background(theme.tokens.background)
             .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border, lineWidth: 1))
@@ -261,13 +292,13 @@ struct ConnectionsView: View {
         }
     }
 
-    /// Whether the Telegram bot token is already set in either env file.
-    private static func isTelegramConnected() -> Bool {
+    /// Whether an env key is set (non-empty) in either env file.
+    private static func isConnected(_ key: String) -> Bool {
         let home = FileManager.default.homeDirectoryForCurrentUser
         for name in [".agent-server/.env.local", ".agent-server/.env"] {
             let url = home.appendingPathComponent(name)
             if let pairs = try? EnvFileStore.load(from: url),
-               let pair = pairs.first(where: { $0.key == telegramTokenKey }),
+               let pair = pairs.first(where: { $0.key == key }),
                !pair.value.trimmingCharacters(in: .whitespaces).isEmpty {
                 return true
             }

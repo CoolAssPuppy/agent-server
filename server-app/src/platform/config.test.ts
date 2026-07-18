@@ -69,6 +69,19 @@ describe('loadConfig', () => {
     const config = loadConfig({ AGENT_SERVER_PANEL_URL: '' });
     expect(config.panelUrl).toBeUndefined();
   });
+
+  it('reads Slack tokens from bare or prefixed names', () => {
+    const bare = loadConfig({ SLACK_BOT_TOKEN: 'xoxb-1', SLACK_APP_TOKEN: 'xapp-1' });
+    expect(bare.slackBotToken).toBe('xoxb-1');
+    expect(bare.slackAppToken).toBe('xapp-1');
+
+    // The AGENT_SERVER_-prefixed form wins when both are present.
+    const prefixed = loadConfig({
+      AGENT_SERVER_SLACK_BOT_TOKEN: 'xoxb-pref',
+      SLACK_BOT_TOKEN: 'xoxb-bare',
+    });
+    expect(prefixed.slackBotToken).toBe('xoxb-pref');
+  });
 });
 
 function createTempDir(): string {

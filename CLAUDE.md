@@ -78,6 +78,7 @@ sample-agents/           -- Example agent YAML configs
 - @hono/node-ws for WebSocket streaming
 - Commander for CLI
 - grammY for Telegram bot (long-polling, inline keyboards)
+- @slack/socket-mode + @slack/web-api for the Slack bot (Socket Mode, Block Kit)
 - yaml for YAML parsing
 - vitest for testing
 
@@ -269,7 +270,10 @@ Channels implement the `Channel` interface from `channels/channel.ts`. Each chan
 
 - **Console**: Numbered options + readline. Used in `agent-server run` CLI mode.
 - **Telegram**: Inline keyboards via grammY long-polling. No public IP needed. Set `AGENT_SERVER_TELEGRAM_BOT_TOKEN` to enable. Expired interactions are cleaned up by editing the Telegram message to show "This request has expired." and removing the inline keyboard.
+- **Slack** (`channels/slack.ts`): Block Kit buttons over Socket Mode (`@slack/socket-mode` for receiving, `@slack/web-api` for sending) — no public IP needed, mirroring Telegram's long-polling model. Needs TWO tokens: a bot token (`xoxb-…`, Web API) and an app-level token (`xapp-…`, Socket Mode). Read from `AGENT_SERVER_SLACK_BOT_TOKEN`/`AGENT_SERVER_SLACK_APP_TOKEN` OR the bare `SLACK_BOT_TOKEN`/`SLACK_APP_TOKEN` (Slack's own naming). The DM channel is learned from the first inbound message and persisted to `slack.json`. Expired interactions edit the message to "This request has expired." and drop the buttons. This is the "chat with a Slack bot" messaging channel — distinct from the Slack MCP *data* capability an agent reads.
 - **Dispatcher**: `ChannelDispatcher` maps channel names to instances. Calls `expireInteractions()` to clean up expired interactions across channels.
+
+Telegram and Slack share the same inbound-message flow (`handleChannelMessage` in `server.ts`): conversation lookup → `routeMessage` → run trigger → completion notice. Only the transport differs. The conversation store keys by number, so Slack's string channel id is hashed via `chatKeyFromString()`.
 
 ### Telegram message routing
 
@@ -470,6 +474,8 @@ The CLI loads `~/.agent-server/.env` at startup. Shell env vars and Doppler (`do
 | AGENT_SERVER_HEARTBEAT_MS | 60000 | Heartbeat interval (ms). Panel marks runs stale after 90s, so 60s gives a 1.5x safety buffer against single dropped heartbeats. |
 | AGENT_SERVER_PORT | 47821 | HTTP API port |
 | AGENT_SERVER_TELEGRAM_BOT_TOKEN | (none) | Telegram bot token for interactive agents |
+| AGENT_SERVER_SLACK_BOT_TOKEN / SLACK_BOT_TOKEN | (none) | Slack bot token (`xoxb-…`) for the Slack messaging channel (Web API) |
+| AGENT_SERVER_SLACK_APP_TOKEN / SLACK_APP_TOKEN | (none) | Slack app-level token (`xapp-…`) for Socket Mode. Both Slack tokens are required to enable the channel. |
 | AGENT_SERVER_CATCH_UP | false | Resume missed scheduled agents after sleep/wake |
 | AGENT_SERVER_RUN_TIMEOUT_MS | 1800000 | Wall-clock ceiling per run (ms). Agents can override via `timeout` field. Set `0` to disable. |
 | AGENT_SERVER_TELEMETRY_PROGRESS_MODE | live | Panel progress reporting mode. `live` throttles updates to one per sample window; `batched` defers all updates to the terminal payload. |
