@@ -654,9 +654,9 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     ? setInterval(runReplay, PENDING_REPLAY_INTERVAL_MS)
     : null;
 
-  // Bridge panel SSE run_trigger events into the local triggerRun path so
-  // the concurrency cap, RunStore, and activeControllers bookkeeping stay
-  // consistent with the scheduler-driven and HTTP-API-driven paths.
+  // Bridge panel SSE run_trigger events into the local trigger path so the
+  // concurrency cap, run history, and lifecycle bookkeeping stay consistent
+  // with scheduler-driven and HTTP-API-driven runs.
   const triggerHandler = realtimeClient
     ? new TriggerHandler({
         agentsDir: config.agentsDir,
