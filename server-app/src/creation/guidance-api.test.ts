@@ -175,7 +175,14 @@ describe('consumer guidance API', () => {
       ],
       bindings: new Map(),
     };
-    const model = { generate: vi.fn(async () => completeProposal()) };
+    const notionProposal = completeProposal();
+    notionProposal.connections = [{
+      id: 'mcp:notion-personal:abc123', name: 'Incorrect model label', required: true,
+      status: 'connected', reason: 'Stores the note.',
+    }];
+    notionProposal.notification_destination = null;
+    notionProposal.permissions.can_send_messages = false;
+    const model = { generate: vi.fn(async () => notionProposal) };
     const { app } = createFixture({ model, getServiceRegistry: async () => registry });
 
     const accepted = await request(app, '/guidance/agent-proposals', {
@@ -244,7 +251,13 @@ describe('consumer guidance API', () => {
       bindings: new Map(),
     };
     let isRegistryAvailable = true;
+    const proposal = completeProposal();
+    proposal.connections = [];
+    proposal.notification_destination = null;
+    proposal.permissions.can_use_connected_apps = false;
+    proposal.permissions.can_send_messages = false;
     const { app, writer } = createFixture({
+      model: { generate: vi.fn(async () => proposal) },
       getServiceRegistry: async () => {
         if (!isRegistryAvailable) throw new Error('probe failed');
         return registry;

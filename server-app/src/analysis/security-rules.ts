@@ -235,16 +235,25 @@ function analyzePermissions(agent: AgentConfig): Finding[] {
 
 function analyzePaths(agent: AgentConfig, homeDir: string): Finding[] {
   const canWrite = hasAnyPermittedTool(agent, WRITE_TOOLS) || hasAnyPermittedTool(agent, COMMAND_TOOLS);
-  const paths = [
-    { path: effectiveWorkingDirectory(agent, homeDir), canWrite },
+  const candidates = [
+    ...(agent.file_access?.length ? [] : [{ path: effectiveWorkingDirectory(agent, homeDir), canWrite }]),
     ...(agent.watch ?? []).map((watch) => ({ path: watch.path, canWrite })),
     ...(agent.file_access ?? []).map((grant) => ({
       path: grant.path,
       canWrite: grant.access === 'read_write',
     })),
   ];
-  return paths.flatMap((entry, index) => {
-    const result = detectSensitivePath(entry.path, homeDir);
+  const paths = new Map<string, { result: SensitivePathResult; canWrite: boolean }>();
+  for (const candidate of candidates) {
+    const result = detectSensitivePath(candidate.path, homeDir);
+    const existing = paths.get(result.normalizedPath);
+    paths.set(result.normalizedPath, {
+      result,
+      canWrite: candidate.canWrite || existing?.canWrite === true,
+    });
+  }
+  return [...paths.values()].flatMap((entry, index) => {
+    const { result } = entry;
     if (result.isSensitive) {
       return [finding(
         'path.sensitive', 'high', `This agent can access ${result.category}`,

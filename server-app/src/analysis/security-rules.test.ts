@@ -144,6 +144,20 @@ describe('deterministic security analysis', () => {
     }));
   });
 
+  it('reports a scoped sensitive working path only once', () => {
+    const result = analyzeAgentSecurity({
+      agent: makeAgent({
+        tools: ['Read'],
+        working_directory: '~/.ssh',
+        file_access: [{ path: '~/.ssh', kind: 'folder', access: 'read_only' }],
+      }),
+      rawContent: 'Review my SSH configuration.',
+      homeDir: '/Users/tester',
+    });
+
+    expect(result.findings.filter((finding) => finding.rule_id === 'path.sensitive')).toHaveLength(1);
+  });
+
   it('marks automatic write-capable watchers as high risk', () => {
     const result = analyzeAgentSecurity({
       agent: makeAgent({

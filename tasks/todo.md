@@ -19,7 +19,8 @@ Status: Feature implementation and automated verification complete. Manual relea
 - Each selected file or folder keeps its own read-only or read-write grant. Exact paths are withheld from model prompts and validated with the persisted agent schema.
 - Scoped file agents use the Claude runtime because the current Codex boundary cannot enforce individual files without widening access. Commands cannot be combined with exact file scopes.
 - Canonical path checks block symlink escapes and apply the narrowest overlapping grant. Missing permission blocks deny every tool by default.
-- Verification: 147 focused server tests, 193 Swift tests, TypeScript type-check and build, and an unsigned Xcode build passed. UI automation was not run.
+- Post-commit simplification now canonicalizes connection labels, restricts service answers to typed connection questions, recomputes risk after local grants, deduplicates analyzed paths, and precomputes canonical grant roots.
+- Verification: 1,093 server tests, 193 Swift tests, TypeScript type-check and build, and an unsigned Xcode build passed. UI automation was not run.
 
 ### Architecture constraints
 

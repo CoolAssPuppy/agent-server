@@ -1,6 +1,10 @@
 import { z } from 'zod';
+import { homedir } from 'node:os';
 import { AgentProposalSchema } from '../analysis/models.js';
+import { analyzeAgentSecurity } from '../analysis/security-rules.js';
+import { renderReviewedAgentFile } from '../agents/reviewed-agent-writer.js';
 import { buildAgentProposalPrompt } from './proposal-prompt.js';
+import { deriveProposalAgentId, proposalToAgentConfig } from './proposal-configuration.js';
 import {
   CreationProposalSchema,
   ProposalRequestSchema,
@@ -86,6 +90,35 @@ function applyConfirmedFileAccess(
   return parsed.success ? parsed.data : undefined;
 }
 
+function applyAuthoritativeConnections(
+  proposal: CreationProposal,
+  request: ProposalRequest,
+): CreationProposal | undefined {
+  const available = new Map(servicesRelevantToRequest(request).map((service) => [service.id, service]));
+  const connections = proposal.connections.map((connection) => {
+    const service = available.get(connection.id);
+    if (!service) return undefined;
+    return {
+      ...connection,
+      name: service.name,
+      status: 'connected' as const,
+    };
+  });
+  if (connections.some((connection) => connection === undefined)) return undefined;
+  return { ...proposal, connections: connections.filter((connection) => connection !== undefined) };
+}
+
+const RISK_ORDER = { low: 0, needs_review: 1, high: 2, critical: 3 } as const;
+
+function applyDeterministicRisk(proposal: CreationProposal): CreationProposal {
+  const agent = proposalToAgentConfig(proposal, deriveProposalAgentId(proposal.name));
+  const rawContent = renderReviewedAgentFile(agent);
+  const deterministic = analyzeAgentSecurity({ agent, rawContent, homeDir: homedir() }).risk;
+  return RISK_ORDER[deterministic.level] > RISK_ORDER[proposal.risk.level]
+    ? { ...proposal, risk: deterministic }
+    : proposal;
+}
+
 function needsFileAccess(intent: string): boolean {
   return /\b(files?|folders?|documents?|directory|manuscripts?)\b/.test(intent);
 }
@@ -169,7 +202,9 @@ function unansweredConnectionQuestion(request: ProposalRequest): ProposalFallbac
 export function servicesRelevantToRequest(request: ProposalRequest): ProposalRequest['connectedServices'] {
   const intent = request.request.toLowerCase();
   const selectedIds = new Set(request.answers.flatMap((answer) => (
-    typeof answer.value === 'string' ? [answer.value] : []
+    answer.question_id.startsWith('connection-') && typeof answer.value === 'string'
+      ? [answer.value]
+      : []
   )));
   const groups = new Map<string, number>();
   for (const service of request.connectedServices) {
@@ -267,17 +302,20 @@ export async function createAgentProposal(input: CreateProposalInput): Promise<P
     try {
       const value = await input.model.generate(prompt, outputSchema, { requestKey: 'agent-proposal' });
       const parsedProposal = parseModelValue(value);
-      const proposal = parsedProposal ? applyConfirmedFileAccess(parsedProposal, request) : undefined;
+      const withFiles = parsedProposal ? applyConfirmedFileAccess(parsedProposal, request) : undefined;
+      if (withFiles && (withFiles.missing_information.length > 0
+        || withFiles.questions.some((question) => question.required))) {
+        return {
+          status: 'needs_information',
+          questions: withFiles.questions,
+          explanation: withFiles.explanation,
+          usedFallback: false,
+          modelStatus: 'completed',
+        };
+      }
+      const withConnections = withFiles ? applyAuthoritativeConnections(withFiles, request) : undefined;
+      const proposal = withConnections ? applyDeterministicRisk(withConnections) : undefined;
       if (proposal) {
-        if (proposal.missing_information.length > 0 || proposal.questions.some((question) => question.required)) {
-          return {
-            status: 'needs_information',
-            questions: proposal.questions,
-            explanation: proposal.explanation,
-            usedFallback: false,
-            modelStatus: 'completed',
-          };
-        }
         return { status: 'proposal', proposal, usedFallback: false };
       }
     } catch {

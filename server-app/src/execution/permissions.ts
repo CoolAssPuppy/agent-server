@@ -34,6 +34,15 @@ type FileAccessOptions = {
   fileAccess: NonNullable<AgentConfig['file_access']>;
 };
 
+type CanonicalFileAccessOptions = {
+  cwd: string;
+  grants: Array<{
+    root: string;
+    kind: 'file' | 'folder';
+    access: 'read_only' | 'read_write';
+  }>;
+};
+
 const READ_FILE_TOOLS = new Set(['Read', 'Glob', 'Grep']);
 const WRITE_FILE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
 
@@ -67,7 +76,7 @@ function grantContains(root: string, kind: 'file' | 'folder', requested: string)
 function hasFileAccess(
   toolName: string,
   input: Record<string, unknown>,
-  options: FileAccessOptions,
+  options: CanonicalFileAccessOptions,
 ): boolean {
   const isRead = READ_FILE_TOOLS.has(toolName);
   const isWrite = WRITE_FILE_TOOLS.has(toolName);
@@ -76,21 +85,28 @@ function hasFileAccess(
   const requested = requestedPath(input, options.cwd);
   const path = requested ? canonicalPath(requested) : undefined;
   if (!path) return false;
-  const matching = options.fileAccess
-    .map((grant) => ({ grant, root: canonicalPath(expandedPath(grant.path, options.cwd)) }))
-    .filter(({ grant, root }) => grantContains(root, grant.kind, path))
+  const matching = options.grants
+    .filter((grant) => grantContains(grant.root, grant.kind, path))
     .sort((left, right) => (
       right.root.length - left.root.length
-      || left.grant.access.localeCompare(right.grant.access)
+      || left.access.localeCompare(right.access)
     ));
-  const effectiveGrant = matching[0]?.grant;
+  const effectiveGrant = matching[0];
   return Boolean(effectiveGrant && (isRead || effectiveGrant.access === 'read_write'));
 }
 
 export function buildCanUseTool(permissions: Permissions, fileOptions?: FileAccessOptions): CanUseToolFn {
+  const canonicalFileOptions = fileOptions ? {
+    cwd: fileOptions.cwd,
+    grants: fileOptions.fileAccess.map((grant) => ({
+      root: canonicalPath(expandedPath(grant.path, fileOptions.cwd)),
+      kind: grant.kind,
+      access: grant.access,
+    })),
+  } : undefined;
   return async (toolName, input) => {
     if (isToolAllowed(toolName, permissions)) {
-      if (fileOptions && !hasFileAccess(toolName, input, fileOptions)) {
+      if (canonicalFileOptions && !hasFileAccess(toolName, input, canonicalFileOptions)) {
         return { behavior: 'deny', message: `Tool "${toolName}" cannot access that file or folder` };
       }
       return { behavior: 'allow' };

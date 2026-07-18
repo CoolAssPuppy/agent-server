@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildAgentProposalPrompt,
   createAgentProposal,
+  servicesRelevantToRequest,
   type ProposalModel,
 } from './proposal-service.js';
 import { proposalToAgentConfig } from './proposal-configuration.js';
@@ -182,6 +183,10 @@ describe('guided agent proposal creation', () => {
 
   it('asks for one or more exact file grants before using the model', async () => {
     const reviewed = completeProposal();
+    reviewed.connections = [];
+    reviewed.notification_destination = null;
+    reviewed.permissions.can_use_connected_apps = false;
+    reviewed.permissions.can_send_messages = false;
     reviewed.file_access = [{
       path: '~/Documents/Research', kind: 'folder', access: 'read_only',
       is_suggestion: false, reason: 'Reads the selected research folder.',
@@ -605,6 +610,8 @@ describe('guided agent proposal creation', () => {
 
   it('keeps confirmed file grants server-owned when model output tries to broaden them', async () => {
     const broadened = completeProposal();
+    broadened.connections = [];
+    broadened.notification_destination = null;
     broadened.file_access = [{
       path: '~/', kind: 'folder', access: 'read_write', is_suggestion: false, reason: 'Broad access.',
     }];
@@ -612,8 +619,8 @@ describe('guided agent proposal creation', () => {
       can_modify_files: true,
       can_run_commands: false,
       requires_network: true,
-      can_use_connected_apps: true,
-      can_send_messages: true,
+      can_use_connected_apps: false,
+      can_send_messages: false,
     };
     broadened.risk = { level: 'high', reasons: ['Broad file access.'], finding_count: 0 };
     const fake = modelReturning(broadened, broadened);
@@ -704,5 +711,75 @@ describe('guided agent proposal creation', () => {
       { path: '~/Books/Notes', kind: 'folder', access: 'read_write' },
     ]);
     expect(agent.working_directory).toBe('~/Books');
+  });
+
+  it('uses authoritative connection names instead of model-provided labels', async () => {
+    const proposal = completeProposal();
+    proposal.connections = [{
+      id: 'notion-personal', name: 'Slack', required: true, status: 'connected', reason: 'Stores the note.',
+    }];
+    proposal.notification_destination = null;
+    proposal.permissions.can_send_messages = false;
+    const fake = modelReturning(proposal);
+
+    const result = await createAgentProposal({
+      request: 'Store a note in Personal Notion.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [{
+        id: 'notion-personal', service_id: 'notion', name: 'Personal Notion', source: 'configured_api',
+        actions: ['read', 'write'], actions_known: true,
+      }],
+      model: fake.model,
+    });
+
+    expect(result).toMatchObject({
+      status: 'proposal',
+      proposal: { connections: [{ id: 'notion-personal', name: 'Personal Notion', status: 'connected' }] },
+    });
+  });
+
+  it('does not treat an unrelated text answer as service approval', () => {
+    const request = ProposalRequestSchema.parse({
+      request: 'Create a daily summary.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [{
+        id: 'notion-personal', service_id: 'notion', name: 'Personal Notion', source: 'configured_api',
+        actions: ['read', 'write'], actions_known: true,
+      }],
+      answers: [{ question_id: 'expected-result', value: 'notion-personal' }],
+    });
+
+    expect(servicesRelevantToRequest(request)).toEqual([]);
+  });
+
+  it('raises the proposal risk for read-only access to sensitive files', async () => {
+    const proposal = completeProposal();
+    proposal.connections = [];
+    proposal.notification_destination = null;
+    proposal.permissions = {
+      can_modify_files: false,
+      can_run_commands: false,
+      requires_network: false,
+      can_use_connected_apps: false,
+      can_send_messages: false,
+    };
+    proposal.risk = { level: 'low', reasons: [], finding_count: 0 };
+    const fake = modelReturning(proposal);
+
+    const result = await createAgentProposal({
+      request: 'Review my SSH configuration.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      answers: [{
+        question_id: 'file-access',
+        value: [{ path: '~/.ssh/config', kind: 'file', access: 'read_only' }],
+      }],
+      model: fake.model,
+    });
+
+    expect(result).toMatchObject({
+      status: 'proposal',
+      proposal: { risk: { level: 'high', reasons: expect.arrayContaining([expect.stringMatching(/SSH/i)]) } },
+    });
   });
 });
