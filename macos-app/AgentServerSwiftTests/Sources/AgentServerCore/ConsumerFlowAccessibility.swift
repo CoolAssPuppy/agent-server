@@ -5,6 +5,8 @@ public enum ConsumerFlowAccessibility {
     public static let creationSave = "creation.save"
     public static let creationSaveAndTest = "creation.saveAndTest"
     public static let creationFolderPicker = "creation.folderPicker"
+    public static let creationSimilar = "creation.similar"
+    public static let creationConnectionSetup = "creation.connectionSetup"
     public static let debuggerReviewFix = "debugger.reviewFix"
     public static let debuggerApplyFix = "debugger.applyFix"
     public static let debuggerRetry = "debugger.retry"

@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Drawer state
 
 enum Drawer: Equatable {
-    case creation
+    case creation(sourceAgentId: String? = nil)
     case detail(agentId: String)
     case settings
     case connections
@@ -42,8 +42,8 @@ final class DrawerRouter: ObservableObject {
         open = .detail(agentId: agentId)
     }
 
-    func openCreation() {
-        open = .creation
+    func openCreation(sourceAgentId: String? = nil) {
+        open = .creation(sourceAgentId: sourceAgentId)
     }
 
     func openSettings() {
@@ -82,7 +82,8 @@ final class DrawerRouter: ObservableObject {
     }
 
     var isCreationOpen: Bool {
-        open == .creation
+        if case .creation = open { return true }
+        return false
     }
 
     var isSettingsOpen: Bool {
@@ -110,6 +111,11 @@ final class DrawerRouter: ObservableObject {
 
     var debugRunId: String? {
         if case .debugger(let id) = open { return id }
+        return nil
+    }
+
+    var creationSourceAgentId: String? {
+        if case .creation(let id) = open { return id }
         return nil
     }
 

@@ -33,6 +33,26 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertTrue(flow.shouldRunSafeTest)
     }
 
+    func testRefreshingConnectionReadinessPreservesTheDraftAndAnswers() {
+        let question = CreationQuestion(
+            id: "destination",
+            prompt: "Where should it send the summary?",
+            kind: .choice(["Slack", "Save as a file"]),
+            isRequired: true
+        )
+        var flow = AgentCreationFlow(request: "Send a weekly summary")
+        flow.receiveQuestions([question])
+        flow.answer(questionId: question.id, value: "Slack")
+        flow.receiveProposal(.fixture())
+
+        flow.beginProposalRequest()
+
+        XCTAssertEqual(flow.phase, .preparingProposal)
+        XCTAssertEqual(flow.request, "Send a weekly summary")
+        XCTAssertEqual(flow.answers[question.id], "Slack")
+        XCTAssertNotNil(flow.proposal)
+    }
+
     func testCreationCanReturnFromProposalWithoutSavingStaleSettings() {
         var flow = AgentCreationFlow(request: "Create a weekly summary")
         flow.receiveProposal(.fixture(reviewId: "review-1"))
@@ -173,6 +193,8 @@ final class ConsumerProductFlowTests: XCTestCase {
     func testCriticalControlsHaveStableAccessibilityIdentifiers() {
         XCTAssertEqual(ConsumerFlowAccessibility.creationRequest, "creation.request")
         XCTAssertEqual(ConsumerFlowAccessibility.creationReview, "creation.review")
+        XCTAssertEqual(ConsumerFlowAccessibility.creationSimilar, "creation.similar")
+        XCTAssertEqual(ConsumerFlowAccessibility.creationConnectionSetup, "creation.connectionSetup")
         XCTAssertEqual(ConsumerFlowAccessibility.debuggerApplyFix, "debugger.applyFix")
         XCTAssertEqual(ConsumerFlowAccessibility.securityScanAll, "security.scanAll")
         XCTAssertEqual(ConsumerFlowAccessibility.securityFindingPrefix, "security.finding.")

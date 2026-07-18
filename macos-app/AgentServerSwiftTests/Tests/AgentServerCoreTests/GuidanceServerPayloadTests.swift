@@ -9,6 +9,8 @@ final class GuidanceServerPayloadTests: XCTestCase {
         XCTAssertEqual(review.presentation.reviewId, "proposal-1")
         XCTAssertEqual(review.presentation.schedule, "Every Friday at 5:00 p.m.")
         XCTAssertEqual(review.presentation.connections.first?.state, .needsSetup)
+        XCTAssertTrue(review.presentation.connections.first?.isRequired == true)
+        XCTAssertEqual(review.presentation.connections.first?.reason, "Sends the summary")
         XCTAssertEqual(review.presentation.fileAccess.first?.canEdit, false)
         XCTAssertTrue(review.presentation.permissions.contains("Use the internet"))
     }
@@ -31,6 +33,7 @@ final class GuidanceServerPayloadTests: XCTestCase {
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(request)) as? [String: Any])
         let answers = try XCTUnwrap(object["answers"] as? [[String: Any]])
 
+        XCTAssertEqual(Set(object.keys), Set(["request", "timezone", "connected_services", "answers"]))
         XCTAssertEqual(object["connected_services"] as? [String], ["github"])
         XCTAssertEqual(answers.first?["question_id"] as? String, "send")
         XCTAssertEqual(answers.first?["value"] as? Bool, true)
@@ -52,6 +55,10 @@ final class GuidanceServerPayloadTests: XCTestCase {
         XCTAssertEqual(GuidanceServerRoute.diagnosis("run/one").path, "/guidance/runs/run%2Fone/diagnosis")
         XCTAssertEqual(GuidanceServerRoute.retry("run/one").path, "/guidance/runs/run%2Fone/retry")
         XCTAssertEqual(GuidanceServerRoute.safeTest("agent/one").path, "/agents/agent%2Fone/safe-test")
+        XCTAssertEqual(
+            GuidanceServerRoute.similarProposal("agent/one").path,
+            "/guidance/agents/agent%2Fone/similar-proposals"
+        )
         XCTAssertTrue(GuidanceServerRoute.allCasesUsePost)
     }
 

@@ -1,7 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import NerdsUI
-
 enum CreationPreparation {
     case questions([CreationQuestion])
     case proposal(AgentProposalPresentation)
@@ -16,6 +15,8 @@ struct GuidedAgentCreationView: View {
     let actions: GuidedAgentCreationActions
     let onCancel: () -> Void
     let onCreated: (SavedAgentPresentation) -> Void
+    var copy: GuidedAgentCreationCopy = .newAgent
+    var setUpConnections: ((@escaping () -> Void) -> Void)? = nil
 
     @Environment(\.nTheme) private var theme
     @State private var request = ""
@@ -89,8 +90,8 @@ struct GuidedAgentCreationView: View {
     private var requestStep: some View {
         VStack(alignment: .leading, spacing: NSpacing.lg) {
             ConsumerFlowHeader(
-                title: "What would you like this agent to do?",
-                explanation: "Describe the result you want. You can include when it should run, what it should read, and where the result should go."
+                title: copy.title,
+                explanation: copy.explanation
             )
             TextEditor(text: $request)
                 .font(.system(.title3))
@@ -102,7 +103,7 @@ struct GuidedAgentCreationView: View {
                 .overlay { RoundedRectangle(cornerRadius: NRadius.md).strokeBorder(theme.tokens.border) }
                 .accessibilityLabel("Describe what this agent should do")
                 .accessibilityIdentifier(ConsumerFlowAccessibility.creationRequest)
-            Text("Example: Every Friday, review my GitHub activity and send me a short summary in Slack.")
+            Text(copy.example)
                 .font(NTypography.caption)
                 .foregroundStyle(theme.tokens.mutedForeground)
         }
@@ -154,7 +155,10 @@ struct GuidedAgentCreationView: View {
     private func proposalStep(_ proposal: AgentProposalPresentation) -> some View {
         VStack(alignment: .leading, spacing: NSpacing.lg) {
             ConsumerFlowHeader(title: "Review your agent", explanation: "Check what it will do and what it can access before saving.")
-            AgentProposalView(proposal: proposal)
+            AgentProposalView(
+                proposal: proposal,
+                onSetUpConnections: setUpConnections == nil ? nil : requestConnectionSetup
+            )
                 .accessibilityIdentifier(ConsumerFlowAccessibility.creationReview)
         }
     }
@@ -263,6 +267,13 @@ struct GuidedAgentCreationView: View {
             pendingHighRiskSave = runSafeTest
         } else {
             save(runSafeTest: runSafeTest)
+        }
+    }
+
+    private func requestConnectionSetup() {
+        setUpConnections? {
+            flow.beginProposalRequest()
+            prepare()
         }
     }
 

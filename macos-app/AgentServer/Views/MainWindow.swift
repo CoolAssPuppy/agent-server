@@ -10,6 +10,8 @@ struct MainWindow: View {
     @ObservedObject var monitor: StatusMonitor
     @ObservedObject private var router = DrawerRouter.shared
     @EnvironmentObject var themeManager: ThemeManager
+    @State private var showsCreationConnections = false
+    @State private var connectionSetupCompletion: (() -> Void)?
 
     private var isDark: Bool { themeManager.currentTheme.palette.isDark }
 
@@ -47,6 +49,17 @@ struct MainWindow: View {
         .environment(\.colorScheme, isDark ? .dark : .light)
         .onAppear { commitPendingRouteIfAny() }
         .onChange(of: router.pending) { _, _ in commitPendingRouteIfAny() }
+        .sheet(
+            isPresented: $showsCreationConnections,
+            onDismiss: finishConnectionSetup
+        ) {
+            ConnectionsView(
+                monitor: monitor,
+                router: router,
+                onClose: { showsCreationConnections = false }
+            )
+            .frame(minWidth: 780)
+        }
     }
 
     /// Consumes `DrawerRouter.shared.pending` (set by AppDelegate when the
@@ -75,14 +88,27 @@ struct MainWindow: View {
     private var creationDrawerLayer: some View {
         ZStack(alignment: .top) {
             if router.isCreationOpen {
+                let sourceAgentId = router.creationSourceAgentId
                 GuidedAgentCreationView(
                     actions: GuidedAgentCreationActions(
-                        prepare: monitor.prepareGuidedAgent,
+                        prepare: { request, answers in
+                            if let sourceAgentId {
+                                return await monitor.prepareSimilarAgent(
+                                    sourceAgentId: sourceAgentId,
+                                    request: request,
+                                    answers: answers
+                                )
+                            }
+                            return await monitor.prepareGuidedAgent(request: request, answers: answers)
+                        },
                         save: monitor.saveGuidedAgent
                     ),
                     onCancel: router.close,
-                    onCreated: openCreatedAgent
+                    onCreated: openCreatedAgent,
+                    copy: sourceAgentId == nil ? .newAgent : .similarAgent,
+                    setUpConnections: presentConnectionSetup
                 )
+                .id(sourceAgentId ?? "new-agent")
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
@@ -223,6 +249,20 @@ struct MainWindow: View {
 
     private func newAgent() {
         router.openCreation()
+    }
+
+    private func presentConnectionSetup(completion: @escaping () -> Void) {
+        connectionSetupCompletion = completion
+        showsCreationConnections = true
+    }
+
+    private func finishConnectionSetup() {
+        let completion = connectionSetupCompletion
+        connectionSetupCompletion = nil
+        Task {
+            _ = await monitor.refreshConnections()
+            completion?()
+        }
     }
 
     private func openCreatedAgent(_ saved: SavedAgentPresentation) {

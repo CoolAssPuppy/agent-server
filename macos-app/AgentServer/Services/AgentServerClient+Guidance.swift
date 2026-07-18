@@ -5,6 +5,13 @@ extension AgentServerClient {
         try await guidanceRequest(.createProposal, body: body)
     }
 
+    func createSimilarProposal(
+        agentId: String,
+        body: GuidanceProposalRequest
+    ) async throws -> GuidanceProposalResponse {
+        try await guidanceRequest(.similarProposal(agentId), body: body)
+    }
+
     func saveGuidedProposal(id: String) async throws -> GuidanceSaveResponse {
         try await guidanceRequest(.saveProposal(id), body: GuidanceSaveRequest())
     }

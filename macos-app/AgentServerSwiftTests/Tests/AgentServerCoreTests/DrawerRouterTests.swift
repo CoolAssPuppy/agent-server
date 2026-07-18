@@ -82,4 +82,14 @@ final class DrawerRouterTests: XCTestCase {
         XCTAssertTrue(router.isCreationOpen)
         XCTAssertFalse(router.isSettingsOpen)
     }
+
+    func testSimilarCreationRetainsOnlySourceAgentIdentifier() {
+        let router = DrawerRouter(open: .detail(agentId: "source-agent"))
+
+        router.openCreation(sourceAgentId: "source-agent")
+
+        XCTAssertTrue(router.isCreationOpen)
+        XCTAssertEqual(router.creationSourceAgentId, "source-agent")
+        XCTAssertNil(router.openAgentId)
+    }
 }

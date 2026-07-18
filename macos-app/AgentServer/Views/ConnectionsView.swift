@@ -8,6 +8,7 @@ import NerdsUI
 struct ConnectionsView: View {
     @ObservedObject var monitor: StatusMonitor
     @ObservedObject var router: DrawerRouter
+    var onClose: (() -> Void)? = nil
 
     @Environment(\.nTheme) private var theme
     @State private var catalog: [CapabilityCatalogEntry] = []
@@ -91,7 +92,7 @@ struct ConnectionsView: View {
         .compositingGroup()
         .shadow(color: Color.black.opacity(0.25), radius: 16, x: 0, y: 6)
         .onKeyPress(.escape) {
-            router.close()
+            close()
             return .handled
         }
         .task {
@@ -132,7 +133,7 @@ struct ConnectionsView: View {
                 .foregroundStyle(theme.tokens.foreground)
             Spacer()
             refreshButton
-            Button(action: router.close) {
+            Button(action: close) {
                 ZStack {
                     Circle().fill(theme.tokens.muted)
                         .overlay(Circle().stroke(theme.tokens.border, lineWidth: 1))
@@ -151,6 +152,10 @@ struct ConnectionsView: View {
         // the Settings drawer so the title sits just below them.
         .padding(.top, 28)
         .padding(.bottom, NSpacing.md)
+    }
+
+    private func close() {
+        if let onClose { onClose() } else { router.close() }
     }
 
     private var refreshButton: some View {

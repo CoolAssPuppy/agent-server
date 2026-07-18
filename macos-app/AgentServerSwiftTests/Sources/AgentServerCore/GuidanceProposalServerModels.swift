@@ -8,6 +8,7 @@ public enum GuidanceServerRoute: Equatable, Sendable {
     case previewPatch
     case applyPatch
     case safeTest(String)
+    case similarProposal(String)
 
     public var method: HTTPRequestMethod { .post }
 
@@ -27,6 +28,8 @@ public enum GuidanceServerRoute: Equatable, Sendable {
             return "/configuration-patches/apply"
         case .safeTest(let id):
             return "/agents/\(Self.pathSegment(id))/safe-test"
+        case .similarProposal(let id):
+            return "/guidance/agents/\(Self.pathSegment(id))/similar-proposals"
         }
     }
 
@@ -158,8 +161,10 @@ private struct GuidanceProposalPayload: Decodable, Equatable, Sendable {
             case "optional": state = .optional
             default: state = required ? .needsSetup : .optional
             }
-            return ConnectionPresentation(name: name, state: state)
+            return ConnectionPresentation(name: name, state: state, isRequired: required, reason: reason)
         }
+
+        let reason: String
     }
 
     struct FileAccess: Decodable, Equatable, Sendable {

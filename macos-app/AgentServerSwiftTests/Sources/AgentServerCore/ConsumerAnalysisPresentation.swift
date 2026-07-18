@@ -44,10 +44,14 @@ public struct ConnectionPresentation: Equatable, Sendable {
 
     public let name: String
     public let state: State
+    public let isRequired: Bool
+    public let reason: String
 
-    public init(name: String, state: State) {
+    public init(name: String, state: State, isRequired: Bool = false, reason: String = "") {
         self.name = name
         self.state = state
+        self.isRequired = isRequired
+        self.reason = reason
     }
 }
 

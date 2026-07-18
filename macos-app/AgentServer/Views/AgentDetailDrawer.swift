@@ -178,6 +178,20 @@ struct AgentDetailDrawer: View {
             Spacer()
 
             Button {
+                router.openCreation(sourceAgentId: agentId)
+            } label: {
+                Image(systemName: "plus.square.on.square")
+                    .font(NTypography.bodyMedium)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Create something similar")
+            .accessibilityLabel("Create something similar to this agent")
+            .accessibilityIdentifier(ConsumerFlowAccessibility.creationSimilar)
+
+            Button {
                 router.openSecurity(agentId: agentId)
             } label: {
                 Image(systemName: "checkmark.shield")

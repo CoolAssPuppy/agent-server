@@ -87,6 +87,12 @@ struct Sidebar: View {
                             isSelected: router.openAgentId == row.id,
                             onSelect: { router.openDetail(agentId: row.id) }
                         )
+                        .contextMenu {
+                            Button("Create something similar") {
+                                router.openCreation(sourceAgentId: row.id)
+                            }
+                            .accessibilityIdentifier(ConsumerFlowAccessibility.creationSimilar)
+                        }
                         .animation(.easeOut(duration: 0.28), value: row.state)
                     }
                 }

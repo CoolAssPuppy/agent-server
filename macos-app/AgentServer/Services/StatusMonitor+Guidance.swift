@@ -7,28 +7,36 @@ extension StatusMonitor {
         answers: [String: String]
     ) async -> Result<CreationPreparation, ConsumerFlowFailure> {
         do {
-            let snapshot = try await client.connections()
-            let connectedServices = snapshot.servers
-                .filter(\.isConnected)
-                .map { $0.displayName.lowercased() }
-            let answerPayloads = answers.sorted(by: { $0.key < $1.key }).map {
-                GuidanceProposalAnswer(questionId: $0.key, value: Self.guidanceValue($0.value))
-            }
-            let response = try await client.createGuidedProposal(GuidanceProposalRequest(
-                request: request,
-                timezone: TimeZone.current.identifier,
-                connectedServices: connectedServices,
-                answers: answerPayloads
-            ))
-            switch response {
-            case .proposal(let review): return .success(.proposal(review.presentation))
-            case .needsInformation(let questions, _): return .success(.questions(questions))
-            }
+            let proposalRequest = try await makeProposalRequest(request: request, answers: answers)
+            let response = try await client.createGuidedProposal(proposalRequest)
+            return .success(Self.creationPreparation(from: response))
         } catch {
             return .failure(guidanceFailure(
                 title: "Could not prepare your agent",
                 message: "The local creation service did not finish the proposal.",
                 recovery: "Make sure Agent Server and Codex are available, then try again.",
+                error: error
+            ))
+        }
+    }
+
+    func prepareSimilarAgent(
+        sourceAgentId: String,
+        request: String,
+        answers: [String: String]
+    ) async -> Result<CreationPreparation, ConsumerFlowFailure> {
+        do {
+            let proposalRequest = try await makeProposalRequest(request: request, answers: answers)
+            let response = try await client.createSimilarProposal(
+                agentId: sourceAgentId,
+                body: proposalRequest
+            )
+            return .success(Self.creationPreparation(from: response))
+        } catch {
+            return .failure(guidanceFailure(
+                title: "Could not prepare a similar agent",
+                message: "The local creation service did not finish the proposal.",
+                recovery: "Make sure the source agent still exists, then try again.",
                 error: error
             ))
         }
@@ -150,6 +158,32 @@ extension StatusMonitor {
         case "yes": return .boolean(true)
         case "no": return .boolean(false)
         default: return .string(value)
+        }
+    }
+
+    private func makeProposalRequest(
+        request: String,
+        answers: [String: String]
+    ) async throws -> GuidanceProposalRequest {
+        let snapshot = try await client.connections()
+        let connectedServices = snapshot.servers
+            .filter(\.isConnected)
+            .map { $0.displayName.lowercased() }
+        let answerPayloads = answers.sorted(by: { $0.key < $1.key }).map {
+            GuidanceProposalAnswer(questionId: $0.key, value: Self.guidanceValue($0.value))
+        }
+        return GuidanceProposalRequest(
+            request: request,
+            timezone: TimeZone.current.identifier,
+            connectedServices: connectedServices,
+            answers: answerPayloads
+        )
+    }
+
+    private static func creationPreparation(from response: GuidanceProposalResponse) -> CreationPreparation {
+        switch response {
+        case .proposal(let review): return .proposal(review.presentation)
+        case .needsInformation(let questions, _): return .questions(questions)
         }
     }
 
