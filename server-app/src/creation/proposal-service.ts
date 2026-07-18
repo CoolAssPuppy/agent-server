@@ -108,8 +108,8 @@ function unansweredConnectionQuestion(request: ProposalRequest): ProposalFallbac
     : /\bwork\s+notion\b/i.test(request.request) ? 'work' : undefined;
   const onlyConnectionMatchesRequest = requestedScope === undefined
     || connections.some((connection) => (
-      connection.id.toLowerCase().includes(requestedScope)
-      || connection.name.toLowerCase().includes(requestedScope)
+      connection.id.toLowerCase().split(/[^a-z0-9]+/).includes(requestedScope)
+      || connection.name.toLowerCase().split(/[^a-z0-9]+/).includes(requestedScope)
     ));
   if (connections.length === 1 && connectionAnswer === undefined && onlyConnectionMatchesRequest) return undefined;
   if (connections.length === 0) {

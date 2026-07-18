@@ -122,14 +122,14 @@ public struct GuidanceConnectedService: Encodable, Equatable, Sendable {
                 with: "",
                 options: .regularExpression
             )
-            return Self(id: service.id, name: "\(baseName) (Connection \(ordinals[key, default: 1]))")
+            let qualifier = stableQualifier(for: service.id)
+                ?? "Connection \(ordinals[key, default: 1])"
+            return Self(id: service.id, name: "\(baseName) (\(qualifier))")
         }
     }
 
     private static func consumerName(for identifier: String) -> String {
         let lowered = identifier.lowercased()
-        if lowered == "notion-personal" { return "Personal Notion" }
-        if lowered == "notion-work" { return "Work Notion" }
         let stripped: String
         if lowered.hasPrefix("claude.ai ") {
             stripped = String(identifier.dropFirst("claude.ai ".count))
@@ -138,7 +138,22 @@ public struct GuidanceConnectedService: Encodable, Equatable, Sendable {
         } else {
             stripped = identifier
         }
-        return stripped.lowercased() == "notion" ? "Notion" : stripped
+        switch stripped.lowercased() {
+        case "notion": return "Notion"
+        case "notion-personal": return "Personal Notion"
+        case "notion-work": return "Work Notion"
+        default: return stripped
+        }
+    }
+
+    private static func stableQualifier(for identifier: String) -> String? {
+        let ignored = Set(["claude", "ai", "plugin", "workspace", "notion", "local", "connection"])
+        let parts = identifier
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+            .map(String.init)
+            .filter { !ignored.contains($0.lowercased()) }
+        guard !parts.isEmpty else { return nil }
+        return parts.map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " ")
     }
 
     private static func sourceName(for identifier: String) -> String {

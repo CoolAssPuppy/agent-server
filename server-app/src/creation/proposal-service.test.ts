@@ -144,6 +144,21 @@ describe('guided agent proposal creation', () => {
     });
   });
 
+  it('does not mistake a connection name substring for a requested account', async () => {
+    const result = await createAgentProposal({
+      request: 'Save the review in Work Notion.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [{ id: 'notion-network', name: 'Notion Network' }],
+      answers: [],
+      model: modelReturning(completeProposal()).model,
+    });
+
+    expect(result).toMatchObject({
+      status: 'needs_information',
+      questions: [{ id: 'connection-notion' }],
+    });
+  });
+
   it('offers setup when a required service has no configured connection', async () => {
     const result = await createAgentProposal({
       request: 'Review my manuscript and save the result in Notion.',
