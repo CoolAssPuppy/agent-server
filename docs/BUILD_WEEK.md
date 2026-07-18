@@ -85,7 +85,7 @@ The feature work adds server behavior coverage for shared schemas, environment a
 
 Swift behavior coverage includes proposal and debugger state changes, consumer risk and schedule presentation, security payloads, accessibility identifiers, drawer routing, transport recovery, and stale state protection. Four signed macOS UI tests cover the requested creation, missing-connection, safe-test, debugger, low-risk repair, embedded-secret, folder-narrowing, and high-risk review behaviors using deterministic launch scenarios.
 
-The latest non-interactive run passed 1,133 server tests across 82 files and 204 Swift tests. TypeScript checking, the server build, and unsigned builds of the app and native helper passed. The full four-flow signed UI suite passed once earlier in the feature cycle. Later UI automation stopped at the user's request because it took keyboard focus. See [FINAL_VERIFICATION.md](FINAL_VERIFICATION.md) for the full record.
+The latest non-interactive run passed 1,136 server tests across 83 files and 204 Swift tests. TypeScript checking, the server build, and unsigned builds of the app and native helper passed. The full four-flow signed UI suite passed once earlier in the feature cycle. Later UI automation stopped at the user's request because it took keyboard focus. See [FINAL_VERIFICATION.md](FINAL_VERIFICATION.md) for the full record.
 
 ## Demo
 
@@ -121,7 +121,9 @@ Use [BUILD_WEEK_DEMO.md](BUILD_WEEK_DEMO.md) and the redacted fixtures under `se
 - Add more UI automation once native macOS controls can be driven reliably in CI.
 - Continue pruning duplicated and dead code under behavior coverage.
 
-## Commit list
+## Selected milestone commits
+
+See [FEATURE_COMMITS.md](FEATURE_COMMITS.md) for the complete chronological list.
 
 1. `65d033a` Harden local execution and add analysis foundation
 2. `919c6fe` Simplify local security and reliability policies

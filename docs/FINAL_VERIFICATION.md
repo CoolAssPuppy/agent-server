@@ -17,11 +17,13 @@ This report records automated verification for the `creation-experience` branch.
 
 - Baseline: `5b779736985e918874b80b390372be71645dc19a`
 - Branch: `creation-experience`
-- Verified feature head: `f810f4e`
+- Verified feature head: `59f95e8`
 - Worktree clean before closeout documentation edits: Yes
 - Primary Codex session ID: `019f7458-705a-7fe2-8819-b2bf9f383298`
 
-## Commit list
+## Selected milestone commits
+
+See [FEATURE_COMMITS.md](FEATURE_COMMITS.md) for the complete chronological list.
 
 1. `65d033a` Harden local execution and add analysis foundation
 2. `919c6fe` Simplify local security and reliability policies
@@ -68,7 +70,7 @@ This report records automated verification for the `creation-experience` branch.
 
 | Check | Result | Evidence |
 |---|---|---|
-| Server behavior tests | Passed | 1,133 tests across 82 files |
+| Server behavior tests | Passed | 1,136 tests across 83 files |
 | Server coverage | Passed before final scoped-access batch | 78.82% statements, 74.59% branches, 80.28% functions, 80.23% lines |
 | Server lint | Passed | `pnpm lint` exited successfully |
 | TypeScript strict check | Passed | `pnpm type-check` exited successfully |
