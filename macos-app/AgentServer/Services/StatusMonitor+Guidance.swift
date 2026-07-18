@@ -166,9 +166,9 @@ extension StatusMonitor {
         answers: [String: String]
     ) async throws -> GuidanceProposalRequest {
         let snapshot = try await client.connections()
-        let connectedServices = snapshot.servers
+        let connectedServices = GuidanceConnectedService.disambiguating(snapshot.servers
             .filter(\.isConnected)
-            .map { GuidanceConnectedService(id: $0.name, name: $0.displayName) }
+            .map { GuidanceConnectedService(runtimeIdentifier: $0.name) })
         let answerPayloads = answers.sorted(by: { $0.key < $1.key }).map {
             GuidanceProposalAnswer(questionId: $0.key, value: Self.guidanceValue($0.value))
         }

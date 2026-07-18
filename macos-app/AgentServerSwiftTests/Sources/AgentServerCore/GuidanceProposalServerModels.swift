@@ -99,6 +99,41 @@ public struct GuidanceConnectedService: Encodable, Equatable, Sendable {
         self.id = id
         self.name = name
     }
+
+    public init(runtimeIdentifier: String) {
+        self.id = runtimeIdentifier
+        self.name = Self.consumerName(for: runtimeIdentifier)
+    }
+
+    public static func disambiguating(_ services: [Self]) -> [Self] {
+        let counts = Dictionary(grouping: services, by: { $0.name.lowercased() }).mapValues(\.count)
+        return services.map { service in
+            guard counts[service.name.lowercased(), default: 0] > 1 else { return service }
+            return Self(id: service.id, name: "\(service.name) (\(sourceName(for: service.id)))")
+        }
+    }
+
+    private static func consumerName(for identifier: String) -> String {
+        let lowered = identifier.lowercased()
+        if lowered == "notion-personal" { return "Personal Notion" }
+        if lowered == "notion-work" { return "Work Notion" }
+        let stripped: String
+        if lowered.hasPrefix("claude.ai ") {
+            stripped = String(identifier.dropFirst("claude.ai ".count))
+        } else if lowered.hasPrefix("plugin:") {
+            stripped = String(identifier.split(separator: ":").last ?? Substring(identifier))
+        } else {
+            stripped = identifier
+        }
+        return stripped.lowercased() == "notion" ? "Notion" : stripped
+    }
+
+    private static func sourceName(for identifier: String) -> String {
+        let lowered = identifier.lowercased()
+        if lowered.hasPrefix("claude.ai ") { return "account connection" }
+        if lowered.hasPrefix("plugin:") { return "plugin" }
+        return "local connection"
+    }
 }
 
 public struct GuidanceProposalRequest: Encodable, Equatable, Sendable {

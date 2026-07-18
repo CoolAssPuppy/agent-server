@@ -84,6 +84,20 @@ final class GuidanceServerPayloadTests: XCTestCase {
         XCTAssertEqual(answers.first?["value"] as? Bool, true)
     }
 
+    func testConnectedServicesUseConsumerNamesAndDisambiguateDuplicates() {
+        XCTAssertEqual(
+            GuidanceConnectedService(runtimeIdentifier: "notion-personal").name,
+            "Personal Notion"
+        )
+        let services = GuidanceConnectedService.disambiguating([
+            GuidanceConnectedService(runtimeIdentifier: "claude.ai Notion"),
+            GuidanceConnectedService(runtimeIdentifier: "plugin:workspace:notion"),
+        ])
+
+        XCTAssertEqual(services.map(\.name), ["Notion (account connection)", "Notion (plugin)"])
+        XCTAssertEqual(services.map(\.id), ["claude.ai Notion", "plugin:workspace:notion"])
+    }
+
     func testDiagnosisMapsRecommendationWithoutInventingApplicablePatch() throws {
         let payload = try JSONDecoder().decode(GuidanceDiagnosticPayload.self, from: Data(Self.diagnosisJSON.utf8))
         let diagnosis = payload.presentation

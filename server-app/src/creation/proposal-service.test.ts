@@ -98,6 +98,13 @@ describe('guided agent proposal creation', () => {
       answers: [{ question_id: 'connection-notion', value: 'notion-personal' }],
       model: fake.model,
     });
+    const staleConnection = await createAgentProposal({
+      request,
+      timezone: 'Europe/Lisbon',
+      connectedServices: [{ id: 'notion-personal', name: 'Personal Notion' }],
+      answers: [{ question_id: 'connection-notion', value: 'removed-notion' }],
+      model: fake.model,
+    });
 
     expect(connection).toMatchObject({
       status: 'needs_information',
@@ -114,6 +121,10 @@ describe('guided agent proposal creation', () => {
     expect(file).toMatchObject({
       status: 'needs_information',
       questions: [{ id: 'file-location', control: 'path' }],
+    });
+    expect(staleConnection).toMatchObject({
+      status: 'needs_information',
+      questions: [{ id: 'connection-notion' }],
     });
     expect(fake.calls()).toBe(0);
   });

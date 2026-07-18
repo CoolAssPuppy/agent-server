@@ -96,12 +96,14 @@ function fallback(request: ProposalRequest, modelStatus: 'unavailable' | 'invali
 
 function unansweredConnectionQuestion(request: ProposalRequest): ProposalFallbackQuestion | undefined {
   if (!/\bnotion\b/i.test(request.request)) return undefined;
-  if (request.answers.some((answer) => answer.question_id === 'connection-notion')) return undefined;
-
   const connections = request.connectedServices.filter((service) => (
     /\bnotion\b/i.test(service.id) || /\bnotion\b/i.test(service.name)
   ));
-  if (connections.length === 1) return undefined;
+  const connectionAnswer = request.answers.find((answer) => (
+    answer.question_id === 'connection-notion' && typeof answer.value === 'string'
+  ));
+  if (connections.some((connection) => connection.id === connectionAnswer?.value)) return undefined;
+  if (connections.length === 1 && connectionAnswer === undefined) return undefined;
   if (connections.length === 0) {
     return {
       id: 'connection-notion',

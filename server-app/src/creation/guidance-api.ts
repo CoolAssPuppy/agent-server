@@ -14,20 +14,19 @@ import { analyzeRunFailure, type DiagnosticReadiness } from '../diagnostics/diag
 import { buildDiagnosticResolution } from '../diagnostics/resolution.js';
 import { createAgentProposal, type ProposalModel } from './proposal-service.js';
 import { deriveProposalAgentId, proposalToAgentConfig } from './proposal-configuration.js';
-import { CreationProposalSchema, ProposalAnswerSchema, type CreationProposal } from './proposal-schema.js';
+import {
+  ConnectedServiceInputSchema,
+  CreationProposalSchema,
+  ProposalAnswerSchema,
+  type CreationProposal,
+} from './proposal-schema.js';
 import { prepareSafeTestAgent } from './safe-test.js';
 import { buildSimilarAgentRequest } from './similar-agent.js';
 
 const ProposalApiRequestSchema = z.object({
   request: z.string().trim().min(1).max(8_000),
   timezone: z.string().trim().min(1).max(120),
-  connected_services: z.array(z.union([
-    z.string().trim().min(1).max(160).transform((value) => ({ id: value, name: value })),
-    z.object({
-      id: z.string().trim().min(1).max(240),
-      name: z.string().trim().min(1).max(160),
-    }).strict(),
-  ])).max(64),
+  connected_services: z.array(ConnectedServiceInputSchema).max(64),
   available_calendars: z.array(z.object({
     id: z.string().trim().min(1).max(512),
     name: z.string().trim().min(1).max(160),
