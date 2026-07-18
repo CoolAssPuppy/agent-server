@@ -73,4 +73,7 @@ This is the complete chronological commit list after baseline `5b779736985e91887
 69. `2e29e12` Require observed paths for debugger fixes
 70. `6644891` Align debugger integration with scoped file fixes
 71. `59f95e8` Use lint-safe service label sanitization
-72. `462b710` Allow folder-only access selection
+72. `4bb7422` Complete feature verification record
+73. `7182b66` Correct final verification claims
+74. `2be73cb` Date recorded coverage evidence accurately
+75. `462b710` Allow folder-only access selection
