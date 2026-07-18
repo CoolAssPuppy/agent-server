@@ -109,11 +109,20 @@ export type ProposalAnswer = z.infer<typeof ProposalAnswerSchema>;
 export const ConnectedServiceSchema = z.object({
   id: z.string().trim().min(1).max(240),
   name: z.string().trim().min(1).max(160),
+  service_id: z.string().trim().min(1).max(160).optional(),
+  source: z.enum(['account', 'configured_api', 'mcp', 'macos']).optional(),
+  actions: z.array(z.enum(['read', 'write', 'send', 'delete'])).max(8).default([]),
+  actions_known: z.boolean().default(false),
 }).strict();
 
 export const ConnectedServiceInputSchema = z.union([
   ConnectedServiceSchema,
-  z.string().trim().min(1).max(160).transform((value) => ({ id: value, name: value })),
+  z.string().trim().min(1).max(160).transform((value) => ({
+    id: value,
+    name: value,
+    actions: [],
+    actions_known: false,
+  })),
 ]);
 
 export const ProposalRequestSchema = z.object({

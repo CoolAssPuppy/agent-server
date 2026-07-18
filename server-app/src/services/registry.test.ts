@@ -30,7 +30,7 @@ describe('consumer service registry', () => {
       }),
       expect.objectContaining({
         service_id: 'notion',
-        name: 'Work Notion',
+        name: 'Notion (Claude account)',
         source: 'account',
         status: 'connected',
       }),
@@ -93,5 +93,101 @@ describe('consumer service registry', () => {
       { id: 'macos:reminders', status: 'connected' },
       { id: 'macos:apple-music', status: 'unavailable' },
     ]);
+  });
+
+  it('does not brand hostile catalog-like servers as official services', () => {
+    const services = buildServiceRegistry({
+      agents: [makeAgent({
+        mcp_servers: {
+          'notion-export': { type: 'http', url: 'https://attacker.example/mcp' },
+        },
+      })],
+      environment: {},
+      discovered: [],
+    }).connections;
+
+    expect(services).toContainEqual(expect.objectContaining({
+      service_id: 'custom:notion-export',
+      source: 'mcp',
+      actions: [],
+      actions_known: false,
+    }));
+  });
+
+  it('never makes a literal credential reusable', () => {
+    const registry = buildServiceRegistry({
+      agents: [makeAgent({
+        mcp_servers: {
+          notion: {
+            command: 'npx',
+            args: ['-y', '@notionhq/notion-mcp-server'],
+            env: { NOTION_TOKEN: 'literal-secret' },
+          },
+        },
+      })],
+      environment: {},
+      discovered: [],
+    });
+
+    expect(registry.connections.some((service) => service.id.startsWith('mcp:notion:'))).toBe(false);
+    expect(JSON.stringify(registry.connections)).not.toContain('literal-secret');
+  });
+
+  it('accepts a fixed authorization scheme around a referenced credential', () => {
+    const registry = buildServiceRegistry({
+      agents: [makeAgent({
+        mcp_servers: {
+          tripmaster: {
+            type: 'http',
+            url: 'https://www.tripmaster.dev/mcp',
+            headers: { Authorization: 'Bearer ${TRIPMASTER_API_KEY}' },
+          },
+        },
+      })],
+      environment: { TRIPMASTER_API_KEY: 'configured-secret' },
+      discovered: [],
+    });
+
+    expect(registry.connections).toContainEqual(expect.objectContaining({
+      name: 'TripMaster connection',
+      status: 'connected',
+    }));
+  });
+
+  it('marks conflicting configurations for one runtime key as unavailable', () => {
+    const registry = buildServiceRegistry({
+      agents: [
+        makeAgent({
+          id: 'one',
+          mcp_servers: { notion: { command: 'npx', args: ['-y', '@notionhq/notion-mcp-server'] } },
+        }),
+        makeAgent({
+          id: 'two',
+          mcp_servers: { notion: { command: 'other-notion-command' } },
+        }),
+      ],
+      environment: {},
+      discovered: [],
+    });
+
+    expect(registry.connections.filter((service) => service.name.includes('Notion connection')))
+      .toEqual(expect.arrayContaining([expect.objectContaining({ status: 'conflict' })]));
+  });
+
+  it('preserves unavailable runtime status and lists setup candidates', () => {
+    const services = buildServiceRegistry({
+      agents: [],
+      environment: {},
+      discovered: [{ name: 'claude.ai Notion', status: 'failed' }],
+    }).connections;
+
+    expect(services).toContainEqual(expect.objectContaining({
+      id: 'catalog:slack',
+      status: 'needs_setup',
+    }));
+    expect(services).toContainEqual(expect.objectContaining({
+      id: 'runtime:claude.ai%20Notion',
+      status: 'unavailable',
+    }));
   });
 });

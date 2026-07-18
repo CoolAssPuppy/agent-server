@@ -377,6 +377,25 @@ describe('guided agent proposal creation', () => {
     expect(prompt).toContain('Return only a value matching the supplied JSON schema');
   });
 
+  it('preserves the selected service identity and its allowed actions for proposal generation', () => {
+    const prompt = buildAgentProposalPrompt({
+      request: 'Store the result in my personal Notion.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [{
+        id: 'mcp:notion-personal:abc123',
+        service_id: 'notion',
+        name: 'Personal Notion',
+        source: 'configured_api',
+        actions: ['read', 'write'],
+        actions_known: true,
+      }],
+    });
+
+    expect(prompt).toContain('Personal Notion (mcp:notion-personal:abc123)');
+    expect(prompt).toContain('Allowed actions: read, write');
+    expect(prompt).toContain('Connection type: configured_api');
+  });
+
   it('includes only the selected calendar in the model prompt', () => {
     const prompt = buildAgentProposalPrompt({
       request: 'Summarize my calendar.',

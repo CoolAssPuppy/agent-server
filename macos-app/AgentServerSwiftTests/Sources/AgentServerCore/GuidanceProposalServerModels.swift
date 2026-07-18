@@ -97,7 +97,16 @@ public struct GuidanceServiceRegistryResponse: Decodable, Equatable, Sendable {
     public var connectedServices: [GuidanceConnectedService] {
         connections
             .filter { $0.status == "connected" }
-            .map { GuidanceConnectedService(id: $0.id, name: $0.name) }
+            .map {
+                GuidanceConnectedService(
+                    id: $0.id,
+                    serviceId: $0.serviceId,
+                    name: $0.name,
+                    source: $0.source,
+                    actions: $0.actions,
+                    actionsKnown: $0.actionsKnown
+                )
+            }
     }
 }
 
@@ -108,95 +117,43 @@ public struct GuidanceServiceConnection: Decodable, Equatable, Sendable, Identif
     public let source: String
     public let status: String
     public let actions: [String]
+    public let actionsKnown: Bool
 
     enum CodingKeys: String, CodingKey {
         case id, name, source, status, actions
         case serviceId = "service_id"
+        case actionsKnown = "actions_known"
     }
 }
 
 public struct GuidanceConnectedService: Encodable, Equatable, Sendable {
     public let id: String
+    public let serviceId: String
     public let name: String
+    public let source: String
+    public let actions: [String]
+    public let actionsKnown: Bool
 
-    public init(id: String, name: String) {
+    public init(
+        id: String,
+        serviceId: String,
+        name: String,
+        source: String,
+        actions: [String],
+        actionsKnown: Bool = true
+    ) {
         self.id = id
+        self.serviceId = serviceId
         self.name = name
+        self.source = source
+        self.actions = actions
+        self.actionsKnown = actionsKnown
     }
 
-    public init(runtimeIdentifier: String) {
-        self.id = runtimeIdentifier
-        self.name = Self.consumerName(for: runtimeIdentifier)
-    }
-
-    public static func disambiguating(_ services: [Self]) -> [Self] {
-        let counts = Dictionary(grouping: services, by: { $0.name.lowercased() }).mapValues(\.count)
-        let sourced = services.map { service in
-            guard counts[service.name.lowercased(), default: 0] > 1 else { return service }
-            return Self(id: service.id, name: "\(service.name) (\(sourceName(for: service.id)))")
-        }
-        let sourcedCounts = Dictionary(grouping: sourced, by: { $0.name.lowercased() }).mapValues(\.count)
-        let qualified = sourced.map { service in
-            let key = service.name.lowercased()
-            guard sourcedCounts[key, default: 0] > 1 else { return service }
-            let baseName = service.name.replacingOccurrences(
-                of: #" \([^)]*\)$"#,
-                with: "",
-                options: .regularExpression
-            )
-            let qualifier = stableQualifier(for: service.id) ?? "Connection"
-            return Self(id: service.id, name: "\(baseName) (\(qualifier))")
-        }
-        let qualifiedCounts = Dictionary(grouping: qualified, by: { $0.name.lowercased() }).mapValues(\.count)
-        let collisionOrdinals = Dictionary(
-            Dictionary(grouping: qualified) { $0.name.lowercased() }.values.flatMap { group in
-                group.sorted { $0.id < $1.id }.enumerated().map { ($0.element.id, $0.offset + 1) }
-            },
-            uniquingKeysWith: min
-        )
-        return qualified.map { service in
-            guard qualifiedCounts[service.name.lowercased(), default: 0] > 1 else { return service }
-            let baseName = service.name.dropLast()
-            return Self(
-                id: service.id,
-                name: "\(baseName), Connection \(collisionOrdinals[service.id, default: 1]))"
-            )
-        }
-    }
-
-    private static func consumerName(for identifier: String) -> String {
-        let lowered = identifier.lowercased()
-        let stripped: String
-        if lowered.hasPrefix("claude.ai ") {
-            stripped = String(identifier.dropFirst("claude.ai ".count))
-        } else if lowered.hasPrefix("plugin:") {
-            stripped = String(identifier.split(separator: ":").last ?? Substring(identifier))
-        } else {
-            stripped = identifier
-        }
-        switch stripped.lowercased() {
-        case "notion": return "Notion"
-        case "notion-personal": return "Personal Notion"
-        case "notion-work": return "Work Notion"
-        default: return stripped
-        }
-    }
-
-    private static func stableQualifier(for identifier: String) -> String? {
-        let ignored = Set(["claude", "ai", "plugin", "workspace", "notion", "local", "connection"])
-        let parts = identifier
-            .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
-            .map(String.init)
-            .filter { !ignored.contains($0.lowercased()) }
-        guard !parts.isEmpty else { return nil }
-        return parts.map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " ")
-    }
-
-    private static func sourceName(for identifier: String) -> String {
-        let lowered = identifier.lowercased()
-        if lowered.hasPrefix("claude.ai ") { return "Account" }
-        if lowered.hasPrefix("plugin:") { return "Workspace" }
-        return "Connection"
+    enum CodingKeys: String, CodingKey {
+        case id, name, source, actions
+        case serviceId = "service_id"
+        case actionsKnown = "actions_known"
     }
 }
 

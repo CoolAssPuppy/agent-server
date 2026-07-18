@@ -65,7 +65,13 @@ final class GuidanceServerPayloadTests: XCTestCase {
         let request = GuidanceProposalRequest(
             request: "Summarize GitHub",
             timezone: "Europe/Lisbon",
-            connectedServices: [GuidanceConnectedService(id: "claude.ai GitHub", name: "GitHub")],
+            connectedServices: [GuidanceConnectedService(
+                id: "runtime:claude.ai%20GitHub",
+                serviceId: "github",
+                name: "GitHub (Claude account)",
+                source: "account",
+                actions: ["read"]
+            )],
             availableCalendars: [
                 GuidanceCalendarResource(id: "work-id", name: "Work", account: "iCloud", canModify: true)
             ],
@@ -75,8 +81,11 @@ final class GuidanceServerPayloadTests: XCTestCase {
         let answers = try XCTUnwrap(object["answers"] as? [[String: Any]])
 
         XCTAssertEqual(Set(object.keys), Set(["request", "timezone", "connected_services", "available_calendars", "answers"]))
-        let services = try XCTUnwrap(object["connected_services"] as? [[String: String]])
-        XCTAssertEqual(services, [["id": "claude.ai GitHub", "name": "GitHub"]])
+        let services = try XCTUnwrap(object["connected_services"] as? [[String: Any]])
+        XCTAssertEqual(services.first?["id"] as? String, "runtime:claude.ai%20GitHub")
+        XCTAssertEqual(services.first?["service_id"] as? String, "github")
+        XCTAssertEqual(services.first?["source"] as? String, "account")
+        XCTAssertEqual(services.first?["actions"] as? [String], ["read"])
         let calendars = try XCTUnwrap(object["available_calendars"] as? [[String: Any]])
         XCTAssertEqual(calendars.first?["id"] as? String, "work-id")
         XCTAssertEqual(calendars.first?["can_modify"] as? Bool, true)
@@ -84,54 +93,30 @@ final class GuidanceServerPayloadTests: XCTestCase {
         XCTAssertEqual(answers.first?["value"] as? Bool, true)
     }
 
-    func testConnectedServicesUseConsumerNamesAndDisambiguateDuplicates() {
-        XCTAssertEqual(
-            GuidanceConnectedService(runtimeIdentifier: "notion-personal").name,
-            "Personal Notion"
-        )
-        XCTAssertEqual(
-            GuidanceConnectedService(runtimeIdentifier: "plugin:workspace:notion-personal").name,
-            "Personal Notion"
-        )
-        let services = GuidanceConnectedService.disambiguating([
-            GuidanceConnectedService(runtimeIdentifier: "claude.ai Notion"),
-            GuidanceConnectedService(runtimeIdentifier: "plugin:workspace:notion"),
-        ])
-
-        XCTAssertEqual(services.map(\.name), ["Notion (Account)", "Notion (Workspace)"])
-        XCTAssertEqual(services.map(\.id), ["claude.ai Notion", "plugin:workspace:notion"])
-
-        let duplicateLocalServices = GuidanceConnectedService.disambiguating([
-            GuidanceConnectedService(id: "notion-alpha", name: "Notion"),
-            GuidanceConnectedService(id: "notion-beta", name: "Notion"),
-        ])
-        XCTAssertEqual(duplicateLocalServices.map(\.name), ["Notion (Alpha)", "Notion (Beta)"])
-
-        let colliding = [
-            GuidanceConnectedService(id: "plugin:workspace-alpha:notion", name: "Notion"),
-            GuidanceConnectedService(id: "plugin:alpha-workspace:notion", name: "Notion"),
-        ]
-        let forward = GuidanceConnectedService.disambiguating(colliding)
-        let reversed = GuidanceConnectedService.disambiguating(colliding.reversed())
-        XCTAssertEqual(Set(forward.map(\.name)).count, 2)
-        XCTAssertEqual(
-            Dictionary(uniqueKeysWithValues: forward.map { ($0.id, $0.name) }),
-            Dictionary(uniqueKeysWithValues: reversed.map { ($0.id, $0.name) })
-        )
-    }
-
-    func testServiceRegistryKeepsPersonalAndWorkNotionIdentity() throws {
+    func testServiceRegistryKeepsExactNotionIdentityAndAllowedActions() throws {
         let response = try JSONDecoder().decode(
             GuidanceServiceRegistryResponse.self,
             from: Data(Self.serviceRegistryJSON.utf8)
         )
 
-        XCTAssertEqual(response.connections.map(\.name), ["Personal Notion", "Work Notion", "Contacts"])
+        XCTAssertEqual(response.connections.map(\.name), ["Personal Notion", "Notion (Claude account)", "Contacts"])
         XCTAssertEqual(
             response.connectedServices,
             [
-                GuidanceConnectedService(id: "mcp:notion-personal:abc123", name: "Personal Notion"),
-                GuidanceConnectedService(id: "runtime:claude.ai%20Notion", name: "Work Notion"),
+                GuidanceConnectedService(
+                    id: "mcp:notion-personal:abc123",
+                    serviceId: "notion",
+                    name: "Personal Notion",
+                    source: "configured_api",
+                    actions: ["read", "write"]
+                ),
+                GuidanceConnectedService(
+                    id: "runtime:claude.ai%20Notion",
+                    serviceId: "notion",
+                    name: "Notion (Claude account)",
+                    source: "account",
+                    actions: ["read", "write"]
+                ),
             ]
         )
     }
@@ -175,9 +160,9 @@ final class GuidanceServerPayloadTests: XCTestCase {
     private static let serviceRegistryJSON = """
     {
       "connections": [
-        {"id":"mcp:notion-personal:abc123","service_id":"notion","name":"Personal Notion","source":"configured_api","status":"connected","actions":["read","write"]},
-        {"id":"runtime:claude.ai%20Notion","service_id":"notion","name":"Work Notion","source":"account","status":"connected","actions":["read","write"]},
-        {"id":"macos:contacts","service_id":"contacts","name":"Contacts","source":"macos","status":"needs_setup","actions":["read"]}
+        {"id":"mcp:notion-personal:abc123","service_id":"notion","name":"Personal Notion","source":"configured_api","status":"connected","actions":["read","write"],"actions_known":true},
+        {"id":"runtime:claude.ai%20Notion","service_id":"notion","name":"Notion (Claude account)","source":"account","status":"connected","actions":["read","write"],"actions_known":true},
+        {"id":"macos:contacts","service_id":"contacts","name":"Contacts","source":"macos","status":"needs_setup","actions":["read"],"actions_known":true}
       ]
     }
     """

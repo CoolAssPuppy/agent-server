@@ -8,8 +8,9 @@ import {
 } from '../agents/capabilities.js';
 
 type EnvironmentSource = Record<string, string | undefined>;
+type RuntimeConfiguration = { serverName: string; config: McpServerConfig };
 
-export type ServiceConnectionStatus = 'connected' | 'needs_setup' | 'unavailable';
+export type ServiceConnectionStatus = 'connected' | 'needs_setup' | 'unavailable' | 'conflict';
 export type ServiceConnectionSource = 'account' | 'configured_api' | 'mcp' | 'macos';
 export type ServiceAction = 'read' | 'write' | 'send' | 'delete';
 
@@ -27,11 +28,12 @@ export type ServiceConnection = {
   source: ServiceConnectionSource;
   status: ServiceConnectionStatus;
   actions: ServiceAction[];
+  actions_known: boolean;
 };
 
 export type ServiceRegistry = {
   connections: ServiceConnection[];
-  runtimeConfigurations: ReadonlyMap<string, { serverName: string; config: McpServerConfig }>;
+  runtimeConfigurations: ReadonlyMap<string, RuntimeConfiguration>;
 };
 
 type RegistryInput = {
@@ -43,13 +45,14 @@ type RegistryInput = {
 
 const ENV_REFERENCE = /\$\{([A-Z][A-Z0-9_]*)}/g;
 
-function catalogDefinition(name: string): CapabilityDefinition | undefined {
-  return CAPABILITY_CATALOG.find((definition) => definition.kind === 'mcp' && (
-    definition.match?.test(name) === true
-    || definition.serverName === name
-    || mcpServerKey(definition.serverName ?? definition.id) === mcpServerKey(name)
-  ));
-}
+const CATALOG_ACTIONS: Readonly<Record<string, ServiceAction[]>> = {
+  notion: ['read', 'write'],
+  slack: ['read', 'send'],
+  linear: ['read', 'write'],
+  gmail: ['read', 'send'],
+  tripmaster: ['read', 'write'],
+  calorienerds: ['read', 'write'],
+};
 
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue);
@@ -67,15 +70,51 @@ function configurationId(serverName: string, config: McpServerConfig): string {
   return `mcp:${serverName}:${digest}`;
 }
 
+function credentialValues(config: McpServerConfig): string[] {
+  return 'command' in config ? Object.values(config.env ?? {}) : Object.values(config.headers ?? {});
+}
+
 function environmentReferences(config: McpServerConfig): string[] {
-  const values = 'command' in config ? Object.values(config.env ?? {}) : Object.values(config.headers ?? {});
-  return values.flatMap((value) => [...value.matchAll(ENV_REFERENCE)].map((match) => match[1]));
+  return credentialValues(config)
+    .flatMap((value) => [...value.matchAll(ENV_REFERENCE)].map((match) => match[1]));
+}
+
+function hasOnlyReferencedCredentials(config: McpServerConfig): boolean {
+  return credentialValues(config).every((value) => {
+    const references = [...value.matchAll(ENV_REFERENCE)];
+    const fixedText = value.replace(ENV_REFERENCE, '').trim();
+    return references.length > 0 && /^(?:Bearer|Basic|Token)?$/i.test(fixedText);
+  });
 }
 
 function connectionStatus(config: McpServerConfig, environment: EnvironmentSource): ServiceConnectionStatus {
   return environmentReferences(config).every((name) => Boolean(environment[name]?.trim()))
     ? 'connected'
     : 'needs_setup';
+}
+
+function transportMatches(definition: CapabilityDefinition, config: McpServerConfig): boolean {
+  const canonical = definition.staticServer;
+  if (canonical && 'command' in canonical && 'command' in config) {
+    return canonical.command === config.command
+      && JSON.stringify(canonical.args ?? []) === JSON.stringify(config.args ?? []);
+  }
+  if (canonical && !('command' in canonical) && !('command' in config)) {
+    return canonical.type === config.type && canonical.url === config.url;
+  }
+  return false;
+}
+
+function configuredDefinition(config: McpServerConfig): CapabilityDefinition | undefined {
+  return CAPABILITY_CATALOG.find((definition) => definition.kind === 'mcp' && transportMatches(definition, config));
+}
+
+function discoveredDefinition(name: string): CapabilityDefinition | undefined {
+  return CAPABILITY_CATALOG.find((definition) => definition.kind === 'mcp' && (
+    definition.serverName === name
+    || mcpServerKey(definition.serverName ?? definition.id) === mcpServerKey(name)
+    || definition.match?.test(name) === true
+  ));
 }
 
 function connectionName(serverName: string, serviceName: string): string {
@@ -85,95 +124,123 @@ function connectionName(serverName: string, serviceName: string): string {
   return `${serviceName} connection`;
 }
 
+function customServiceId(serverName: string): string {
+  const normalized = serverName.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-|-$/g, '');
+  return `custom:${normalized}`;
+}
+
 function configuredAgentConnections(
   agents: AgentConfig[],
   environment: EnvironmentSource,
-): { connections: ServiceConnection[]; runtime: Map<string, { serverName: string; config: McpServerConfig }> } {
-  const connections = new Map<string, ServiceConnection>();
-  const runtime = new Map<string, { serverName: string; config: McpServerConfig }>();
+): { connections: ServiceConnection[]; runtime: Map<string, RuntimeConfiguration> } {
+  const candidates = new Map<string, { connection: ServiceConnection; runtime: RuntimeConfiguration }>();
+  const idsByServerName = new Map<string, Set<string>>();
+
   for (const agent of agents) {
     for (const [serverName, config] of Object.entries(agent.mcp_servers ?? {})) {
-      const definition = catalogDefinition(serverName);
+      if (!hasOnlyReferencedCredentials(config)) continue;
       const id = configurationId(serverName, config);
-      if (connections.has(id)) continue;
-      const serviceId = definition?.id ?? mcpServerKey(serverName).toLowerCase();
-      const source = environmentReferences(config).length > 0 ? 'configured_api' : 'mcp';
-      connections.set(id, {
-        id,
-        service_id: serviceId,
-        name: connectionName(serverName, definition?.label ?? serverName),
-        source,
-        status: connectionStatus(config, environment),
-        actions: ['read', 'write'],
+      if (candidates.has(id)) continue;
+      const definition = configuredDefinition(config);
+      const actions = definition ? (CATALOG_ACTIONS[definition.id] ?? []) : [];
+      const label = definition?.label ?? serverName.replaceAll(/[-_]+/g, ' ');
+      candidates.set(id, {
+        connection: {
+          id,
+          service_id: definition?.id ?? customServiceId(serverName),
+          name: connectionName(serverName, label),
+          source: environmentReferences(config).length > 0 ? 'configured_api' : 'mcp',
+          status: connectionStatus(config, environment),
+          actions,
+          actions_known: Boolean(definition),
+        },
+        runtime: { serverName, config },
       });
-      runtime.set(id, { serverName, config });
+      const serverIds = idsByServerName.get(serverName) ?? new Set<string>();
+      serverIds.add(id);
+      idsByServerName.set(serverName, serverIds);
     }
   }
-  return { connections: [...connections.values()], runtime };
+
+  const runtime = new Map<string, RuntimeConfiguration>();
+  const connections = [...candidates.values()].map(({ connection, runtime: binding }) => {
+    if ((idsByServerName.get(binding.serverName)?.size ?? 0) > 1) {
+      return { ...connection, status: 'conflict' as const };
+    }
+    runtime.set(connection.id, binding);
+    return connection;
+  });
+  return { connections, runtime };
+}
+
+function catalogConfiguration(
+  definition: CapabilityDefinition,
+  environment: EnvironmentSource,
+): McpServerConfig | undefined {
+  if (definition.staticServer) return definition.staticServer;
+  const template = definition.remoteServer;
+  const url = template ? environment[template.urlEnv]?.trim() : undefined;
+  return template && url
+    ? { type: template.type, url, ...(template.headers ? { headers: template.headers } : {}) }
+    : undefined;
 }
 
 function configuredCatalogConnections(
   environment: EnvironmentSource,
-  existing: ServiceConnection[],
-): { connections: ServiceConnection[]; runtime: Map<string, { serverName: string; config: McpServerConfig }> } {
+  occupiedIds: ReadonlySet<string>,
+): { connections: ServiceConnection[]; runtime: Map<string, RuntimeConfiguration> } {
   const connections: ServiceConnection[] = [];
-  const runtime = new Map<string, { serverName: string; config: McpServerConfig }>();
+  const runtime = new Map<string, RuntimeConfiguration>();
   for (const definition of CAPABILITY_CATALOG) {
-    const required = definition.requiredEnv ?? [];
-    if (definition.kind !== 'mcp' || required.length === 0) continue;
-    if (!required.every((name) => Boolean(environment[name]?.trim()))) continue;
-    if (existing.some((connection) => connection.service_id === definition.id && connection.source === 'configured_api')) {
-      continue;
-    }
-    const config = definition.staticServer ?? (() => {
-      const template = definition.remoteServer;
-      const url = template ? environment[template.urlEnv]?.trim() : undefined;
-      return template && url
-        ? { type: template.type, url, ...(template.headers ? { headers: template.headers } : {}) }
-        : undefined;
-    })();
-    if (!config) continue;
+    if (definition.kind !== 'mcp' || definition.builtin) continue;
     const id = `catalog:${definition.id}`;
+    if (occupiedIds.has(id)) continue;
+    const config = catalogConfiguration(definition, environment);
+    const required = definition.requiredEnv ?? [];
+    const isReady = definition.auth !== 'oauth'
+      && required.every((name) => Boolean(environment[name]?.trim()));
+    const actions = CATALOG_ACTIONS[definition.id] ?? [];
     connections.push({
       id,
       service_id: definition.id,
       name: definition.label,
       source: 'configured_api',
-      status: 'connected',
-      actions: ['read', 'write'],
+      status: config && isReady ? 'connected' : 'needs_setup',
+      actions,
+      actions_known: actions.length > 0,
     });
-    runtime.set(id, { serverName: definition.serverName ?? definition.id, config });
+    if (config) runtime.set(id, { serverName: definition.serverName ?? definition.id, config });
   }
   return { connections, runtime };
 }
 
-function accountConnections(
-  discovered: DiscoveredConnection[],
-  existing: ServiceConnection[],
-): ServiceConnection[] {
+function runtimeStatus(status: string): ServiceConnectionStatus {
+  if (status === 'connected') return 'connected';
+  if (status === 'failed' || status === 'disabled') return 'unavailable';
+  return 'needs_setup';
+}
+
+function accountConnections(discovered: DiscoveredConnection[]): ServiceConnection[] {
   return discovered.map((connection) => {
-    const definition = catalogDefinition(connection.name);
-    const serviceId = definition?.id ?? mcpServerKey(connection.name).toLowerCase();
-    const hasPersonal = existing.some((candidate) => (
-      candidate.service_id === serviceId && candidate.name.toLowerCase().startsWith('personal ')
-    ));
+    const definition = discoveredDefinition(connection.name);
+    const serviceId = definition?.id ?? customServiceId(connection.name);
+    const actions = definition ? (CATALOG_ACTIONS[definition.id] ?? []) : [];
     const baseName = definition?.label ?? connection.name.replace(/^claude\.ai\s+/i, '');
     return {
       id: `runtime:${encodeURIComponent(connection.name)}`,
       service_id: serviceId,
-      name: hasPersonal ? `Work ${baseName}` : `${baseName} account`,
+      name: definition ? `${baseName} (Claude account)` : `${baseName} account`,
       source: 'account',
-      status: connection.status === 'connected' ? 'connected' : 'needs_setup',
-      actions: ['read', 'write'],
+      status: runtimeStatus(connection.status),
+      actions,
+      actions_known: Boolean(definition),
     };
   });
 }
 
 export function buildServiceRegistry(input: RegistryInput): ServiceRegistry {
   const configured = configuredAgentConnections(input.agents, input.environment);
-  const catalog = configuredCatalogConnections(input.environment, configured.connections);
-  const existing = [...configured.connections, ...catalog.connections];
-  const accounts = accountConnections(input.discovered, existing);
+  const catalog = configuredCatalogConnections(input.environment, new Set(configured.connections.map(({ id }) => id)));
   const native = (input.nativeServices ?? []).map((service): ServiceConnection => ({
     id: `macos:${service.id}`,
     service_id: service.id,
@@ -181,9 +248,10 @@ export function buildServiceRegistry(input: RegistryInput): ServiceRegistry {
     source: 'macos',
     status: service.status,
     actions: service.actions,
+    actions_known: true,
   }));
   return {
-    connections: [...existing, ...accounts, ...native],
+    connections: [...configured.connections, ...catalog.connections, ...accountConnections(input.discovered), ...native],
     runtimeConfigurations: new Map([...configured.runtime, ...catalog.runtime]),
   };
 }
