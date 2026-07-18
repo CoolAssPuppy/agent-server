@@ -10,15 +10,14 @@ type AgentEnvironmentSettings = {
 };
 
 type McpCredentialSettings =
-  | { command: string; args?: readonly string[] }
-  | { url: string };
+  | { command: string; args?: readonly string[]; url?: never }
+  | { url: string; command?: never; args?: never };
 
 export type McpCredentialOwner = { name: string } & McpCredentialSettings;
 
 export function mcpCredentialOwner(name: string, settings: McpCredentialSettings): McpCredentialOwner {
-  return 'command' in settings
-    ? { name, command: settings.command, args: settings.args }
-    : { name, url: settings.url };
+  if (settings.url !== undefined) return { name, url: settings.url };
+  return { name, command: settings.command, args: settings.args };
 }
 
 const EXACT_ENV_REFERENCE = /^\$\{([A-Z][A-Z0-9_]*)}$/;
@@ -60,6 +59,7 @@ const PROVIDER_CREDENTIALS: Readonly<Record<string, ReadonlySet<string>>> = {
 const MCP_CREDENTIALS: ReadonlyArray<{
   matches: (owner: McpCredentialOwner) => boolean;
   variables: ReadonlySet<string>;
+  targets: ReadonlySet<string>;
 }> = [
   {
     matches: (owner) => owner.name.toLowerCase() === 'notion-personal'
@@ -67,36 +67,47 @@ const MCP_CREDENTIALS: ReadonlyArray<{
       && owner.command === 'npx'
       && owner.args?.join('\0') === '-y\0@notionhq/notion-mcp-server',
     variables: new Set(['NOTION_PERSONAL_API_KEY']),
+    targets: new Set(['NOTION_TOKEN']),
   },
   {
     matches: (owner) => owner.name.toLowerCase() !== 'notion-personal'
       && /(?:^|[-_])notion(?:$|[-_])/i.test(owner.name),
     variables: new Set(['NOTION_API_KEY']),
+    targets: new Set(['NOTION_TOKEN']),
   },
   {
     matches: (owner) => owner.name === 'hex'
       && 'url' in owner
       && owner.url === 'https://app.hex.tech/mcp',
     variables: new Set(['HEX_PERSONAL_ACCESS_TOKEN']),
+    targets: new Set(['Authorization']),
   },
   {
     matches: (owner) => /(?:^|[-_])slack(?:$|[-_])/i.test(owner.name),
     variables: new Set(['SLACK_BOT_TOKEN', 'SLACK_TEAM_ID']),
+    targets: new Set(['SLACK_BOT_TOKEN', 'SLACK_TEAM_ID']),
   },
   {
     matches: (owner) => /(?:^|[-_])gmail(?:$|[-_])/i.test(owner.name),
     variables: new Set(['GMAIL_MCP_TOKEN']),
+    targets: new Set(['Authorization']),
   },
   {
     matches: (owner) => /trip[-_]?master/i.test(owner.name),
     variables: new Set(['TRIPMASTER_API_KEY']),
+    targets: new Set(['Authorization']),
   },
 ];
 
-function approvedMcpVariables(owner: McpCredentialOwner): ReadonlySet<string> {
-  return new Set(MCP_CREDENTIALS
-    .filter((entry) => entry.matches(owner))
-    .flatMap((entry) => [...entry.variables]));
+function approvedMcpPolicy(owner: McpCredentialOwner): {
+  variables: ReadonlySet<string>;
+  targets: ReadonlySet<string>;
+} {
+  const matches = MCP_CREDENTIALS.filter((entry) => entry.matches(owner));
+  return {
+    variables: new Set(matches.flatMap((entry) => [...entry.variables])),
+    targets: new Set(matches.flatMap((entry) => [...entry.targets])),
+  };
 }
 
 function environmentReference(value: string): string {
@@ -118,9 +129,14 @@ export function isApprovedProviderReference(provider: ProviderSettings): boolean
 }
 
 export function areApprovedMcpReferences(owner: McpCredentialOwner, values: Record<string, string>): boolean {
-  const approved = approvedMcpVariables(owner);
-  return Object.values(values).every((value) => [...value.matchAll(ENV_REFERENCE)]
-    .every((match) => approved.has(match[1])));
+  const hasReferences = Object.values(values).some((value) => ENV_REFERENCE.test(value));
+  ENV_REFERENCE.lastIndex = 0;
+  if (!hasReferences) return true;
+  const approved = approvedMcpPolicy(owner);
+  return Object.entries(values).every(([target, value]) => (
+    approved.targets.has(target)
+    && [...value.matchAll(ENV_REFERENCE)].every((match) => approved.variables.has(match[1]))
+  ));
 }
 
 function resolveReference(name: string, source: EnvironmentSource): string {
@@ -151,11 +167,16 @@ export function resolveApprovedMcpValues(
   values: Record<string, string>,
   source: EnvironmentSource = process.env,
 ): Record<string, string> {
-  const approved = approvedMcpVariables(owner);
+  const hasReferences = Object.values(values).some((value) => ENV_REFERENCE.test(value));
+  ENV_REFERENCE.lastIndex = 0;
+  const approved = approvedMcpPolicy(owner);
   const resolved: Record<string, string> = {};
   for (const [target, value] of Object.entries(values)) {
+    if (hasReferences && !approved.targets.has(target)) {
+      throw new Error(`Environment field ${target} is not approved for MCP server ${owner.name}`);
+    }
     resolved[target] = value.replace(ENV_REFERENCE, (_match, variable: string) => {
-      if (!approved.has(variable)) {
+      if (!approved.variables.has(variable)) {
         throw new Error(`Environment variable ${variable} is not approved for MCP server ${owner.name}`);
       }
       return resolveReference(variable, source);

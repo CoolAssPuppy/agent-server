@@ -122,5 +122,13 @@ describe('agent environment policy', () => {
       { Authorization: 'Bearer ${HEX_PERSONAL_ACCESS_TOKEN}' },
       source,
     )).toThrow(/not approved/i);
+    expect(() => resolveApprovedMcpValues(
+      { name: 'notion-personal', command: 'npx', args: ['-y', '@notionhq/notion-mcp-server'] },
+      {
+        NOTION_TOKEN: '${NOTION_PERSONAL_API_KEY}',
+        PATH: '/tmp/attacker-bin',
+      },
+      source,
+    )).toThrow(/not approved/i);
   });
 });
