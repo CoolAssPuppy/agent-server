@@ -8,7 +8,7 @@ actor AgentServerClient {
 
     init(port: Int = 47821, environmentURL: URL? = nil) {
         // Fail loud during init with a clear message if the host/port combo
-        // ever produces an invalid URL — better than a force-unwrap crash
+        // ever produces an invalid URL. This is better than a force-unwrap crash
         // miles away in the call site.
         guard let url = LocalServerEndpoint.httpURL(port: port) else {
             preconditionFailure("AgentServerClient: invalid base URL for port \(port)")
@@ -183,54 +183,6 @@ actor AgentServerClient {
         try await get("/connections")
     }
 
-    func securityAnalysis(agentId: String) async throws -> SecurityAnalysisPayload {
-        try await securityRequest(.agent(agentId))
-    }
-
-    func scanSecurity() async throws -> SecurityScanPayload {
-        try await securityRequest(.scan)
-    }
-
-    func markSecurityReviewed(
-        agentId: String,
-        contentHash: String,
-        acknowledgedFindingIds: [String]
-    ) async throws -> SecurityReviewResponse {
-        let body = SecurityReviewRequestPayload(
-            contentHash: contentHash,
-            acknowledgedFindingIds: acknowledgedFindingIds
-        )
-        return try await securityRequest(.review(agentId), body: body)
-    }
-
-    func createGuidedProposal(_ body: GuidanceProposalRequest) async throws -> GuidanceProposalResponse {
-        try await guidanceRequest(.createProposal, body: body)
-    }
-
-    func saveGuidedProposal(id: String) async throws -> GuidanceSaveResponse {
-        try await guidanceRequest(.saveProposal(id), body: GuidanceSaveRequest())
-    }
-
-    func diagnoseRun(id: String) async throws -> GuidanceDiagnosticPayload {
-        try await guidanceRequest(.diagnosis(id))
-    }
-
-    func previewGuidancePatch(_ patch: GuidanceConfigurationPatch) async throws -> GuidancePatchPreview {
-        try await guidanceRequest(.previewPatch, body: patch)
-    }
-
-    func applyGuidancePatch(_ patch: GuidanceConfigurationPatch) async throws -> GuidancePatchApplyResponse {
-        try await guidanceRequest(.applyPatch, body: patch)
-    }
-
-    func retryGuidedRun(id: String) async throws -> GuidanceRetryResponse {
-        try await guidanceRequest(.retry(id), body: GuidanceRetryRequest())
-    }
-
-    func triggerSafeTest(agentId: String) async throws -> TriggerResponse {
-        try await guidanceRequest(.safeTest(agentId))
-    }
-
     /// Re-probes the runtime and returns the fresh snapshot. Backs the
     /// "Refresh connections" action; costs an MCP connection, no tokens.
     func refreshConnections() async throws -> ConnectionSnapshot {
@@ -290,67 +242,28 @@ actor AgentServerClient {
         return try decoder.decode(T.self, from: data)
     }
 
-    private func securityRequest<Response: Decodable>(
-        _ route: SecurityServerRoute
+    func routeRequest<Response: Decodable>(
+        path: String,
+        method: HTTPRequestMethod,
+        bodyData: Data? = nil,
+        usesGuidanceErrors: Bool = false
     ) async throws -> Response {
-        try await securityRequest(route, bodyData: nil)
-    }
-
-    private func securityRequest<Response: Decodable, Body: Encodable>(
-        _ route: SecurityServerRoute,
-        body: Body
-    ) async throws -> Response {
-        try await securityRequest(route, bodyData: JSONEncoder().encode(body))
-    }
-
-    private func securityRequest<Response: Decodable>(
-        _ route: SecurityServerRoute,
-        bodyData: Data?
-    ) async throws -> Response {
-        guard let url = URL(string: route.path, relativeTo: baseURL)?.absoluteURL else {
+        guard let url = URL(string: path, relativeTo: baseURL)?.absoluteURL else {
             throw ClientError.invalidResponse
         }
         var request = URLRequest(url: url)
-        request.httpMethod = route.method.rawValue
+        request.httpMethod = method.rawValue
         if let bodyData {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = bodyData
         }
         request = try authenticatedRequest(request)
         let (data, response) = try await session.data(for: request)
-        try validateResponse(response)
-        return try decoder.decode(Response.self, from: data)
-    }
-
-    private func guidanceRequest<Response: Decodable>(
-        _ route: GuidanceServerRoute
-    ) async throws -> Response {
-        try await guidanceRequest(route, bodyData: nil)
-    }
-
-    private func guidanceRequest<Response: Decodable, Body: Encodable>(
-        _ route: GuidanceServerRoute,
-        body: Body
-    ) async throws -> Response {
-        try await guidanceRequest(route, bodyData: JSONEncoder().encode(body))
-    }
-
-    private func guidanceRequest<Response: Decodable>(
-        _ route: GuidanceServerRoute,
-        bodyData: Data?
-    ) async throws -> Response {
-        guard let url = URL(string: route.path, relativeTo: baseURL)?.absoluteURL else {
-            throw ClientError.invalidResponse
+        if usesGuidanceErrors {
+            try validateGuidanceResponse(data: data, response: response)
+        } else {
+            try validateResponse(response)
         }
-        var request = URLRequest(url: url)
-        request.httpMethod = route.method.rawValue
-        if let bodyData {
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = bodyData
-        }
-        request = try authenticatedRequest(request)
-        let (data, response) = try await session.data(for: request)
-        try validateGuidanceResponse(data: data, response: response)
         return try decoder.decode(Response.self, from: data)
     }
 
