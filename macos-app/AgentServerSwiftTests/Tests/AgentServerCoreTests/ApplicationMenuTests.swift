@@ -4,12 +4,16 @@ import XCTest
 
 @MainActor
 final class ApplicationMenuTests: XCTestCase {
-    func testRepairsMissingOrIncompleteEditCommands() {
-        XCTAssertTrue(ApplicationMenuPolicy.needsEditMenuInstallation(actionNames: []))
-        XCTAssertTrue(ApplicationMenuPolicy.needsEditMenuInstallation(actionNames: ["copy:", "paste:"]))
-        XCTAssertFalse(ApplicationMenuPolicy.needsEditMenuInstallation(actionNames: [
-            "undo:", "cut:", "copy:", "paste:", "selectAll:",
-        ]))
+    func testFindsLocalizedMenusByActionsAndOnlySuppliesMissingEditCommands() {
+        XCTAssertTrue(ApplicationMenuPolicy.isFileMenu(actionNames: ["openDocument:"]))
+        XCTAssertTrue(ApplicationMenuPolicy.isEditMenu(actionNames: ["copy:", "find:"]))
+        XCTAssertEqual(
+            ApplicationMenuPolicy.missingEditActions(actionNames: ["copy:", "paste:"]),
+            Set(["cut:", "selectAll:"])
+        )
+
+        let items = StandardEditMenu.requiredItems(missing: Set(["cut:", "selectAll:"]))
+        XCTAssertEqual(Set(items.compactMap { $0.action.map(NSStringFromSelector) }), Set(["cut:", "selectAll:"]))
     }
 
     func testEditMenuUsesNativeResponderChainCommands() {

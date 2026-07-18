@@ -2,9 +2,19 @@ import AppKit
 
 public enum ApplicationMenuPolicy {
     private static let requiredEditActions = Set(["cut:", "copy:", "paste:", "selectAll:"])
+    private static let editActions = requiredEditActions.union(["undo:", "redo:", "find:"])
+    private static let fileActions = Set(["newDocument:", "openDocument:", "saveDocument:", "performClose:"])
 
-    public static func needsEditMenuInstallation(actionNames: [String]) -> Bool {
-        !requiredEditActions.isSubset(of: Set(actionNames))
+    public static func isEditMenu(actionNames: [String]) -> Bool {
+        !editActions.isDisjoint(with: Set(actionNames))
+    }
+
+    public static func isFileMenu(actionNames: [String]) -> Bool {
+        !fileActions.isDisjoint(with: Set(actionNames))
+    }
+
+    public static func missingEditActions(actionNames: [String]) -> Set<String> {
+        requiredEditActions.subtracting(actionNames)
     }
 }
 
@@ -20,6 +30,18 @@ public enum StandardEditMenu {
         menu.addItem(command("Paste", action: #selector(NSText.paste(_:)), key: "v"))
         menu.addItem(command("Select All", action: #selector(NSText.selectAll(_:)), key: "a"))
         return menu
+    }
+
+    @MainActor
+    public static func requiredItems(missing actionNames: Set<String>) -> [NSMenuItem] {
+        [
+            command("Cut", action: #selector(NSText.cut(_:)), key: "x"),
+            command("Copy", action: #selector(NSText.copy(_:)), key: "c"),
+            command("Paste", action: #selector(NSText.paste(_:)), key: "v"),
+            command("Select All", action: #selector(NSText.selectAll(_:)), key: "a"),
+        ].filter { item in
+            item.action.map(NSStringFromSelector).map(actionNames.contains) == true
+        }
     }
 
     @MainActor
