@@ -197,6 +197,43 @@ describe('structured configuration patches', () => {
     );
   });
 
+  it('turns on network tools only after the reviewed high-risk preview is confirmed', async () => {
+    const restricted = original.replace(
+      'tools:\n  - Read',
+      'permissions:\n  allow: [Read]\n  deny: [WebFetch, WebSearch, web_search]',
+    );
+    const repository = new InMemoryAgentContentRepository({ reports: restricted });
+    const service = new StructuredPatchService(repository);
+    const patch = ConfigurationPatchSchema.parse({
+      ...safePatch(restricted), changes: { network_access: true },
+    });
+    const preview = await service.preview(patch);
+
+    expect(preview.requires_confirmation).toBe(true);
+    const parsedPreview = parseAgentFile(preview.result_content);
+    expect(parsedPreview.permissions?.allow).toEqual(expect.arrayContaining(['WebFetch', 'WebSearch']));
+    expect(parsedPreview.permissions?.deny).not.toEqual(expect.arrayContaining(['WebFetch', 'WebSearch']));
+    expect(preview.result_content).not.toContain('network_access');
+
+    await service.apply(ConfigurationPatchSchema.parse({
+      ...patch,
+      confirmation: { approved: true, preview_content_hash: preview.result_content_hash },
+    }));
+    expect(parseAgentFile(await repository.read('reports')).permissions?.allow).toContain('WebFetch');
+  });
+
+  it('accepts the remaining supported agent configuration fields', () => {
+    expect(ConfigurationPatchSchema.parse({
+      ...safePatch(),
+      changes: {
+        max_turns: 12,
+        timeout: '10m',
+        conversation: { enabled: true, ttl: '30m' },
+        telemetry: { progress_mode: 'batched' },
+      },
+    }).changes).toMatchObject({ max_turns: 12, timeout: '10m' });
+  });
+
   it('keeps only the fifty newest rollback backups', async () => {
     const repository = new InMemoryAgentContentRepository({ reports: original });
     const service = new StructuredPatchService(repository);

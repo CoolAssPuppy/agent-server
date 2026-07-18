@@ -2,7 +2,13 @@ import { randomUUID } from 'crypto';
 import { CronExpressionParser } from 'cron-parser';
 import { Document, Scalar, parseDocument } from 'yaml';
 import { z } from 'zod';
-import { parseAgentFile, hasFrontmatter, splitFrontmatter } from '../agents/config.js';
+import {
+  AgentTelemetrySchema,
+  parseAgentFile,
+  hasFrontmatter,
+  splitFrontmatter,
+} from '../agents/config.js';
+import { ConversationConfigSchema } from '../conversation/schema.js';
 import { computeAgentContentHash } from './security-rules.js';
 
 const ContentHashSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/);
@@ -17,6 +23,8 @@ export const ConfigurationChangesSchema = z.object({
   schedule: z.string().trim().min(1).max(120).nullable().optional(),
   timezone: z.string().trim().min(1).max(120).nullable().optional(),
   enabled: z.boolean().optional(),
+  max_turns: z.number().int().positive().optional(),
+  timeout: z.string().trim().min(1).max(16).nullable().optional(),
   working_directory: OptionalText,
   tools: ToolListSchema.optional(),
   disallowed_tools: ToolListSchema.optional(),
@@ -32,6 +40,8 @@ export const ConfigurationChangesSchema = z.object({
   permission_mode: z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk']).nullable().optional(),
   notification: z.record(z.string(), z.unknown()).nullable().optional(),
   interaction: z.record(z.string(), z.unknown()).nullable().optional(),
+  conversation: ConversationConfigSchema.nullable().optional(),
+  telemetry: AgentTelemetrySchema.nullable().optional(),
   watch: z.array(z.object({
     path: z.string().trim().min(1).max(1_024),
     glob: z.string().trim().min(1).max(500).optional(),
@@ -90,6 +100,8 @@ const FIELD_SUMMARIES: Record<string, string> = {
   executor: 'Change the local runtime', provider: 'Change the model service', codex_sandbox: 'Change file access limits',
   permission_mode: 'Change approval behavior', notification: 'Change notifications', interaction: 'Change reply handling',
   watch: 'Change watched folders', on_complete: 'Change follow-up agents', on_failure: 'Change failure handling',
+  max_turns: 'Change the run step limit', timeout: 'Change the run time limit',
+  conversation: 'Change conversation memory', telemetry: 'Change progress reporting',
   network_access: 'Change internet access',
 };
 
@@ -213,6 +225,20 @@ function renderPatchedContent(content: string, changes: ConfigurationChanges): s
         allow: permissions.allow,
         deny: [...new Set([...permissions.deny, 'WebFetch', 'WebSearch', 'web_search'])],
       };
+    }
+  }
+  if (changes.network_access === true) {
+    const networkTools = ['WebFetch', 'WebSearch', 'web_search'];
+    writes.disallowed_tools = (changes.disallowed_tools ?? agent.disallowed_tools)
+      .filter((tool) => !networkTools.includes(tool));
+    const permissions = changes.permissions ?? agent.permissions;
+    if (permissions) {
+      writes.permissions = {
+        allow: [...new Set([...permissions.allow, ...networkTools])],
+        deny: permissions.deny.filter((tool) => !networkTools.includes(tool)),
+      };
+    } else {
+      writes.tools = [...new Set([...(changes.tools ?? agent.tools), ...networkTools])];
     }
   }
 
