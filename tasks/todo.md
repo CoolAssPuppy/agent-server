@@ -2,6 +2,25 @@
 
 Status: Feature implementation and automated verification complete. Manual release validation remains.
 
+## Unified services and resource grants
+
+- [ ] Add a tested local Services registry that presents discovered MCP accounts, configured API-key services, reusable agent-defined MCP services, and native macOS services as stable named connections.
+- [ ] Make agent creation select an exact service connection, clearly distinguishing Personal Notion from Work Notion, and materialize the selected runtime configuration without copying secrets.
+- [ ] Add multiple file and folder grants with independent View only or Can make changes access, preserving every grant in generated agent configuration and security analysis.
+- [ ] Add native macOS service grants for Calendar, Reminders, Contacts, and Apple Music, with resource/action scope and clear unavailable states where the operating system cannot provide the requested access.
+- [ ] Reuse the grant models in proposal review, safe tests, debugger patches, and security preflight checks.
+- [ ] Add server and Swift behavior coverage first, then run full server tests, Swift tests, type-check, server build, and unsigned Xcode build without UI automation.
+- [ ] Run a simplification review after every consequential commit, record the final verification here, and launch the verified build.
+
+### Architecture constraints
+
+- Consumers choose a named connection such as Personal Notion or Work Notion. MCP, API-key, OAuth, and native framework details remain secondary metadata.
+- A service definition, a configured connection instance, and an agent's scoped grant are separate models.
+- Agent files contain stable connection references and environment-variable references only. They never contain credential values.
+- Existing agent-defined MCP configurations remain compatible and can be offered as reusable local connections when their configuration is safe to copy.
+- File and native-service permissions are least-privilege grants. No global write permission is inferred from one writable resource.
+- Calendar and Reminders continue through EventKit. Contacts and Apple Music must use native framework or approved local-helper boundaries, not shell automation hidden from the user.
+
 ## Consumer correction batch
 
 - [x] Restore existing Notion Personal and Hex agents without weakening literal-secret protections.
