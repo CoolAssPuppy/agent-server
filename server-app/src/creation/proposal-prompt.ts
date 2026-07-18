@@ -16,7 +16,15 @@ Explain each risky recommendation without implementation jargon.
 Instructions must include success criteria, expected output, missing-data handling, secret protection, and relevant safeguards.`;
 
 export function buildAgentProposalPrompt(request: ProposalRequest): string {
-  const safeRequest = sanitizeText(request.request, 8_000);
+  const fileGrants = (request.answers ?? [])
+    .find((answer) => answer.question_id === 'file-access')?.value;
+  const selectedPaths = Array.isArray(fileGrants)
+    ? fileGrants.flatMap((grant) => typeof grant === 'string' ? [] : [grant.path])
+    : [];
+  const requestWithoutSelectedPaths = selectedPaths
+    .sort((left, right) => right.length - left.length)
+    .reduce((text, path) => text.split(path).join('[selected local item]'), request.request);
+  const safeRequest = sanitizeText(requestWithoutSelectedPaths, 8_000);
   const services = request.connectedServices.length > 0
     ? request.connectedServices.map((service) => (
       `${sanitizeText(service.name, 160)} (${sanitizeText(service.id, 240)}); `
@@ -24,8 +32,16 @@ export function buildAgentProposalPrompt(request: ProposalRequest): string {
       + `Known capabilities: ${service.actions_known ? service.actions.join(', ') || 'none' : 'not verified'}`
     )).join(', ')
     : 'None';
-  const answers = (request.answers ?? []).length > 0
-    ? (request.answers ?? []).map((answer) => {
+  const modelAnswers = (request.answers ?? []).filter((answer) => answer.question_id !== 'file-access');
+  const fileSummary = Array.isArray(fileGrants) && fileGrants.length > 0 && typeof fileGrants[0] !== 'string'
+    ? `${fileGrants.length} selected item${fileGrants.length === 1 ? '' : 's'}; ${
+      fileGrants.some((grant) => typeof grant !== 'string' && grant.access === 'read_write')
+        ? 'some can be changed'
+        : 'view only'
+    }. Paths stay local and will be added after generation.`
+    : 'None';
+  const answers = modelAnswers.length > 0
+    ? modelAnswers.map((answer) => {
       const value = typeof answer.value === 'object' ? JSON.stringify(answer.value) : String(answer.value);
       return `${answer.question_id}: ${sanitizeText(value, 1_000)}`;
     }).join('\n')
@@ -39,5 +55,5 @@ export function buildAgentProposalPrompt(request: ProposalRequest): string {
     ? selectedCalendars.map((calendar) => `${sanitizeText(calendar.name, 160)} (${calendar.id})`).join(', ')
     : 'None';
 
-  return `${SYSTEM_INSTRUCTIONS}\n\nUser request:\n${safeRequest}\n\nUser time zone: ${request.timezone}\nConnected apps and services: ${services}\nSelected calendars: ${calendars}\nConfirmed answers:\n${answers}`;
+  return `${SYSTEM_INSTRUCTIONS}\n\nUser request:\n${safeRequest}\n\nUser time zone: ${request.timezone}\nConnected apps and services: ${services}\nConfirmed file access: ${fileSummary}\nSelected calendars: ${calendars}\nConfirmed answers:\n${answers}`;
 }

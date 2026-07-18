@@ -17,3 +17,6 @@
 - A SwiftUI app lifecycle can replace an AppKit menu installed during launch. Verify the live menu and repair native responder-chain commands after activation instead of adding field-specific keyboard handlers.
 - Treat an account qualifier such as Personal or Work as a user decision. Never auto-select a different account merely because it is the only connected service.
 - When repairing a native menu, keep references to menu objects across insertions and normalize both selectors and keyboard equivalents. Array indices and English menu titles are not stable macOS contracts.
+- A server-owned service registry must still minimize model input. Send only services named by the request or explicitly selected, and bind only identities that were offered in that reviewed request.
+- When a model fallback repeats a question that already has a structured answer, stop in a retryable error state. Do not recursively call the proposal service or discard the user's selected resources.
+- Exact file scopes need default-deny tool permissions, canonical path precedence, and a runtime that can enforce individual paths. Never widen a selected file to its parent folder or combine scoped paths with unrestricted commands.

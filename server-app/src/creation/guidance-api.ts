@@ -12,7 +12,7 @@ import { redactAgentSecrets } from '../agents/capabilities.js';
 import type { RunStoreLike } from '../reporting/store.js';
 import { analyzeRunFailure, type DiagnosticReadiness } from '../diagnostics/diagnostic-service.js';
 import { buildDiagnosticResolution } from '../diagnostics/resolution.js';
-import { createAgentProposal, type ProposalModel } from './proposal-service.js';
+import { createAgentProposal, servicesRelevantToRequest, type ProposalModel } from './proposal-service.js';
 import {
   deriveProposalAgentId,
   proposalToAgentConfig,
@@ -70,13 +70,15 @@ export type GuidanceApiDependencies = {
   content?: { get(agentId: string): Promise<{ agent: AgentConfig; content: string } | undefined> };
   triggerRun?: (agentId: string, metadata: GuidanceRetryMetadata) => Promise<string>;
   diagnosticReadiness?: (agent: AgentConfig) => DiagnosticReadiness;
-  getServiceRegistry?: () => Promise<ServiceRegistry>;
+  getServiceRegistry: () => Promise<ServiceRegistry>;
   now?: () => number;
 };
 
 type PendingProposal = { proposal: CreationProposal; offeredServiceIds: ReadonlySet<string>; expiresAt: number };
 const PROPOSAL_TTL_MS = 30 * 60 * 1_000;
 const MAX_PENDING_PROPOSALS = 100;
+
+class ServiceRegistryUnavailableError extends Error {}
 
 async function readJson(request: Request): Promise<unknown> {
   if (!request.headers.get('content-type')?.toLowerCase().includes('application/json')) {
@@ -127,18 +129,17 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
     return entry;
   }
 
-  async function currentConnectedServices(
-    requested: readonly { id: string }[],
-  ): Promise<ServiceConnection[] | undefined> {
-    if (!dependencies.getServiceRegistry) return undefined;
-    const registry = await dependencies.getServiceRegistry();
-    const available = new Map(registry.connections
-      .filter((connection) => connection.status === 'connected')
-      .map((connection) => [connection.id, connection]));
-    const resolved = requested.map((service) => available.get(service.id));
-    return resolved.every((service): service is ServiceConnection => service !== undefined)
-      ? resolved
-      : undefined;
+  async function currentServiceRegistry(): Promise<ServiceRegistry> {
+    try {
+      return await dependencies.getServiceRegistry();
+    } catch {
+      throw new ServiceRegistryUnavailableError('Service discovery failed');
+    }
+  }
+
+  async function currentConnectedServices(): Promise<ServiceConnection[]> {
+    const registry = await currentServiceRegistry();
+    return registry.connections.filter((connection) => connection.status === 'connected');
   }
 
   function proposalServiceInputs(services: readonly ServiceConnection[]) {
@@ -155,18 +156,9 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
   app.post('/guidance/agent-proposals', async (context) => {
     try {
       const request = ProposalApiRequestSchema.parse(await readJson(context.req.raw));
-      const authoritativeServices = await currentConnectedServices(request.connected_services);
-      if (dependencies.getServiceRegistry && !authoritativeServices) {
-        return context.json({
-          error: 'Your available services changed. Refresh the service list and review your choice.',
-          saved: false,
-          refresh_services: true,
-        }, 409);
-      }
-      const connectedServices = authoritativeServices
-        ? proposalServiceInputs(authoritativeServices)
-        : request.connected_services;
-      const result = await createAgentProposal({
+      const authoritativeServices = await currentConnectedServices();
+      const connectedServices = proposalServiceInputs(authoritativeServices);
+      const proposalRequest = {
         request: request.request,
         timezone: request.timezone,
         connectedServices,
@@ -177,11 +169,24 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
           canModify: calendar.can_modify,
         })),
         answers: request.answers,
+      };
+      const result = await createAgentProposal({
+        ...proposalRequest,
         model: dependencies.model,
       });
       if (result.status !== 'proposal') return context.json(result);
-      return context.json({ ...result, proposal_id: remember(result.proposal, connectedServices) });
+      return context.json({
+        ...result,
+        proposal_id: remember(result.proposal, servicesRelevantToRequest(proposalRequest)),
+      });
     } catch (error) {
+      if (error instanceof ServiceRegistryUnavailableError) {
+        return context.json({
+          error: 'Apps and services could not be checked. Nothing was saved.',
+          saved: false,
+          retryable: true,
+        }, 503);
+      }
       return context.json({
         error: error instanceof TypeError ? error.message : 'The agent request is invalid.',
         saved: false,
@@ -192,23 +197,14 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
   app.post('/guidance/agents/:agentId/similar-proposals', async (context) => {
     try {
       const request = ProposalApiRequestSchema.parse(await readJson(context.req.raw));
-      const authoritativeServices = await currentConnectedServices(request.connected_services);
-      if (dependencies.getServiceRegistry && !authoritativeServices) {
-        return context.json({
-          error: 'Your available services changed. Refresh the service list and review your choice.',
-          saved: false,
-          refresh_services: true,
-        }, 409);
-      }
-      const connectedServices = authoritativeServices
-        ? proposalServiceInputs(authoritativeServices)
-        : request.connected_services;
+      const authoritativeServices = await currentConnectedServices();
+      const connectedServices = proposalServiceInputs(authoritativeServices);
       const source = (await dependencies.getAgents())
         .find((agent) => agent.id === context.req.param('agentId'));
       if (!source) {
         return context.json({ error: 'The agent to copy could not be found.', saved: false }, 404);
       }
-      const result = await createAgentProposal({
+      const proposalRequest = {
         request: buildSimilarAgentRequest(source, request.request),
         timezone: request.timezone,
         connectedServices,
@@ -219,11 +215,24 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
           canModify: calendar.can_modify,
         })),
         answers: request.answers,
+      };
+      const result = await createAgentProposal({
+        ...proposalRequest,
         model: dependencies.model,
       });
       if (result.status !== 'proposal') return context.json(result);
-      return context.json({ ...result, proposal_id: remember(result.proposal, connectedServices) });
+      return context.json({
+        ...result,
+        proposal_id: remember(result.proposal, servicesRelevantToRequest(proposalRequest)),
+      });
     } catch (error) {
+      if (error instanceof ServiceRegistryUnavailableError) {
+        return context.json({
+          error: 'Apps and services could not be checked. Nothing was saved.',
+          saved: false,
+          retryable: true,
+        }, 503);
+      }
       return context.json({
         error: error instanceof TypeError ? error.message : 'The similar agent request is invalid.',
         saved: false,
@@ -244,29 +253,26 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
       const requiredServiceIds = reviewed.connections
         .filter((connection) => connection.required)
         .map((connection) => connection.id);
-      let serviceBindings: ProposalServiceBinding[] | undefined;
-      if (dependencies.getServiceRegistry) {
-        const registry = await dependencies.getServiceRegistry();
-        const connectedIds = new Set(registry.connections
-          .filter((connection) => connection.status === 'connected')
-          .map((connection) => connection.id));
-        const isCurrent = requiredServiceIds.every((id) => (
-          pendingProposal.offeredServiceIds.has(id)
-          && connectedIds.has(id)
-          && registry.bindings.has(id)
-        ));
-        if (!isCurrent) {
-          return context.json({
-            error: 'A selected service is no longer ready. Refresh services and review the proposal again.',
-            saved: false,
-            refresh_services: true,
-          }, 409);
-        }
-        serviceBindings = [];
-        for (const id of requiredServiceIds) {
-          const binding = registry.bindings.get(id);
-          if (binding) serviceBindings.push({ id, ...binding });
-        }
+      const registry = await currentServiceRegistry();
+      const connectedIds = new Set(registry.connections
+        .filter((connection) => connection.status === 'connected')
+        .map((connection) => connection.id));
+      const isCurrent = requiredServiceIds.every((id) => (
+        pendingProposal.offeredServiceIds.has(id)
+        && connectedIds.has(id)
+        && registry.bindings.has(id)
+      ));
+      if (!isCurrent) {
+        return context.json({
+          error: 'A selected service is no longer ready. Refresh services and review the proposal again.',
+          saved: false,
+          refresh_services: true,
+        }, 409);
+      }
+      const serviceBindings: ProposalServiceBinding[] = [];
+      for (const id of requiredServiceIds) {
+        const binding = registry.bindings.get(id);
+        if (binding) serviceBindings.push({ id, ...binding });
       }
       const agent = proposalToAgentConfig(reviewed, deriveProposalAgentId(reviewed.name), { serviceBindings });
       const candidateContent = renderReviewedAgentFile(agent);
@@ -298,6 +304,13 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
         ...(analysis ? { security_analysis: analysis, preflight: check } : {}),
       }, 201);
     } catch (error) {
+      if (error instanceof ServiceRegistryUnavailableError) {
+        return context.json({
+          error: 'Apps and services could not be checked. Nothing was saved.',
+          saved: false,
+          retryable: true,
+        }, 503);
+      }
       if (error instanceof AgentWriteError && error.code === 'already_exists') {
         return context.json({ error: error.message, saved: false }, 409);
       }

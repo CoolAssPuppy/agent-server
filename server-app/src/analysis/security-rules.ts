@@ -234,12 +234,17 @@ function analyzePermissions(agent: AgentConfig): Finding[] {
 }
 
 function analyzePaths(agent: AgentConfig, homeDir: string): Finding[] {
+  const canWrite = hasAnyPermittedTool(agent, WRITE_TOOLS) || hasAnyPermittedTool(agent, COMMAND_TOOLS);
   const paths = [
-    effectiveWorkingDirectory(agent, homeDir),
-    ...(agent.watch ?? []).map((watch) => watch.path),
+    { path: effectiveWorkingDirectory(agent, homeDir), canWrite },
+    ...(agent.watch ?? []).map((watch) => ({ path: watch.path, canWrite })),
+    ...(agent.file_access ?? []).map((grant) => ({
+      path: grant.path,
+      canWrite: grant.access === 'read_write',
+    })),
   ];
-  return paths.flatMap((path, index) => {
-    const result = detectSensitivePath(path, homeDir);
+  return paths.flatMap((entry, index) => {
+    const result = detectSensitivePath(entry.path, homeDir);
     if (result.isSensitive) {
       return [finding(
         'path.sensitive', 'high', `This agent can access ${result.category}`,
@@ -251,9 +256,7 @@ function analyzePaths(agent: AgentConfig, homeDir: string): Finding[] {
         index,
       )];
     }
-    if (result.isBroad && (
-      hasAnyPermittedTool(agent, WRITE_TOOLS) || hasAnyPermittedTool(agent, COMMAND_TOOLS)
-    )) {
+    if (result.isBroad && entry.canWrite) {
       return [finding(
         'path.broad_write', 'critical', 'This agent can change files across your home folder',
         'The writable area is much broader than most tasks require.',

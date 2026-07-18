@@ -27,7 +27,7 @@ export type SemanticAnalysisResult = {
   findings: Finding[];
 };
 
-function behaviorSummary(agent: AgentConfig): Record<string, boolean | string> {
+function behaviorSummary(agent: AgentConfig): Record<string, unknown> {
   return {
     can_modify_files: hasAnyPermittedTool(agent, WRITE_TOOLS),
     can_run_commands: hasAnyPermittedTool(agent, COMMAND_TOOLS),
@@ -36,7 +36,11 @@ function behaviorSummary(agent: AgentConfig): Record<string, boolean | string> {
     watches_files: Boolean(agent.watch?.length),
     sends_notifications: Boolean(agent.notification),
     chains_agents: Boolean(agent.on_complete?.length || agent.on_failure?.length),
-    file_access: agent.codex_sandbox ?? 'runtime-default',
+    file_access: (agent.file_access ?? []).map((grant) => ({
+      kind: grant.kind,
+      access: grant.access,
+      path_category: grant.path.startsWith('~/.') ? 'hidden home folder' : 'selected path',
+    })),
   };
 }
 

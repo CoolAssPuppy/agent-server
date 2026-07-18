@@ -85,11 +85,11 @@ describe('executeCodexAgent', () => {
     expect(runStreamed).toHaveBeenCalledWith('Summarize the repo', { signal: abortController.signal });
   });
 
-  it('limits Codex write roots to reviewed writable folders', async () => {
+  it('refuses scoped file access instead of widening it beyond reviewed paths', async () => {
     const { executeCodexAgent } = await import('./codex.js');
     runStreamed.mockResolvedValue({ events: streamEvents([]) });
 
-    await executeCodexAgent(makeAgent({
+    await expect(executeCodexAgent(makeAgent({
       executor: 'codex',
       working_directory: '/Users/test/Book',
       file_access: [
@@ -98,13 +98,7 @@ describe('executeCodexAgent', () => {
         { path: '/Users/test/Output', kind: 'folder', access: 'read_write' },
       ],
       codex_sandbox: 'workspace-write',
-    }), createMockReporter());
-
-    expect(startThread).toHaveBeenCalledWith(expect.objectContaining({
-      workingDirectory: '/Users/test/Output',
-    }));
-    const options = startThread.mock.calls.at(-1)?.[0] as Record<string, unknown>;
-    expect(options.additionalDirectories).toBeUndefined();
+    }), createMockReporter())).rejects.toThrow(/exact file access/i);
   });
 
   it('points Codex at a custom provider, resolving the api key from env', async () => {

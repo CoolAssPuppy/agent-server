@@ -346,6 +346,17 @@ describe('guided agent proposal creation', () => {
     expect(fake.calls()).toBe(2);
   });
 
+  it('rejects command execution combined with exact file scopes', () => {
+    const proposal = completeProposal();
+    proposal.file_access = [{
+      path: '~/Books', kind: 'folder', access: 'read_only', is_suggestion: false, reason: 'Reads the manuscript.',
+    }];
+    proposal.permissions.can_run_commands = true;
+    proposal.risk = { level: 'high', reasons: ['Runs commands.'], finding_count: 0 };
+
+    expect(() => CreationProposalSchema.parse(proposal)).toThrow(/commands.*file/i);
+  });
+
   it('retries malformed model output once and then returns a safe local fallback', async () => {
     const fake = modelReturning('not JSON', { name: 'Incomplete' });
 
@@ -554,6 +565,24 @@ describe('guided agent proposal creation', () => {
     expect(agent.permissions?.allow).not.toContain('mcp__mcp_notion_personal_abc123__*');
   });
 
+  it('fails closed when reviewed services are missing or collide at runtime', () => {
+    const proposal = completeProposal();
+    proposal.connections = [
+      { id: 'personal', name: 'Personal Notion', required: true, status: 'connected', reason: 'Reads notes.' },
+      { id: 'work', name: 'Work Notion', required: true, status: 'connected', reason: 'Reads work notes.' },
+    ];
+    const reviewed = CreationProposalSchema.parse(proposal);
+
+    expect(() => proposalToAgentConfig(reviewed, 'notes', { serviceBindings: [] }))
+      .toThrow(/reviewed service binding/i);
+    expect(() => proposalToAgentConfig(reviewed, 'notes', {
+      serviceBindings: [
+        { id: 'personal', serverName: 'notion', config: { command: 'personal-notion' } },
+        { id: 'work', serverName: 'notion', config: { command: 'work-notion' } },
+      ],
+    })).toThrow(/same runtime name/i);
+  });
+
   it('accepts multiple confirmed file grants as one structured answer', () => {
     const request = ProposalRequestSchema.parse({
       request: 'Review my manuscript against my series bible.',
@@ -574,7 +603,7 @@ describe('guided agent proposal creation', () => {
     ]);
   });
 
-  it('rejects model output that broadens the confirmed file grants', async () => {
+  it('keeps confirmed file grants server-owned when model output tries to broaden them', async () => {
     const broadened = completeProposal();
     broadened.file_access = [{
       path: '~/', kind: 'folder', access: 'read_write', is_suggestion: false, reason: 'Broad access.',
@@ -600,8 +629,49 @@ describe('guided agent proposal creation', () => {
       model: fake.model,
     });
 
-    expect(result).toMatchObject({ status: 'needs_information', usedFallback: true, modelStatus: 'invalid' });
-    expect(fake.calls()).toBe(2);
+    expect(result).toMatchObject({
+      status: 'proposal',
+      proposal: {
+        file_access: [{
+          path: '~/Books/manuscript.docx', kind: 'file', access: 'read_only', is_suggestion: false,
+        }],
+        permissions: { can_modify_files: false },
+      },
+    });
+    expect(fake.calls()).toBe(1);
+  });
+
+  it('does not send confirmed local file paths to the proposal model', () => {
+    const prompt = buildAgentProposalPrompt(ProposalRequestSchema.parse({
+      request: 'Review /Users/test/Private Book/manuscript.docx every morning.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      answers: [{
+        question_id: 'file-access',
+        value: [{ path: '/Users/test/Private Book/manuscript.docx', kind: 'file', access: 'read_only' }],
+      }],
+    }));
+
+    expect(prompt).not.toContain('/Users/test/Private Book');
+    expect(prompt).toContain('[selected local item]');
+    expect(prompt).toContain('1 selected item');
+    expect(prompt).toContain('view only');
+  });
+
+  it('rejects relative file grants before requesting a proposal', async () => {
+    const fake = modelReturning(completeProposal());
+
+    await expect(createAgentProposal({
+      request: 'Review my manuscript.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      answers: [{
+        question_id: 'file-access',
+        value: [{ path: 'Books/manuscript.docx', kind: 'file', access: 'read_only' }],
+      }],
+      model: fake.model,
+    })).rejects.toThrow(/absolute/i);
+    expect(fake.calls()).toBe(0);
   });
 
   it('persists every reviewed file grant and never uses a file as the working folder', () => {

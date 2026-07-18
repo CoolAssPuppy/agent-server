@@ -1,9 +1,17 @@
 import { z } from 'zod';
 import { CronExpressionParser } from 'cron-parser';
 import { AgentProposalSchema } from '../analysis/models.js';
+import { FileAccessSchema } from '../agents/config.js';
 
 function validateProposal(value: z.infer<typeof AgentProposalSchema>, ctx: z.RefinementCtx): void {
   const hasWritablePath = value.file_access.some((entry) => entry.access === 'read_write');
+  if (value.file_access.length > 0 && value.permissions.can_run_commands) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['permissions', 'can_run_commands'],
+      message: 'Commands cannot be combined with exact file access scopes',
+    });
+  }
   if (hasWritablePath && !value.permissions.can_modify_files) {
     ctx.addIssue({
       code: 'custom',
@@ -72,6 +80,13 @@ function validateProposal(value: z.infer<typeof AgentProposalSchema>, ctx: z.Ref
       message: 'Sending messages requires a destination',
     });
   }
+  if (value.connections.some((connection) => connection.required) && !value.permissions.can_use_connected_apps) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['permissions', 'can_use_connected_apps'],
+      message: 'Required services need connected app access',
+    });
+  }
   const canModifyCalendar = value.calendar_access.some((calendar) => calendar.access === 'read_write');
   const powerfulLocalAccess = value.permissions.can_modify_files || value.permissions.can_run_commands || canModifyCalendar;
   if (powerfulLocalAccess && value.risk.level !== 'high' && value.risk.level !== 'critical') {
@@ -102,11 +117,7 @@ export const ProposalAnswerSchema = z.object({
     z.string().trim().min(1).max(2_000),
     z.boolean(),
     z.array(z.string().trim().min(1).max(500)).max(20),
-    z.array(z.object({
-      path: z.string().trim().min(1).max(1_024),
-      kind: z.enum(['file', 'folder']),
-      access: z.enum(['read_only', 'read_write']),
-    }).strict()).min(1).max(32),
+    z.array(FileAccessSchema).min(1).max(32),
   ]),
 }).strict();
 export type ProposalAnswer = z.infer<typeof ProposalAnswerSchema>;

@@ -71,12 +71,23 @@ function safeIdentifier(value: string, maxLength = 72): string {
   return value.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, maxLength);
 }
 
-function configurationId(serverName: string, config: McpServerConfig): string {
-  const digest = createHash('sha256')
-    .update(JSON.stringify(stableValue(config)))
+function stableDigest(value: unknown): string {
+  return createHash('sha256')
+    .update(JSON.stringify(stableValue(value)))
     .digest('hex')
     .slice(0, 16);
+}
+
+function configurationId(serverName: string, config: McpServerConfig): string {
+  const digest = stableDigest({ serverName, config });
   return `mcp:${safeIdentifier(serverName) || 'connection'}:${digest}`;
+}
+
+function runtimeConnectionId(name: string): string {
+  const encoded = encodeURIComponent(name);
+  if (encoded.length <= 180 && safeDisplayName(name) === name) return `runtime:${encoded}`;
+  const digest = createHash('sha256').update(name).digest('hex').slice(0, 16);
+  return `runtime:${encodeURIComponent(safeDisplayName(name, 80))}:${digest}`;
 }
 
 function credentialValues(config: McpServerConfig): string[] {
@@ -169,7 +180,7 @@ function configuredAgentConnections(
           service_id: definition?.id ?? customServiceId(serverName),
           name: connectionName(serverName, label),
           source: environmentReferences(config).length > 0 ? 'configured_api' : 'mcp',
-          status: connectionStatus(config, environment),
+          status: definition ? connectionStatus(config, environment) : 'unavailable',
           actions,
           actions_known: Boolean(definition),
         },
@@ -186,7 +197,7 @@ function configuredAgentConnections(
     if ((idsByServerName.get(binding.serverName)?.size ?? 0) > 1) {
       return { ...connection, status: 'conflict' as const };
     }
-    runtime.set(connection.id, binding);
+    if (connection.status !== 'unavailable') runtime.set(connection.id, binding);
     return connection;
   });
   return { connections, runtime };
@@ -212,9 +223,11 @@ function configuredCatalogConnections(
   const runtime = new Map<string, ServiceRuntimeBinding>();
   for (const definition of CAPABILITY_CATALOG) {
     if (definition.kind !== 'mcp' || definition.builtin) continue;
-    const id = `catalog:${definition.id}`;
-    if (occupiedIds.has(id)) continue;
     const config = catalogConfiguration(definition, environment);
+    const id = definition.remoteServer && config
+      ? `catalog:${definition.id}:${stableDigest(config)}`
+      : `catalog:${definition.id}`;
+    if (occupiedIds.has(id)) continue;
     const required = definition.requiredEnv ?? [];
     const isReady = definition.auth !== 'oauth'
       && required.every((name) => Boolean(environment[name]?.trim()));
@@ -246,7 +259,7 @@ function accountConnections(discovered: DiscoveredConnection[]): ServiceConnecti
     const actions = definition ? (CATALOG_ACTIONS[definition.id] ?? []) : [];
     const baseName = definition?.label ?? safeDisplayName(connection.name.replace(/^claude\.ai\s+/i, ''));
     return {
-      id: `runtime:${encodeURIComponent(safeDisplayName(connection.name, 120))}`,
+      id: runtimeConnectionId(connection.name),
       service_id: serviceId,
       name: definition ? `${baseName} (Claude account)` : `${baseName} account`,
       source: 'account',

@@ -66,6 +66,21 @@ describe('consumer service registry', () => {
     }));
   });
 
+  it('changes a remote catalog identity when its reviewed endpoint changes', () => {
+    const first = buildServiceRegistry({
+      agents: [],
+      environment: { GMAIL_MCP_URL: 'https://one.example/mcp', GMAIL_MCP_TOKEN: 'token' },
+      discovered: [],
+    }).connections.find((service) => service.service_id === 'gmail')?.id;
+    const second = buildServiceRegistry({
+      agents: [],
+      environment: { GMAIL_MCP_URL: 'https://two.example/mcp', GMAIL_MCP_TOKEN: 'token' },
+      discovered: [],
+    }).connections.find((service) => service.service_id === 'gmail')?.id;
+
+    expect(first).not.toBe(second);
+  });
+
   it('deduplicates reusable agent MCP configurations', () => {
     const server = {
       command: 'npx',
@@ -137,6 +152,47 @@ describe('consumer service registry', () => {
     expect(custom?.name.length).toBeLessThanOrEqual(160);
     expect(custom?.name).not.toContain('\n');
     expect(custom?.id).not.toContain('\n');
+  });
+
+  it('keeps exact configured and runtime identities collision resistant', () => {
+    const config = { command: 'safe-helper' } as const;
+    const longPrefix = 'x'.repeat(140);
+    const registry = buildServiceRegistry({
+      agents: [makeAgent({
+        mcp_servers: {
+          'work.notion': config,
+          'work notion': config,
+        },
+      })],
+      environment: {},
+      discovered: [
+        { name: `${longPrefix}-one`, status: 'connected' },
+        { name: `${longPrefix}-two`, status: 'connected' },
+      ],
+    });
+
+    const configuredIds = registry.connections
+      .filter((service) => service.source === 'mcp')
+      .map((service) => service.id);
+    const runtimeIds = registry.connections
+      .filter((service) => service.source === 'account')
+      .map((service) => service.id);
+    expect(new Set(configuredIds).size).toBe(2);
+    expect(new Set(runtimeIds).size).toBe(2);
+  });
+
+  it('does not make an arbitrary agent executable reusable by another agent', () => {
+    const registry = buildServiceRegistry({
+      agents: [makeAgent({
+        mcp_servers: { notes: { command: '/tmp/innocent-notes-helper' } },
+      })],
+      environment: {},
+      discovered: [],
+    });
+    const notes = registry.connections.find((service) => service.service_id === 'custom:notes');
+
+    expect(notes?.status).toBe('unavailable');
+    expect([...registry.bindings.values()].some((binding) => binding.serverName === 'notes')).toBe(false);
   });
 
   it('never makes a literal credential reusable', () => {

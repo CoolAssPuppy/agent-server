@@ -466,6 +466,26 @@ describe('executeAgent with Agent SDK', () => {
       .resolves.toEqual({ behavior: 'allow' });
   });
 
+  it('denies tools by default when scoped file access has no explicit permissions block', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+    mockQuery.mockReturnValue(createAsyncGenerator([createResultSuccess({ result: 'Done', num_turns: 1 })]));
+    const agent = createAgentConfig({
+      working_directory: '/Users/test/Book',
+      file_access: [{ path: '/Users/test/Book', kind: 'folder', access: 'read_only' }],
+    });
+    delete agent.permissions;
+
+    await executeAgent(agent, createMockReporter());
+    const canUseTool = mockQuery.mock.calls[0][0].options.canUseTool;
+    const opts = { signal: new AbortController().signal, toolUseID: 't1' };
+
+    expect(canUseTool).toBeTypeOf('function');
+    await expect(canUseTool('Read', { file_path: '/Users/test/Book/chapter.md' }, opts))
+      .resolves.toMatchObject({ behavior: 'deny' });
+    await expect(canUseTool('Bash', { command: 'cat /etc/passwd' }, opts))
+      .resolves.toMatchObject({ behavior: 'deny' });
+  });
+
   it('pauses and resumes when assistant emits a decision block', async () => {
     const { executeAgent } = await import('./claude-code.js');
     const bus = new EventEmitter() as SseEventBus;

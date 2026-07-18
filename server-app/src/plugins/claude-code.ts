@@ -40,6 +40,11 @@ export async function executeAgent(
     : process.env.HOME ?? process.cwd();
 
   const permissionMode = agent.permission_mode ?? 'default';
+  const fileAccess = agent.file_access?.length ? { cwd, fileAccess: agent.file_access } : undefined;
+  const effectivePermissions = agent.permissions ?? (fileAccess ? {
+    allow: agent.tools,
+    deny: agent.disallowed_tools ?? [],
+  } : undefined);
 
   const options: Options = {
     maxTurns: agent.max_turns,
@@ -55,11 +60,8 @@ export async function executeAgent(
     disallowedTools: agent.disallowed_tools && agent.disallowed_tools.length > 0
       ? agent.disallowed_tools
       : undefined,
-    canUseTool: agent.permissions
-      ? buildCanUseTool(
-        agent.permissions,
-        agent.file_access?.length ? { cwd, fileAccess: agent.file_access } : undefined,
-      )
+    canUseTool: effectivePermissions
+      ? buildCanUseTool(effectivePermissions, fileAccess)
       : undefined,
     abortController: extra?.abortController,
     mcpServers: buildMcpServers(agent),

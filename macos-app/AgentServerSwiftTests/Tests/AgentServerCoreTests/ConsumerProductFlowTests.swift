@@ -101,6 +101,11 @@ final class ConsumerProductFlowTests: XCTestCase {
 
         XCTAssertEqual(flow.answers[question.id], .fileGrants(grants))
         XCTAssertNil(flow.nextQuestion)
+
+        flow.receiveQuestions([question])
+        XCTAssertEqual(flow.answers[question.id], .fileGrants(grants))
+        XCTAssertNil(flow.nextQuestion)
+        XCTAssertEqual(flow.phase, .questions)
     }
 
     func testCreationCompletesOnlyAfterTheRequestedSafeTestFinishes() {

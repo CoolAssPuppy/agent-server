@@ -85,6 +85,22 @@ function createFixture(overrides: Partial<GuidanceApiDependencies> = {}) {
       runtimeAvailable: true,
       workingDirectoryExists: true,
     }),
+    getServiceRegistry: async () => ({
+      connections: [
+        {
+          id: 'github', service_id: 'github', name: 'GitHub', source: 'account', status: 'connected',
+          actions: ['read'], actions_known: true,
+        },
+        {
+          id: 'slack', service_id: 'slack', name: 'Slack', source: 'account', status: 'connected',
+          actions: ['read', 'send'], actions_known: true,
+        },
+      ],
+      bindings: new Map([
+        ['github', { serverName: 'github' }],
+        ['slack', { serverName: 'slack' }],
+      ]),
+    }),
     ...overrides,
   };
   const guidanceApi = createGuidanceApi(dependencies);
@@ -135,17 +151,28 @@ describe('consumer guidance API', () => {
     expect(body.proposal.permissions.can_modify_files).toBe(false);
   });
 
-  it('uses current server-owned service metadata and rejects stale client identities', async () => {
+  it('uses current server-owned service metadata and ignores stale unselected client identities', async () => {
     const registry: ServiceRegistry = {
-      connections: [{
-        id: 'mcp:notion-personal:abc123',
-        service_id: 'notion',
-        name: 'Personal Notion',
-        source: 'configured_api',
-        status: 'connected',
-        actions: ['read', 'write'],
-        actions_known: true,
-      }],
+      connections: [
+        {
+          id: 'mcp:notion-personal:abc123',
+          service_id: 'notion',
+          name: 'Personal Notion',
+          source: 'configured_api',
+          status: 'connected',
+          actions: ['read', 'write'],
+          actions_known: true,
+        },
+        {
+          id: 'runtime:github',
+          service_id: 'github',
+          name: 'GitHub (Claude account)',
+          source: 'account',
+          status: 'connected',
+          actions: ['read'],
+          actions_known: true,
+        },
+      ],
       bindings: new Map(),
     };
     const model = { generate: vi.fn(async () => completeProposal()) };
@@ -178,6 +205,11 @@ describe('consumer guidance API', () => {
       expect.any(Object),
       expect.any(Object),
     );
+    expect(model.generate).not.toHaveBeenCalledWith(
+      expect.stringContaining('GitHub (Claude account)'),
+      expect.any(Object),
+      expect.any(Object),
+    );
 
     const stale = await request(app, '/guidance/agent-proposals', {
       method: 'POST',
@@ -187,8 +219,53 @@ describe('consumer guidance API', () => {
         connected_services: [{ id: 'removed-service', name: 'Removed service' }],
       }),
     });
-    expect(stale.status).toBe(409);
-    expect(await stale.json()).toMatchObject({ saved: false, refresh_services: true });
+    expect(stale.status).toBe(200);
+    expect(await stale.json()).toMatchObject({ status: 'proposal' });
+  });
+
+  it('reports service discovery failures as retryable server errors', async () => {
+    const { app } = createFixture({
+      getServiceRegistry: async () => { throw new Error('probe failed'); },
+    });
+    const response = await request(app, '/guidance/agent-proposals', {
+      method: 'POST',
+      body: JSON.stringify({
+        request: 'Create a manual summary.', timezone: 'Europe/Lisbon', connected_services: [],
+      }),
+    });
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ saved: false, retryable: true });
+  });
+
+  it('reports service discovery failures during save without writing the agent', async () => {
+    const registry: ServiceRegistry = {
+      connections: [],
+      bindings: new Map(),
+    };
+    let isRegistryAvailable = true;
+    const { app, writer } = createFixture({
+      getServiceRegistry: async () => {
+        if (!isRegistryAvailable) throw new Error('probe failed');
+        return registry;
+      },
+    });
+    const generated = await request(app, '/guidance/agent-proposals', {
+      method: 'POST',
+      body: JSON.stringify({
+        request: 'Create a manual summary.', timezone: 'Europe/Lisbon', connected_services: [],
+      }),
+    }).then((response) => response.json());
+    isRegistryAvailable = false;
+
+    const response = await request(app, `/guidance/agent-proposals/${generated.proposal_id}/save`, {
+      method: 'POST',
+      body: JSON.stringify({ confirmed: true }),
+    });
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ saved: false, retryable: true });
+    expect(writer.createReviewed).not.toHaveBeenCalled();
   });
 
   it('resolves the reviewed service identity into its exact runtime binding when saving', async () => {
@@ -329,7 +406,7 @@ describe('consumer guidance API', () => {
     const { app, writer } = createFixture({ security });
     const generated = await request(app, '/guidance/agent-proposals', {
       method: 'POST',
-      body: JSON.stringify({ request: 'Summarize GitHub.', timezone: 'Europe/Lisbon', connected_services: [] }),
+      body: JSON.stringify({ request: 'Summarize GitHub in Slack.', timezone: 'Europe/Lisbon', connected_services: [] }),
     }).then((response) => response.json());
 
     const response = await request(app, `/guidance/agent-proposals/${generated.proposal_id}/save`, {
@@ -369,7 +446,7 @@ describe('consumer guidance API', () => {
     const fixture = createFixture({ writer });
     const generated = await request(fixture.app, '/guidance/agent-proposals', {
       method: 'POST',
-      body: JSON.stringify({ request: 'Summarize GitHub.', timezone: 'Europe/Lisbon', connected_services: [] }),
+      body: JSON.stringify({ request: 'Summarize GitHub in Slack.', timezone: 'Europe/Lisbon', connected_services: [] }),
     }).then((response) => response.json());
     const response = await request(fixture.app, `/guidance/agent-proposals/${generated.proposal_id}/save`, {
       method: 'POST',

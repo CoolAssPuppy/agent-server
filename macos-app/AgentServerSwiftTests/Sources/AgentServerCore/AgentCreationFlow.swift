@@ -138,11 +138,13 @@ public struct AgentCreationFlow: Equatable, Sendable {
     public var canRetry: Bool { failure?.canRetry == true }
 
     public mutating func receiveQuestions(_ questions: [CreationQuestion]) {
-        for question in questions where answers[question.id] != nil {
-            answers.removeValue(forKey: question.id)
+        for question in questions {
+            if case .string? = answers[question.id] {
+                answers.removeValue(forKey: question.id)
+            }
         }
         self.questions = questions
-        phase = nextQuestion == nil ? .preparingProposal : .questions
+        phase = .questions
     }
 
     public mutating func answer(questionId: String, value: String) {

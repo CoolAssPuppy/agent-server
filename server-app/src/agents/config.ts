@@ -93,7 +93,7 @@ const McpServerConfigSchema = z.union([
 
 export type McpServerConfig = z.infer<typeof McpServerConfigSchema>;
 
-const FileAccessSchema = z.object({
+export const FileAccessSchema = z.object({
   path: z.string().trim().min(1).max(1_024)
     .refine((value) => !value.includes('\0'), 'File path cannot contain a null byte')
     .refine((value) => value.startsWith('/') || value.startsWith('~/'), 'File path must be absolute'),

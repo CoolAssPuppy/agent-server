@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { matchesPattern, isToolAllowed, buildCanUseTool } from './permissions.js';
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 describe('matchesPattern', () => {
   it('matches exact tool names', () => {
@@ -123,6 +126,39 @@ describe('buildCanUseTool', () => {
       .resolves.toMatchObject({ behavior: 'deny' });
     await expect(canUseTool('Read', { file_path: '/Users/test/Book/Notes/../../private.md' }, makeToolOptions()))
       .resolves.toMatchObject({ behavior: 'deny' });
+  });
+
+  it('uses the narrowest overlapping grant and blocks symlink escapes and commands', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'agent-file-grants-'));
+    const allowed = join(root, 'allowed');
+    const readonly = join(allowed, 'readonly');
+    const outside = join(root, 'outside');
+    mkdirSync(readonly, { recursive: true });
+    mkdirSync(outside);
+    writeFileSync(join(outside, 'secret.txt'), 'secret');
+    symlinkSync(outside, join(allowed, 'linked-outside'));
+    const longAlias = join(root, 'a-very-long-alias-for-the-broad-writable-folder');
+    symlinkSync(allowed, longAlias);
+    const canUseTool = buildCanUseTool(
+      { allow: ['Read', 'Write', 'Bash'], deny: [] },
+      {
+        cwd: root,
+        fileAccess: [
+          { path: longAlias, kind: 'folder', access: 'read_write' },
+          { path: readonly, kind: 'folder', access: 'read_only' },
+        ],
+      },
+    );
+    try {
+      await expect(canUseTool('Write', { file_path: join(readonly, 'note.md') }, makeToolOptions()))
+        .resolves.toMatchObject({ behavior: 'deny' });
+      await expect(canUseTool('Read', { file_path: join(allowed, 'linked-outside', 'secret.txt') }, makeToolOptions()))
+        .resolves.toMatchObject({ behavior: 'deny' });
+      await expect(canUseTool('Bash', { command: 'cat /etc/passwd' }, makeToolOptions()))
+        .resolves.toMatchObject({ behavior: 'deny' });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 

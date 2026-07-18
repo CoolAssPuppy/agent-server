@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { sanitizeText } from '../server/security-utils.js';
+import { FileAccessSchema } from '../agents/config.js';
 
 export const RiskSeveritySchema = z.enum(['low', 'needs_review', 'high', 'critical']);
 export type RiskSeverity = z.infer<typeof RiskSeveritySchema>;
@@ -61,10 +62,8 @@ const RequirementSchema = z.object({
   reason: z.string().trim().min(1).max(500),
 }).strict();
 
-const FileAccessProposalSchema = z.object({
-  path: z.string().trim().min(1).max(1_024),
+const FileAccessProposalSchema = FileAccessSchema.extend({
   kind: z.enum(['file', 'folder']).default('folder'),
-  access: z.enum(['read_only', 'read_write']),
   is_suggestion: z.boolean(),
   reason: z.string().trim().min(1).max(500),
 }).strict();

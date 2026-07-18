@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AgentProposalSchema } from '../analysis/models.js';
 import { buildAgentProposalPrompt } from './proposal-prompt.js';
 import {
   CreationProposalSchema,
@@ -48,22 +49,41 @@ function parseModelValue(value: unknown): CreationProposal | undefined {
       return undefined;
     }
   }
-  const parsed = CreationProposalSchema.safeParse(candidate);
+  const parsed = AgentProposalSchema.safeParse(candidate);
   return parsed.success ? parsed.data : undefined;
 }
 
-function matchesConfirmedFileAccess(proposal: CreationProposal, request: ProposalRequest): boolean {
+function confirmedFileAccess(request: ProposalRequest) {
   const answer = request.answers.find((candidate) => candidate.question_id === 'file-access');
-  if (!answer || !Array.isArray(answer.value) || answer.value.length === 0) return proposal.file_access.length === 0;
-  const key = (grant: { path: string; kind: string; access: string }) => (
-    `${grant.path}\0${grant.kind}\0${grant.access}`
-  );
-  const confirmed = answer.value.map((grant) => typeof grant === 'string' ? undefined : key(grant));
-  if (confirmed.some((value) => value === undefined)) return false;
-  const confirmedKeys = confirmed.filter((value): value is string => value !== undefined).sort();
-  const proposed = proposal.file_access.map(key).sort();
-  return confirmedKeys.length === proposed.length
-    && confirmedKeys.every((value, index) => value === proposed[index]);
+  if (!answer || !Array.isArray(answer.value)) return undefined;
+  const grants = answer.value.filter((grant) => typeof grant !== 'string');
+  return grants.length === answer.value.length ? grants : undefined;
+}
+
+function applyConfirmedFileAccess(
+  proposal: CreationProposal,
+  request: ProposalRequest,
+): CreationProposal | undefined {
+  const grants = confirmedFileAccess(request);
+  const candidate = grants ? {
+    ...proposal,
+    file_access: grants.map((grant) => ({
+      ...grant,
+      is_suggestion: false,
+      reason: grant.access === 'read_write'
+        ? 'Uses the file or folder selected for changes.'
+        : 'Views the file or folder selected by the user.',
+    })),
+    permissions: {
+      ...proposal.permissions,
+      can_modify_files: grants.some((grant) => grant.access === 'read_write'),
+    },
+    ...(grants.length > 0
+      ? { runtime: { executor: 'claude-code' as const, model: null, reason: 'Enforces access to the selected files and folders.' } }
+      : {}),
+  } : proposal;
+  const parsed = CreationProposalSchema.safeParse(candidate);
+  return parsed.success ? parsed.data : undefined;
 }
 
 function needsFileAccess(intent: string): boolean {
@@ -146,6 +166,30 @@ function unansweredConnectionQuestion(request: ProposalRequest): ProposalFallbac
   };
 }
 
+export function servicesRelevantToRequest(request: ProposalRequest): ProposalRequest['connectedServices'] {
+  const intent = request.request.toLowerCase();
+  const selectedIds = new Set(request.answers.flatMap((answer) => (
+    typeof answer.value === 'string' ? [answer.value] : []
+  )));
+  const groups = new Map<string, number>();
+  for (const service of request.connectedServices) {
+    const group = ('service_id' in service ? service.service_id : undefined) ?? service.id;
+    groups.set(group, (groups.get(group) ?? 0) + 1);
+  }
+  return request.connectedServices.filter((service) => {
+    if (selectedIds.has(service.id)) return true;
+    const serviceId = 'service_id' in service ? service.service_id : undefined;
+    const group = serviceId ?? service.id;
+    if ((groups.get(group) ?? 0) > 1) return false;
+    const terms = [serviceId, service.name.split(/\s|\(/)[0]]
+      .filter((term): term is string => Boolean(term && term.length >= 3));
+    return terms.some((term) => {
+      const escaped = term.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`\\b${escaped}\\b`).test(intent);
+    });
+  });
+}
+
 function unansweredScopeQuestion(request: ProposalRequest): ProposalFallbackQuestion | undefined {
   const intent = request.request.toLowerCase();
   const answers = new Set(request.answers.map((answer) => answer.question_id));
@@ -213,14 +257,18 @@ export async function createAgentProposal(input: CreateProposalInput): Promise<P
   }
   if (!input.model) return fallback(request, 'unavailable');
 
-  const prompt = buildAgentProposalPrompt(request);
+  const prompt = buildAgentProposalPrompt({
+    ...request,
+    connectedServices: servicesRelevantToRequest(request),
+  });
   const outputSchema = z.toJSONSchema(CreationProposalSchema, { unrepresentable: 'any' }) as Record<string, unknown>;
   const attempts = input.model.handlesRetries ? 1 : 2;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
       const value = await input.model.generate(prompt, outputSchema, { requestKey: 'agent-proposal' });
-      const proposal = parseModelValue(value);
-      if (proposal && matchesConfirmedFileAccess(proposal, request)) {
+      const parsedProposal = parseModelValue(value);
+      const proposal = parsedProposal ? applyConfirmedFileAccess(parsedProposal, request) : undefined;
+      if (proposal) {
         if (proposal.missing_information.length > 0 || proposal.questions.some((question) => question.required)) {
           return {
             status: 'needs_information',

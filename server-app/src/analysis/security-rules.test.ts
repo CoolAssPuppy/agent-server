@@ -124,6 +124,26 @@ describe('deterministic security analysis', () => {
     );
   });
 
+  it('analyzes every reviewed file grant instead of only the working folder', () => {
+    const result = analyzeAgentSecurity({
+      agent: makeAgent({
+        tools: ['Read'],
+        working_directory: '~/Documents/Book',
+        file_access: [
+          { path: '~/Documents/Book/manuscript.docx', kind: 'file', access: 'read_only' },
+          { path: '~/.ssh', kind: 'folder', access: 'read_only' },
+        ],
+      }),
+      rawContent: 'Review the manuscript.',
+      homeDir: '/Users/tester',
+    });
+
+    expect(result.findings).toContainEqual(expect.objectContaining({
+      rule_id: 'path.sensitive',
+      title: expect.stringContaining('SSH'),
+    }));
+  });
+
   it('marks automatic write-capable watchers as high risk', () => {
     const result = analyzeAgentSecurity({
       agent: makeAgent({

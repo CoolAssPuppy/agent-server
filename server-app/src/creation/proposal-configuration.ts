@@ -60,10 +60,26 @@ export function proposalToAgentConfig(
   options: ProposalConfigurationOptions = {},
 ): AgentConfig {
   const bindings = new Map((options.serviceBindings ?? []).map((binding) => [binding.id, binding]));
+  const requiredConnections = proposal.permissions.can_use_connected_apps
+    ? proposal.connections.filter((connection) => connection.required)
+    : [];
+  if (options.serviceBindings) {
+    const missing = requiredConnections.find((connection) => !bindings.has(connection.id));
+    if (missing) throw new Error(`Reviewed service binding is unavailable: ${missing.name}`);
+    const runtimeNames = new Set<string>();
+    for (const connection of requiredConnections) {
+      const binding = bindings.get(connection.id);
+      if (!binding) continue;
+      const runtimeName = mcpServerKey(binding.serverName);
+      if (runtimeNames.has(runtimeName)) {
+        throw new Error(`Two reviewed services use the same runtime name: ${binding.serverName}`);
+      }
+      runtimeNames.add(runtimeName);
+    }
+  }
   const allow = explicitToolAllowlist(proposal, bindings);
   const mcpServers = Object.fromEntries(
-    proposal.connections
-      .filter((connection) => connection.required)
+    requiredConnections
       .flatMap((connection) => {
         const binding = bindings.get(connection.id);
         return binding?.config ? [[binding.serverName, binding.config] as const] : [];

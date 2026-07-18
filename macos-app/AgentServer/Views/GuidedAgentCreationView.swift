@@ -25,6 +25,7 @@ struct GuidedAgentCreationView: View {
     @State private var answer = ""
     @State private var scheduleAnswer = ScheduleDraft()
     @State private var fileGrants: [CreationFileGrant] = []
+    @State private var pickerError: String?
     @State private var isChoosingFolder = false
     @State private var flow = AgentCreationFlow(request: "")
     @State private var pendingHighRiskSave: Bool?
@@ -46,8 +47,8 @@ struct GuidedAgentCreationView: View {
         .shadow(color: Color.black.opacity(0.18), radius: 14, x: 5, y: 0)
         .fileImporter(
             isPresented: $isChoosingFolder,
-            allowedContentTypes: [.item],
-            allowsMultipleSelection: true,
+            allowedContentTypes: flow.nextQuestion?.kind == .folder ? [.folder] : [.item],
+            allowsMultipleSelection: flow.nextQuestion?.kind == .fileAccess,
             onCompletion: chooseFiles
         )
         .confirmationDialog(
@@ -131,13 +132,16 @@ struct GuidedAgentCreationView: View {
             TextField("Type your answer", text: $answer)
                 .textFieldStyle(.roundedBorder)
         case .folder:
-            HStack {
-                Text(answer.isEmpty ? "No folder selected" : answer)
-                    .foregroundStyle(answer.isEmpty ? theme.tokens.mutedForeground : theme.tokens.foreground)
-                    .lineLimit(1)
-                Spacer()
-                Button("Choose folder") { isChoosingFolder = true }
-                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationFolderPicker)
+            VStack(alignment: .leading, spacing: NSpacing.sm) {
+                HStack {
+                    Text(answer.isEmpty ? "No folder selected" : answer)
+                        .foregroundStyle(answer.isEmpty ? theme.tokens.mutedForeground : theme.tokens.foreground)
+                        .lineLimit(1)
+                    Spacer()
+                    Button("Choose folder") { isChoosingFolder = true }
+                        .accessibilityIdentifier(ConsumerFlowAccessibility.creationFolderPicker)
+                }
+                pickerFailure
             }
         case .fileAccess:
             VStack(alignment: .leading, spacing: NSpacing.sm) {
@@ -174,6 +178,7 @@ struct GuidedAgentCreationView: View {
                 Text("Set access for each item. View only is the safer default.")
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
+                pickerFailure
             }
         case .schedule:
             ScheduleField(draft: $scheduleAnswer)
@@ -311,6 +316,7 @@ struct GuidedAgentCreationView: View {
         answer = ""
         scheduleAnswer = ScheduleDraft()
         fileGrants = []
+        pickerError = nil
         if flow.canRequestProposal {
             flow.beginProposalRequest()
             prepare()
@@ -323,8 +329,14 @@ struct GuidedAgentCreationView: View {
             case .success(.questions(let questions)):
                 flow.receiveQuestions(questions)
                 if flow.canRequestProposal {
-                    flow.beginProposalRequest()
-                    prepare()
+                    flow.fail(.init(
+                        title: "The suggestion needs another try",
+                        message: "The creation service could not finish a proposal from the answers you already provided.",
+                        recovery: "Try again. Your description and selected access will be kept.",
+                        technicalDetails: "The proposal service returned questions that were already answered.",
+                        didSave: false,
+                        canRetry: true
+                    ))
                 }
             case .success(.proposal(let proposal)): flow.receiveProposal(proposal)
             case .failure(let failure): flow.fail(failure)
@@ -371,25 +383,53 @@ struct GuidedAgentCreationView: View {
 
     private func retry() {
         flow.retry()
-        if flow.phase == .request { return }
+        if flow.canRequestProposal {
+            flow.beginProposalRequest()
+            prepare()
+        }
     }
 
     private func chooseFiles(_ result: Result<[URL], Error>) {
-        guard case .success(let urls) = result else { return }
-        if flow.nextQuestion?.kind == .folder {
-            if let url = urls.first { answer = url.path(percentEncoded: false) }
+        guard case .success(let urls) = result else {
+            if case .failure(let error) = result {
+                pickerError = "The selected item could not be opened. \(error.localizedDescription)"
+            }
             return
         }
-        let additions = urls.map { url in
-            let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
+        pickerError = nil
+        if flow.nextQuestion?.kind == .folder {
+            guard let url = urls.first,
+                  (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else {
+                pickerError = "Choose a folder, not a file."
+                return
+            }
+            answer = url.path(percentEncoded: false)
+            return
+        }
+        let additions = urls.compactMap { url -> CreationFileGrant? in
+            guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey]),
+                  let isDirectory = values.isDirectory else {
+                pickerError = "One selected item could not be identified. Choose it again."
+                return nil
+            }
             return CreationFileGrant(
                 path: url.path(percentEncoded: false),
-                kind: values?.isDirectory == true ? .folder : .file,
+                kind: isDirectory ? .folder : .file,
                 access: .readOnly
             )
         }
         let existing = Set(fileGrants.map(\.path))
         fileGrants.append(contentsOf: additions.filter { !existing.contains($0.path) })
+    }
+
+    @ViewBuilder
+    private var pickerFailure: some View {
+        if let pickerError {
+            Label(pickerError, systemImage: "exclamationmark.triangle")
+                .font(NTypography.caption)
+                .foregroundStyle(theme.tokens.error)
+                .accessibilityLabel("File selection error: \(pickerError)")
+        }
     }
 
     private func accessBinding(for grant: CreationFileGrant) -> Binding<CreationFileGrant.Access> {

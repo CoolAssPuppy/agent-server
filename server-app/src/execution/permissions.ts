@@ -1,7 +1,8 @@
 import type { Permissions } from '../agents/config.js';
 import type { AgentConfig } from '../agents/config.js';
 import { homedir } from 'node:os';
-import { isAbsolute, relative, resolve } from 'node:path';
+import { realpathSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 
 export function matchesPattern(toolName: string, pattern: string): boolean {
   const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
@@ -47,13 +48,18 @@ function requestedPath(input: Record<string, unknown>, cwd: string): string | un
   return typeof value === 'string' && value.length > 0 ? expandedPath(value, cwd) : undefined;
 }
 
-function grantContains(
-  grant: NonNullable<AgentConfig['file_access']>[number],
-  requested: string,
-  cwd: string,
-): boolean {
-  const root = expandedPath(grant.path, cwd);
-  if (grant.kind === 'file') return requested === root;
+function canonicalPath(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    const parent = dirname(path);
+    if (parent === path) return resolve(path);
+    return join(canonicalPath(parent), basename(path));
+  }
+}
+
+function grantContains(root: string, kind: 'file' | 'folder', requested: string): boolean {
+  if (kind === 'file') return requested === root;
   const child = relative(root, requested);
   return child === '' || (!child.startsWith('..') && !isAbsolute(child));
 }
@@ -65,13 +71,20 @@ function hasFileAccess(
 ): boolean {
   const isRead = READ_FILE_TOOLS.has(toolName);
   const isWrite = WRITE_FILE_TOOLS.has(toolName);
+  if (toolName === 'Bash') return false;
   if (!isRead && !isWrite) return true;
-  const path = requestedPath(input, options.cwd);
+  const requested = requestedPath(input, options.cwd);
+  const path = requested ? canonicalPath(requested) : undefined;
   if (!path) return false;
-  return options.fileAccess.some((grant) => (
-    grantContains(grant, path, options.cwd)
-    && (isRead || grant.access === 'read_write')
-  ));
+  const matching = options.fileAccess
+    .map((grant) => ({ grant, root: canonicalPath(expandedPath(grant.path, options.cwd)) }))
+    .filter(({ grant, root }) => grantContains(root, grant.kind, path))
+    .sort((left, right) => (
+      right.root.length - left.root.length
+      || left.grant.access.localeCompare(right.grant.access)
+    ));
+  const effectiveGrant = matching[0]?.grant;
+  return Boolean(effectiveGrant && (isRead || effectiveGrant.access === 'read_write'));
 }
 
 export function buildCanUseTool(permissions: Permissions, fileOptions?: FileAccessOptions): CanUseToolFn {

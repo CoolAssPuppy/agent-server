@@ -4,13 +4,22 @@ Status: Feature implementation and automated verification complete. Manual relea
 
 ## Unified services and resource grants
 
-- [ ] Add a tested local Services registry that presents discovered MCP accounts, configured API-key services, reusable agent-defined MCP services, and native macOS services as stable named connections.
-- [ ] Make agent creation select an exact service connection, clearly distinguishing Personal Notion from Work Notion, and materialize the selected runtime configuration without copying secrets.
-- [ ] Add multiple file and folder grants with independent View only or Can make changes access, preserving every grant in generated agent configuration and security analysis.
+- [x] Add a tested local Services registry that presents discovered MCP accounts, configured API-key services, and safe reusable agent-defined MCP services as stable named connections. Native macOS services remain in the next batch.
+- [x] Make agent creation select an exact service connection, clearly distinguishing Personal Notion from Work Notion, and materialize the selected runtime configuration without copying secrets.
+- [x] Add multiple file and folder grants with independent View only or Can make changes access, preserving every grant in generated agent configuration and security analysis.
 - [ ] Add native macOS service grants for Calendar, Reminders, Contacts, and Apple Music, with resource/action scope and clear unavailable states where the operating system cannot provide the requested access.
 - [ ] Reuse the grant models in proposal review, safe tests, debugger patches, and security preflight checks.
 - [ ] Add server and Swift behavior coverage first, then run full server tests, Swift tests, type-check, server build, and unsigned Xcode build without UI automation.
 - [ ] Run a simplification review after every consequential commit, record the final verification here, and launch the verified build.
+
+### Services and file grants review
+
+- Exact connection identities resolve to reviewed runtime bindings at save time. Changed, missing, conflicting, secret-bearing, or arbitrary executable configurations fail closed.
+- Only services relevant to the request or explicitly selected are disclosed to the proposal model and eligible for save.
+- Each selected file or folder keeps its own read-only or read-write grant. Exact paths are withheld from model prompts and validated with the persisted agent schema.
+- Scoped file agents use the Claude runtime because the current Codex boundary cannot enforce individual files without widening access. Commands cannot be combined with exact file scopes.
+- Canonical path checks block symlink escapes and apply the narrowest overlapping grant. Missing permission blocks deny every tool by default.
+- Verification: 147 focused server tests, 193 Swift tests, TypeScript type-check and build, and an unsigned Xcode build passed. UI automation was not run.
 
 ### Architecture constraints
 
