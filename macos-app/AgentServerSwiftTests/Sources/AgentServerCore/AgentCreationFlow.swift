@@ -6,6 +6,7 @@ public struct CreationQuestion: Identifiable, Equatable, Sendable {
         case folder
         case schedule
         case choice([String])
+        case service([String])
         case confirmation
     }
 

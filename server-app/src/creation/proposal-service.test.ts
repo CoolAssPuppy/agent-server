@@ -74,6 +74,63 @@ function modelReturning(...responses: unknown[]): { model: ProposalModel; calls:
 }
 
 describe('guided agent proposal creation', () => {
+  it('chooses an existing required service before asking for file access', async () => {
+    const fake = modelReturning(completeProposal());
+    const request = 'Every morning, review a Word manuscript and store the results in Personal Notion.';
+
+    const connection = await createAgentProposal({
+      request,
+      timezone: 'Europe/Lisbon',
+      connectedServices: ['notion-personal', 'Notion Work'],
+      answers: [],
+      model: fake.model,
+    });
+    const file = await createAgentProposal({
+      request,
+      timezone: 'Europe/Lisbon',
+      connectedServices: ['notion-personal', 'Notion Work'],
+      answers: [{ question_id: 'connection-notion', value: 'notion-personal' }],
+      model: fake.model,
+    });
+
+    expect(connection).toMatchObject({
+      status: 'needs_information',
+      questions: [{
+        id: 'connection-notion',
+        control: 'service',
+        choices: [
+          { label: 'notion-personal', value: 'notion-personal' },
+          { label: 'Notion Work', value: 'Notion Work' },
+        ],
+      }],
+    });
+    expect(file).toMatchObject({
+      status: 'needs_information',
+      questions: [{ id: 'file-location', control: 'path' }],
+    });
+    expect(fake.calls()).toBe(0);
+  });
+
+  it('offers setup when a required service has no configured connection', async () => {
+    const result = await createAgentProposal({
+      request: 'Review my manuscript and save the result in Notion.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      answers: [],
+      model: modelReturning(completeProposal()).model,
+    });
+
+    expect(result).toMatchObject({
+      status: 'needs_information',
+      questions: [{
+        id: 'connection-notion',
+        question: 'Set up Notion before choosing files or permissions.',
+        control: 'service',
+        choices: [],
+      }],
+    });
+  });
+
   it('asks for an exact folder and whether changes are allowed before using the model', async () => {
     const fake = modelReturning(completeProposal());
 

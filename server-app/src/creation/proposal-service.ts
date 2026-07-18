@@ -53,7 +53,7 @@ function parseModelValue(value: unknown): CreationProposal | undefined {
 
 function fallbackQuestions(request: ProposalRequest): ProposalFallbackQuestion[] {
   const intent = request.request.toLowerCase();
-  if (/\b(files?|folders?|documents?|directory)\b/.test(intent)) {
+  if (/\b(files?|folders?|documents?|directory|manuscripts?)\b/.test(intent)) {
     return [{
       id: 'file-location',
       question: 'Which folder should this agent use?',
@@ -89,10 +89,34 @@ function fallback(request: ProposalRequest, modelStatus: 'unavailable' | 'invali
   };
 }
 
+function unansweredConnectionQuestion(request: ProposalRequest): ProposalFallbackQuestion | undefined {
+  if (!/\bnotion\b/i.test(request.request)) return undefined;
+  if (request.answers.some((answer) => answer.question_id === 'connection-notion')) return undefined;
+
+  const connections = request.connectedServices.filter((service) => /\bnotion\b/i.test(service));
+  if (connections.length === 1) return undefined;
+  if (connections.length === 0) {
+    return {
+      id: 'connection-notion',
+      question: 'Set up Notion before choosing files or permissions.',
+      control: 'service',
+      required: true,
+      choices: [],
+    };
+  }
+  return {
+    id: 'connection-notion',
+    question: 'Which Notion connection should this agent use?',
+    control: 'service',
+    required: true,
+    choices: connections.map((connection) => ({ label: connection, value: connection })),
+  };
+}
+
 function unansweredScopeQuestion(request: ProposalRequest): ProposalFallbackQuestion | undefined {
   const intent = request.request.toLowerCase();
   const answers = new Set(request.answers.map((answer) => answer.question_id));
-  if (/\b(files?|folders?|documents?|directory)\b/.test(intent)) {
+  if (/\b(files?|folders?|documents?|directory|manuscripts?)\b/.test(intent)) {
     if (!answers.has('file-location')) {
       return { id: 'file-location', question: 'Which folder may this agent use?', control: 'path', required: true };
     }
@@ -151,7 +175,7 @@ export async function createAgentProposal(input: CreateProposalInput): Promise<P
     availableCalendars: input.availableCalendars,
     answers: input.answers,
   });
-  const scopeQuestion = unansweredScopeQuestion(request);
+  const scopeQuestion = unansweredConnectionQuestion(request) ?? unansweredScopeQuestion(request);
   if (scopeQuestion) {
     return {
       status: 'needs_information',

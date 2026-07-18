@@ -176,7 +176,8 @@ private struct GuidanceQuestionPayload: Decodable, Equatable, Sendable {
         case "path": return .folder
         case "schedule": return .schedule
         case "permission": return .confirmation
-        case "single_choice", "service": return .choice(choices?.map(\.label) ?? [])
+        case "single_choice": return .choice(choices?.map(\.label) ?? [])
+        case "service": return .service(choices?.map(\.label) ?? [])
         default: return .text
         }
     }

@@ -14,6 +14,17 @@ final class GuidanceServerPayloadTests: XCTestCase {
         XCTAssertEqual(questions.first?.choiceValues, ["work-id"])
     }
 
+    func testServiceQuestionKeepsConnectionSetupSemantics() throws {
+        let data = Data(#"{"status":"needs_information","questions":[{"id":"connection-notion","question":"Set up Notion.","control":"service","required":true,"choices":[]}],"explanation":"Connect first."}"#.utf8)
+
+        let response = try JSONDecoder().decode(GuidanceProposalResponse.self, from: data)
+
+        guard case .needsInformation(let questions, _) = response else {
+            return XCTFail("Expected a question")
+        }
+        XCTAssertEqual(questions.first?.kind, .service([]))
+    }
+
     func testProposalResponseRetainsReviewIdAndMapsConsumerState() throws {
         let response = try JSONDecoder().decode(GuidanceProposalResponse.self, from: Data(Self.proposalJSON.utf8))
         guard case .proposal(let review) = response else { return XCTFail("Expected proposal") }

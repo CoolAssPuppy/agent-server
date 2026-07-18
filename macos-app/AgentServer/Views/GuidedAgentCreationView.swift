@@ -166,6 +166,24 @@ struct GuidedAgentCreationView: View {
                     }
                 }
             }
+        case .service(let choices):
+            if choices.isEmpty {
+                VStack(alignment: .leading, spacing: NSpacing.sm) {
+                    Label("Notion needs to be connected", systemImage: "link.badge.plus")
+                    Text("Choose an existing Notion connection or add one before this agent can save results.")
+                        .font(NTypography.caption)
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                    Button("Set up apps and services", action: requestConnectionSetup)
+                        .buttonStyle(.borderedProminent)
+                }
+            } else {
+                Picker("Notion connection", selection: $answer) {
+                    Text("Choose…").tag("")
+                    ForEach(Array(choices.enumerated()), id: \.offset) { index, label in
+                        Text(label).tag(index < question.choiceValues.count ? question.choiceValues[index] : label)
+                    }
+                }
+            }
         case .confirmation:
             Picker("Choose one", selection: $answer) {
                 Text("Choose…").tag("")
