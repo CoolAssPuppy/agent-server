@@ -22,7 +22,7 @@ const program = new Command();
 program
   .name('agent-server')
   .description('Lightweight agent orchestration server powered by Claude Code')
-  .version('3.0.0');
+  .version('3.0.2');
 
 program
   .command('start')

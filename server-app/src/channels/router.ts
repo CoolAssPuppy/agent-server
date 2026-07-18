@@ -87,14 +87,45 @@ const CAPABILITY_QUERY = /\b(what can you|what do you do|which agents|list (the 
  * that agent; a message that names an agent -> that agent. Anything ambiguous
  * across multiple agents falls through to `none` rather than guessing.
  */
+/** Significant words (>= 4 chars) in a string, lowercased. */
+function significantTokens(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length >= 4);
+}
+
 export function heuristicRoute(message: string, agents: AgentConfig[]): RouteResult {
   if (CAPABILITY_QUERY.test(message)) return { type: 'list', context: message };
 
   const lower = message.toLowerCase();
+
+  // Whole id/name appears verbatim ("run daily-focus") — the strongest signal.
   const named = agents.find(
     (a) => lower.includes(a.id.toLowerCase()) || lower.includes(a.name.toLowerCase()),
   );
   if (named) return { type: 'route', agent: named, context: message };
+
+  // Word overlap: score each agent by how many significant message words appear
+  // in its id/name ("french quiz" -> the Portuguese/French agent). Route only on
+  // an unambiguous single best match; a tie ("weekly report" across two weekly
+  // agents) falls through rather than guessing.
+  const messageWords = new Set(significantTokens(message));
+  if (messageWords.size > 0) {
+    const scored = agents
+      .map((a) => {
+        const agentWords = new Set(significantTokens(`${a.id} ${a.name}`));
+        let score = 0;
+        for (const w of messageWords) if (agentWords.has(w)) score += 1;
+        return { agent: a, score };
+      })
+      .filter((s) => s.score > 0);
+    if (scored.length > 0) {
+      const max = Math.max(...scored.map((s) => s.score));
+      const best = scored.filter((s) => s.score === max);
+      if (best.length === 1) return { type: 'route', agent: best[0].agent, context: message };
+    }
+  }
 
   const enabled = agents.filter((a) => a.enabled !== false);
   if (enabled.length === 1) return { type: 'route', agent: enabled[0], context: message };
