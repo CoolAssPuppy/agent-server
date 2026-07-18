@@ -1,5 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
 import NerdsUI
 import AppKit
 
@@ -60,8 +59,6 @@ struct GuidedAgentCreationView: View {
     @State private var scheduleAnswer = ScheduleDraft()
     @State private var fileGrants: [CreationFileGrant] = []
     @State private var pickerError: String?
-    @State private var isChoosingFolder = false
-    @State private var resourcePickerMode = CreationResourcePickerMode.folder
     @State private var flow = AgentCreationFlow(request: "")
     @State private var pendingHighRiskSave: Bool?
 
@@ -80,12 +77,6 @@ struct GuidedAgentCreationView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.tokens.background)
         .shadow(color: Color.black.opacity(0.18), radius: 14, x: 5, y: 0)
-        .fileImporter(
-            isPresented: $isChoosingFolder,
-            allowedContentTypes: resourcePickerMode == .folder ? [.folder] : [.item],
-            allowsMultipleSelection: resourcePickerMode.allowsMultipleSelection,
-            onCompletion: chooseFiles
-        )
         .confirmationDialog(
             "Save a high-risk agent?",
             isPresented: Binding(
@@ -206,16 +197,10 @@ struct GuidedAgentCreationView: View {
                     .background(theme.tokens.card)
                     .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
                 }
-                HStack {
-                    Button(fileGrants.isEmpty ? "Choose files" : "Add files") {
-                        presentResourcePicker(.files)
-                    }
-                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationFilePicker)
-                    Button(fileGrants.isEmpty ? "Choose a folder" : "Add a folder") {
-                        presentResourcePicker(.folder)
-                    }
-                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationFolderPicker)
+                Button(fileGrants.isEmpty ? "Choose files or folders" : "Add file or folder") {
+                    presentResourcePicker(.filesAndFolders)
                 }
+                .accessibilityIdentifier(ConsumerFlowAccessibility.creationFolderPicker)
                 Text("Set access for each item. View only is the safer default.")
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
@@ -452,13 +437,7 @@ struct GuidedAgentCreationView: View {
         }
     }
 
-    private func chooseFiles(_ result: Result<[URL], Error>) {
-        guard case .success(let urls) = result else {
-            if case .failure(let error) = result {
-                pickerError = "The selected item could not be opened. \(error.localizedDescription)"
-            }
-            return
-        }
+    private func chooseResources(_ urls: [URL], mode: CreationResourcePickerMode) {
         pickerError = nil
         if flow.nextQuestion?.kind == .folder {
             guard let url = urls.first,
@@ -475,10 +454,8 @@ struct GuidedAgentCreationView: View {
                 pickerError = "One selected item could not be identified. Choose it again."
                 return nil
             }
-            guard resourcePickerMode.accepts(isDirectory: isDirectory) else {
-                pickerError = resourcePickerMode == .folder
-                    ? "Choose a folder, not a file."
-                    : "Choose files. Use Choose a folder to add a folder."
+            guard mode.accepts(isDirectory: isDirectory) else {
+                pickerError = "Choose a folder, not a file."
                 return nil
             }
             return CreationFileGrant(
@@ -492,9 +469,20 @@ struct GuidedAgentCreationView: View {
     }
 
     private func presentResourcePicker(_ mode: CreationResourcePickerMode) {
-        resourcePickerMode = mode
         pickerError = nil
-        isChoosingFolder = true
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = mode == .filesAndFolders
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = mode.allowsMultipleSelection
+        panel.canCreateDirectories = false
+        panel.prompt = "Choose"
+        panel.message = mode == .folder
+            ? "Choose the folder this agent should use."
+            : "Choose the files or folders this agent may use."
+        panel.begin { response in
+            guard response == .OK else { return }
+            chooseResources(panel.urls, mode: mode)
+        }
     }
 
     @ViewBuilder

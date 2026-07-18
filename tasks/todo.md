@@ -4,12 +4,12 @@ Status: Native service integration and final release verification are complete.
 
 ## Folder picker correction
 
-- [x] Add a failing behavior test for a folder-only creation picker.
-- [x] Give file-access questions separate native actions for choosing files and choosing a folder.
+- [x] Replace the two file-access actions with one native picker that accepts files and folders.
+- [x] Keep the separate folder-only mode for questions that require a working folder.
 - [x] Verify 206 Swift tests and the unsigned app build, then relaunch without UI automation.
 - [x] Commit the tested correction and run a post-commit simplification review.
 
-The folder picker now opens explicitly in directory mode and accepts one folder. File selection remains a separate multiple-selection action, and both paths keep View only as the default.
+The consumer-facing file-access control should present one clear action. The native panel handles the difference between files and folders.
 
 ## Unified services and resource grants
 

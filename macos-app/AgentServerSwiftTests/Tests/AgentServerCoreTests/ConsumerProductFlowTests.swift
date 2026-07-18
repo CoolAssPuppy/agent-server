@@ -10,12 +10,12 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertFalse(picker.accepts(isDirectory: false))
     }
 
-    func testFilePickerAcceptsMultipleFilesWithoutTreatingFoldersAsFiles() {
-        let picker = CreationResourcePickerMode.files
+    func testFileAccessPickerAcceptsFilesAndFoldersInOneMultipleSelection() {
+        let picker = CreationResourcePickerMode.filesAndFolders
 
         XCTAssertTrue(picker.allowsMultipleSelection)
         XCTAssertTrue(picker.accepts(isDirectory: false))
-        XCTAssertFalse(picker.accepts(isDirectory: true))
+        XCTAssertTrue(picker.accepts(isDirectory: true))
     }
 
     func testEmptyCalendarQuestionExplainsHowToRestoreAccess() {
