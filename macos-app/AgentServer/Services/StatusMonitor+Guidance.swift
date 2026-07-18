@@ -169,7 +169,6 @@ extension StatusMonitor {
         request: String,
         answers: [String: CreationAnswerValue]
     ) async throws -> GuidanceProposalRequest {
-        await EventKitPermissionManager().requestAccessNeeded(for: request)
         let connectedServices = try await client.services().connectedServices
         let answerPayloads = answers.sorted(by: { $0.key < $1.key }).map {
             GuidanceProposalAnswer(questionId: $0.key, value: Self.guidanceValue($0.value))

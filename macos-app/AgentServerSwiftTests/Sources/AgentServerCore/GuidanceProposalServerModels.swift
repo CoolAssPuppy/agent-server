@@ -317,10 +317,11 @@ private struct GuidanceProposalPayload: Decodable, Equatable, Sendable {
     struct CalendarAccess: Decodable, Equatable, Sendable {
         let id: String
         let name: String
+        let account: String?
         let access: String
 
         var presentation: CalendarAccessPresentation {
-            CalendarAccessPresentation(id: id, name: name, canEdit: access == "read_write")
+            CalendarAccessPresentation(id: id, name: name, account: account, canEdit: access == "read_write")
         }
     }
 
@@ -329,6 +330,7 @@ private struct GuidanceProposalPayload: Decodable, Equatable, Sendable {
             struct Resource: Decodable, Equatable, Sendable {
                 let id: String
                 let name: String
+                let account: String?
                 let actions: [String]
 
                 var reminderPresentation: ReminderAccessPresentation {
@@ -340,7 +342,7 @@ private struct GuidanceProposalPayload: Decodable, Equatable, Sendable {
                         default: nil
                         }
                     }
-                    return ReminderAccessPresentation(id: id, name: name, actions: labels)
+                    return ReminderAccessPresentation(id: id, name: name, account: account, actions: labels)
                 }
             }
 

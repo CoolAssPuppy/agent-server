@@ -242,6 +242,25 @@ describe('deterministic security analysis', () => {
     expect(result.findings.map((item) => item.rule_id)).toContain('trigger.automatic_state_change');
   });
 
+  it('requires review for manual native service changes', () => {
+    const result = analyzeAgentSecurity({
+      agent: makeAgent({
+        schedule: undefined,
+        permissions: { allow: ['mcp__eventkit__create_event'], deny: [] },
+        native_services: {
+          calendar: {
+            resources: [{ id: 'work', name: 'Work', actions: ['create'] }],
+          },
+        },
+      }),
+      rawContent: 'Create an event only when I run this agent.',
+      homeDir: '/Users/tester',
+    });
+
+    expect(result.risk.level).toBe('high');
+    expect(result.findings.map((item) => item.rule_id)).toContain('native.state_change');
+  });
+
   it('produces a stable SHA-256 content hash', () => {
     expect(computeAgentContentHash('same content')).toBe(computeAgentContentHash('same content'));
     expect(computeAgentContentHash('same content')).toMatch(/^sha256:[a-f0-9]{64}$/);

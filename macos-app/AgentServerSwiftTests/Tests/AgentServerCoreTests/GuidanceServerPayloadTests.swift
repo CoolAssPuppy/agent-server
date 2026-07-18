@@ -74,8 +74,10 @@ final class GuidanceServerPayloadTests: XCTestCase {
         XCTAssertEqual(review.presentation.connections.first?.reason, "Sends the summary")
         XCTAssertEqual(review.presentation.fileAccess.first?.canEdit, false)
         XCTAssertEqual(review.presentation.calendarAccess.first?.name, "Work")
+        XCTAssertEqual(review.presentation.calendarAccess.first?.account, "iCloud")
         XCTAssertEqual(review.presentation.calendarAccess.first?.canEdit, false)
         XCTAssertEqual(review.presentation.reminderAccess.first?.name, "Book ideas")
+        XCTAssertEqual(review.presentation.reminderAccess.first?.account, "Personal")
         XCTAssertEqual(review.presentation.reminderAccess.first?.actions, ["View", "Add", "Mark complete"])
         XCTAssertTrue(review.presentation.permissions.contains("Use the internet"))
     }
@@ -208,8 +210,8 @@ final class GuidanceServerPayloadTests: XCTestCase {
       "trigger":{"type":"schedule","schedule":"0 17 * * 5","human_description":"Every Friday at 5:00 p.m."},"timezone":"Europe/Lisbon",
       "capabilities":[],"connections":[{"id":"slack","name":"Slack","required":true,"status":"needs_setup","reason":"Sends the summary"}],
       "file_access":[{"path":"~/Documents/Reports","access":"read_only","is_suggestion":false,"reason":"Reads reports"}],
-      "calendar_access":[{"id":"work-id","name":"Work","access":"read_only","reason":"Reads work events"}],
-      "native_services":{"reminders":{"resources":[{"id":"book-ideas-id","name":"Book ideas","actions":["read","create","complete"]}]}},
+      "calendar_access":[{"id":"work-id","name":"Work","account":"iCloud","access":"read_only","reason":"Reads work events"}],
+      "native_services":{"reminders":{"resources":[{"id":"book-ideas-id","name":"Book ideas","account":"Personal","actions":["read","create","complete"]}]}},
       "permissions":{"can_modify_files":false,"can_run_commands":false,"requires_network":true,"can_use_connected_apps":true,"can_send_messages":true},
       "notification_destination":{"kind":"slack","label":"Slack","configured":false},"runtime":null,
       "risk":{"level":"needs_review","reasons":["External messaging"],"finding_count":1},"missing_information":[],"questions":[],"markdown_instructions":"# Friday summary"

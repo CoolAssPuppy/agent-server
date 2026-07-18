@@ -24,6 +24,40 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(question.unavailableNativeResource, .reminders)
     }
 
+    func testReissuedNativeResourceQuestionClearsItsDependentPermission() {
+        var flow = AgentCreationFlow(request: "Review my reminders")
+        flow.receiveQuestions([
+            CreationQuestion(id: "reminder-list-id", prompt: "Which list?", kind: .choice(["Personal"]), isRequired: true),
+            CreationQuestion(id: "reminder-actions", prompt: "What may it do?", kind: .choice(["View and add"]), isRequired: true),
+        ])
+        flow.answer(questionId: "reminder-list-id", value: "old-list")
+        flow.answer(questionId: "reminder-actions", value: "read_create")
+
+        flow.receiveQuestions([
+            CreationQuestion(id: "reminder-list-id", prompt: "Which list?", kind: .choice(["Work"]), isRequired: true),
+        ])
+
+        XCTAssertNil(flow.answers["reminder-list-id"])
+        XCTAssertNil(flow.answers["reminder-actions"])
+    }
+
+    func testRefreshingUnavailableNativeResourcesPreservesOtherAnswers() {
+        var flow = AgentCreationFlow(request: "Use Notion and my calendar")
+        flow.receiveQuestions([
+            CreationQuestion(id: "connection-notion", prompt: "Which Notion?", kind: .service(name: "Notion", choices: ["Personal"]), isRequired: true),
+            CreationQuestion(id: "calendar-id", prompt: "Which calendar?", kind: .choice([]), isRequired: true),
+        ])
+        flow.answer(questionId: "connection-notion", value: "notion-personal")
+        flow.receiveQuestions([
+            CreationQuestion(id: "calendar-id", prompt: "Which calendar?", kind: .choice([]), isRequired: true),
+        ])
+
+        flow.beginQuestionRefresh()
+
+        XCTAssertEqual(flow.phase, .preparingProposal)
+        XCTAssertEqual(flow.answers["connection-notion"], .string("notion-personal"))
+    }
+
     func testCreationAsksOnlyUnansweredRequiredQuestions() {
         let questions = [
             CreationQuestion(id: "folder", prompt: "Which folder should it review?", kind: .folder, isRequired: true),

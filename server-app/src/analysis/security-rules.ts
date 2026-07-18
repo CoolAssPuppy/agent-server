@@ -369,12 +369,22 @@ function analyzeConnectionsAndAutomation(agent: AgentConfig): Finding[] {
     }
   }
 
-  const isAutomatic = Boolean(agent.schedule || agent.watch?.length);
   const canChangeNativeState = [
     ...(agent.native_services?.calendar?.resources ?? []),
     ...(agent.native_services?.reminders?.resources ?? []),
   ].some((resource) => resource.actions.some((action) => action !== 'read'))
     || agent.calendar_access?.some((calendar) => calendar.access === 'read_write') === true;
+  if (canChangeNativeState) {
+    findings.push(finding(
+      'native.state_change', 'high', 'This agent can change information in a Mac app',
+      'It can add or update events or reminders within the access you approved.',
+      'A mistaken instruction could change Calendar or Reminders information.',
+      'At least one selected Calendar or Reminders resource allows changes.',
+      [evidence('native-service', 'Mac app access', 'Changes allowed', 'configuration')],
+      action('native.state_change', 'Review the selected access', 'Keep change access only for the calendars or lists this agent needs.', 'needs_review', true),
+    ));
+  }
+  const isAutomatic = Boolean(agent.schedule || agent.watch?.length);
   const canChangeState = hasAnyPermittedTool(agent, WRITE_TOOLS)
     || hasAnyPermittedTool(agent, COMMAND_TOOLS)
     || canChangeNativeState;
@@ -382,7 +392,7 @@ function analyzeConnectionsAndAutomation(agent: AgentConfig): Finding[] {
     findings.push(finding(
       'trigger.automatic_state_change', 'high', 'This agent can make changes automatically',
       'Scheduled and watched agents can act while you are not reviewing each run.',
-      'A mistaken instruction could change files or run a command without a fresh confirmation.',
+      'A mistaken instruction could change files, app information, or run a command without a fresh confirmation.',
       agent.watch?.length ? 'A file watcher can start a state-changing run.' : 'A schedule can start a state-changing run.',
       [evidence('trigger', 'Automatic trigger', agent.watch?.length ? 'File changes' : 'Schedule', 'configuration')],
       action('trigger.automatic_state_change', 'Require a manual first run', 'Test the agent manually before keeping its automatic trigger.', 'needs_review', true),

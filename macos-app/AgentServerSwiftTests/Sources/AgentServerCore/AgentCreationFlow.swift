@@ -156,6 +156,8 @@ public struct AgentCreationFlow: Equatable, Sendable {
             if case .string? = answers[question.id] {
                 answers.removeValue(forKey: question.id)
             }
+            if question.id == "calendar-id" { answers.removeValue(forKey: "calendar-access") }
+            if question.id == "reminder-list-id" { answers.removeValue(forKey: "reminder-actions") }
         }
         self.questions = questions
         phase = .questions
@@ -174,6 +176,12 @@ public struct AgentCreationFlow: Equatable, Sendable {
         guard canRequestProposal else { return }
         phase = .preparingProposal
         failure = nil
+    }
+
+    public mutating func beginQuestionRefresh() {
+        guard phase == .questions else { return }
+        failure = nil
+        phase = .preparingProposal
     }
 
     public mutating func receiveProposal(_ proposal: AgentProposalPresentation) {

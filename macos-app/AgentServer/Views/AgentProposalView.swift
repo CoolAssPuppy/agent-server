@@ -36,7 +36,7 @@ struct AgentProposalView: View {
                 ForEach(proposal.reminderAccess, id: \.id) { access in
                     HStack {
                         Image(systemName: "list.bullet.clipboard")
-                        Text(access.name)
+                        Text(resourceLabel(name: access.name, account: access.account))
                         Spacer()
                         Text(access.actions.joined(separator: ", "))
                             .font(NTypography.badge)
@@ -53,7 +53,7 @@ struct AgentProposalView: View {
                 ForEach(proposal.calendarAccess, id: \.id) { access in
                     HStack {
                         Image(systemName: "calendar")
-                        Text(access.name)
+                        Text(resourceLabel(name: access.name, account: access.account))
                         Spacer()
                         Text(access.canEdit ? "Can add and change events" : "View only")
                             .font(NTypography.badge)
@@ -62,6 +62,11 @@ struct AgentProposalView: View {
                 }
             }
         }
+    }
+
+    private func resourceLabel(name: String, account: String?) -> String {
+        guard let account, !account.isEmpty else { return name }
+        return "\(name) (\(account))"
     }
 
     private var connections: some View {

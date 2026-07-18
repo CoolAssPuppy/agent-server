@@ -225,9 +225,10 @@ struct GuidedAgentCreationView: View {
                         .font(NTypography.caption)
                         .foregroundStyle(theme.tokens.mutedForeground)
                     HStack {
-                        Button("Open System Settings") { openPrivacySettings(for: unavailableResource) }
-                        Button("Check again", action: startPreparation)
+                        Button("Allow access") { requestNativeAccess(unavailableResource) }
                             .buttonStyle(.borderedProminent)
+                        Button("Open System Settings") { openPrivacySettings(for: unavailableResource) }
+                        Button("Check again", action: refreshQuestion)
                     }
                 }
             } else {
@@ -333,6 +334,18 @@ struct GuidedAgentCreationView: View {
         flow = AgentCreationFlow(request: request)
         flow.beginProposalRequest()
         prepare()
+    }
+
+    private func refreshQuestion() {
+        flow.beginQuestionRefresh()
+        prepare()
+    }
+
+    private func requestNativeAccess(_ resource: CreationQuestion.NativeResource) {
+        Task {
+            await EventKitPermissionManager().requestAccess(for: resource)
+            refreshQuestion()
+        }
     }
 
     private func openPrivacySettings(for resource: CreationQuestion.NativeResource) {

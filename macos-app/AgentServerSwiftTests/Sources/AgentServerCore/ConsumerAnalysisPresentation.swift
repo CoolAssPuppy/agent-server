@@ -68,11 +68,13 @@ public struct FileAccessPresentation: Equatable, Sendable {
 public struct CalendarAccessPresentation: Equatable, Sendable {
     public let id: String
     public let name: String
+    public let account: String?
     public let canEdit: Bool
 
-    public init(id: String, name: String, canEdit: Bool) {
+    public init(id: String, name: String, account: String? = nil, canEdit: Bool) {
         self.id = id
         self.name = name
+        self.account = account
         self.canEdit = canEdit
     }
 }
@@ -80,11 +82,13 @@ public struct CalendarAccessPresentation: Equatable, Sendable {
 public struct ReminderAccessPresentation: Equatable, Sendable {
     public let id: String
     public let name: String
+    public let account: String?
     public let actions: [String]
 
-    public init(id: String, name: String, actions: [String]) {
+    public init(id: String, name: String, account: String? = nil, actions: [String]) {
         self.id = id
         self.name = name
+        self.account = account
         self.actions = actions
     }
 }

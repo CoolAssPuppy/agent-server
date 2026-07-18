@@ -3,6 +3,7 @@ import { z } from 'zod';
 const ResourceIdentitySchema = z.object({
   id: z.string().trim().min(1).max(512).refine((value) => !value.includes('\0')),
   name: z.string().trim().min(1).max(160),
+  account: z.string().trim().min(1).max(160).optional(),
 });
 
 const uniqueActions = <T extends z.ZodTypeAny>(schema: T) => z.array(schema).min(1).superRefine((actions, ctx) => {

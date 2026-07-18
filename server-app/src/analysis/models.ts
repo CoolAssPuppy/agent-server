@@ -72,6 +72,7 @@ const FileAccessProposalSchema = FileAccessSchema.extend({
 const CalendarAccessProposalSchema = z.object({
   id: z.string().trim().min(1).max(512),
   name: z.string().trim().min(1).max(160),
+  account: z.string().trim().min(1).max(160).optional(),
   access: z.enum(['read_only', 'read_write']),
   reason: z.string().trim().min(1).max(500),
 }).strict();

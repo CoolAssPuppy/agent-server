@@ -309,6 +309,34 @@ describe('guided agent proposal creation', () => {
     });
   });
 
+  it('does not treat generic project tasks as Apple Reminders', async () => {
+    const result = await createAgentProposal({
+      request: 'Summarize my Notion project tasks.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      availableReminderLists: [{ id: 'personal', name: 'Personal', account: 'iCloud', canModify: true }],
+      model: modelReturning(completeProposal()).model,
+    });
+
+    expect(result).not.toMatchObject({
+      status: 'needs_information', questions: [{ id: 'reminder-list-id' }],
+    });
+  });
+
+  it('recognizes scheduling a meeting as Calendar access', async () => {
+    const result = await createAgentProposal({
+      request: 'Schedule a meeting with the design team.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      availableCalendars: [{ id: 'work', name: 'Work', account: 'iCloud', canModify: true }],
+      model: modelReturning(completeProposal()).model,
+    });
+
+    expect(result).toMatchObject({
+      status: 'needs_information', questions: [{ id: 'calendar-id' }],
+    });
+  });
+
   it('re-asks when a Reminder answer is no longer available or allowed', async () => {
     const fake = modelReturning(completeProposal());
     const base = {

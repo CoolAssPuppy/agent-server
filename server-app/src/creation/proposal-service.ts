@@ -105,7 +105,7 @@ function confirmedReminderAccess(request: ProposalRequest) {
   if (!actions || (!resource.canModify && actions.length > 1)) return undefined;
   return {
     reminders: {
-      resources: [{ id: resource.id, name: resource.name, actions }],
+      resources: [{ id: resource.id, name: resource.name, account: resource.account, actions }],
     },
   };
 }
@@ -120,6 +120,7 @@ function confirmedCalendarAccess(request: ProposalRequest) {
   return [{
     id: resource.id,
     name: resource.name,
+    account: resource.account,
     access: selectedAccess as 'read_only' | 'read_write',
     reason: selectedAccess === 'read_write'
       ? 'Adds and changes events only in the selected calendar.'
@@ -175,6 +176,15 @@ function applyDeterministicRisk(proposal: CreationProposal): CreationProposal | 
 
 function needsFileAccess(intent: string): boolean {
   return /\b(files?|folders?|documents?|directory|manuscripts?)\b/.test(intent);
+}
+
+function needsReminderAccess(intent: string): boolean {
+  return /\b(reminders?|reminder lists?|to-?dos?)\b/.test(intent);
+}
+
+function needsCalendarAccess(intent: string): boolean {
+  return /\b(calendar|calendars|events|appointments?|meetings?)\b/.test(intent)
+    || /\b(?:schedule|book|block)\s+(?:a\s+|some\s+)?time\b/.test(intent);
 }
 
 function fallbackQuestions(request: ProposalRequest): ProposalFallbackQuestion[] {
@@ -287,7 +297,7 @@ function explicitlySelectedServiceIds(request: ProposalRequest): Set<string> {
 function unansweredScopeQuestion(request: ProposalRequest): ProposalFallbackQuestion | undefined {
   const intent = request.request.toLowerCase();
   const answers = new Set(request.answers.map((answer) => answer.question_id));
-  if (/\b(reminders?|to-?dos?|tasks?)\b/.test(intent)) {
+  if (needsReminderAccess(intent)) {
     const selectedId = request.answers.find((answer) => answer.question_id === 'reminder-list-id')?.value;
     const selected = request.availableReminderLists.find((list) => list.id === selectedId);
     if (!answers.has('reminder-list-id') || !selected) {
@@ -335,7 +345,7 @@ function unansweredScopeQuestion(request: ProposalRequest): ProposalFallbackQues
       };
     }
   }
-  if (/\b(calendar|calendars|events|appointments)\b/.test(intent)) {
+  if (needsCalendarAccess(intent)) {
     const selectedId = request.answers.find((answer) => answer.question_id === 'calendar-id')?.value;
     const selected = request.availableCalendars.find((calendar) => calendar.id === selectedId);
     if (!answers.has('calendar-id') || !selected) {

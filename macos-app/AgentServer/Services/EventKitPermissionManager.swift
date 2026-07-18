@@ -5,13 +5,10 @@ import Foundation
 final class EventKitPermissionManager {
     private let store = EKEventStore()
 
-    func requestAccessNeeded(for request: String) async {
-        let intent = request.lowercased()
-        if intent.range(of: #"\b(calendar|calendars|events|appointments)\b"#, options: .regularExpression) != nil {
-            await requestEventAccess()
-        }
-        if intent.range(of: #"\b(reminders?|to-?dos?|tasks?)\b"#, options: .regularExpression) != nil {
-            await requestReminderAccess()
+    func requestAccess(for resource: CreationQuestion.NativeResource) async {
+        switch resource {
+        case .calendar: await requestEventAccess()
+        case .reminders: await requestReminderAccess()
         }
     }
 
