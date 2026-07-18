@@ -136,6 +136,44 @@ describe('API routes', () => {
     });
   });
 
+  describe('GET /services', () => {
+    it('returns distinct configured and account-backed service connections without secrets', async () => {
+      const agent = makeAgent({
+        mcp_servers: {
+          'notion-personal': {
+            command: 'npx',
+            args: ['-y', '@notionhq/notion-mcp-server'],
+            env: { NOTION_TOKEN: '${NOTION_PERSONAL_API_KEY}' },
+          },
+        },
+      });
+      const app = createApi({
+        getAgents: async () => [agent],
+        store,
+        triggerRun,
+        getEnv: () => ({ NOTION_PERSONAL_API_KEY: 'personal-secret' }),
+        connections: {
+          get: () => ({
+            servers: [{ name: 'claude.ai Notion', status: 'connected' }],
+            discovered_at: '2026-07-18T12:00:00.000Z',
+          }),
+          refresh: async () => ({ servers: [], discovered_at: null }),
+        },
+      });
+
+      const response = await authenticatedRequest(app, '/services');
+      const body = await response.json() as { connections: Array<Record<string, unknown>> };
+
+      expect(response.status).toBe(200);
+      expect(body.connections).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: 'Personal Notion', source: 'configured_api' }),
+        expect.objectContaining({ name: 'Work Notion', source: 'account' }),
+      ]));
+      expect(JSON.stringify(body)).not.toContain('personal-secret');
+      expect(JSON.stringify(body)).not.toContain('NOTION_PERSONAL_API_KEY');
+    });
+  });
+
   describe('POST /agents/:id/run', () => {
     it('triggers a run and returns run ID', async () => {
       const app = createApp();

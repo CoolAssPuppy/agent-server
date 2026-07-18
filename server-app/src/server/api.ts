@@ -10,6 +10,7 @@ import {
   redactAgentSecrets,
   type DiscoveredConnection,
 } from '../agents/capabilities.js';
+import { buildServiceRegistry } from '../services/registry.js';
 import {
   AgentPatchSchema,
   AgentWriteError,
@@ -332,6 +333,15 @@ export function createApi(deps: ApiDependencies): Hono {
 
   app.get('/capabilities', (c) => {
     return c.json({ capabilities: catalogSummary(getEnv()) });
+  });
+
+  app.get('/services', async (c) => {
+    const registry = buildServiceRegistry({
+      agents: await deps.getAgents(),
+      environment: getEnv(),
+      discovered: getConnections(),
+    });
+    return c.json({ connections: registry.connections });
   });
 
   app.put('/agents/:id', async (c) => {
