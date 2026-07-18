@@ -1,6 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 import NerdsUI
+
 enum CreationPreparation {
     case questions([CreationQuestion])
     case proposal(AgentProposalPresentation)
