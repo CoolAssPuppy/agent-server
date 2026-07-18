@@ -22,6 +22,11 @@ import {
   type CapabilityChange,
   type DiscoveredConnection,
 } from './capabilities.js';
+import {
+  ReviewedAgentWriteError,
+  writeReviewedAgent,
+  type ReviewedAgentWriteResult,
+} from './reviewed-agent-writer.js';
 
 /**
  * Structured writes to agent definition files. This module is the only
@@ -99,6 +104,7 @@ type EnvSource = Record<string, string | undefined>;
 export type AgentWriter = {
   update: (id: string, patch: AgentPatch) => Promise<AgentConfig>;
   create: (input: NewAgentInput) => Promise<AgentConfig>;
+  createReviewed: (agent: AgentConfig) => Promise<ReviewedAgentWriteResult>;
   remove: (id: string) => Promise<void>;
 };
 
@@ -433,6 +439,17 @@ export function createAgentWriter(
         throw err;
       }
       return config;
+    },
+
+    async createReviewed(agent: AgentConfig): Promise<ReviewedAgentWriteResult> {
+      try {
+        return await writeReviewedAgent(directory, agent);
+      } catch (error) {
+        if (error instanceof ReviewedAgentWriteError) {
+          throw new AgentWriteError(error.message, error.code);
+        }
+        throw error;
+      }
     },
 
     async remove(id: string): Promise<void> {

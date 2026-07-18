@@ -45,6 +45,7 @@ type ApiDependencies = {
   getAgents: () => Promise<AgentConfig[]>;
   store: RunStoreLike;
   triggerRun: (agentId: string, promptSuffix?: string) => Promise<string>;
+  triggerSafeTest?: (agentId: string) => Promise<string>;
   cancelRun?: (runId: string) => boolean;
   cleanupFn?: () => Promise<number>;
   /**
@@ -72,6 +73,8 @@ type ApiDependencies = {
   connections?: ConnectionSource;
   /** Optional local security analysis and configuration patch routes. */
   analysisApi?: Hono;
+  /** Optional local guided creation and debugger routes. */
+  guidanceApi?: Hono;
   apiKey: string;
   startedAt?: string;
   host?: string;
@@ -87,6 +90,7 @@ const TriggerRunBodySchema = z.object({
 
 function isAgentWriteRequest(method: string, path: string): boolean {
   if (method === 'POST' && path === '/agents') return true;
+  if (method === 'POST' && path.startsWith('/guidance/agent-proposals')) return true;
   return method === 'PUT' && /^\/agents\/[^/]+$/.test(path);
 }
 
@@ -246,6 +250,7 @@ export function createApi(deps: ApiDependencies): Hono {
   });
 
   if (deps.analysisApi) app.route('/', deps.analysisApi);
+  if (deps.guidanceApi) app.route('/', deps.guidanceApi);
 
   const getEnv = deps.getEnv ?? ((): EnvSource => process.env);
 
@@ -407,6 +412,26 @@ export function createApi(deps: ApiDependencies): Hono {
         return c.json({ error: message }, 429);
       }
       return c.json({ error: 'Failed to trigger run' }, 500);
+    }
+  });
+
+  app.post('/agents/:id/safe-test', async (c) => {
+    if (!deps.triggerSafeTest) return c.json({ error: 'Safe testing is unavailable.' }, 501);
+    const ip = getClientIp(c.req.raw, { trustProxyHeaders: false });
+    const triggerThrottle = triggerLimiter.consume(`${ip}:safe-test`);
+    if (!triggerThrottle.allowed) {
+      c.header('Retry-After', String(triggerThrottle.retryAfterSeconds ?? 60));
+      return c.json({ error: 'Too many run trigger requests' }, 429);
+    }
+    const agentId = c.req.param('id');
+    if (!(await deps.getAgents()).some((agent) => agent.id === agentId)) {
+      return c.json({ error: 'Agent not found' }, 404);
+    }
+    try {
+      const runId = await deps.triggerSafeTest(agentId);
+      return c.json({ runId, agentId, mode: 'safe_test' }, 202);
+    } catch {
+      return c.json({ error: 'Failed to trigger safe test' }, 500);
     }
   });
 

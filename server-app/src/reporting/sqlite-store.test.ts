@@ -37,6 +37,7 @@ describe('SqliteRunStore', () => {
       inputTokens: 900,
       outputTokens: 120,
       model: 'claude-opus-4-8',
+      mode: 'safe_test',
       filesRead: ['a.txt'],
       filesWritten: ['b.txt'],
       commandsRun: ['ls'],

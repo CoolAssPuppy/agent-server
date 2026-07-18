@@ -29,6 +29,7 @@ export type StoredRun = {
   inputTokens?: number;
   outputTokens?: number;
   model?: string;
+  mode?: 'normal' | 'safe_test';
 };
 
 /**

@@ -51,6 +51,18 @@ function validProposal(): Record<string, unknown> {
   };
 }
 
+function completeProposal(): Record<string, unknown> {
+  return {
+    ...validProposal(),
+    connections: [{
+      id: 'slack', name: 'Slack', required: true, status: 'connected', reason: 'The summary needs a destination.',
+    }],
+    notification_destination: { kind: 'slack', label: 'Team updates', configured: true },
+    missing_information: [],
+    questions: [],
+  };
+}
+
 function modelReturning(...responses: unknown[]): { model: ProposalModel; calls: () => number } {
   let callCount = 0;
   return {
@@ -62,7 +74,7 @@ function modelReturning(...responses: unknown[]): { model: ProposalModel; calls:
 }
 
 describe('guided agent proposal creation', () => {
-  it('accepts a valid least-privilege structured proposal', async () => {
+  it('returns required model questions before issuing a proposal', async () => {
     const fake = modelReturning(validProposal());
 
     const result = await createAgentProposal({
@@ -72,11 +84,25 @@ describe('guided agent proposal creation', () => {
       model: fake.model,
     });
 
+    expect(result.status).toBe('needs_information');
+    if (result.status !== 'needs_information') throw new Error('Expected questions');
+    expect(result.questions[0]?.question).toContain('Slack');
+    expect(result.usedFallback).toBe(false);
+    expect(fake.calls()).toBe(1);
+  });
+
+  it('accepts a complete least-privilege structured proposal', async () => {
+    const result = await createAgentProposal({
+      request: 'Every Friday, summarize my GitHub activity in Slack.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: ['github', 'slack'],
+      model: modelReturning(completeProposal()).model,
+    });
+
     expect(result.status).toBe('proposal');
     if (result.status !== 'proposal') throw new Error('Expected proposal');
     expect(result.proposal.permissions.can_modify_files).toBe(false);
-    expect(result.proposal.questions[0]?.question).toContain('Slack');
-    expect(fake.calls()).toBe(1);
+    expect(result.proposal.questions).toEqual([]);
   });
 
   it('rejects contradictory privilege and trigger claims before use', async () => {
@@ -215,5 +241,24 @@ describe('guided agent proposal creation', () => {
     expect(isToolPermitted(agent, 'Read')).toBe(false);
     expect(isToolPermitted(agent, 'Bash')).toBe(false);
     expect(isToolPermitted(agent, 'UnknownFutureTool')).toBe(false);
+  });
+
+  it('materializes reviewed folders, watch triggers, notifications, and service access', () => {
+    const proposal = completeProposal();
+    proposal.trigger = {
+      type: 'watch',
+      watched_path: '~/Documents/Research',
+      human_description: 'When a Markdown file changes in Research.',
+    };
+    proposal.file_access = [{
+      path: '~/Documents/Research', access: 'read_only', is_suggestion: false, reason: 'Read research notes.',
+    }];
+    const agent = proposalToAgentConfig(CreationProposalSchema.parse(proposal), 'research-watcher');
+
+    expect(agent.working_directory).toBe('~/Documents/Research');
+    expect(agent.watch).toEqual([{ path: '~/Documents/Research' }]);
+    expect(agent.notification).toEqual({ channel: 'slack', on_complete: true, on_failure: true });
+    expect(agent.permissions?.allow).toContain('mcp__slack__*');
+    expect(agent.permissions?.allow).toContain('Read');
   });
 });

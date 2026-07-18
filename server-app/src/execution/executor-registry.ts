@@ -12,6 +12,8 @@ export type ExecutorFnOptions = {
   claudeExecutablePath?: string;
   /** Path to the user's installed Codex executable, or undefined for bundled. */
   codexExecutablePath?: string;
+  /** Disable user-level MCP configuration for a restricted safe test. */
+  disableMcpServers?: boolean;
 };
 
 export type ExecutorFn = (agent: AgentConfig, reporter: Reporter, options?: ExecutorFnOptions) => Promise<ExecutionResult>;

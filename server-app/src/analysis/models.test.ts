@@ -109,6 +109,7 @@ describe('analysis models', () => {
       schema_version: 1,
       agent_id: 'weekly-summary',
       content_hash: `sha256:${'a'.repeat(64)}`,
+      analyzer_version: '1.1.0',
       analyzer_version: '1.0.0',
       analyzed_at: '2026-07-18T12:00:00.000Z',
       risk: { level: 'low', reasons: [], finding_count: 1 },

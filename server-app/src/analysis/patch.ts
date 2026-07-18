@@ -9,6 +9,7 @@ import {
   splitFrontmatter,
 } from '../agents/config.js';
 import { ConversationConfigSchema } from '../conversation/schema.js';
+import { NETWORK_TOOLS } from '../execution/permission-policy.js';
 import { computeAgentContentHash } from './security-rules.js';
 
 const ContentHashSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/);
@@ -208,8 +209,7 @@ function setField(document: Document, key: string, value: unknown): void {
 
 function networkWrites(changes: ConfigurationChanges, current: string[]): string[] | undefined {
   if (changes.network_access !== false) return undefined;
-  const blocked = ['WebFetch', 'WebSearch', 'web_search'];
-  return [...new Set([...current, ...blocked])];
+  return [...new Set([...current, ...NETWORK_TOOLS])];
 }
 
 function renderPatchedContent(content: string, changes: ConfigurationChanges): string {
@@ -228,7 +228,7 @@ function renderPatchedContent(content: string, changes: ConfigurationChanges): s
     }
   }
   if (changes.network_access === true) {
-    const networkTools = ['WebFetch', 'WebSearch', 'web_search'];
+    const networkTools: string[] = [...NETWORK_TOOLS];
     writes.disallowed_tools = (changes.disallowed_tools ?? agent.disallowed_tools)
       .filter((tool) => !networkTools.includes(tool));
     const permissions = changes.permissions ?? agent.permissions;

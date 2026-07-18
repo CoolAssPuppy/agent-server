@@ -65,7 +65,17 @@ export function createAnalysisApi(dependencies: AnalysisApiDependencies): Hono {
   app.get('/security/agents/:id', async (context) => {
     const input = await dependencies.content.get(context.req.param('id'));
     if (!input) return context.json({ error: 'Agent not found' }, 404);
-    return context.json(await dependencies.security.analyze(input));
+    const analysis = await dependencies.security.analyze(input);
+    return context.json({
+      ...analysis,
+      review_state: dependencies.security.getReviewState(analysis.agent_id, analysis.content_hash),
+    });
+  });
+
+  app.post('/security/agents/:id/preflight', async (context) => {
+    const input = await dependencies.content.get(context.req.param('id'));
+    if (!input) return context.json({ error: 'Agent not found' }, 404);
+    return context.json(await dependencies.security.preflight(input));
   });
 
   app.post('/security/scan', async (context) => {
@@ -81,7 +91,13 @@ export function createAnalysisApi(dependencies: AnalysisApiDependencies): Hono {
         acknowledged_finding_ids: body.acknowledged_finding_ids,
       });
       return reviewed
-        ? context.json({ reviewed: true })
+        ? context.json({
+          reviewed: true,
+          review_state: dependencies.security.getReviewState(
+            context.req.param('id'),
+            body.content_hash,
+          ),
+        })
         : context.json({ error: 'The agent changed. Run the security check again.' }, 409);
     } catch (error) {
       return context.json({ error: error instanceof TypeError ? error.message : 'Invalid review request' }, 400);

@@ -7,8 +7,8 @@ const LONG_HORIZONTAL_SPACE_PATTERN = /[^\S\n]{2,}/g;
 const EXCESSIVE_NEWLINES_PATTERN = /\n{4,}/g;
 
 const SECRET_PATTERNS: RegExp[] = [
-  /\b(sk-(?:ant|live|test)?[-_a-zA-Z0-9]{12,})\b/g,
-  /\b(ap_(?:live|test)?[-_a-zA-Z0-9]{8,})\b/g,
+  /\bsk-(?:ant|live|test)?[-_a-zA-Z0-9]{12,}\b/g,
+  /\bap_(?:live|test)?[-_a-zA-Z0-9]{8,}\b/g,
   /\b(Bearer\s+)[A-Za-z0-9._~+/=-]{10,}\b/gi,
   /\b(x-agent-server-key\s*[:=]\s*)[^\s,;]+/gi,
   /\b(authorization\s*[:=]\s*bearer\s+)[^\s,;]+/gi,

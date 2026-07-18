@@ -103,6 +103,19 @@ describe('executeCodexAgent', () => {
     expect(options.apiKey).toBeUndefined();
   });
 
+  it('explicitly disables global MCP servers for a safe test', async () => {
+    const { executeCodexAgent } = await import('./codex.js');
+    runStreamed.mockResolvedValue({ events: streamEvents([]) });
+
+    await executeCodexAgent(makeAgent({ executor: 'codex' }), createMockReporter(), {
+      disableMcpServers: true,
+    });
+
+    expect(codexConstructor.mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({
+      config: { mcp_servers: {} },
+    }));
+  });
+
   it('maps Codex events into provider-neutral execution telemetry', async () => {
     const { executeCodexAgent } = await import('./codex.js');
     const reporter = createMockReporter();

@@ -62,6 +62,30 @@ export {
 export { FileAgentContentRepository } from './analysis/patch-repository.js';
 export { SqliteSecurityReviewStore, type SecurityReviewRecord } from './analysis/review-store.js';
 export { SecurityAnalysisService, ANALYZER_VERSION } from './analysis/security-service.js';
+export {
+  EvidenceSchema,
+  FindingSchema,
+  PreflightResultSchema,
+  RecommendedActionSchema,
+  RiskSeveritySchema,
+  RiskSummarySchema,
+  SecurityAnalysisSchema,
+  SecurityReviewStateSchema,
+  type Evidence,
+  type Finding,
+  type PreflightResult,
+  type RecommendedAction,
+  type RiskSeverity,
+  type RiskSummary,
+  type SecurityAnalysis,
+  type SecurityReviewState,
+} from './analysis/models.js';
+export {
+  SemanticRiskResponseSchema,
+  buildSemanticSecurityPrompt,
+  runSemanticSecurityAnalysis,
+  type SemanticAnalysisResult,
+} from './analysis/semantic-security.js';
 export { createAnalysisApi, type AnalysisApiDependencies, type SecurityContentSource } from './analysis/security-api.js';
 export { createAnalysisRuntime } from './analysis/runtime.js';
 export { startServer, type ServerInstance } from './server/server.js';

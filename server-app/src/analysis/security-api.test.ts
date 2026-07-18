@@ -39,8 +39,57 @@ describe('security and patch API', () => {
     const scanResponse = await fixture.app.request('/security/scan', { method: 'POST' });
 
     expect(agentResponse.status).toBe(200);
-    expect((await agentResponse.json()).agent_id).toBe('reader');
-    expect((await scanResponse.json()).summary.total_agents).toBe(1);
+    const agentBody = await agentResponse.json();
+    const scanBody = await scanResponse.json();
+    expect(agentBody.agent_id).toBe('reader');
+    expect(agentBody.review_state).toMatchObject({
+      reviewed_at: null,
+      is_reviewed: false,
+      is_stale: false,
+      acknowledged_finding_ids: [],
+      analyzer_version: '1.1.0',
+      content_hash: agentBody.content_hash,
+    });
+    expect(scanBody.summary.total_agents).toBe(1);
+    expect(scanBody.analyses[0].review_state).toMatchObject({ is_reviewed: false, is_stale: false });
+    fixture.reviewStore.close();
+  });
+
+  it('returns the updated persisted review state after acknowledgement', async () => {
+    const fixture = createFixture();
+    const analysisResponse = await fixture.app.request('/security/agents/reader');
+    const analysis = await analysisResponse.json();
+    const response = await fixture.app.request('/security/agents/reader/review', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+        content_hash: analysis.content_hash,
+        acknowledged_finding_ids: analysis.findings.map((finding: { id: string }) => finding.id),
+      }),
+    });
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body).toEqual({
+      reviewed: true,
+      review_state: {
+        reviewed_at: expect.any(String),
+        is_reviewed: true,
+        is_stale: false,
+        acknowledged_finding_ids: analysis.findings.map((finding: { id: string }) => finding.id),
+        analyzer_version: '1.1.0',
+        content_hash: analysis.content_hash,
+      },
+    });
+    expect(JSON.stringify(body)).not.toContain('reason');
+    expect(JSON.stringify(body)).not.toContain('content"');
+    fixture.reviewStore.close();
+  });
+
+  it('runs before-run preflight through the same security service', async () => {
+    const fixture = createFixture();
+    const response = await fixture.app.request('/security/agents/reader/preflight', { method: 'POST' });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      agent_id: 'reader', decision: 'allow', acknowledgement_required: false,
+    });
     fixture.reviewStore.close();
   });
 

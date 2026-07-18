@@ -168,10 +168,25 @@ export const SecurityAnalysisSchema = z.object({
 }).strict().superRefine(validateRiskConsistency);
 export type SecurityAnalysis = z.infer<typeof SecurityAnalysisSchema>;
 
+export const SecurityReviewStateSchema = z.object({
+  reviewed_at: z.string().datetime().nullable(),
+  is_reviewed: z.boolean(),
+  is_stale: z.boolean(),
+  acknowledged_finding_ids: z.array(z.string().trim().min(1).max(200)).max(500),
+  analyzer_version: z.string().trim().min(1).max(40),
+  content_hash: ContentHashSchema,
+}).strict().superRefine((value, ctx) => {
+  if (value.is_reviewed && (value.is_stale || value.reviewed_at === null)) {
+    ctx.addIssue({ code: 'custom', path: ['is_reviewed'], message: 'A current review needs a review date' });
+  }
+});
+export type SecurityReviewState = z.infer<typeof SecurityReviewStateSchema>;
+
 export const PreflightResultSchema = z.object({
   schema_version: z.literal(1),
   agent_id: z.string().trim().min(1).max(160),
   content_hash: ContentHashSchema,
+  analyzer_version: z.string().trim().min(1).max(40),
   decision: z.enum(['allow', 'confirm', 'block']),
   risk: RiskSummarySchema,
   findings: z.array(FindingSchema).max(200),
@@ -181,10 +196,7 @@ export const PreflightResultSchema = z.object({
   if (value.risk.level === 'critical' && value.decision !== 'block') {
     ctx.addIssue({ code: 'custom', path: ['decision'], message: 'Critical risk must block execution' });
   }
-  if (value.risk.level === 'high' && value.decision === 'allow') {
-    ctx.addIssue({ code: 'custom', path: ['decision'], message: 'High risk requires confirmation' });
-  }
-  if ((value.risk.level === 'high' || value.risk.level === 'critical') && !value.acknowledgement_required) {
+  if (value.decision !== 'allow' && !value.acknowledgement_required) {
     ctx.addIssue({ code: 'custom', path: ['acknowledgement_required'], message: 'Risk acknowledgement is required' });
   }
 });

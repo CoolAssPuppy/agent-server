@@ -186,6 +186,25 @@ describe('API routes', () => {
     });
   });
 
+  describe('POST /agents/:id/safe-test', () => {
+    it('uses the dedicated restricted trigger path', async () => {
+      const triggerSafeTest = vi.fn().mockResolvedValue('safe-run');
+      const app = createApi({
+        getAgents: async () => [makeAgent()],
+        store,
+        triggerRun,
+        triggerSafeTest,
+      });
+
+      const response = await authenticatedRequest(app, '/agents/test-agent/safe-test', { method: 'POST' });
+
+      expect(response.status).toBe(202);
+      expect(await response.json()).toEqual({ runId: 'safe-run', agentId: 'test-agent', mode: 'safe_test' });
+      expect(triggerSafeTest).toHaveBeenCalledWith('test-agent');
+      expect(triggerRun).not.toHaveBeenCalled();
+    });
+  });
+
   describe('GET /runs', () => {
     it('returns all runs', async () => {
       store.add(makeStoredRun({ runId: 'r1' }));

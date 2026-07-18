@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFile, readdir, writeFile } from 'fs/promises';
 import { join } from 'path';
-import { createTempDir } from '../test-factories.js';
+import { createTempDir, makeAgent } from '../test-factories.js';
 import { parseAgentFile } from './config.js';
 import { AgentWriteError, createAgentWriter, type AgentWriter } from './writer.js';
 
@@ -225,6 +225,38 @@ enabled: true
 });
 
 describe('AgentWriter.create', () => {
+  it('creates a reviewed agent with an explicit default-deny policy', async () => {
+    const { dir, writer } = await seededWriter({});
+
+    const created = await writer.createReviewed(makeAgent({
+      id: 'reviewed-reader',
+      name: 'Reviewed Reader',
+      prompt: '# Reviewed reader\n\nRead the selected notes and summarize them.',
+      schedule: undefined,
+      tools: ['Read', 'Glob', 'Grep'],
+      permissions: { allow: ['Read', 'Glob', 'Grep'], deny: [] },
+      codex_sandbox: 'read-only',
+      enabled: false,
+    }));
+
+    expect(created.agent.permissions).toEqual({ allow: ['Read', 'Glob', 'Grep'], deny: [] });
+    expect(created.agent.enabled).toBe(false);
+    const content = await readFile(join(dir, 'reviewed-reader.md'), 'utf-8');
+    expect(content).toContain('permissions:');
+    expect(content).toContain('codex_sandbox: read-only');
+    expect(content).toContain('# Reviewed reader');
+    expect(parseAgentFile(content).id).toBe('reviewed-reader');
+  });
+
+  it('refuses to save a reviewed agent without explicit permissions', async () => {
+    const { writer } = await seededWriter({});
+
+    await expect(writer.createReviewed(makeAgent({
+      id: 'unreviewed',
+      permissions: undefined,
+    }))).rejects.toMatchObject({ code: 'invalid' });
+  });
+
   it('creates a markdown agent with a slugified id', async () => {
     const { dir, writer } = await seededWriter({});
 

@@ -16,6 +16,11 @@ describe('security-utils', () => {
     expect(text).not.toContain('secret-token-value');
   });
 
+  it('does not preserve API credential values as redaction prefixes', () => {
+    const secret = 'sk-live-abcdefghijklmnop';
+    expect(sanitizeText(`Use ${secret} for access`)).not.toContain(secret);
+  });
+
   it('sanitizes stored run payload fields', () => {
     const run = makeStoredRun({
       summary: 'token=abc123',

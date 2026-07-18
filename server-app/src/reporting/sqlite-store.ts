@@ -42,6 +42,7 @@ type RunRow = {
   input_tokens: number | null;
   output_tokens: number | null;
   model: string | null;
+  run_mode: string;
 };
 
 /**
@@ -157,11 +158,16 @@ export class SqliteRunStore implements RunStoreLike {
         estimated_cost_usd REAL,
         input_tokens INTEGER,
         output_tokens INTEGER,
-        model TEXT
+        model TEXT,
+        run_mode TEXT NOT NULL DEFAULT 'normal'
       );
       CREATE INDEX IF NOT EXISTS idx_runs_started_at ON runs (started_at DESC);
       CREATE INDEX IF NOT EXISTS idx_runs_agent_started ON runs (agent_id, started_at DESC);
     `);
+    const columns = this.db.prepare('PRAGMA table_info(runs)').all() as Array<{ name: string }>;
+    if (!columns.some((column) => column.name === 'run_mode')) {
+      this.db.exec("ALTER TABLE runs ADD COLUMN run_mode TEXT NOT NULL DEFAULT 'normal'");
+    }
   }
 
   private writeRun(run: StoredRun): void {
@@ -171,8 +177,8 @@ export class SqliteRunStore implements RunStoreLike {
           run_id, agent_id, agent_name, status, started_at, completed_at,
           summary, error, turn_count, tools_used, files_read, files_written,
           commands_run, progress_messages, conversation_id, duration_ms,
-          estimated_cost_usd, input_tokens, output_tokens, model
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          estimated_cost_usd, input_tokens, output_tokens, model, run_mode
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         run.runId,
@@ -195,6 +201,7 @@ export class SqliteRunStore implements RunStoreLike {
         run.inputTokens ?? null,
         run.outputTokens ?? null,
         run.model ?? null,
+        run.mode ?? 'normal',
       );
   }
 
@@ -243,5 +250,6 @@ function rowToRun(row: RunRow): StoredRun {
     inputTokens: row.input_tokens ?? undefined,
     outputTokens: row.output_tokens ?? undefined,
     model: row.model ?? undefined,
+    ...(row.run_mode === 'safe_test' ? { mode: 'safe_test' as const } : {}),
   };
 }

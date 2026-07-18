@@ -15,6 +15,7 @@ type ExecuteCodexExtra = {
    * instead of the codex-sdk's bundled binary. Undefined keeps the default.
    */
   codexExecutablePath?: string;
+  disableMcpServers?: boolean;
 };
 
 type CodexState = {
@@ -41,7 +42,7 @@ export async function executeCodexAgent(
   const state = createState();
   const codex = new Codex({
     env: buildCodexChildEnvironment(),
-    config: getCodexConfig(agent),
+    config: extra?.disableMcpServers ? { mcp_servers: {} } : getCodexConfig(agent),
     // Use the user's installed Codex binary when discovery found one;
     // undefined falls back to the codex-sdk's bundled binary.
     codexPathOverride: extra?.codexExecutablePath,

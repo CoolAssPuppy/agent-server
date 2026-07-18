@@ -45,6 +45,9 @@ import { sanitizeProgressEvent, sanitizeText } from './security-utils.js';
 import { parseDuration } from '../agents/duration.js';
 import { toErrorMessage } from '../util/errors.js';
 import { createAnalysisRuntime } from '../analysis/runtime.js';
+import { createGuidanceApi } from '../creation/guidance-api.js';
+import { createLocalStructuredModel } from '../creation/local-structured-model.js';
+import { createSafeTestTrigger } from '../creation/safe-test.js';
 
 export type ServerInstance = {
   stop: () => Promise<void> | void;
@@ -380,13 +383,14 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     promptSuffix?: string;
     onDone?: RunDoneCallback;
     conversationId?: string;
+    mode?: 'normal' | 'safe_test';
   };
 
   function triggerRunForAgent(agent: AgentConfig, optionsOrSuffix?: string | TriggerRunOptions, onDoneArg?: RunDoneCallback): string {
     const opts: TriggerRunOptions = typeof optionsOrSuffix === 'string'
       ? { promptSuffix: optionsOrSuffix, onDone: onDoneArg }
       : optionsOrSuffix ?? {};
-    const { promptSuffix, onDone, conversationId } = opts;
+    const { promptSuffix, onDone, conversationId, mode = 'normal' } = opts;
     if (activeControllers.size >= config.maxConcurrentRuns) {
       throw new Error('Too many active runs. Please retry later.');
     }
@@ -412,6 +416,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       commandsRun: [],
       progressMessages: [],
       conversationId,
+      mode,
     });
 
     broadcaster.emit(sanitizeProgressEvent({
@@ -482,6 +487,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
           abortController,
           claudeExecutablePath: runtimePaths.claudeExecutablePath,
           codexExecutablePath: runtimePaths.codexExecutablePath,
+          disableMcpServers: mode === 'safe_test',
         });
         // Pull token / cost telemetry from ExecutionResult.usage so the
         // local server's /runs response can render duration and cost in the
@@ -522,7 +528,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
           filesWritten: result.filesWritten,
         });
         onDone?.({ status: 'completed', summary: result.summary });
-        void fireDownstreamTriggers(agent.id, 'completed');
+        if (mode !== 'safe_test') void fireDownstreamTriggers(agent.id, 'completed');
         return result;
       },
       createReporter: (rid, name, convId) => createReporter(config, rid, name, {
@@ -574,7 +580,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       }));
       sendNotification(agent, runId, { status: 'failed', error: errorMsg });
       onDone?.({ status: 'failed', error: errorMsg });
-      void fireDownstreamTriggers(agent.id, 'failed');
+      if (mode !== 'safe_test') void fireDownstreamTriggers(agent.id, 'failed');
     }
 
     return runId;
@@ -586,6 +592,12 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     if (!agent) throw new Error(`Agent not found: ${agentId}`);
     return triggerRunForAgent(agent, promptSuffix);
   }
+
+  const triggerSafeTest = createSafeTestTrigger({
+    getAgent: async (agentId) => (await discoverAgents(config.agentsDir))
+      .find((agent) => agent.id === agentId),
+    triggerAgent: (agent) => triggerRunForAgent(agent, { mode: 'safe_test' }),
+  });
 
   function cancelRun(runId: string): boolean {
     const controller = activeControllers.get(runId);
@@ -643,12 +655,32 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   // the app can force a re-probe via POST /connections/refresh.
   const connectionCache = new ConnectionCache(() => probeMcpServers());
   void connectionCache.refresh().catch(() => {});
-  const analysisRuntime = createAnalysisRuntime({ agentsDir: config.agentsDir });
+  const agentWriter = createAgentWriter(config.agentsDir, {
+    connections: () => connectionCache.servers(),
+  });
+  const guidanceModel = createLocalStructuredModel({
+    codexExecutablePath: runtimePaths.codexExecutablePath,
+  });
+  const analysisRuntime = createAnalysisRuntime({
+    agentsDir: config.agentsDir,
+    model: guidanceModel,
+  });
+  const getAgents = (): Promise<AgentConfig[]> => discoverAgents(config.agentsDir);
+  const guidanceApi = createGuidanceApi({
+    model: guidanceModel,
+    writer: agentWriter,
+    getAgents,
+    store,
+    security: analysisRuntime.security,
+    content: analysisRuntime.content,
+    triggerRun,
+  });
 
   const app = createApi({
-    getAgents: () => discoverAgents(config.agentsDir),
+    getAgents,
     store,
     triggerRun,
+    triggerSafeTest,
     cancelRun,
     cleanupFn: panelClient
       ? () => panelClient.failOrphanedRuns(serverId)
@@ -656,9 +688,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     getPendingDecisions: realtimeClient
       ? () => realtimeClient.getPendingDecisions()
       : undefined,
-    agentWriter: createAgentWriter(config.agentsDir, {
-      connections: () => connectionCache.servers(),
-    }),
+    agentWriter,
     // Fresh .env read per request so keys saved via the app's Connect flow
     // are visible to capability checks without a server restart.
     getEnv: () => loadEnvFile(join(config.agentsDir, '..'), process.env),
@@ -670,6 +700,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     startedAt,
     host: config.host,
     analysisApi: analysisRuntime.api,
+    guidanceApi,
   });
 
   const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });

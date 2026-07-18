@@ -25,6 +25,13 @@ export type ProposalServiceResult =
   | { status: 'proposal'; proposal: CreationProposal; usedFallback: false }
   | {
     status: 'needs_information';
+    questions: CreationProposal['questions'];
+    explanation: string;
+    usedFallback: false;
+    modelStatus: 'completed';
+  }
+  | {
+    status: 'needs_information';
     questions: ProposalFallbackQuestion[];
     explanation: string;
     usedFallback: true;
@@ -99,7 +106,18 @@ export async function createAgentProposal(input: CreateProposalInput): Promise<P
     try {
       const value = await input.model.generate(prompt, outputSchema, { requestKey: 'agent-proposal' });
       const proposal = parseModelValue(value);
-      if (proposal) return { status: 'proposal', proposal, usedFallback: false };
+      if (proposal) {
+        if (proposal.missing_information.length > 0 || proposal.questions.some((question) => question.required)) {
+          return {
+            status: 'needs_information',
+            questions: proposal.questions,
+            explanation: proposal.explanation,
+            usedFallback: false,
+            modelStatus: 'completed',
+          };
+        }
+        return { status: 'proposal', proposal, usedFallback: false };
+      }
     } catch {
       if (attempt === attempts - 1) return fallback(request, 'unavailable');
     }
