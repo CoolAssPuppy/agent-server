@@ -236,22 +236,7 @@ struct GuidedAgentCreationView: View {
                 }
             }
         case .service(let serviceName, let choices):
-            if choices.isEmpty {
-                VStack(alignment: .leading, spacing: NSpacing.sm) {
-                    Text("Agent Server will use this connection only for the access shown in your proposal.")
-                        .font(NTypography.caption)
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                    Button("Set up apps and services", action: requestConnectionSetup)
-                        .buttonStyle(.borderedProminent)
-                }
-            } else {
-                Picker("\(serviceName ?? "App or service") connection", selection: $answer) {
-                    Text("Choose…").tag("")
-                    ForEach(Array(choices.enumerated()), id: \.offset) { index, label in
-                        Text(label).tag(index < question.choiceValues.count ? question.choiceValues[index] : label)
-                    }
-                }
-            }
+            serviceChoice(question, serviceName: serviceName, choices: choices)
         case .confirmation:
             Picker("Choose one", selection: $answer) {
                 Text("Choose…").tag("")
@@ -267,6 +252,88 @@ struct GuidedAgentCreationView: View {
                 Button("Edit request") { flow.returnToRequest() }
             }
         }
+    }
+
+    private func serviceChoice(
+        _ question: CreationQuestion,
+        serviceName: String?,
+        choices: [String]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: NSpacing.md) {
+            HStack(alignment: .top, spacing: NSpacing.md) {
+                serviceBrandIcon(serviceName)
+                VStack(alignment: .leading, spacing: NSpacing.xxs) {
+                    if let title = question.serviceContextTitle {
+                        Text(title).font(NTypography.headlineSmall)
+                    }
+                    if let explanation = question.serviceContextExplanation {
+                        Text(explanation)
+                            .font(NTypography.caption)
+                            .foregroundStyle(theme.tokens.mutedForeground)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            VStack(spacing: NSpacing.xs) {
+                if choices.isEmpty {
+                    Button("Set up \(serviceName ?? "this app or service")", action: requestConnectionSetup)
+                        .buttonStyle(.borderedProminent)
+                } else {
+                    ForEach(Array(choices.enumerated()), id: \.offset) { index, label in
+                        let value = index < question.choiceValues.count ? question.choiceValues[index] : label
+                        serviceChoiceRow(label: label, value: value)
+                    }
+                }
+            }
+        }
+    }
+
+    private func serviceChoiceRow(label: String, value: String) -> some View {
+        Button { answer = value } label: {
+            HStack(spacing: NSpacing.sm) {
+                Image(systemName: answer == value ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(answer == value ? theme.tokens.primary : theme.tokens.mutedForeground)
+                Text(label)
+                    .font(NTypography.bodyMedium)
+                    .foregroundStyle(theme.tokens.foreground)
+                Spacer()
+                Text("Connected")
+                    .font(NTypography.captionSmall)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            }
+            .padding(NSpacing.md)
+            .background(answer == value ? theme.tokens.primary.opacity(0.08) : theme.tokens.card)
+            .overlay {
+                RoundedRectangle(cornerRadius: NRadius.sm)
+                    .stroke(answer == value ? theme.tokens.primary.opacity(0.4) : theme.tokens.border)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(answer == value ? .isSelected : [])
+    }
+
+    @ViewBuilder
+    private func serviceBrandIcon(_ serviceName: String?) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: NRadius.sm)
+                .fill(theme.tokens.card)
+            if let serviceName, let asset = CapabilityBrand.asset(forServiceName: serviceName) {
+                Image(asset)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(theme.tokens.foreground)
+                    .padding(8)
+            } else {
+                Image(systemName: "app.connected.to.app.below.fill")
+                    .foregroundStyle(theme.tokens.foreground)
+            }
+        }
+        .frame(width: 40, height: 40)
+        .overlay { RoundedRectangle(cornerRadius: NRadius.sm).stroke(theme.tokens.border) }
+        .accessibilityHidden(true)
     }
 
     private func proposalStep(_ proposal: AgentProposalPresentation) -> some View {

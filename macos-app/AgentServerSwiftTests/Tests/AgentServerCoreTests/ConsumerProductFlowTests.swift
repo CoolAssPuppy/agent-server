@@ -29,6 +29,21 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(question.unavailableNativeResource, .calendar)
     }
 
+    func testServiceQuestionExplainsWhyNotionIsBeingRequested() {
+        let question = CreationQuestion(
+            id: "connection-notion",
+            prompt: "Which Notion connection should this agent use?",
+            kind: .service(name: "Notion", choices: ["Personal Notion", "Work Notion"]),
+            isRequired: true
+        )
+
+        XCTAssertEqual(question.serviceContextTitle, "You mentioned Notion")
+        XCTAssertEqual(
+            question.serviceContextExplanation,
+            "Choose the Notion account this agent should use. No other Notion account will be added."
+        )
+    }
+
     func testEmptyReminderQuestionExplainsHowToRestoreAccess() {
         let question = CreationQuestion(
             id: "reminder-list-id",
@@ -337,6 +352,13 @@ final class ConsumerProductFlowTests: XCTestCase {
         )
         XCTAssertEqual(SidebarFooterAction.newAgent.title, "New Agent")
         XCTAssertEqual(SidebarFooterAction.chooseFolder.title, "Choose a folder")
+        XCTAssertEqual(SidebarFooterAction.newAgent.systemImage, "plus")
+        XCTAssertEqual(SidebarFooterAction.chooseFolder.systemImage, "folder")
+    }
+
+    func testScheduledSidebarKindDoesNotNeedASecondScheduleGlyph() {
+        XCTAssertTrue(SidebarRow.Kind.scheduled.usesScheduleStatusIcon)
+        XCTAssertFalse(SidebarRow.Kind.onDemand.usesScheduleStatusIcon)
     }
 
     func testDemoFixturesAreDeterministicAndContainNoCredentials() {

@@ -10,6 +10,13 @@ enum SidebarFooterAction: CaseIterable, Equatable {
         case .chooseFolder: return "Choose a folder"
         }
     }
+
+    var systemImage: String {
+        switch self {
+        case .newAgent: return "plus"
+        case .chooseFolder: return "folder"
+        }
+    }
 }
 
 // MARK: - Row model
@@ -41,6 +48,8 @@ struct SidebarRow: Equatable, Identifiable {
             case .onDemand: return "play.circle"
             }
         }
+
+        var usesScheduleStatusIcon: Bool { self == .scheduled }
     }
 
     let id: String

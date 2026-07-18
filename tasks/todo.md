@@ -2,6 +2,14 @@
 
 Status: Native service integration and final release verification are complete.
 
+## Consumer UI cleanup
+
+- [x] Explain why Notion is requested and show its bundled brand mark.
+- [x] Present exact Notion accounts as clear connected choices.
+- [x] Replace the sidebar footer card with aligned native action rows.
+- [x] Remove duplicate schedule glyphs and make agent rows keyboard-accessible buttons.
+- [x] Verify focused Swift behavior and the unsigned app build without UI automation.
+
 ## Proposal timeout correction
 
 - [x] Add a failing contract test that gives model-backed guidance routes enough time to finish or fall back safely.

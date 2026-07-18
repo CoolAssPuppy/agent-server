@@ -186,38 +186,37 @@ struct Sidebar: View {
     }
 
     private var footer: some View {
-        VStack(alignment: .leading, spacing: NSpacing.sm) {
-            Button(action: onNewAgent) {
-                HStack(spacing: NSpacing.xs) {
-                    Image(systemName: "plus")
-                    Text(SidebarFooterAction.newAgent.title)
-                    Spacer(minLength: 0)
-                }
-                .font(NTypography.bodyMedium)
-                .foregroundStyle(theme.tokens.primary)
-                .padding(.horizontal, NSpacing.sm)
-                .padding(.vertical, NSpacing.sm)
-                .frame(maxWidth: .infinity)
-                .background(theme.tokens.primary.opacity(0.1))
-                .overlay {
-                    RoundedRectangle(cornerRadius: NRadius.sm)
-                        .stroke(theme.tokens.primary.opacity(0.3), lineWidth: 1)
-                }
-                .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
-            }
-            .buttonStyle(.plain)
+        VStack(spacing: NSpacing.xxxs) {
+            footerButton(.newAgent, isSelected: router.isCreationOpen, action: onNewAgent)
+                .accessibilityAddTraits(router.isCreationOpen ? .isSelected : [])
             .accessibilityLabel(SidebarFooterAction.newAgent.title)
             .accessibilityIdentifier(ConsumerFlowAccessibility.sidebarCreateAgent)
-
-            Button(action: onOpenFolder) {
-                Label(SidebarFooterAction.chooseFolder.title, systemImage: "folder")
-                    .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-            }
-            .buttonStyle(.plain)
+            footerButton(.chooseFolder, action: onOpenFolder)
         }
-        .padding(.horizontal, NSpacing.lg)
-        .padding(.vertical, NSpacing.sm)
+        .padding(NSpacing.xs)
+    }
+
+    private func footerButton(
+        _ item: SidebarFooterAction,
+        isSelected: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: NSpacing.sm) {
+                Image(systemName: item.systemImage)
+                    .frame(width: 16)
+                Text(item.title)
+                Spacer(minLength: 0)
+            }
+            .font(NTypography.bodyMedium)
+            .foregroundStyle(isSelected ? theme.tokens.primary : theme.tokens.foreground)
+            .padding(.horizontal, NSpacing.sm)
+            .frame(maxWidth: .infinity, minHeight: 34)
+            .background(isSelected ? theme.tokens.primary.opacity(0.09) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -231,7 +230,8 @@ private struct SidebarRowView: View {
     @Environment(\.nTheme) private var theme
 
     var body: some View {
-        HStack(alignment: .top, spacing: NSpacing.sm) {
+        Button(action: onSelect) {
+            HStack(alignment: .top, spacing: NSpacing.sm) {
             statusDot
                 .padding(.top, 6)
 
@@ -284,14 +284,15 @@ private struct SidebarRowView: View {
                     }
                 }
             }
+            }
+            .padding(.horizontal, NSpacing.sm)
+            .padding(.vertical, NSpacing.md)
+            .background(rowBackground)
+            .overlay(rowBorder)
+            .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
+            .contentShape(Rectangle())
         }
-        .padding(.horizontal, NSpacing.sm)
-        .padding(.vertical, NSpacing.md)
-        .background(rowBackground)
-        .overlay(rowBorder)
-        .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onSelect)
+        .buttonStyle(.plain)
     }
 
     /// Type-specific SF Symbol instead of a neutral dot. Color encodes state:
@@ -320,7 +321,7 @@ private struct SidebarRowView: View {
         return !s.contains("*")
     }
 
-    private var showsScheduleGlyph: Bool { hasFriendlySchedule }
+    private var showsScheduleGlyph: Bool { hasFriendlySchedule && !row.kind.usesScheduleStatusIcon }
 
     /// The single secondary line: a friendly schedule first, then a one-line
     /// description, then a plain "Custom schedule" — but never raw cron.

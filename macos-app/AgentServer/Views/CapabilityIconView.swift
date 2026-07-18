@@ -43,6 +43,11 @@ enum CapabilityBrand {
         return nil
     }
 
+    static func asset(forServiceName name: String) -> String? {
+        let haystack = name.lowercased()
+        return byServerNeedle.first(where: { haystack.contains($0.0) })?.1
+    }
+
     private static let byCapabilityId: [String: String] = [
         "notion": "BrandNotion",
         "slack": "BrandSlack",
