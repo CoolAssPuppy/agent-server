@@ -620,7 +620,7 @@ describe('guided agent proposal creation', () => {
     expect(() => CreationProposalSchema.parse(proposal)).toThrow(/commands.*file/i);
   });
 
-  it('retries malformed model output once and then returns a safe local fallback', async () => {
+  it('retries malformed model output once and then builds a safe proposal from confirmed answers', async () => {
     const fake = modelReturning('not JSON', { name: 'Incomplete' });
 
     const result = await createAgentProposal({
@@ -637,11 +637,125 @@ describe('guided agent proposal creation', () => {
     });
 
     expect(result).toMatchObject({
-      status: 'needs_information',
+      status: 'proposal',
       usedFallback: true,
-      questions: [{ control: 'file_access' }],
+      proposal: {
+        file_access: [{
+          path: '~/Documents/Research',
+          kind: 'folder',
+          access: 'read_only',
+          is_suggestion: false,
+        }],
+        permissions: {
+          can_modify_files: false,
+          can_run_commands: false,
+          requires_network: false,
+          can_use_connected_apps: false,
+          can_send_messages: false,
+        },
+        missing_information: [],
+        questions: [],
+      },
     });
     expect(fake.calls()).toBe(2);
+  });
+
+  it('preserves the exact selected service and a simple daily schedule in the local proposal', async () => {
+    const result = await createAgentProposal({
+      request: 'Every morning at 3am, review my manuscript and store the result in Personal Notion.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [
+        { id: 'notion-personal', service_id: 'notion', name: 'Personal Notion' },
+        { id: 'notion-work', service_id: 'notion', name: 'Work Notion' },
+      ],
+      answers: [
+        { question_id: 'connection-notion', value: 'notion-personal' },
+        {
+          question_id: 'file-access',
+          value: [{ path: '~/Books/manuscript.docx', kind: 'file', access: 'read_only' }],
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      status: 'proposal',
+      usedFallback: true,
+      proposal: {
+        trigger: {
+          type: 'schedule',
+          schedule: '0 3 * * *',
+          human_description: 'Every day at 3:00 AM',
+        },
+        connections: [{ id: 'notion-personal', name: 'Personal Notion', required: true }],
+        file_access: [{ path: '~/Books/manuscript.docx', kind: 'file', access: 'read_only' }],
+        permissions: {
+          can_run_commands: false,
+          requires_network: true,
+          can_use_connected_apps: true,
+        },
+        missing_information: [],
+        questions: [],
+      },
+    });
+    if (result.status !== 'proposal') throw new Error('Expected proposal');
+    expect(result.proposal.connections).toHaveLength(1);
+  });
+
+  it('excludes Notion when it was neither mentioned nor selected', async () => {
+    const result = await createAgentProposal({
+      request: 'Every day at 7am, summarize the selected research folder.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [
+        { id: 'notion-personal', service_id: 'notion', name: 'Personal Notion' },
+        { id: 'github-work', service_id: 'github', name: 'Work GitHub' },
+      ],
+      answers: [{
+        question_id: 'file-access',
+        value: [{ path: '~/Research', kind: 'folder', access: 'read_only' }],
+      }],
+    });
+
+    expect(result).toMatchObject({ status: 'proposal', usedFallback: true });
+    if (result.status !== 'proposal') throw new Error('Expected proposal');
+    expect(result.proposal.connections).toEqual([]);
+    expect(result.proposal.permissions.can_use_connected_apps).toBe(false);
+    expect(result.proposal.permissions.requires_network).toBe(false);
+  });
+
+  it('does not repeat a model question that the user already answered', async () => {
+    const stale = validProposal();
+    stale.connections = [];
+    stale.notification_destination = null;
+    stale.permissions = {
+      can_modify_files: false,
+      can_run_commands: false,
+      requires_network: false,
+      can_use_connected_apps: false,
+      can_send_messages: false,
+    };
+    stale.missing_information = ['Choose the folder.'];
+    stale.questions = [{
+      id: 'file-access',
+      question: 'Which folder should this agent use?',
+      control: 'path',
+      required: true,
+    }];
+
+    const result = await createAgentProposal({
+      request: 'Summarize files in a folder.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      answers: [{
+        question_id: 'file-access',
+        value: [{ path: '~/Research', kind: 'folder', access: 'read_only' }],
+      }],
+      model: modelReturning(stale, stale).model,
+    });
+
+    expect(result).toMatchObject({ status: 'proposal', usedFallback: true });
+    if (result.status !== 'proposal') throw new Error('Expected proposal');
+    expect(result.proposal.questions).toEqual([]);
+    expect(result.proposal.missing_information).toEqual([]);
   });
 
   it('redacts secrets and tells the model to use narrow permissions', () => {
@@ -1010,7 +1124,7 @@ describe('guided agent proposal creation', () => {
     expect(servicesRelevantToRequest(request)).toEqual([]);
   });
 
-  it('keeps an explicitly selected connection required and rejects duplicates', async () => {
+  it('keeps an explicitly selected connection required and replaces duplicate model output locally', async () => {
     const selected = completeProposal();
     selected.connections = [{
       id: 'notion-personal', name: 'Wrong', required: false, status: 'optional', reason: 'Stores the note.',
@@ -1038,7 +1152,13 @@ describe('guided agent proposal creation', () => {
     expect(accepted).toMatchObject({
       status: 'proposal', proposal: { connections: [{ id: 'notion-personal', required: true }] },
     });
-    expect(rejected).toMatchObject({ status: 'needs_information', usedFallback: true });
+    expect(rejected).toMatchObject({
+      status: 'proposal',
+      usedFallback: true,
+      proposal: { connections: [{ id: 'notion-personal', required: true }] },
+    });
+    if (rejected.status !== 'proposal') throw new Error('Expected proposal');
+    expect(rejected.proposal.connections).toHaveLength(1);
   });
 
   it('raises the proposal risk for read-only access to sensitive files', async () => {

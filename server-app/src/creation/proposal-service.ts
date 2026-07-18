@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import { homedir } from 'node:os';
+import { CronExpressionParser } from 'cron-parser';
 import { AgentProposalSchema } from '../analysis/models.js';
 import { analyzeAgentSecurity } from '../analysis/security-rules.js';
 import { renderReviewedAgentFile } from '../agents/reviewed-agent-writer.js';
+import { sanitizeText } from '../server/security-utils.js';
 import { buildAgentProposalPrompt } from './proposal-prompt.js';
 import { deriveProposalAgentId, proposalToAgentConfig } from './proposal-configuration.js';
 import {
@@ -28,7 +30,7 @@ export type ProposalModel = {
 export type CreateProposalInput = ProposalRequestInput & { model?: ProposalModel };
 
 export type ProposalServiceResult =
-  | { status: 'proposal'; proposal: CreationProposal; usedFallback: false }
+  | { status: 'proposal'; proposal: CreationProposal; usedFallback: boolean }
   | {
     status: 'needs_information';
     questions: CreationProposal['questions'];
@@ -228,39 +230,147 @@ function unavailableCapabilityQuestion(request: ProposalRequest): ProposalFallba
   };
 }
 
-function fallbackQuestions(request: ProposalRequest): ProposalFallbackQuestion[] {
-  const intent = request.request.toLowerCase();
-  if (needsFileAccess(intent)) {
-    return [{
-      id: 'file-access',
-      question: 'Which files or folders may this agent use?',
-      control: 'file_access',
-      required: true,
-    }];
+type ProposalTrigger = CreationProposal['trigger'];
+
+function parseCron(value: string): string | undefined {
+  try {
+    CronExpressionParser.parse(value);
+    return value;
+  } catch {
+    return undefined;
   }
-  if (/\b(send|message|notify|share)\b/.test(intent)) {
-    return [{
-      id: 'destination',
-      question: 'Where should the result be sent?',
-      control: 'service',
-      required: true,
-    }];
+}
+
+function dailyScheduleFromText(value: string): ProposalTrigger | undefined {
+  const match = value.match(
+    /\b(?:every\s+(?:morning|day)|daily)(?:\s+at)?\s+(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)\b/i,
+  );
+  if (!match) return undefined;
+  const hour = Number(match[1]);
+  const minute = Number(match[2] ?? 0);
+  if (hour < 1 || hour > 12 || minute > 59) return undefined;
+  const isPM = match[3]?.toLowerCase().startsWith('p') ?? false;
+  const twentyFourHour = hour % 12 + (isPM ? 12 : 0);
+  const suffix = isPM ? 'PM' : 'AM';
+  return {
+    type: 'schedule',
+    schedule: `${minute} ${twentyFourHour} * * *`,
+    human_description: `Every day at ${hour}:${String(minute).padStart(2, '0')} ${suffix}`,
+  };
+}
+
+function confirmedTrigger(request: ProposalRequest): ProposalTrigger {
+  const scheduleAnswer = request.answers.find((answer) => (
+    /schedule|when.*run/.test(answer.question_id) && typeof answer.value === 'string'
+  ));
+  if (scheduleAnswer && typeof scheduleAnswer.value === 'string') {
+    if (scheduleAnswer.value === 'manual') {
+      return { type: 'manual', human_description: 'Only when you run it manually' };
+    }
+    const cron = parseCron(scheduleAnswer.value);
+    if (cron) return { type: 'schedule', schedule: cron, human_description: 'On the schedule you selected' };
+    const described = dailyScheduleFromText(scheduleAnswer.value);
+    if (described) return described;
   }
-  return [{
-    id: 'expected-result',
-    question: 'What should a successful result look like?',
-    control: 'text',
+  return dailyScheduleFromText(request.request)
+    ?? { type: 'manual', human_description: 'Only when you run it manually' };
+}
+
+function safeIntent(request: ProposalRequest): string {
+  const paths = confirmedFileAccess(request)?.map((grant) => grant.path) ?? [];
+  return paths
+    .sort((left, right) => right.length - left.length)
+    .reduce((intent, path) => intent.split(path).join('the selected file or folder'), sanitizeText(request.request, 8_000));
+}
+
+function fallbackName(intent: string, trigger: ProposalTrigger): string {
+  const prefix = trigger.type === 'schedule' ? 'Daily ' : '';
+  if (/\bmanuscript\b/i.test(intent)) return `${prefix}manuscript review`;
+  if (/\bresearch\b/i.test(intent) && /\bsummar/i.test(intent)) return `${prefix}research summary`;
+  const words = intent.replace(/[^a-z0-9\s]/gi, ' ').trim().split(/\s+/).slice(0, 7);
+  const title = words.join(' ') || 'New agent';
+  return sanitizeText(title.charAt(0).toUpperCase() + title.slice(1), 120);
+}
+
+function localProposal(request: ProposalRequest): CreationProposal | undefined {
+  const intent = safeIntent(request);
+  const trigger = confirmedTrigger(request);
+  const relevantServices = servicesRelevantToRequest(request);
+  const connections = relevantServices.map((service) => ({
+    id: service.id,
+    name: service.name,
     required: true,
-  }];
+    status: 'connected' as const,
+    reason: 'You selected this service for the agent.',
+  }));
+  const fileAccess = (confirmedFileAccess(request) ?? []).map((grant) => ({
+    ...grant,
+    is_suggestion: false,
+    reason: grant.access === 'read_write'
+      ? 'Uses the selected file or folder and may make changes there.'
+      : 'Views only the selected file or folder.',
+  }));
+  const canModifyFiles = fileAccess.some((grant) => grant.access === 'read_write');
+  const usesServices = connections.length > 0;
+  const proposal = AgentProposalSchema.safeParse({
+    schema_version: 1,
+    name: fallbackName(intent, trigger),
+    description: sanitizeText(intent, 500),
+    instructions: intent,
+    explanation: trigger.type === 'schedule'
+      ? `${trigger.human_description}, this agent will carry out the request using only the access you reviewed.`
+      : 'This agent will carry out the request only when you run it, using only the access you reviewed.',
+    trigger,
+    timezone: request.timezone,
+    capabilities: fileAccess.length > 0 ? [{
+      id: 'local-files', name: 'Local files', required: true, status: 'connected',
+      reason: 'The request uses the files or folders you selected.',
+    }] : [],
+    connections,
+    file_access: fileAccess,
+    calendar_access: [],
+    native_services: {},
+    permissions: {
+      can_modify_files: canModifyFiles,
+      can_run_commands: false,
+      requires_network: usesServices,
+      can_use_connected_apps: usesServices,
+      can_send_messages: false,
+    },
+    notification_destination: null,
+    runtime: fileAccess.length > 0
+      ? { executor: 'claude-code', model: null, reason: 'Enforces access to the selected files and folders.' }
+      : null,
+    risk: {
+      level: canModifyFiles ? 'high' : usesServices ? 'needs_review' : 'low',
+      reasons: [
+        ...(canModifyFiles ? ['It can change a selected file or folder.'] : []),
+        ...(usesServices ? ['It uses a connected service.'] : []),
+      ],
+      finding_count: 0,
+    },
+    missing_information: [],
+    questions: [],
+    markdown_instructions: `# ${fallbackName(intent, trigger)}\n\n## What to do\n\n${intent}\n\n`
+      + '## Success criteria\n\nComplete the requested review and produce the requested result.\n\n'
+      + '## Safety\n\nUse only the files, folders, and services listed in this agent. '
+      + 'If required information is missing, explain what is needed and stop. '
+      + 'Never expose secrets or perform destructive actions.',
+  });
+  if (!proposal.success) return undefined;
+  const withNative = applyConfirmedNativeAccess(proposal.data, request);
+  return withNative ? applyDeterministicRisk(withNative) : undefined;
 }
 
 function fallback(request: ProposalRequest, modelStatus: 'unavailable' | 'invalid'): ProposalServiceResult {
+  const proposal = localProposal(request);
+  if (proposal) return { status: 'proposal', proposal, usedFallback: true };
   return {
     status: 'needs_information',
-    questions: fallbackQuestions(request),
+    questions: [],
     explanation: modelStatus === 'unavailable'
-      ? 'Agent suggestions are unavailable right now. Your description has not been saved.'
-      : 'The suggestion could not be verified, so no agent or permissions were created.',
+      ? 'Agent suggestions are unavailable right now. Nothing was saved.'
+      : 'The suggestion could not be verified. Nothing was saved.',
     usedFallback: true,
     modelStatus,
   };
@@ -497,9 +607,14 @@ export async function createAgentProposal(input: CreateProposalInput): Promise<P
       const withNativeAccess = withFiles ? applyConfirmedNativeAccess(withFiles, request) : undefined;
       if (withNativeAccess && (withNativeAccess.missing_information.length > 0
         || withNativeAccess.questions.some((question) => question.required))) {
+        const answeredIds = new Set(request.answers.map((answer) => answer.question_id));
+        const unansweredQuestions = withNativeAccess.questions.filter((question) => (
+          question.required && !answeredIds.has(question.id)
+        ));
+        if (unansweredQuestions.length === 0) continue;
         return {
           status: 'needs_information',
-          questions: withNativeAccess.questions,
+          questions: unansweredQuestions,
           explanation: withNativeAccess.explanation,
           usedFallback: false,
           modelStatus: 'completed',
