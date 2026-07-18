@@ -87,7 +87,9 @@ struct MainWindow: View {
 
     private var creationDrawerLayer: some View {
         HStack(spacing: 0) {
-            Color.clear.frame(width: Sidebar.width)
+            Color.clear
+                .frame(width: Sidebar.width)
+                .allowsHitTesting(false)
             ZStack(alignment: .leading) {
                 if router.isCreationOpen,
                    router.presentationPlacement == .mainPaneLeading {
