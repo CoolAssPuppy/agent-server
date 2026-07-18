@@ -62,6 +62,7 @@ public struct FileAccessPresentation: Equatable, Sendable {
 }
 
 public struct AgentProposalPresentation: Equatable, Sendable {
+    public let reviewId: String?
     public let name: String
     public let explanation: String
     public let schedule: String
@@ -73,6 +74,7 @@ public struct AgentProposalPresentation: Equatable, Sendable {
     public let riskReason: String
 
     public init(
+        reviewId: String? = nil,
         name: String,
         explanation: String,
         schedule: String,
@@ -83,6 +85,7 @@ public struct AgentProposalPresentation: Equatable, Sendable {
         risk: ConsumerRiskLevel,
         riskReason: String
     ) {
+        self.reviewId = reviewId
         self.name = name
         self.explanation = explanation
         self.schedule = schedule
@@ -101,13 +104,22 @@ public struct ConfigurationFixPresentation: Equatable, Sendable {
     public let risk: ConsumerRiskLevel
     public let changes: [String]
     public let technicalDiff: String
+    public let canApply: Bool
 
-    public init(title: String, impact: String, risk: ConsumerRiskLevel, changes: [String], technicalDiff: String) {
+    public init(
+        title: String,
+        impact: String,
+        risk: ConsumerRiskLevel,
+        changes: [String],
+        technicalDiff: String,
+        canApply: Bool = true
+    ) {
         self.title = title
         self.impact = impact
         self.risk = risk
         self.changes = changes
         self.technicalDiff = technicalDiff
+        self.canApply = canApply
     }
 }
 

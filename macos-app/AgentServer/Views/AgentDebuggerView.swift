@@ -4,8 +4,9 @@ import NerdsUI
 
 struct AgentDebuggerActions {
     let diagnose: () async -> Result<DiagnosticPresentation, ConsumerFlowFailure>
-    let applyFix: (ConfigurationFixPresentation) async -> Result<Void, ConsumerFlowFailure>
+    let applyFix: ((ConfigurationFixPresentation) async -> Result<Void, ConsumerFlowFailure>)?
     let retry: () async -> Result<String, ConsumerFlowFailure>
+    let stopRun: (String) -> Void
 }
 
 struct AgentDebuggerView: View {
@@ -64,7 +65,7 @@ struct AgentDebuggerView: View {
         case .readyToRetry:
             readyToRetry
         case .retrying:
-            ConsumerProgressView(title: "Trying again", message: "The original failed run is preserved in run history.")
+            retrying
         case .resolved:
             resolved
         case .failed:
@@ -97,10 +98,12 @@ struct AgentDebuggerView: View {
                     HStack {
                         ConsumerRiskLabel(risk: fix.risk)
                         Spacer()
-                        Button("Review fix") { flow.reviewRecommendedFix() }
-                            .buttonStyle(.borderedProminent)
-                            .keyboardShortcut(.defaultAction)
-                            .accessibilityIdentifier(ConsumerFlowAccessibility.debuggerReviewFix)
+                        if fix.canApply, actions.applyFix != nil {
+                            Button("Review fix") { flow.reviewRecommendedFix() }
+                                .buttonStyle(.borderedProminent)
+                                .keyboardShortcut(.defaultAction)
+                                .accessibilityIdentifier(ConsumerFlowAccessibility.debuggerReviewFix)
+                        }
                     }
                 }
             }
@@ -160,6 +163,18 @@ struct AgentDebuggerView: View {
         }
     }
 
+    private var retrying: some View {
+        VStack(alignment: .leading, spacing: NSpacing.md) {
+            ConsumerProgressView(title: "Trying again", message: "The original failed run is preserved in run history.")
+            if let runId = flow.retryRunId {
+                HStack {
+                    Button("Stop run") { actions.stopRun(runId) }
+                    Button("Open run") { openRun(runId) }
+                }
+            }
+        }
+    }
+
     private var resolved: some View {
         ConsumerSection("The fix worked") {
             Label("The new run completed successfully.", systemImage: "checkmark.circle")
@@ -199,8 +214,9 @@ struct AgentDebuggerView: View {
     }
 
     private func applyAndRetry(_ fix: ConfigurationFixPresentation) async {
+        guard let applyFix = actions.applyFix, fix.canApply else { return }
         flow.beginApply()
-        switch await actions.applyFix(fix) {
+        switch await applyFix(fix) {
         case .success:
             flow.didApplyFix()
             await retryRun()
@@ -213,7 +229,6 @@ struct AgentDebuggerView: View {
         switch await actions.retry() {
         case .success(let runId):
             flow.didStartRetry(runId: runId)
-            openRun(runId)
         case .failure(let failure): flow.fail(failure)
         }
     }

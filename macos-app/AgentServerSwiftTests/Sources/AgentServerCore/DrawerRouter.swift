@@ -3,6 +3,7 @@ import Foundation
 // MARK: - Drawer state
 
 enum Drawer: Equatable {
+    case creation
     case detail(agentId: String)
     case settings
     case connections
@@ -41,6 +42,10 @@ final class DrawerRouter: ObservableObject {
         open = .detail(agentId: agentId)
     }
 
+    func openCreation() {
+        open = .creation
+    }
+
     func openSettings() {
         open = .settings
     }
@@ -74,6 +79,10 @@ final class DrawerRouter: ObservableObject {
     var isDetailOpen: Bool {
         if case .detail = open { return true }
         return false
+    }
+
+    var isCreationOpen: Bool {
+        open == .creation
     }
 
     var isSettingsOpen: Bool {

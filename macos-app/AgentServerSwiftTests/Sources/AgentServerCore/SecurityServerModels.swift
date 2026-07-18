@@ -107,6 +107,25 @@ public struct SecurityFindingPayload: Decodable, Equatable, Sendable {
 }
 
 public struct SecurityAnalysisPayload: Decodable, Equatable, Sendable {
+    public struct ReviewState: Decodable, Equatable, Sendable {
+        public let reviewedAt: String?
+        public let isReviewed: Bool
+        public let isStale: Bool
+        public let acknowledgedFindingIds: [String]
+
+        enum CodingKeys: String, CodingKey {
+            case reviewedAt = "reviewed_at"
+            case isReviewed = "is_reviewed"
+            case isStale = "is_stale"
+            case acknowledgedFindingIds = "acknowledged_finding_ids"
+        }
+
+        public var reviewedDate: Date? {
+            guard let reviewedAt else { return nil }
+            return ISO8601DateFormatter().date(from: reviewedAt)
+        }
+    }
+
     public let schemaVersion: Int
     public let agentId: String
     public let contentHash: String
@@ -116,6 +135,7 @@ public struct SecurityAnalysisPayload: Decodable, Equatable, Sendable {
     public let findings: [SecurityFindingPayload]
     public let isStale: Bool
     public let modelStatus: String
+    public let reviewState: ReviewState?
 
     enum CodingKeys: String, CodingKey {
         case findings, risk
@@ -126,13 +146,14 @@ public struct SecurityAnalysisPayload: Decodable, Equatable, Sendable {
         case analyzedAt = "analyzed_at"
         case isStale = "is_stale"
         case modelStatus = "model_status"
+        case reviewState = "review_state"
     }
 
     public var presentation: SecurityScanPresentation {
         SecurityScanPresentation(
             findings: findings.map(\.presentation),
-            reviewedAt: nil,
-            isStale: isStale
+            reviewedAt: reviewState?.reviewedDate,
+            isStale: reviewState?.isStale ?? isStale
         )
     }
 }
@@ -160,7 +181,7 @@ public struct SecurityScanPayload: Decodable, Equatable, Sendable {
                 name: agentNames[analysis.agentId] ?? analysis.agentId,
                 risk: analysis.risk.consumerLevel,
                 findingCount: analysis.findings.count,
-                isStale: analysis.isStale
+                isStale: analysis.reviewState?.isStale ?? analysis.isStale
             )
         }, reportedNeedsReviewCount: summary.staleReviews)
     }
@@ -168,6 +189,12 @@ public struct SecurityScanPayload: Decodable, Equatable, Sendable {
 
 public struct SecurityReviewResponse: Decodable, Equatable, Sendable {
     public let reviewed: Bool
+    public let reviewState: SecurityAnalysisPayload.ReviewState?
+
+    enum CodingKeys: String, CodingKey {
+        case reviewed
+        case reviewState = "review_state"
+    }
 }
 
 public struct SecurityReviewRequestPayload: Encodable, Equatable, Sendable {

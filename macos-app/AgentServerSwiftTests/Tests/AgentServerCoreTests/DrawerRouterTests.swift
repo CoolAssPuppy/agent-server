@@ -73,4 +73,13 @@ final class DrawerRouterTests: XCTestCase {
         XCTAssertEqual(router.debugRunId, "run-failed")
         XCTAssertFalse(router.isSecurityOpen)
     }
+
+    func testCreationRouteReplacesAnyOpenDrawer() {
+        let router = DrawerRouter(open: .settings)
+
+        router.openCreation()
+
+        XCTAssertTrue(router.isCreationOpen)
+        XCTAssertFalse(router.isSettingsOpen)
+    }
 }

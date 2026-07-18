@@ -11,8 +11,6 @@ struct Sidebar: View {
     var onNewAgent: () -> Void
 
     @Environment(\.nTheme) private var theme
-    @State private var showNewAgentSheet = false
-
     static let width: CGFloat = 240
 
     private var rows: [SidebarRow] {
@@ -56,12 +54,6 @@ struct Sidebar: View {
         .frame(width: Self.width)
         .frame(maxHeight: .infinity)
         .background(theme.tokens.background)
-        .sheet(isPresented: $showNewAgentSheet) {
-            CreateAgentSheet(monitor: monitor, isPresented: $showNewAgentSheet) { agentId in
-                monitor.poll()
-                router.openDetail(agentId: agentId)
-            }
-        }
     }
 
     private var header: some View {
@@ -198,13 +190,7 @@ struct Sidebar: View {
 
             Spacer()
 
-            // `onNewAgent` callback is kept on the view so callers can
-            // intercept (e.g., open the agents folder), but the default
-            // behavior presents the consumer CreateAgentSheet. On create we
-            // re-poll and open the new agent's detail drawer.
-            Button {
-                showNewAgentSheet = true
-            } label: {
+            Button(action: onNewAgent) {
                 Label("New agent", systemImage: "plus")
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.primary)

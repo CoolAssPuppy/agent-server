@@ -136,6 +136,14 @@ private extension AppDelegate {
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
 
+        let fileMenuItem = NSMenuItem()
+        let fileMenu = NSMenu(title: "File")
+        let newAgent = NSMenuItem(title: "New Agent", action: #selector(showNewAgent), keyEquivalent: "n")
+        newAgent.target = self
+        fileMenu.addItem(newAgent)
+        fileMenuItem.submenu = fileMenu
+        mainMenu.addItem(fileMenuItem)
+
         // Edit menu — standard text editing shortcuts
         let editMenuItem = NSMenuItem()
         let editMenu = NSMenu(title: "Edit")
@@ -377,6 +385,10 @@ extension AppDelegate {
     @objc func showSettings() {
         // Single path: reveal the main window with the settings drawer down.
         openMainWindow(route: .settings)
+    }
+
+    @objc func showNewAgent() {
+        openMainWindow(route: .creation)
     }
 
     @objc func cleanupStaleRuns() {

@@ -25,7 +25,7 @@ public struct AgentDebuggerFlow: Equatable, Sendable {
     }
 
     public var canApplyFix: Bool {
-        phase == .fixReview && diagnosis?.recommendedFix != nil
+        phase == .fixReview && diagnosis?.recommendedFix?.canApply == true
     }
 
     public mutating func beginDiagnosis() {
@@ -39,7 +39,7 @@ public struct AgentDebuggerFlow: Equatable, Sendable {
     }
 
     public mutating func reviewRecommendedFix() {
-        guard diagnosis?.recommendedFix != nil else { return }
+        guard diagnosis?.recommendedFix?.canApply == true else { return }
         phase = .fixReview
     }
 

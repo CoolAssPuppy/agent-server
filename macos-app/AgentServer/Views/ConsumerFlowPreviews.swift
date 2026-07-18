@@ -33,7 +33,8 @@ import SwiftUI
         actions: AgentDebuggerActions(
             diagnose: { .success(ConsumerFlowDemoFixtures.diagnosis) },
             applyFix: { _ in .success(()) },
-            retry: { .success("retry-demo-run") }
+            retry: { .success("retry-demo-run") },
+            stopRun: { _ in }
         ),
         openAgentSettings: {},
         openRun: { _ in }

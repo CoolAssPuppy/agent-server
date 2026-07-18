@@ -19,17 +19,29 @@ final class ConsumerProductFlowTests: XCTestCase {
     }
 
     func testCreationKeepsProposalReviewableBeforeSaving() {
-        let proposal = AgentProposalPresentation.fixture(risk: .needsReview)
+        let proposal = AgentProposalPresentation.fixture(risk: .needsReview, reviewId: "proposal-1")
         var flow = AgentCreationFlow(request: "Send a weekly summary")
 
         flow.receiveProposal(proposal)
         XCTAssertEqual(flow.phase, .proposal)
         XCTAssertEqual(flow.proposal, proposal)
+        XCTAssertEqual(flow.proposal?.reviewId, "proposal-1")
         XCTAssertFalse(flow.hasSaved)
 
         flow.beginSave(runSafeTest: true)
         XCTAssertEqual(flow.phase, .saving)
         XCTAssertTrue(flow.shouldRunSafeTest)
+    }
+
+    func testCreationCanReturnFromProposalWithoutSavingStaleSettings() {
+        var flow = AgentCreationFlow(request: "Create a weekly summary")
+        flow.receiveProposal(.fixture(reviewId: "review-1"))
+
+        flow.returnToRequest()
+
+        XCTAssertEqual(flow.phase, .request)
+        XCTAssertNil(flow.proposal)
+        XCTAssertTrue(flow.answers.isEmpty)
     }
 
     func testCreationCompletesOnlyAfterTheRequestedSafeTestFinishes() {
@@ -106,6 +118,31 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(flow.phase, .resolved)
     }
 
+    func testDebuggerDoesNotOfferUnvalidatedModelRecommendationAsApplicable() {
+        let fix = ConfigurationFixPresentation(
+            title: "Review file access",
+            impact: "A person needs to choose the correct folder.",
+            risk: .needsReview,
+            changes: ["Choose a folder"],
+            technicalDiff: "",
+            canApply: false
+        )
+        var flow = AgentDebuggerFlow()
+        flow.receiveDiagnosis(DiagnosticPresentation(
+            title: "The folder may have moved.",
+            explanation: "No current path was found.",
+            evidence: [],
+            recommendedFix: fix,
+            preventionTip: nil,
+            technicalDetails: ""
+        ))
+
+        flow.reviewRecommendedFix()
+
+        XCTAssertEqual(flow.phase, .diagnosis)
+        XCTAssertFalse(flow.canApplyFix)
+    }
+
     func testSecuritySummaryGroupsFindingsByImportanceAndUsesNonColorLabels() {
         let findings = [
             SecurityFindingPresentation.fixture(id: "medium", severity: .needsReview),
@@ -158,8 +195,9 @@ final class ConsumerProductFlowTests: XCTestCase {
 }
 
 private extension AgentProposalPresentation {
-    static func fixture(risk: ConsumerRiskLevel = .low) -> Self {
+    static func fixture(risk: ConsumerRiskLevel = .low, reviewId: String? = nil) -> Self {
         .init(
+            reviewId: reviewId,
             name: "Weekly summary",
             explanation: "Reviews activity and prepares a short summary.",
             schedule: "Every Friday at 5:00 p.m.",

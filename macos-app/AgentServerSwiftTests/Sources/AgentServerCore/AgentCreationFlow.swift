@@ -4,6 +4,7 @@ public struct CreationQuestion: Identifiable, Equatable, Sendable {
     public enum Kind: Equatable, Sendable {
         case text
         case folder
+        case schedule
         case choice([String])
         case confirmation
     }
@@ -116,6 +117,15 @@ public struct AgentCreationFlow: Equatable, Sendable {
         self.proposal = proposal
         failure = nil
         phase = .proposal
+    }
+
+    public mutating func returnToRequest() {
+        guard phase == .proposal || phase == .questions else { return }
+        questions = []
+        answers = [:]
+        proposal = nil
+        failure = nil
+        phase = .request
     }
 
     public mutating func beginSave(runSafeTest: Bool) {

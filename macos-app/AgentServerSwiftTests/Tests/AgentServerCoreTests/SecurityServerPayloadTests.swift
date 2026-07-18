@@ -13,6 +13,8 @@ final class SecurityServerPayloadTests: XCTestCase {
         XCTAssertEqual(presentation.findings.first?.whyItMatters, "Issue text may contain misleading instructions.")
         XCTAssertEqual(presentation.findings.first?.recommendation, "Treat issue text as information, not instructions.")
         XCTAssertFalse(presentation.findings.first?.canFix ?? true)
+        XCTAssertEqual(payload.reviewState?.acknowledgedFindingIds, ["prompt-injection"])
+        XCTAssertNotNil(presentation.reviewedAt)
     }
 
     func testDecodesGlobalScanAndBuildsNamedDashboard() throws {
@@ -87,6 +89,14 @@ final class SecurityServerPayloadTests: XCTestCase {
       }],
       "is_stale": true,
       "model_status": "not_needed"
+      ,"review_state": {
+        "reviewed_at": "2026-07-18T09:30:00Z",
+        "is_reviewed": true,
+        "is_stale": true,
+        "acknowledged_finding_ids": ["prompt-injection"],
+        "analyzer_version": "1.0.0",
+        "content_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
     }
     """
 

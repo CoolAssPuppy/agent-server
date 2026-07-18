@@ -29,6 +29,8 @@ struct MainWindow: View {
 
             mainPaneDimOverlay
 
+            creationDrawerLayer
+
             detailDrawerLayer
 
             settingsDrawerLayer
@@ -55,6 +57,7 @@ struct MainWindow: View {
         guard let pending = router.pending else { return }
         let duration: Double
         switch pending {
+        case .creation: duration = SettingsDrawer.slideDuration
         case .detail: duration = AgentDetailDrawer.slideDuration
         case .settings: duration = SettingsDrawer.slideDuration
         case .connections, .security, .debugger: duration = SettingsDrawer.slideDuration
@@ -68,6 +71,23 @@ struct MainWindow: View {
     }
 
     // MARK: - Overlays
+
+    private var creationDrawerLayer: some View {
+        ZStack(alignment: .top) {
+            if router.isCreationOpen {
+                GuidedAgentCreationView(
+                    actions: GuidedAgentCreationActions(
+                        prepare: monitor.prepareGuidedAgent,
+                        save: monitor.saveGuidedAgent
+                    ),
+                    onCancel: router.close,
+                    onCreated: openCreatedAgent
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.easeOut(duration: SettingsDrawer.slideDuration), value: router.isCreationOpen)
+    }
 
     @ViewBuilder
     private var mainPaneDimOverlay: some View {
@@ -176,10 +196,15 @@ struct MainWindow: View {
             if let runId = router.debugRunId {
                 AgentDebuggerEntryShell(
                     runId: runId,
-                    actions: nil,
+                    actions: AgentDebuggerActions(
+                        diagnose: { await monitor.diagnoseRun(id: runId) },
+                        applyFix: { _ in await monitor.applyDebuggerFix(runId: runId) },
+                        retry: { await monitor.retryRun(id: runId) },
+                        stopRun: monitor.cancelRun
+                    ),
                     close: { closeDebugger(runId) },
                     openAgentSettings: { openSettingsForRun(runId) },
-                    openRun: { _ in }
+                    openRun: openRun
                 )
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
@@ -197,10 +222,20 @@ struct MainWindow: View {
     }
 
     private func newAgent() {
-        openAgentsFolder()
+        router.openCreation()
+    }
+
+    private func openCreatedAgent(_ saved: SavedAgentPresentation) {
+        monitor.poll()
+        router.openDetail(agentId: saved.agentId)
     }
 
     private func openSettingsForRun(_ runId: String) {
+        guard let run = monitor.recentRuns.first(where: { $0.runId == runId }) else { return }
+        router.openDetail(agentId: run.agentId)
+    }
+
+    private func openRun(_ runId: String) {
         guard let run = monitor.recentRuns.first(where: { $0.runId == runId }) else { return }
         router.openDetail(agentId: run.agentId)
     }

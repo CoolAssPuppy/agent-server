@@ -20,6 +20,7 @@ struct GuidedAgentCreationView: View {
     @Environment(\.nTheme) private var theme
     @State private var request = ""
     @State private var answer = ""
+    @State private var scheduleAnswer = ScheduleDraft()
     @State private var isChoosingFolder = false
     @State private var flow = AgentCreationFlow(request: "")
     @State private var pendingHighRiskSave: Bool?
@@ -132,6 +133,10 @@ struct GuidedAgentCreationView: View {
                 Button("Choose folder") { isChoosingFolder = true }
                     .accessibilityIdentifier(ConsumerFlowAccessibility.creationFolderPicker)
             }
+        case .schedule:
+            ScheduleField(draft: $scheduleAnswer)
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("Choose when this agent runs")
         case .choice(let choices):
             Picker("Choose one", selection: $answer) {
                 Text("Choose…").tag("")
@@ -188,8 +193,9 @@ struct GuidedAgentCreationView: View {
             Button("Continue", action: answerQuestion)
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
-                .disabled(answer.isEmpty)
+                .disabled(currentAnswer.isEmpty)
         case .proposal:
+            Button("Edit details") { flow.returnToRequest() }
             Button("Save agent") { requestSave(runSafeTest: false) }
                 .accessibilityIdentifier(ConsumerFlowAccessibility.creationSave)
             Button("Save and run a safe test") { requestSave(runSafeTest: true) }
@@ -213,8 +219,9 @@ struct GuidedAgentCreationView: View {
 
     private func answerQuestion() {
         guard let question = flow.nextQuestion else { return }
-        flow.answer(questionId: question.id, value: answer)
+        flow.answer(questionId: question.id, value: currentAnswer)
         answer = ""
+        scheduleAnswer = ScheduleDraft()
         if flow.canRequestProposal {
             flow.beginProposalRequest()
             prepare()
@@ -273,5 +280,10 @@ struct GuidedAgentCreationView: View {
 
     private func chooseFolder(_ result: Result<[URL], Error>) {
         if case .success(let urls) = result, let url = urls.first { answer = url.path(percentEncoded: false) }
+    }
+
+    private var currentAnswer: String {
+        guard flow.nextQuestion?.kind == .schedule else { return answer }
+        return scheduleAnswer.cronExpression ?? "manual"
     }
 }
