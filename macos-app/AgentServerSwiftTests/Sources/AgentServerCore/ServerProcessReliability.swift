@@ -55,6 +55,10 @@ public enum ExternalProcessPIDParser {
     }
 }
 
+public enum ExternalProcessInspector {
+    public static let executablePath = "/usr/sbin/lsof"
+}
+
 public struct ServerProcessLifecycle: Equatable, Sendable {
     public private(set) var shouldStopProcess = false
 
