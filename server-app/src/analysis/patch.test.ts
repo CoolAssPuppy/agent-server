@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ConfigurationPatchSchema,
   InMemoryAgentContentRepository,
+  isUnsafeAutomatedFilePath,
   PatchConflictError,
   PatchPolicyError,
   StructuredPatchService,
@@ -39,6 +40,11 @@ function safePatch(content = original) {
 }
 
 describe('structured configuration patches', () => {
+  it('recognizes relocated macOS home folders as broad access', () => {
+    expect(isUnsafeAutomatedFilePath('/Volumes/Homes/example', '/Volumes/Homes/example')).toBe(true);
+    expect(isUnsafeAutomatedFilePath('/Volumes/Homes/example/Documents', '/Volumes/Homes/example')).toBe(false);
+  });
+
   it('previews consumer changes while preserving comments and unknown fields', async () => {
     const repository = new InMemoryAgentContentRepository({ reports: original });
     const preview = await new StructuredPatchService(repository).preview(safePatch());

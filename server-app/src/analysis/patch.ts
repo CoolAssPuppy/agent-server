@@ -126,16 +126,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export function isUnsafeAutomatedFilePath(path: string): boolean {
-  const expanded = path === '~' ? homedir() : path.startsWith('~/') ? resolve(homedir(), path.slice(2)) : path;
-  const normalized = resolve(expanded);
-  let canonical = normalized;
+function canonicalPath(path: string): string {
+  const normalized = resolve(path);
   try {
-    canonical = realpathSync(normalized);
+    return realpathSync(normalized);
   } catch {
     // A new path cannot be resolved yet. The normalized absolute path is still checked.
+    return normalized;
   }
+}
+
+export function isUnsafeAutomatedFilePath(path: string, homeDirectory = homedir()): boolean {
+  const expanded = path === '~'
+    ? homeDirectory
+    : path.startsWith('~/') ? resolve(homeDirectory, path.slice(2)) : path;
+  const canonical = canonicalPath(expanded);
+  const canonicalHome = canonicalPath(homeDirectory);
   return canonical === '/' || canonical === '/Users'
+    || canonical === canonicalHome
     || /^\/Users\/[^/]+\/?$/.test(canonical);
 }
 
