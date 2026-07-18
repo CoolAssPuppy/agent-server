@@ -671,28 +671,11 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
 
   const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
 
-  app.get('/ws', upgradeWebSocket((c) => {
+  app.get('/ws', upgradeWebSocket(() => {
     let listener: ((event: ProgressEvent) => void) | undefined;
-
-    // When an API key is configured, require it on WebSocket upgrade too.
-    // Browsers cannot set custom headers on the WS handshake, so accept the
-    // key either via `Authorization: Bearer …` / `x-agent-server-key` (for
-    // native clients) or a `?key=` query string (for browsers).
-    const configuredKey = config.apiKey?.trim();
-    const headerKey =
-      c.req.header('authorization')?.replace(/^Bearer\s+/i, '').trim() ||
-      c.req.header('x-agent-server-key')?.trim();
-    const queryKey = c.req.query('key')?.trim();
-    const providedKey = headerKey || queryKey;
-    const authOk = !configuredKey || providedKey === configuredKey;
 
     return {
       onOpen(event, ws) {
-        if (!authOk) {
-          ws.close(1008, 'Unauthorized');
-          return;
-        }
-
         const origin = (event as { req?: { raw?: Request } })?.req?.raw?.headers.get('origin');
         if (!isAllowedOrigin(origin ?? undefined, config.host)) {
           ws.close(1008, 'Origin not allowed');

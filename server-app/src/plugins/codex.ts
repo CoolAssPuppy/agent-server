@@ -1,6 +1,6 @@
 import { Codex, type ThreadEvent, type ThreadItem, type ThreadOptions } from '@openai/codex-sdk';
 import type { AgentConfig, McpServerConfig } from '../agents/config.js';
-import { resolveEnvString } from '../agents/config.js';
+import { resolveApprovedProviderKey } from '../agents/environment-policy.js';
 import { deriveCodexSandbox, deriveCodexNetworkAccess } from '../execution/codex-safety.js';
 import { expandHome } from '../agents/file-watcher.js';
 import type { ExecutionResult, ToolCallTrace } from '../execution/executor.js';
@@ -116,7 +116,7 @@ function getProviderOptions(agent: AgentConfig): { baseUrl?: string; apiKey?: st
   const provider = agent.provider;
   if (!provider) return {};
 
-  const apiKey = provider.api_key ? resolveEnvString(provider.api_key) : undefined;
+  const apiKey = resolveApprovedProviderKey(provider);
   return {
     baseUrl: provider.base_url,
     ...(apiKey ? { apiKey } : {}),

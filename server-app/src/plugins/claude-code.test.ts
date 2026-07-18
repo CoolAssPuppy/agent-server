@@ -189,7 +189,7 @@ describe('executeAgent with Agent SDK', () => {
     expect(options.allowDangerouslySkipPermissions).toBe(true);
   });
 
-  it('leaves env undefined when the agent has no provider (subscription default)', async () => {
+  it('passes a safe env allowlist when the agent has no provider', async () => {
     const { executeAgent } = await import('./claude-code.js');
     mockQuery.mockReturnValue(createAsyncGenerator([
       createResultSuccess({ result: 'Done', num_turns: 1 }),
@@ -198,7 +198,11 @@ describe('executeAgent with Agent SDK', () => {
     await executeAgent(createAgentConfig(), createMockReporter());
 
     const callArgs = mockQuery.mock.calls[0][0];
-    expect(callArgs.options.env).toBeUndefined();
+    expect(callArgs.options.env).toEqual(expect.objectContaining({
+      HOME: process.env.HOME,
+      PATH: process.env.PATH,
+    }));
+    expect(callArgs.options.env.AGENT_SERVER_API_KEY).toBeUndefined();
   });
 
   it('does not pass allowedTools when tools array is empty', async () => {

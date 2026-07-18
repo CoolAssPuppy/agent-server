@@ -65,6 +65,12 @@ describe('security-utils', () => {
     expect(getClientIp(request)).toBe('unknown');
   });
 
+  it('uses the server-provided socket address when available', () => {
+    const request = new Request('http://localhost/test');
+
+    expect(getClientIp(request, { remoteAddress: '127.0.0.2' })).toBe('127.0.0.2');
+  });
+
   it('can trust proxy headers when explicitly enabled', () => {
     const request = new Request('http://localhost/test', {
       headers: {
@@ -97,5 +103,13 @@ describe('security-utils', () => {
     expect(tracker.isBlocked('ip').allowed).toBe(false);
     tracker.registerSuccess('ip');
     expect(tracker.isBlocked('ip').allowed).toBe(true);
+  });
+
+  it('retains failures while checking an unblocked client', () => {
+    const tracker = new AuthFailureTracker(2, 10_000);
+
+    tracker.registerFailure('ip');
+    expect(tracker.isBlocked('ip').allowed).toBe(true);
+    expect(tracker.registerFailure('ip').allowed).toBe(false);
   });
 });

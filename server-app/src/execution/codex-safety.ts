@@ -1,5 +1,12 @@
 import type { AgentConfig } from '../agents/config.js';
-import { isToolAllowed } from './permissions.js';
+import {
+  COMMAND_TOOLS,
+  NETWORK_TOOLS,
+  WRITE_TOOLS,
+  hasAnyPermittedTool,
+  isToolExplicitlyGranted,
+} from './permission-policy.js';
+export { isToolPermitted } from './permission-policy.js';
 
 export type CodexSandboxMode = 'read-only' | 'workspace-write' | 'danger-full-access';
 
@@ -7,32 +14,6 @@ export type CodexSandboxMode = 'read-only' | 'workspace-write' | 'danger-full-ac
 // "write your files" -> Write/Edit, "run commands" -> Bash, "search the web" ->
 // WebFetch/WebSearch. Keeping these lists aligned is what lets a UI toggle
 // translate into a Codex sandbox setting.
-const WRITE_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
-const EXEC_TOOLS = ['Bash'];
-const NETWORK_TOOLS = ['WebFetch', 'WebSearch'];
-
-/**
- * Whether a tool is permitted for an agent under its declared permission model.
- * A `permissions` block is an allowlist (deny wins, default deny). Otherwise the
- * `tools`/`disallowed_tools` model applies: an empty `tools` list means "all
- * allowed" (matching how the Claude executor sets `allowedTools`).
- */
-export function isToolPermitted(agent: AgentConfig, tool: string): boolean {
-  if (agent.permissions) {
-    return isToolAllowed(tool, agent.permissions);
-  }
-  if (agent.disallowed_tools?.includes(tool)) return false;
-  if (agent.tools.length > 0 && !agent.tools.includes(tool)) return false;
-  return true;
-}
-
-/** Whether a tool is *explicitly* granted (present in the allowlist), never by default. */
-function isToolExplicitlyGranted(agent: AgentConfig, tool: string): boolean {
-  if (agent.permissions) {
-    return isToolAllowed(tool, agent.permissions);
-  }
-  return agent.tools.includes(tool) && !(agent.disallowed_tools?.includes(tool) ?? false);
-}
 
 /**
  * Translate an agent's capability/permission model into a Codex sandbox mode,
@@ -57,8 +38,8 @@ export function deriveCodexSandbox(agent: AgentConfig): CodexSandboxMode {
 
   if (agent.permission_mode === 'plan') return 'read-only';
 
-  const canWrite = WRITE_TOOLS.some((tool) => isToolPermitted(agent, tool));
-  const canExecute = EXEC_TOOLS.some((tool) => isToolPermitted(agent, tool));
+  const canWrite = hasAnyPermittedTool(agent, WRITE_TOOLS);
+  const canExecute = hasAnyPermittedTool(agent, COMMAND_TOOLS);
   return canWrite || canExecute ? 'workspace-write' : 'read-only';
 }
 

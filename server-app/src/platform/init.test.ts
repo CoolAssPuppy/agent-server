@@ -58,6 +58,23 @@ describe('initAgentServer', () => {
     expect(statSync(envPath).mode & 0o777).toBe(0o600);
   });
 
+  it('replaces a quoted empty local API key with a generated key', () => {
+    const base = createTempPath();
+    dirs.push(base);
+    mkdirSync(base, { recursive: true });
+    const envPath = join(base, '.env');
+    writeFileSync(envPath, 'AGENT_SERVER_API_KEY=""\nCUSTOM=value\n');
+
+    initAgentServer(base);
+
+    const content = readFileSync(envPath, 'utf-8');
+    const generatedKeys = [...content.matchAll(/^AGENT_SERVER_API_KEY=(\S+)$/gm)];
+    expect(generatedKeys).toHaveLength(1);
+    expect(generatedKeys[0]?.[1].length).toBeGreaterThanOrEqual(32);
+    expect(content).not.toContain('AGENT_SERVER_API_KEY=""');
+    expect(content).toContain('CUSTOM=value');
+  });
+
   it('creates a sample hello-world agent', () => {
     const base = createTempPath();
     dirs.push(base);

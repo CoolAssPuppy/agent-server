@@ -203,13 +203,6 @@ final class ServerProcessManager {
         process.currentDirectoryURL = URL(fileURLWithPath: dir)
 
         var environment = ProcessInfo.processInfo.environment
-        let envFilePath = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".agent-server/.env").path
-        if let envVars = loadEnvVars(from: envFilePath) {
-            for (key, value) in envVars where environment[key] == nil {
-                environment[key] = value
-            }
-        }
         environment["PATH"] = [
             "/opt/homebrew/bin",
             "/usr/local/bin",
@@ -238,29 +231,5 @@ final class ServerProcessManager {
         } catch {
             print("[ServerProcessManager] Failed to start server: \(error)")
         }
-    }
-
-    private func loadEnvVars(from path: String) -> [String: String]? {
-        guard let content = try? String(contentsOfFile: path, encoding: .utf8) else {
-            return nil
-        }
-
-        var vars: [String: String] = [:]
-        for line in content.components(separatedBy: .newlines) {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.isEmpty || trimmed.hasPrefix("#") { continue }
-            guard let eqIndex = trimmed.firstIndex(of: "=") else { continue }
-
-            let key = String(trimmed[trimmed.startIndex..<eqIndex]).trimmingCharacters(in: .whitespaces)
-            var value = String(trimmed[trimmed.index(after: eqIndex)...]).trimmingCharacters(in: .whitespaces)
-
-            if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-               (value.hasPrefix("'") && value.hasSuffix("'")) {
-                value = String(value.dropFirst().dropLast())
-            }
-
-            vars[key] = value
-        }
-        return vars
     }
 }

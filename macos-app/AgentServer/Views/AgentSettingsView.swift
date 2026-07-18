@@ -17,6 +17,7 @@ struct AgentSettingsSheet: View {
     @Environment(\.nTheme) private var theme
 
     @State private var didSeed = false
+    @State private var seededAgentId: String?
     @State private var name = ""
     @State private var descriptionText = ""
     @State private var promptText = ""
@@ -69,6 +70,7 @@ struct AgentSettingsSheet: View {
     private func seedIfNeeded() {
         guard !didSeed, let agent else { return }
         didSeed = true
+        seededAgentId = agent.id
         name = agent.name
         descriptionText = agent.description ?? ""
         promptText = agent.prompt
@@ -332,6 +334,13 @@ struct AgentSettingsSheet: View {
     // MARK: - Save
 
     private func save() {
+        guard AgentSettingsSelectionPolicy.canSaveDraft(
+            seededAgentId: seededAgentId,
+            targetAgentId: agentId
+        ) else {
+            errorMessage = "This editor belongs to another agent. Close it and try again."
+            return
+        }
         guard let agent else {
             isPresented = false
             return

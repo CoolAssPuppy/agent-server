@@ -103,7 +103,13 @@ export function sanitizeProgressEvent(event: ProgressEvent): ProgressEvent {
   };
 }
 
-export function getClientIp(request: Request, options: { trustProxyHeaders?: boolean } = {}): string {
+export function getClientIp(
+  request: Request,
+  options: { trustProxyHeaders?: boolean; remoteAddress?: string } = {},
+): string {
+  const remoteAddress = options.remoteAddress?.trim();
+  if (remoteAddress) return remoteAddress;
+
   const trustProxyHeaders = options.trustProxyHeaders === true;
 
   if (trustProxyHeaders) {
@@ -170,10 +176,12 @@ export class AuthFailureTracker {
   isBlocked(key: string, now: number = Date.now()): RateLimitResult {
     const record = this.records.get(key);
     if (!record) return { allowed: true };
-    if (record.blockedUntil <= now) {
+    if (record.blockedUntil > 0 && record.blockedUntil <= now) {
       this.records.delete(key);
       return { allowed: true };
     }
+
+    if (record.blockedUntil === 0) return { allowed: true };
 
     return {
       allowed: false,

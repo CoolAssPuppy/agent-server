@@ -92,4 +92,11 @@ enum AgentSettingsSelectionPolicy {
     ) -> Bool {
         previousAgentId != selectedAgentId
     }
+
+    static func canSaveDraft(
+        seededAgentId: String?,
+        targetAgentId: String
+    ) -> Bool {
+        seededAgentId == targetAgentId
+    }
 }

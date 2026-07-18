@@ -250,6 +250,10 @@ actor AgentServerClient {
             )
         } catch LocalAPIAuthenticationError.missingAPIKey {
             throw ClientError.missingLocalAPIKey
+        } catch {
+            // File access and parse failures are also local authentication
+            // setup problems. Keep them distinct from transport reachability.
+            throw ClientError.missingLocalAPIKey
         }
     }
 

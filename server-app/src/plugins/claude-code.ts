@@ -1,7 +1,10 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { Options, Query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentConfig } from '../agents/config.js';
-import { resolveEnvVars, resolveEnvString } from '../agents/config.js';
+import {
+  buildClaudeChildEnvironment,
+  resolveApprovedMcpValues,
+} from '../agents/environment-policy.js';
 import type { Reporter } from '../execution/runner.js';
 import {
   truncate,
@@ -629,37 +632,7 @@ function reportMcpStatus(servers: McpServerInfo[], reporter: Reporter): void {
  * child can execute without inheriting server, connection, or database secrets.
  */
 export function buildProviderEnv(agent: AgentConfig): Record<string, string | undefined> | undefined {
-  const provider = agent.provider;
-  if (!provider) return undefined;
-
-  const apiKey = provider.api_key ? resolveEnvString(provider.api_key) : undefined;
-  return {
-    ...getClaudeChildEnvironment(),
-    ANTHROPIC_BASE_URL: provider.base_url,
-    ...(apiKey ? { ANTHROPIC_API_KEY: apiKey } : {}),
-  };
-}
-
-function getClaudeChildEnvironment(): Record<string, string> {
-  const allowedNames = [
-    'COLORTERM',
-    'HOME',
-    'LANG',
-    'LC_ALL',
-    'LOGNAME',
-    'PATH',
-    'SHELL',
-    'TERM',
-    'TMPDIR',
-    'USER',
-    'XDG_CONFIG_HOME',
-  ];
-  const environment: Record<string, string> = {};
-  for (const name of allowedNames) {
-    const value = process.env[name];
-    if (value !== undefined) environment[name] = value;
-  }
-  return environment;
+  return buildClaudeChildEnvironment(agent);
 }
 
 export function buildMcpServers(agent: AgentConfig): Options['mcpServers'] {
@@ -670,12 +643,12 @@ export function buildMcpServers(agent: AgentConfig): Options['mcpServers'] {
       if ('command' in config) {
         servers[name] = {
           ...config,
-          env: config.env ? resolveEnvVars(config.env) : undefined,
+          env: config.env ? resolveApprovedMcpValues(name, config.env) : undefined,
         };
       } else if ('url' in config) {
         servers[name] = {
           ...config,
-          headers: config.headers ? resolveEnvVars(config.headers) : undefined,
+          headers: config.headers ? resolveApprovedMcpValues(name, config.headers) : undefined,
         };
       }
     }

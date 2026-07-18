@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { sanitizeText } from '../server/security-utils.js';
 
 export const RiskSeveritySchema = z.enum(['low', 'needs_review', 'high', 'critical']);
 export type RiskSeverity = z.infer<typeof RiskSeveritySchema>;
@@ -6,7 +7,7 @@ export type RiskSeverity = z.infer<typeof RiskSeveritySchema>;
 export const EvidenceSchema = z.object({
   code: z.string().trim().min(1).max(80),
   label: z.string().trim().min(1).max(160),
-  detail: z.string().trim().min(1).max(1_000),
+  detail: z.string().trim().min(1).max(1_000).transform((value) => sanitizeText(value, 1_000)),
   source: z.enum(['configuration', 'run', 'runtime', 'connection', 'filesystem', 'model']),
 }).strict();
 export type Evidence = z.infer<typeof EvidenceSchema>;
@@ -131,26 +132,60 @@ export const DiagnosticResultSchema = z.object({
 }).strict();
 export type DiagnosticResult = z.infer<typeof DiagnosticResultSchema>;
 
+const ContentHashSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/);
+const severityOrder: Record<RiskSeverity, number> = {
+  low: 0,
+  needs_review: 1,
+  high: 2,
+  critical: 3,
+};
+
+function validateRiskConsistency(
+  value: { risk: RiskSummary; findings: Finding[] },
+  ctx: z.RefinementCtx,
+): void {
+  const maximum = value.findings.reduce<RiskSeverity>((current, finding) => (
+    severityOrder[finding.severity] > severityOrder[current] ? finding.severity : current
+  ), 'low');
+  if (value.risk.finding_count !== value.findings.length) {
+    ctx.addIssue({ code: 'custom', path: ['risk', 'finding_count'], message: 'Finding count is inconsistent' });
+  }
+  if (value.risk.level !== maximum) {
+    ctx.addIssue({ code: 'custom', path: ['risk', 'level'], message: 'Risk level understates the findings' });
+  }
+}
+
 export const SecurityAnalysisSchema = z.object({
   schema_version: z.literal(1),
   agent_id: z.string().trim().min(1).max(160),
-  content_hash: z.string().regex(/^sha256:[a-fA-F0-9]+$/),
+  content_hash: ContentHashSchema,
   analyzer_version: z.string().trim().min(1).max(40),
   analyzed_at: z.string().datetime(),
   risk: RiskSummarySchema,
   findings: z.array(FindingSchema).max(200),
   is_stale: z.boolean(),
   model_status: z.enum(['not_needed', 'completed', 'unavailable', 'invalid', 'timed_out']),
-}).strict();
+}).strict().superRefine(validateRiskConsistency);
 export type SecurityAnalysis = z.infer<typeof SecurityAnalysisSchema>;
 
 export const PreflightResultSchema = z.object({
   schema_version: z.literal(1),
   agent_id: z.string().trim().min(1).max(160),
-  content_hash: z.string().regex(/^sha256:[a-fA-F0-9]+$/),
+  content_hash: ContentHashSchema,
   decision: z.enum(['allow', 'confirm', 'block']),
   risk: RiskSummarySchema,
   findings: z.array(FindingSchema).max(200),
   acknowledgement_required: z.boolean(),
-}).strict();
+}).strict().superRefine((value, ctx) => {
+  validateRiskConsistency(value, ctx);
+  if (value.risk.level === 'critical' && value.decision !== 'block') {
+    ctx.addIssue({ code: 'custom', path: ['decision'], message: 'Critical risk must block execution' });
+  }
+  if (value.risk.level === 'high' && value.decision === 'allow') {
+    ctx.addIssue({ code: 'custom', path: ['decision'], message: 'High risk requires confirmation' });
+  }
+  if ((value.risk.level === 'high' || value.risk.level === 'critical') && !value.acknowledgement_required) {
+    ctx.addIssue({ code: 'custom', path: ['acknowledgement_required'], message: 'Risk acknowledgement is required' });
+  }
+});
 export type PreflightResult = z.infer<typeof PreflightResultSchema>;

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { parse as parseYaml } from 'yaml';
 import { InteractionConfigSchema, NotificationConfigSchema } from '../interaction/schema.js';
 import { ConversationConfigSchema } from '../conversation/schema.js';
+import { areApprovedMcpReferences, isApprovedProviderReference } from './environment-policy.js';
 
 const TriggerRefSchema = z.object({
   agent: z.string().min(1),
@@ -44,45 +45,6 @@ function isProtectedAgentEnvName(name: string): boolean {
   return name.startsWith('AGENT_SERVER_')
     || name === 'ANTHROPIC_API_KEY'
     || name === 'OPENAI_API_KEY';
-}
-
-const GENERIC_REFERENCE_PREFIXES = new Set([
-  'API', 'HTTP', 'HTTPS', 'LOCAL', 'MCP', 'MY', 'REMOTE', 'SERVER', 'WWW',
-]);
-
-function referencePrefix(value: string): string | undefined {
-  const prefix = value.toUpperCase().split(/[^A-Z0-9]+/).find(Boolean);
-  return prefix && !GENERIC_REFERENCE_PREFIXES.has(prefix) ? prefix : undefined;
-}
-
-function endpointReferencePrefixes(value: string): Set<string> {
-  const prefixes = new Set<string>();
-  try {
-    const url = new URL(value);
-    for (const label of url.hostname.split('.')) {
-      const prefix = referencePrefix(label);
-      if (prefix) prefixes.add(prefix);
-    }
-  } catch {
-    // URL validation reports the malformed endpoint separately.
-  }
-  return prefixes;
-}
-
-function validateRelatedReference(
-  value: string,
-  allowedPrefixes: ReadonlySet<string>,
-  ctx: z.RefinementCtx,
-): void {
-  for (const match of value.matchAll(ENV_REFERENCE_PATTERN)) {
-    const prefix = referencePrefix(match[1]);
-    if (!prefix || !allowedPrefixes.has(prefix)) {
-      ctx.addIssue({
-        code: 'custom',
-        message: `Environment variable ${match[1]} is unrelated to this connection`,
-      });
-    }
-  }
 }
 
 function validateAgentEnvReferences(value: string, ctx: z.RefinementCtx): void {
@@ -194,18 +156,8 @@ export const ProviderConfigSchema = z.object({
   base_url: ProviderBaseUrlSchema,
   api_key: ProviderApiKeySchema.optional(),
 }).superRefine((provider, ctx) => {
-  if (!provider.api_key) return;
-  let url: URL;
-  try {
-    url = new URL(provider.base_url);
-  } catch {
-    return;
-  }
-  const isLoopback = url.hostname === 'localhost'
-    || url.hostname === '127.0.0.1'
-    || url.hostname === '[::1]';
-  if (!isLoopback) {
-    validateRelatedReference(provider.api_key, endpointReferencePrefixes(provider.base_url), ctx);
+  if (provider.api_key && !isApprovedProviderReference(provider)) {
+    ctx.addIssue({ code: 'custom', path: ['api_key'], message: 'Provider credential is not approved for this endpoint' });
   }
 });
 
@@ -243,16 +195,13 @@ export const AgentConfigSchema = z
   .passthrough()
   .superRefine((agent, ctx) => {
     for (const [serverName, server] of Object.entries(agent.mcp_servers ?? {})) {
-      const allowedPrefixes = endpointReferencePrefixes('url' in server ? server.url : '');
-      for (const part of serverName.split(/[^A-Za-z0-9]+/)) {
-        const prefix = referencePrefix(part);
-        if (prefix) allowedPrefixes.add(prefix);
-      }
       const values = 'command' in server ? server.env : server.headers;
-      for (const [targetName, value] of Object.entries(values ?? {})) {
-        const targetPrefix = referencePrefix(targetName);
-        if (targetPrefix) allowedPrefixes.add(targetPrefix);
-        validateRelatedReference(value, allowedPrefixes, ctx);
+      if (values && !areApprovedMcpReferences(serverName, values)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['mcp_servers', serverName],
+          message: 'Connection credential is not approved for this service',
+        });
       }
     }
   });

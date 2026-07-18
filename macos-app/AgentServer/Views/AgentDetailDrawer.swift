@@ -52,6 +52,7 @@ struct AgentDetailDrawer: View {
                     isPresented: $showSettings,
                     onDeleted: { router.close() }
                 )
+                .id(agentId)
                 .frame(width: Self.settingsPaneWidth)
                 .transition(.move(edge: .trailing))
             }

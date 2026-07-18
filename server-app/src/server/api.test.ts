@@ -1,9 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createApi } from './api.js';
+import { createApi as createProductionApi } from './api.js';
 import { RunStore } from '../reporting/store.js';
 import { makeAgent, makeStoredRun } from '../test-factories.js';
 
 const API_TEST_KEY = 'local-api-test-key-1234567890';
+
+type ApiDependencies = Parameters<typeof createProductionApi>[0];
+
+function createApi(
+  dependencies: Omit<ApiDependencies, 'apiKey'> & { apiKey?: string },
+): ReturnType<typeof createProductionApi> {
+  return createProductionApi({
+    ...dependencies,
+    apiKey: dependencies.apiKey ?? API_TEST_KEY,
+  });
+}
 
 function authenticatedRequest(
   app: ReturnType<typeof createApi>,
@@ -20,7 +31,6 @@ describe('API routes', () => {
   let triggerRun: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    process.env.AGENT_SERVER_API_KEY = API_TEST_KEY;
     store = new RunStore();
     triggerRun = vi.fn().mockResolvedValue('run-123');
   });
@@ -367,12 +377,11 @@ describe('API routes', () => {
   });
   describe('API key authentication', () => {
     it('refuses to create an API without a strong local key', () => {
-      delete process.env.AGENT_SERVER_API_KEY;
-
-      expect(() => createApi({
+      expect(() => createProductionApi({
         getAgents: async () => [],
         store,
         triggerRun,
+        apiKey: '',
       })).toThrow('A strong AGENT_SERVER_API_KEY is required');
     });
 
@@ -405,6 +414,19 @@ describe('API routes', () => {
       const app = createSecuredApp();
       const res = await app.request('/health');
 
+      expect(res.status).toBe(200);
+    });
+
+    it('keeps health available after repeated authentication failures', async () => {
+      const app = createSecuredApp();
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        await app.request('/agents');
+      }
+
+      const blockedResponse = await app.request('/agents');
+      const res = await app.request('/health');
+
+      expect(blockedResponse.status).toBe(429);
       expect(res.status).toBe(200);
     });
   });

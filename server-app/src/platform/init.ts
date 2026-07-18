@@ -1,6 +1,7 @@
-import { appendFileSync, chmodSync, mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync } from 'fs';
+import { chmodSync, mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync } from 'fs';
 import { randomBytes } from 'crypto';
 import { join } from 'path';
+import { parse as parseDotenv } from 'dotenv';
 
 const SEED_MARKER = '.seeded';
 
@@ -159,14 +160,18 @@ function ensureLocalApiKey(envPath: string): void {
   // no secret yet, while existing files may already hold connection tokens.
   chmodSync(envPath, 0o600);
   const content = readFileSync(envPath, 'utf-8');
-  const configuredKey = content.match(/^\s*AGENT_SERVER_API_KEY\s*=\s*(\S+)\s*$/m)?.[1];
+  const configuredKey = parseDotenv(content).AGENT_SERVER_API_KEY?.trim();
 
   if (!configuredKey) {
-    const separator = content.endsWith('\n') ? '\n' : '\n\n';
     const apiKey = randomBytes(32).toString('base64url');
-    appendFileSync(
+    const keyLinePattern = /^\s*AGENT_SERVER_API_KEY\s*=.*$/m;
+    const generatedSetting = `AGENT_SERVER_API_KEY=${apiKey}`;
+    const nextContent = keyLinePattern.test(content)
+      ? content.replace(keyLinePattern, generatedSetting)
+      : `${content}${content.endsWith('\n') ? '\n' : '\n\n'}# Local API authentication (generated automatically).\n${generatedSetting}\n`;
+    writeFileSync(
       envPath,
-      `${separator}# Local API authentication (generated automatically).\nAGENT_SERVER_API_KEY=${apiKey}\n`,
+      nextContent,
       { encoding: 'utf-8', mode: 0o600 },
     );
   }

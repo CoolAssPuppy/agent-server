@@ -2,6 +2,13 @@ import { createHash } from 'crypto';
 import { resolve } from 'path';
 import type { AgentConfig } from '../agents/config.js';
 import {
+  COMMAND_TOOLS,
+  WRITE_TOOLS,
+  effectiveWorkingDirectory,
+  hasAnyPermittedTool,
+  hasEffectiveNetworkAccess,
+} from '../execution/permission-policy.js';
+import {
   FindingSchema,
   RiskSummarySchema,
   type Evidence,
@@ -36,16 +43,14 @@ const SEVERITY_ORDER: Record<RiskSeverity, number> = {
   critical: 3,
 };
 
-const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
-const COMMAND_TOOLS = new Set(['Bash', 'command_execution']);
-const NETWORK_TOOLS = new Set(['WebFetch', 'WebSearch', 'web_search']);
-
 const SENSITIVE_PATHS: ReadonlyArray<{ pattern: RegExp; category: string }> = [
   { pattern: /\/(?:\.ssh)(?:\/|$)/i, category: 'SSH credentials' },
+  { pattern: /\/(?:\.config)(?:\/|$)/i, category: 'application configuration' },
   { pattern: /\/(?:\.aws|\.azure|\.config\/gcloud)(?:\/|$)/i, category: 'cloud credentials' },
   { pattern: /\/(?:\.gnupg|\.docker|\.kube)(?:\/|$)/i, category: 'credential configuration' },
   { pattern: /\/(?:\.git-credentials|\.netrc|\.npmrc)(?:$|\/)/i, category: 'developer credentials' },
   { pattern: /\/Library\/Keychains(?:\/|$)/i, category: 'Keychain data' },
+  { pattern: /\/(?:\.zsh_history|\.bash_history|\.python_history)(?:$|\/)/i, category: 'shell history' },
   { pattern: /\/Library\/(?:Safari|Application Support\/(?:Google\/Chrome|Firefox|1Password|Bitwarden))(?:\/|$)/i, category: 'browser or password data' },
   { pattern: /\/Library\/Developer\/Xcode\/UserData\/Provisioning Profiles(?:\/|$)/i, category: 'developer signing identities' },
   { pattern: /\/(?:\.env(?:\.[^/]+)?|id_(?:rsa|ed25519)|credentials)(?:$|\/)/i, category: 'secret configuration files' },
@@ -129,23 +134,6 @@ function finding(
   });
 }
 
-function isAllowed(agent: AgentConfig, tool: string): boolean {
-  if (agent.disallowed_tools.includes(tool)) return false;
-  if (agent.permissions?.deny.includes(tool)) return false;
-  if (agent.tools.length === 0) return true;
-  return agent.tools.includes(tool);
-}
-
-function hasAnyAllowed(agent: AgentConfig, tools: ReadonlySet<string>): boolean {
-  return [...tools].some((tool) => isAllowed(agent, tool));
-}
-
-function hasExternalAccess(agent: AgentConfig): boolean {
-  return hasAnyAllowed(agent, NETWORK_TOOLS)
-    || Boolean(agent.provider)
-    || Object.keys(agent.mcp_servers ?? {}).length > 0;
-}
-
 function literalSecretCount(rawContent: string): number {
   let count = 0;
   for (const pattern of SECRET_PATTERNS) {
@@ -174,9 +162,9 @@ function analyzeSecrets(rawContent: string): Finding[] {
 
 function analyzePermissions(agent: AgentConfig): Finding[] {
   const findings: Finding[] = [];
-  const canWrite = hasAnyAllowed(agent, WRITE_TOOLS);
-  const canRunCommands = hasAnyAllowed(agent, COMMAND_TOOLS);
-  const canUseNetwork = hasExternalAccess(agent);
+  const canWrite = hasAnyPermittedTool(agent, WRITE_TOOLS);
+  const canRunCommands = hasAnyPermittedTool(agent, COMMAND_TOOLS);
+  const canUseNetwork = hasEffectiveNetworkAccess(agent);
 
   if (agent.codex_sandbox === 'danger-full-access') {
     findings.push(finding(
@@ -247,7 +235,7 @@ function analyzePermissions(agent: AgentConfig): Finding[] {
 
 function analyzePaths(agent: AgentConfig, homeDir: string): Finding[] {
   const paths = [
-    ...(agent.working_directory ? [agent.working_directory] : []),
+    effectiveWorkingDirectory(agent, homeDir),
     ...(agent.watch ?? []).map((watch) => watch.path),
   ];
   return paths.flatMap((path, index) => {
@@ -263,7 +251,9 @@ function analyzePaths(agent: AgentConfig, homeDir: string): Finding[] {
         index,
       )];
     }
-    if (result.isBroad && (hasAnyAllowed(agent, WRITE_TOOLS) || hasAnyAllowed(agent, COMMAND_TOOLS))) {
+    if (result.isBroad && (
+      hasAnyPermittedTool(agent, WRITE_TOOLS) || hasAnyPermittedTool(agent, COMMAND_TOOLS)
+    )) {
       return [finding(
         'path.broad_write', 'critical', 'This agent can change files across your home folder',
         'The writable area is much broader than most tasks require.',
@@ -278,12 +268,27 @@ function analyzePaths(agent: AgentConfig, homeDir: string): Finding[] {
   });
 }
 
+function getSemanticPrompt(agent: AgentConfig, rawContent: string): string {
+  const trimmed = rawContent.trimStart();
+  if (trimmed.startsWith('---') || /^[a-z][a-z0-9_-]*\s*:/im.test(trimmed)) return agent.prompt;
+  return trimmed || agent.prompt;
+}
+
 function analyzePromptAndTriggers(agent: AgentConfig, rawContent: string): Finding[] {
   const findings: Finding[] = [];
-  const prompt = `${agent.prompt}\n${rawContent}`;
-  if (/\b(delete|erase|remove)\b.{0,80}\b(files?|folders?|records?|emails?)\b|\b(upload|send|post|forward)\b.{0,80}\b(every|all)\b.{0,30}\b(files?|source|secrets?|credentials?)\b/i.test(prompt)) {
+  const prompt = getSemanticPrompt(agent, rawContent);
+  const destructive = /\b(delete|erase|remove)\b.{0,80}\b(files?|folders?|records?|emails?)\b/i.test(prompt);
+  const exfiltration = /\b(upload|send|post|forward)\b.{0,80}\b(every|all)\b.{0,30}\b(files?|source|secrets?|credentials?)\b/i.test(prompt);
+  const canChangeFiles = hasAnyPermittedTool(agent, WRITE_TOOLS)
+    || hasAnyPermittedTool(agent, COMMAND_TOOLS);
+  const hasRelevantCapability = (destructive && canChangeFiles)
+    || (exfiltration && hasEffectiveNetworkAccess(agent));
+  if ((destructive || exfiltration) && hasRelevantCapability) {
+    const asksForConfirmation = /\b(?:confirm|confirmation|approve|approval|preview)\b/i.test(prompt);
+    const isAutomatic = Boolean(agent.schedule || agent.watch?.length);
+    const severity: RiskSeverity = asksForConfirmation || !isAutomatic ? 'high' : 'critical';
     findings.push(finding(
-      'prompt.destructive_or_exfiltration', 'critical', 'The instructions could delete or expose a large amount of data',
+      'prompt.destructive_or_exfiltration', severity, 'The instructions could delete or expose a large amount of data',
       'The task asks for broad deletion or transmission without a narrow scope.',
       'Files, messages, or credentials could be removed or sent outside this Mac.',
       'A destructive or broad transmission phrase appears in the instructions.',
@@ -294,7 +299,9 @@ function analyzePromptAndTriggers(agent: AgentConfig, rawContent: string): Findi
 
   const watchesUntrustedFiles = (agent.watch ?? []).some((watch) => /downloads|shared|inbox/i.test(watch.path));
   const followsInputInstructions = /follow (?:their|its|the) instructions|ignore (?:previous|all) instructions/i.test(prompt);
-  const canChangeState = hasAnyAllowed(agent, WRITE_TOOLS) || hasAnyAllowed(agent, COMMAND_TOOLS) || hasExternalAccess(agent);
+  const canChangeState = hasAnyPermittedTool(agent, WRITE_TOOLS)
+    || hasAnyPermittedTool(agent, COMMAND_TOOLS)
+    || hasEffectiveNetworkAccess(agent);
   if (watchesUntrustedFiles && followsInputInstructions && canChangeState) {
     findings.push(finding(
       'trigger.untrusted_writable_input', 'high', 'Untrusted files can tell this agent what to do',
@@ -303,6 +310,57 @@ function analyzePromptAndTriggers(agent: AgentConfig, rawContent: string): Findi
       'The agent watches a shared or download folder, follows document instructions, and can change state.',
       [evidence('watch', 'Watched input', 'Potentially untrusted files', 'configuration')],
       action('trigger.untrusted_writable_input', 'Treat file contents as data', 'Add instructions to ignore commands inside documents and require review before actions.', 'needs_review', false),
+    ));
+  }
+  return findings;
+}
+
+function analyzeConnectionsAndAutomation(agent: AgentConfig): Finding[] {
+  const findings: Finding[] = [];
+  for (const [name, server] of Object.entries(agent.mcp_servers ?? {})) {
+    if ('url' in server) {
+      const url = new URL(server.url);
+      const isLoopback = url.hostname === 'localhost'
+        || url.hostname === '127.0.0.1'
+        || url.hostname === '[::1]';
+      if (url.protocol !== 'https:' && !isLoopback) {
+        findings.push(finding(
+          'connection.insecure_endpoint', 'high', 'A connected service uses an insecure address',
+          'Information sent to this service is not protected by HTTPS.',
+          'Someone on the network could read or change information sent by the agent.',
+          `The ${name} connection uses HTTP outside this Mac.`,
+          [evidence('endpoint', 'Connected service', url.origin, 'connection')],
+          action('connection.insecure_endpoint', 'Use a secure service address', 'Replace the address with its HTTPS version.', 'needs_review', true),
+        ));
+      }
+      continue;
+    }
+    const executable = server.command.split('/').at(-1)?.toLowerCase();
+    const usesShell = ['bash', 'sh', 'zsh'].includes(executable ?? '')
+      || (server.args ?? []).some((argument) => argument === '-c');
+    if (usesShell) {
+      findings.push(finding(
+        'connection.shell_helper', 'high', 'A connected helper starts through a command shell',
+        'Shell-based helpers can execute more than one command and are harder to restrict.',
+        'A changed helper argument could run an unintended local command.',
+        `The ${name} helper starts through ${executable ?? 'a shell'}.`,
+        [evidence('command', 'Helper program', executable ?? 'shell', 'configuration')],
+        action('connection.shell_helper', 'Use a direct helper program', 'Configure the helper executable without a command shell.', 'needs_review', true),
+      ));
+    }
+  }
+
+  const isAutomatic = Boolean(agent.schedule || agent.watch?.length);
+  const canChangeState = hasAnyPermittedTool(agent, WRITE_TOOLS)
+    || hasAnyPermittedTool(agent, COMMAND_TOOLS);
+  if (isAutomatic && canChangeState) {
+    findings.push(finding(
+      'trigger.automatic_state_change', 'high', 'This agent can make changes automatically',
+      'Scheduled and watched agents can act while you are not reviewing each run.',
+      'A mistaken instruction could change files or run a command without a fresh confirmation.',
+      agent.watch?.length ? 'A file watcher can start a state-changing run.' : 'A schedule can start a state-changing run.',
+      [evidence('trigger', 'Automatic trigger', agent.watch?.length ? 'File changes' : 'Schedule', 'configuration')],
+      action('trigger.automatic_state_change', 'Require a manual first run', 'Test the agent manually before keeping its automatic trigger.', 'needs_review', true),
     ));
   }
   return findings;
@@ -328,6 +386,7 @@ export function analyzeAgentSecurity(input: AnalysisInput): DeterministicSecurit
     ...analyzePermissions(input.agent),
     ...analyzePaths(input.agent, input.homeDir),
     ...analyzePromptAndTriggers(input.agent, input.rawContent),
+    ...analyzeConnectionsAndAutomation(input.agent),
   ];
   return {
     contentHash: computeAgentContentHash(input.rawContent),

@@ -45,6 +45,10 @@ struct Sidebar: View {
                 staleRunsBanner
                 Divider().opacity(0.3)
             }
+            if let setupError = monitor.localAPISetupError {
+                secureSetupBanner(setupError)
+                Divider().opacity(0.3)
+            }
             list
             Divider().opacity(0.3)
             footer
@@ -123,20 +127,39 @@ struct Sidebar: View {
         .background(Color.yellow.opacity(0.1))
     }
 
+    private func secureSetupBanner(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: NSpacing.xs) {
+            Label("Secure setup needed", systemImage: "lock.trianglebadge.exclamationmark")
+                .font(NTypography.caption)
+                .foregroundStyle(theme.tokens.foreground)
+            Text(message)
+                .font(NTypography.captionSmall)
+                .foregroundStyle(theme.tokens.mutedForeground)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Restart server") { monitor.requestServerRestart() }
+                .buttonStyle(.borderless)
+                .font(NTypography.caption)
+                .accessibilityIdentifier("sidebar.restartSecureSetup")
+        }
+        .padding(.horizontal, NSpacing.lg)
+        .padding(.vertical, NSpacing.sm)
+        .background(theme.tokens.warning.opacity(0.1))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Secure setup needed")
+    }
+
     /// Empty-list state when the server reports zero agents. Not shown
     /// when the server is unreachable — StatusMonitor holds `agents = []`
     /// in that case too, but we distinguish via `isServerReachable`.
     private var emptyListState: some View {
         VStack(spacing: NSpacing.sm) {
-            Image(systemName: monitor.isServerReachable ? "tray" : "bolt.horizontal.circle")
+            Image(systemName: emptyStateIcon)
                 .font(.system(size: 28))
                 .foregroundStyle(theme.tokens.mutedForeground.opacity(0.5))
-            Text(monitor.isServerReachable ? "No agents yet" : "Server offline")
+            Text(emptyStateTitle)
                 .font(NTypography.bodyMedium)
                 .foregroundStyle(theme.tokens.mutedForeground)
-            Text(monitor.isServerReachable
-                 ? "Click New agent below to create your first one."
-                 : "Start the agent server daemon to see your agents.")
+            Text(emptyStateMessage)
                 .font(NTypography.captionSmall)
                 .foregroundStyle(theme.tokens.mutedForeground.opacity(0.8))
                 .multilineTextAlignment(.center)
@@ -145,6 +168,23 @@ struct Sidebar: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, NSpacing.lg)
         .padding(.vertical, NSpacing.xl)
+    }
+
+    private var emptyStateIcon: String {
+        if monitor.localAPISetupError != nil { return "lock.trianglebadge.exclamationmark" }
+        return monitor.isServerReachable ? "tray" : "bolt.horizontal.circle"
+    }
+
+    private var emptyStateTitle: String {
+        if monitor.localAPISetupError != nil { return "Secure setup needed" }
+        return monitor.isServerReachable ? "No agents yet" : "Server offline"
+    }
+
+    private var emptyStateMessage: String {
+        if let error = monitor.localAPISetupError { return error }
+        return monitor.isServerReachable
+            ? "Click New agent below to create your first one."
+            : "Start the agent server daemon to see your agents."
     }
 
     private var footer: some View {

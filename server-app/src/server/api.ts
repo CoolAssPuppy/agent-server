@@ -1,4 +1,5 @@
 import { Hono, type Context } from 'hono';
+import { getConnInfo } from '@hono/node-server/conninfo';
 import { toErrorMessage } from '../util/errors.js';
 import { timingSafeEqual } from 'crypto';
 import { z } from 'zod';
@@ -69,7 +70,7 @@ type ApiDependencies = {
    * empty snapshot and capability lists fall back to built-ins + configured.
    */
   connections?: ConnectionSource;
-  apiKey?: string;
+  apiKey: string;
   startedAt?: string;
   host?: string;
 };
@@ -156,7 +157,7 @@ function isSameOriginRequest(request: Request, expectedHost?: string): boolean {
 
 export function createApi(deps: ApiDependencies): Hono {
   const app = new Hono();
-  const apiKey = (deps.apiKey ?? process.env.AGENT_SERVER_API_KEY ?? '').trim();
+  const apiKey = deps.apiKey.trim();
   if (apiKey.length < 16) {
     throw new Error('A strong AGENT_SERVER_API_KEY is required');
   }
@@ -166,7 +167,21 @@ export function createApi(deps: ApiDependencies): Hono {
   const authFailures = new AuthFailureTracker(10, 10 * 60_000);
 
   app.use(async (c, next) => {
-    const ip = getClientIp(c.req.raw, { trustProxyHeaders: false });
+    const isPublicHealthRequest = c.req.path === '/health'
+      && (c.req.method === 'GET' || c.req.method === 'HEAD');
+    if (isPublicHealthRequest) {
+      await next();
+      if (c.res) setSecurityHeaders(c.res.headers);
+      return c.res;
+    }
+
+    let remoteAddress: string | undefined;
+    try {
+      remoteAddress = getConnInfo(c).remote.address;
+    } catch {
+      // In-memory Hono requests used by tests do not expose Node socket data.
+    }
+    const ip = getClientIp(c.req.raw, { remoteAddress, trustProxyHeaders: false });
 
     const throttle = generalLimiter.consume(ip);
     if (!throttle.allowed) {
@@ -200,12 +215,6 @@ export function createApi(deps: ApiDependencies): Hono {
       const response = c.json({ error: 'Cross-origin mutation blocked' }, 403);
       setSecurityHeaders(response.headers);
       return response;
-    }
-
-    if (c.req.path === '/health') {
-      await next();
-      if (c.res) setSecurityHeaders(c.res.headers);
-      return c.res;
     }
 
     const requestKey = extractApiKeyHeader(c.req.raw);

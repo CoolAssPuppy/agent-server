@@ -4,6 +4,7 @@ import {
   DiagnosticResultSchema,
   FindingSchema,
   SecurityAnalysisSchema,
+  PreflightResultSchema,
 } from './models.js';
 
 const lowRiskFinding = {
@@ -75,6 +76,11 @@ describe('analysis models', () => {
   it('requires redacted, bounded evidence for a finding', () => {
     expect(FindingSchema.parse(lowRiskFinding).confidence).toBe(1);
     expect(FindingSchema.safeParse({ ...lowRiskFinding, confidence: 2 }).success).toBe(false);
+    const redacted = FindingSchema.parse({
+      ...lowRiskFinding,
+      evidence: [{ ...lowRiskFinding.evidence[0], detail: 'Authorization: Bearer secret-token-value' }],
+    });
+    expect(redacted.evidence[0].detail).not.toContain('secret-token-value');
   });
 
   it('validates deterministic and model-assisted diagnosis results', () => {
@@ -102,7 +108,7 @@ describe('analysis models', () => {
     const result = SecurityAnalysisSchema.parse({
       schema_version: 1,
       agent_id: 'weekly-summary',
-      content_hash: 'sha256:abc123',
+      content_hash: `sha256:${'a'.repeat(64)}`,
       analyzer_version: '1.0.0',
       analyzed_at: '2026-07-18T12:00:00.000Z',
       risk: { level: 'low', reasons: [], finding_count: 1 },
@@ -111,6 +117,36 @@ describe('analysis models', () => {
       model_status: 'not_needed',
     });
 
-    expect(result.content_hash).toBe('sha256:abc123');
+    expect(result.content_hash).toBe(`sha256:${'a'.repeat(64)}`);
+  });
+
+  it('rejects malformed hashes and summaries that understate findings', () => {
+    const criticalFinding = { ...lowRiskFinding, severity: 'critical' as const };
+    const base = {
+      schema_version: 1 as const,
+      agent_id: 'weekly-summary',
+      content_hash: `sha256:${'a'.repeat(64)}`,
+      analyzer_version: '1.0.0',
+      analyzed_at: '2026-07-18T12:00:00.000Z',
+      risk: { level: 'low', reasons: [], finding_count: 1 },
+      findings: [criticalFinding],
+      is_stale: false,
+      model_status: 'not_needed' as const,
+    };
+    expect(SecurityAnalysisSchema.safeParse({ ...base, content_hash: 'sha256:abc123' }).success).toBe(false);
+    expect(SecurityAnalysisSchema.safeParse(base).success).toBe(false);
+  });
+
+  it('rejects preflight decisions that allow high-risk findings', () => {
+    const result = PreflightResultSchema.safeParse({
+      schema_version: 1,
+      agent_id: 'weekly-summary',
+      content_hash: `sha256:${'a'.repeat(64)}`,
+      decision: 'allow',
+      risk: { level: 'critical', reasons: ['Embedded secret'], finding_count: 1 },
+      findings: [{ ...lowRiskFinding, severity: 'critical' }],
+      acknowledgement_required: false,
+    });
+    expect(result.success).toBe(false);
   });
 });
