@@ -643,12 +643,16 @@ export function buildMcpServers(agent: AgentConfig): Options['mcpServers'] {
       if ('command' in config) {
         servers[name] = {
           ...config,
-          env: config.env ? resolveApprovedMcpValues(name, config.env) : undefined,
+          env: config.env ? resolveApprovedMcpValues({
+            name,
+            command: config.command,
+            args: config.args,
+          }, config.env) : undefined,
         };
       } else if ('url' in config) {
         servers[name] = {
           ...config,
-          headers: config.headers ? resolveApprovedMcpValues(name, config.headers) : undefined,
+          headers: config.headers ? resolveApprovedMcpValues({ name, url: config.url }, config.headers) : undefined,
         };
       }
     }

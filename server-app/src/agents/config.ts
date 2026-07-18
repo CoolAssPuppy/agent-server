@@ -203,7 +203,10 @@ export const AgentConfigSchema = z
   .superRefine((agent, ctx) => {
     for (const [serverName, server] of Object.entries(agent.mcp_servers ?? {})) {
       const values = 'command' in server ? server.env : server.headers;
-      if (values && !areApprovedMcpReferences(serverName, values)) {
+      const owner = 'command' in server
+        ? { name: serverName, command: server.command, args: server.args }
+        : { name: serverName, url: server.url };
+      if (values && !areApprovedMcpReferences(owner, values)) {
         ctx.addIssue({
           code: 'custom',
           path: ['mcp_servers', serverName],

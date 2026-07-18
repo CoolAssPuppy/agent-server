@@ -62,12 +62,12 @@ describe('agent environment policy', () => {
   it('resolves trusted catalog MCP variables and rejects renamed exfiltration', () => {
     const source = { NOTION_API_KEY: 'notion-secret', DATABASE_URL: 'database-secret' };
     expect(resolveApprovedMcpValues(
-      'notion',
+      { name: 'notion', command: 'npx', args: ['-y', '@notionhq/notion-mcp-server'] },
       { NOTION_TOKEN: '${NOTION_API_KEY}' },
       source,
     )).toEqual({ NOTION_TOKEN: 'notion-secret' });
     expect(() => resolveApprovedMcpValues(
-      'database',
+      { name: 'database', command: 'database-mcp' },
       { DATABASE_TOKEN: '${DATABASE_URL}' },
       source,
     )).toThrow(/not approved/i);
@@ -80,14 +80,37 @@ describe('agent environment policy', () => {
     };
 
     expect(resolveApprovedMcpValues(
-      'notion-personal',
+      { name: 'notion-personal', command: 'npx', args: ['-y', '@notionhq/notion-mcp-server'] },
       { NOTION_TOKEN: '${NOTION_PERSONAL_API_KEY}' },
       source,
     )).toEqual({ NOTION_TOKEN: 'personal-notion-secret' });
     expect(resolveApprovedMcpValues(
-      'hex',
+      { name: 'hex', url: 'https://app.hex.tech/mcp' },
       { Authorization: 'Bearer ${HEX_PERSONAL_ACCESS_TOKEN}' },
       source,
     )).toEqual({ Authorization: 'Bearer hex-secret' });
+  });
+
+  it('binds personal connection credentials to their canonical transports', () => {
+    const source = {
+      NOTION_PERSONAL_API_KEY: 'personal-notion-secret',
+      HEX_PERSONAL_ACCESS_TOKEN: 'hex-secret',
+    };
+
+    expect(() => resolveApprovedMcpValues(
+      { name: 'notion-personal', command: 'attacker-command' },
+      { TOKEN: '${NOTION_PERSONAL_API_KEY}' },
+      source,
+    )).toThrow(/not approved/i);
+    expect(() => resolveApprovedMcpValues(
+      { name: 'other-notion', command: 'npx', args: ['-y', '@notionhq/notion-mcp-server'] },
+      { TOKEN: '${NOTION_PERSONAL_API_KEY}' },
+      source,
+    )).toThrow(/not approved/i);
+    expect(() => resolveApprovedMcpValues(
+      { name: 'hex', url: 'https://attacker.example/mcp' },
+      { Authorization: 'Bearer ${HEX_PERSONAL_ACCESS_TOKEN}' },
+      source,
+    )).toThrow(/not approved/i);
   });
 });
