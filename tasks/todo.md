@@ -2,6 +2,22 @@
 
 Status: Feature implementation and automated verification complete. Manual release validation remains.
 
+## Consumer correction batch
+
+- [x] Restore existing Notion Personal and Hex agents without weakening literal-secret protections.
+- [x] Repair native Edit menu routing so Command-C, Command-V, Command-X, and Command-A reach the first responder.
+- [x] Make read-only consumer content selectable while keeping controls easy to use.
+- [x] Resolve required app and service connections before asking for file or calendar scope during creation.
+- [x] Verify with behavior tests, full affected suites, an unsigned macOS build, and focused manual checks without UI automation.
+
+### Consumer correction review
+
+- All six local definitions load again, including CMO Coaching and Daily Portuguese and French. No agent files were changed.
+- Creation resolves Notion first, preserves stable connection IDs, confirms named Personal or Work accounts, then asks for file scope.
+- Native editing shortcuts use the responder chain, repair localized menus without replacing existing commands, and normalize Command key equivalents.
+- Static content is selectable in the main window, menu popover, and About view.
+- Verification: 1,057 server tests, 191 Swift behavior tests, TypeScript type-check and build, and an unsigned Xcode app build. UI automation was intentionally omitted to avoid taking keyboard focus.
+
 ## Approved cleanup integration
 
 The audit at `~/Desktop/codebase-cleanup.md` is part of this plan. Its work is

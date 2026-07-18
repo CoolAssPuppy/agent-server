@@ -12,3 +12,8 @@
 - macOS UI tests take control of keyboard focus and can interrupt the user's work. Run them only in a clearly agreed window, stop after one useful result, and use non-interactive builds and state tests for later verification.
 - A routed view can still feel modal when its geometry enters from the window edge. For a sidebar action that opens a drawer, verify the panel is clipped to the main-pane slot and enters from the sidebar boundary. Match requested navigation labels and order exactly.
 - A new app can still talk to an old daemon after relaunch. Version the local API, test live upgrade behavior, and verify absolute system-tool paths on the target macOS environment instead of assuming `/usr/bin`.
+- A consumer creation flow must resolve required services before resource scope. Offer an existing connection or setup first, then ask for the exact files, folders, calendars, and write access that service will use.
+- Never let a new credential allowlist silently hide existing agents. Test compatibility with every supported connection-variable alias and surface invalid definitions with an actionable reason.
+- A SwiftUI app lifecycle can replace an AppKit menu installed during launch. Verify the live menu and repair native responder-chain commands after activation instead of adding field-specific keyboard handlers.
+- Treat an account qualifier such as Personal or Work as a user decision. Never auto-select a different account merely because it is the only connected service.
+- When repairing a native menu, keep references to menu objects across insertions and normalize both selectors and keyboard equivalents. Array indices and English menu titles are not stable macOS contracts.
