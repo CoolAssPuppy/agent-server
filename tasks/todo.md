@@ -8,7 +8,15 @@ Status: Native service integration and final release verification are complete.
 - [x] Present exact Notion accounts as clear connected choices.
 - [x] Replace the sidebar footer card with aligned native action rows.
 - [x] Remove duplicate schedule glyphs and make agent rows keyboard-accessible buttons.
-- [x] Verify focused Swift behavior and the unsigned app build without UI automation.
+- [x] Verify 209 Swift tests and the unsigned app build without UI automation.
+
+## Answered-question fallback correction
+
+- [x] Add failing coverage for model failure after exact service and file answers.
+- [x] Produce a validated local proposal without repeating answered questions.
+- [x] Preserve the confirmed Notion identity, file grants, and simple daily schedule.
+- [x] Prove unrelated workflows do not receive Notion.
+- [x] Verify 1,139 server tests, lint, type-check, and build.
 
 ## Proposal timeout correction
 
@@ -63,7 +71,7 @@ The consumer-facing file-access control should present one clear action. The nat
 - Contacts is read-only, does not return stable contact IDs, limits returned fields, and disables linked-contact unification so an approved account cannot pull details from another account.
 - Contacts combined with network, messaging, or any non-EventKit MCP output is classified as high risk.
 - Apple Music remains a documented unavailable capability until MusicKit signing and a read-only runtime are verified.
-- Verification: 1,136 server tests across 83 files, 207 Swift tests, TypeScript type-check and build, plus unsigned app and helper builds. UI automation was not run during the final pass.
+- Verification: 1,139 server tests across 83 files, 209 Swift tests, TypeScript type-check and build, plus unsigned app and helper builds. UI automation was not run during the final pass.
 
 ## Consumer correction batch
 

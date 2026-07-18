@@ -1,6 +1,6 @@
 # Feature commits
 
-This is the complete chronological commit list after baseline `5b779736985e918874b80b390372be71645dc19a` through verified implementation head `2934f88`.
+This is the complete chronological commit list after baseline `5b779736985e918874b80b390372be71645dc19a` through verified implementation head `fa584b8`.
 
 1. `65d033a` Harden local execution and add analysis foundation
 2. `919c6fe` Simplify local security and reliability policies
@@ -81,3 +81,6 @@ This is the complete chronological commit list after baseline `5b779736985e91887
 77. `32e80ec` Complete chronological feature history
 78. `f165d34` Unify file and folder selection
 79. `2934f88` Give local proposals time to finish
+80. `e6c550b` Record proposal timeout verification
+81. `6291920` Clarify Notion choice and sidebar navigation
+82. `fa584b8` Finish proposals safely without model output

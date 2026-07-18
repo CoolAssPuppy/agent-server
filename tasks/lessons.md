@@ -29,4 +29,5 @@
 - Treat every model-provided connection label and risk summary as untrusted presentation data. Replace connection metadata from the current registry and recompute risk after server-owned resource grants are applied, before showing the proposal.
 - A server-side patch preview is not user review. Show the exact consumer summary and sanitized advanced changes, then bind approval to the preview hash before applying a high-risk fix.
 - Local model requests cannot share the short timeout used for health polling. Set route-specific client timeouts from the server's bounded model budget, including its retry allowance, or the app will abandon a request that is still working correctly.
+- A model fallback must consume the same structured answers as the main proposal path. Never return a question whose identifier is already answered. Once required service and resource scopes are confirmed, build a validated least-privilege local proposal instead of trapping the consumer in retry.
 - Apple framework authorization cases differ by platform even inside shared SDKs. Compile the actual macOS target before accepting an iOS-family authorization state as available.
