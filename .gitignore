@@ -49,3 +49,4 @@ xcuserdata/
 macos-app/AgentServerSwiftTests/.build/
 macos-app/AgentServerSwiftTests/.swiftpm/
 .worktrees/
+.wrangler/

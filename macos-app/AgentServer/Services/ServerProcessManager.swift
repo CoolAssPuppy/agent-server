@@ -3,12 +3,14 @@ import Foundation
 @MainActor
 final class ServerProcessManager {
     private var serverProcess: Process?
-    private var didStartServer = false
+    private var lifecycle = ServerProcessLifecycle()
+    private(set) var lastError: ServerProcessManagerError?
 
     private let healthURL = LocalServerEndpoint.httpURL(port: 47821)!
         .appendingPathComponent("health")
 
     private static let locationKey = "AGENT_SERVER_LOCATION"
+    private static let nodePathKey = "AGENT_SERVER_NODE_PATH"
 
     private var serverDirectory: String? {
         // Precedence: 1) UserDefaults, 2) .env, 3) bundled, 4) bundle-adjacent.
@@ -23,7 +25,7 @@ final class ServerProcessManager {
                 .first(where: { FileManager.default.fileExists(atPath: "\($0)/dist/cli.js") }) {
                 return match
             }
-            print("[ServerProcessManager] AGENT_SERVER_LOCATION is set but dist/cli.js not found at \(configured)")
+            record(.invalidServerLocation)
         }
 
         let fallbacks = [bundledResourcePath, bundleAdjacentPath]
@@ -45,10 +47,16 @@ final class ServerProcessManager {
     }
 
     static func configuredLocation() -> String? {
-        if let fromDefaults = UserDefaults.standard.string(forKey: locationKey), !fromDefaults.isEmpty {
+        configuredValue(forKey: locationKey)
+    }
+
+    private static func configuredValue(forKey key: String) -> String? {
+        if let fromDefaults = UserDefaults.standard.string(forKey: key), !fromDefaults.isEmpty {
             return fromDefaults
         }
-
+        if let inherited = ProcessInfo.processInfo.environment[key], !inherited.isEmpty {
+            return inherited
+        }
         let envPath = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".agent-server/.env").path
         if let content = try? String(contentsOfFile: envPath, encoding: .utf8) {
@@ -56,8 +64,8 @@ final class ServerProcessManager {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
                 if trimmed.hasPrefix("#") || trimmed.isEmpty { continue }
                 guard let eqIndex = trimmed.firstIndex(of: "=") else { continue }
-                let key = String(trimmed[trimmed.startIndex..<eqIndex]).trimmingCharacters(in: .whitespaces)
-                if key == locationKey {
+                let parsedKey = String(trimmed[trimmed.startIndex..<eqIndex]).trimmingCharacters(in: .whitespaces)
+                if parsedKey == key {
                     var value = String(trimmed[trimmed.index(after: eqIndex)...]).trimmingCharacters(in: .whitespaces)
                     if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
                        (value.hasPrefix("'") && value.hasSuffix("'")) {
@@ -98,19 +106,11 @@ final class ServerProcessManager {
         return FileManager.default.isExecutableFile(atPath: candidate) ? candidate : nil
     }
 
-    private var nodePath: String {
-        let candidates = [
-            "/opt/homebrew/bin/node",
-            "/usr/local/bin/node",
-            "/usr/bin/node",
-        ]
-        return candidates.first { FileManager.default.fileExists(atPath: $0) } ?? "node"
-    }
-
     func startIfNeeded() async {
         let alreadyRunning = await isServerRunning()
+        guard !Task.isCancelled else { return }
         if alreadyRunning {
-            didStartServer = false
+            lifecycle.observedExistingServer()
             return
         }
 
@@ -118,60 +118,39 @@ final class ServerProcessManager {
     }
 
     func stopIfWeStarted() {
-        guard didStartServer, let process = serverProcess, process.isRunning else { return }
+        guard lifecycle.shouldStopProcess, let process = serverProcess, process.isRunning else { return }
         process.terminate()
         serverProcess = nil
-        didStartServer = false
+        lifecycle.didStopServer()
     }
 
     func restart() async {
         if let process = serverProcess, process.isRunning {
             process.terminate()
-            process.waitUntilExit()
+            await Self.waitUntilExit(process)
             serverProcess = nil
-            didStartServer = false
+            lifecycle.didStopServer()
         } else {
             await killExternalServer()
         }
+        guard !Task.isCancelled else { return }
         launchServer()
     }
 
     private func killExternalServer() async {
         guard await isServerRunning() else { return }
 
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/lsof")
-        task.arguments = ["-ti", "tcp:47821"]
-
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = FileHandle.nullDevice
-
         do {
-            try task.run()
-            task.waitUntilExit()
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            guard let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !output.isEmpty else { return }
-
-            // Strictly accept only well-formed decimal PIDs. lsof's output
-            // should already be numeric, but pinning the shape avoids
-            // sending SIGTERM to anything unexpected if lsof behavior
-            // drifts across macOS versions.
-            let digitsOnly = CharacterSet(charactersIn: "0123456789")
-            for rawLine in output.components(separatedBy: .newlines) {
-                let trimmed = rawLine.trimmingCharacters(in: .whitespaces)
-                guard !trimmed.isEmpty,
-                      trimmed.unicodeScalars.allSatisfy({ digitsOnly.contains($0) }),
-                      let pid = Int32(trimmed), pid > 0 else { continue }
+            let pids = try await Self.externalServerPIDs()
+            try Task.checkCancellation()
+            for pid in pids {
                 kill(pid, SIGTERM)
-                print("[ServerProcessManager] Sent SIGTERM to external server (PID \(pid))")
             }
-
             try? await Task.sleep(for: .seconds(1))
+        } catch is CancellationError {
+            return
         } catch {
-            print("[ServerProcessManager] Failed to find external server process: \(error)")
+            record(.externalProcessLookupFailed)
         }
     }
 
@@ -191,25 +170,33 @@ final class ServerProcessManager {
 
     private func launchServer() {
         guard let dir = serverDirectory else {
-            print("[ServerProcessManager] Could not find agent-server directory with dist/cli.js")
+            record(.serverDirectoryNotFound)
             return
         }
 
         let cliPath = "\(dir)/dist/cli.js"
 
+        var environment = ProcessInfo.processInfo.environment
+        let childPath = environment["PATH"] ?? ""
+        let nodePath: String
+        do {
+            nodePath = try NodeExecutableResolver.resolve(
+                override: Self.configuredValue(forKey: Self.nodePathKey),
+                path: childPath,
+                isExecutable: FileManager.default.isExecutableFile(atPath:)
+            )
+        } catch NodeExecutableResolutionError.invalidOverride {
+            record(.invalidNodeOverride)
+            return
+        } catch {
+            record(.nodeNotFound)
+            return
+        }
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: nodePath)
         process.arguments = [cliPath, "start"]
         process.currentDirectoryURL = URL(fileURLWithPath: dir)
-
-        var environment = ProcessInfo.processInfo.environment
-        environment["PATH"] = [
-            "/opt/homebrew/bin",
-            "/usr/local/bin",
-            "/usr/bin",
-            "/bin",
-            environment["PATH"] ?? "",
-        ].joined(separator: ":")
 
         if let eventKitBin = Self.bundledEventKitHelperPath() {
             environment["AGENT_SERVER_EVENTKIT_BIN"] = eventKitBin
@@ -226,10 +213,63 @@ final class ServerProcessManager {
         do {
             try process.run()
             serverProcess = process
-            didStartServer = true
-            print("[ServerProcessManager] Started server (PID \(process.processIdentifier))")
+            lifecycle.didLaunchServer()
+            lastError = nil
         } catch {
-            print("[ServerProcessManager] Failed to start server: \(error)")
+            record(.launchFailed)
+        }
+    }
+
+    private nonisolated static func waitUntilExit(_ process: Process) async {
+        await Task.detached(priority: .utility) {
+            process.waitUntilExit()
+        }.value
+    }
+
+    private nonisolated static func externalServerPIDs() async throws -> [Int32] {
+        try await Task.detached(priority: .utility) {
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: "/usr/bin/lsof")
+            task.arguments = ["-ti", "tcp:47821"]
+            let pipe = Pipe()
+            task.standardOutput = pipe
+            task.standardError = FileHandle.nullDevice
+            try task.run()
+            task.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(decoding: data, as: UTF8.self)
+            return ExternalProcessPIDParser.parse(output)
+        }.value
+    }
+
+    private func record(_ error: ServerProcessManagerError) {
+        lastError = error
+        print("[ServerProcessManager] \(error.localizedDescription)")
+    }
+}
+
+enum ServerProcessManagerError: LocalizedError, Equatable {
+    case invalidServerLocation
+    case serverDirectoryNotFound
+    case invalidNodeOverride
+    case nodeNotFound
+    case launchFailed
+    case externalProcessLookupFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidServerLocation:
+            return "The configured server location does not contain a built server."
+        case .serverDirectoryNotFound:
+            return "The local server directory could not be found."
+        case .invalidNodeOverride:
+            return "The configured Node executable is not available."
+        case .nodeNotFound:
+            return "Node could not be found in the child process PATH."
+        case .launchFailed:
+            return "The local server could not be started."
+        case .externalProcessLookupFailed:
+            return "The existing local server process could not be inspected."
         }
     }
 }
