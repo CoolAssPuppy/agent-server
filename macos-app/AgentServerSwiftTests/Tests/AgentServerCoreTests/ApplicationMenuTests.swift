@@ -14,6 +14,14 @@ final class ApplicationMenuTests: XCTestCase {
 
         let items = StandardEditMenu.requiredItems(missing: Set(["cut:", "selectAll:"]))
         XCTAssertEqual(Set(items.compactMap { $0.action.map(NSStringFromSelector) }), Set(["cut:", "selectAll:"]))
+
+        let localizedMenu = NSMenu(title: "Bearbeiten")
+        localizedMenu.addItem(NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: ""))
+        StandardEditMenu.repair(localizedMenu)
+        let copy = localizedMenu.items.first { $0.action == #selector(NSText.copy(_:)) }
+        XCTAssertEqual(copy?.keyEquivalent, "c")
+        XCTAssertEqual(copy?.keyEquivalentModifierMask, .command)
+        XCTAssertTrue(localizedMenu.items.contains { $0.action == #selector(NSText.paste(_:)) })
     }
 
     func testEditMenuUsesNativeResponderChainCommands() {

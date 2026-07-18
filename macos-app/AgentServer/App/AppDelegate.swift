@@ -89,17 +89,19 @@ private extension AppDelegate {
         let menuActions = mainMenu.items.map { item in
             item.submenu?.items.compactMap { $0.action.map(NSStringFromSelector) } ?? []
         }
+        let fileMenu = zip(mainMenu.items, menuActions)
+            .first(where: { ApplicationMenuPolicy.isFileMenu(actionNames: $0.1) })?.0.submenu
+        let editMenu = zip(mainMenu.items, menuActions)
+            .first(where: { ApplicationMenuPolicy.isEditMenu(actionNames: $0.1) })?.0.submenu
         if !menuActions.joined().contains(NSStringFromSelector(#selector(showNewAgent))) {
-            if let index = menuActions.firstIndex(where: ApplicationMenuPolicy.isFileMenu) {
-                mainMenu.items[index].submenu?.insertItem(makeNewAgentMenuItem(), at: 0)
+            if let fileMenu {
+                fileMenu.insertItem(makeNewAgentMenuItem(), at: 0)
             } else {
                 mainMenu.insertItem(makeFileMenuItem(), at: min(1, mainMenu.items.count))
             }
         }
-        if let index = menuActions.firstIndex(where: ApplicationMenuPolicy.isEditMenu),
-           let editMenu = mainMenu.items[index].submenu {
-            let missing = ApplicationMenuPolicy.missingEditActions(actionNames: menuActions[index])
-            StandardEditMenu.requiredItems(missing: missing).forEach(editMenu.addItem)
+        if let editMenu {
+            StandardEditMenu.repair(editMenu)
         } else {
             let item = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
             item.submenu = StandardEditMenu.make()

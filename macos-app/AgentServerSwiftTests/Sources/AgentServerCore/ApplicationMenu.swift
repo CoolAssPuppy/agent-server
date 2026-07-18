@@ -34,14 +34,32 @@ public enum StandardEditMenu {
 
     @MainActor
     public static func requiredItems(missing actionNames: Set<String>) -> [NSMenuItem] {
+        requiredItems.filter { item in
+            item.action.map(NSStringFromSelector).map(actionNames.contains) == true
+        }
+    }
+
+    @MainActor
+    public static func repair(_ menu: NSMenu) {
+        for required in requiredItems {
+            guard let action = required.action else { continue }
+            if let existing = menu.items.first(where: { $0.action == action }) {
+                existing.keyEquivalent = required.keyEquivalent
+                existing.keyEquivalentModifierMask = required.keyEquivalentModifierMask
+            } else {
+                menu.addItem(required)
+            }
+        }
+    }
+
+    @MainActor
+    private static var requiredItems: [NSMenuItem] {
         [
             command("Cut", action: #selector(NSText.cut(_:)), key: "x"),
             command("Copy", action: #selector(NSText.copy(_:)), key: "c"),
             command("Paste", action: #selector(NSText.paste(_:)), key: "v"),
             command("Select All", action: #selector(NSText.selectAll(_:)), key: "a"),
-        ].filter { item in
-            item.action.map(NSStringFromSelector).map(actionNames.contains) == true
-        }
+        ]
     }
 
     @MainActor
