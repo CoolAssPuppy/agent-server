@@ -64,7 +64,7 @@ function stableValue(value: unknown): unknown {
 }
 
 function safeDisplayName(value: string, maxLength = 120): string {
-  return value.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, maxLength);
+  return value.replace(/\p{Cc}+/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, maxLength);
 }
 
 function safeIdentifier(value: string, maxLength = 72): string {
