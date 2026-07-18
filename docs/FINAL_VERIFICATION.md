@@ -1,8 +1,8 @@
 # Final verification report
 
-Status: Pending final feature integration
+Status: Non-interactive verification passed; signed UI suite passed once
 
-This report is the release checklist and evidence record for the `creation-experience` branch. Replace pending values only after running the commands against the final committed tree.
+This report records automated verification for the `creation-experience` branch. Manual release checks remain clearly separated below.
 
 ## Scope
 
@@ -17,35 +17,48 @@ This report is the release checklist and evidence record for the `creation-exper
 
 - Baseline: `5b779736985e918874b80b390372be71645dc19a`
 - Branch: `creation-experience`
-- Head: Pending
-- Worktree clean: Pending
+- Verified feature head: `2f523fe`
+- Worktree clean before closeout documentation edits: Yes
 - Primary Codex session ID: `019f7458-705a-7fe2-8819-b2bf9f383298`
 
 ## Commit list
 
 1. `65d033a` Harden local execution and add analysis foundation
 2. `919c6fe` Simplify local security and reliability policies
-3. Pending later feature commits
-
-Use this command to capture the final branch list:
-
-```bash
-git log --oneline 5b779736985e918874b80b390372be71645dc19a..HEAD
-```
+3. `2a3b249` Add structured security proposal and diagnostic services
+4. `f73f3b1` Fix confirmed network patch materialization
+5. `47e5d5e` Add native creation debugger and security flows
+6. `3e4e61c` Document consumer agent tools and demo
+7. `40e8e1b` Wire guided creation and validated debugging
+8. `866fe30` Integrate guided creation security and debugging APIs
+9. `aacac2b` Split macOS guidance and security services
+10. `53a6cfe` Harden macOS process management and local hygiene
+11. `7b43031` Enforce reviewed execution and linked recovery
+12. `5d60414` Simplify run trigger contract
+13. `67f41a6` Add similar-agent and connection guidance flows
+14. `d3877ef` Polish guided creation source layout
+15. `f56645e` Remove tracked Xcode user state
+16. `5b920a1` Extract tested server run lifecycle
+17. `bcf7502` Clarify lifecycle integration boundary
+18. `c40aa0d` Add deterministic macOS consumer UI flows
+19. `09d8ddc` Inherit shared UI test signing settings
+20. `36e6efa` Add Create Agent to main navigation
+21. `2f523fe` Consolidate macOS environment and run history state
 
 ## Automated checks
 
 | Check | Result | Evidence |
 |---|---|---|
-| Server behavior tests | Pending | Record test and file totals |
-| Server coverage | Pending | Record lines, branches, functions, and statements |
-| Server lint | Pending | Record command exit status |
-| TypeScript strict check | Pending | Record command exit status |
-| Server production build | Pending | Record command exit status |
-| Swift behavior tests | Pending | Record test total |
-| macOS unsigned build | Pending | Record Xcode scheme, SDK, and result |
+| Server behavior tests | Passed | 1,045 tests across 80 files |
+| Server coverage | Passed | 78.82% statements, 74.59% branches, 80.28% functions, 80.23% lines |
+| Server lint | Passed | `pnpm lint` exited successfully |
+| TypeScript strict check | Passed | `pnpm type-check` exited successfully |
+| Server production build | Passed | `pnpm build` exited successfully |
+| Swift behavior tests | Passed | 180 tests |
+| Signed macOS UI tests | Passed once | All four tests completed in 34.8 seconds. A later redundant rerun was interrupted after another app stole focus and UI testing stopped at the user's request. |
+| macOS application build | Passed | `AgentServer` scheme built successfully during final verification |
 | Demo fixture parsing | Passed during documentation batch | `build-week-github-slack.md` parsed as `AgentConfig`; both JSON files parsed |
-| Diff whitespace check | Pending | `git diff --check` |
+| Diff whitespace check | Passed | `git diff --check` |
 
 ## Required commands
 
@@ -76,58 +89,67 @@ xcodebuild \
 
 ## Behavior verification
 
+The UI results below come from the complete signed four-test run. They were not repeated as part of the final non-interactive gate because macOS UI automation took focus from the user's active session.
+
 | Flow | Result | Notes |
 |---|---|---|
-| Create a read-only scheduled agent | Pending | |
-| Create an agent with a missing connection | Pending | |
-| Save and run a safe test | Pending | |
-| Open a failed run in Agent Debugger | Pending | |
-| Preview, apply, and retry a low-risk fix | Pending | |
-| Detect and redact an embedded fake secret | Pending | |
-| Narrow broad folder access | Pending | |
-| Review a high-risk agent before first run | Pending | |
-| Scan all agents and mark one reviewed | Pending | |
-| Detect a stale security review after edit | Pending | |
-| Reject a stale patch | Pending | |
-| Undo an eligible patch | Pending | |
+| Create a read-only scheduled agent | Passed in UI automation | Creation scenario verifies the Friday schedule and read-only state |
+| Create an agent with a missing connection | Passed in UI automation | Slack appears as needing setup with a setup action |
+| Save and run a safe test | Passed in UI automation | Creation scenario verifies saved and ready states |
+| Open a failed run in Agent Debugger | Passed in UI automation | Debugger scenario opens bounded consumer evidence |
+| Preview, apply, and retry a low-risk fix | Passed in UI automation | Fix review and linked retry preserve the failed run |
+| Detect and redact an embedded fake secret | Passed in behavior and UI automation | Secret finding remains after the independent folder fix; redaction is covered by server tests |
+| Narrow broad folder access | Passed in UI automation | Reviewed fix removes the broad-home finding |
+| Review a high-risk agent before first run | Passed in UI automation | Save requires an explicit review sheet and Cancel preserves the proposal |
+| Scan all agents and mark one reviewed | Passed in Swift and server behavior tests | Dashboard and review-state payloads are covered without external data |
+| Detect a stale security review after edit | Passed in server behavior tests | Review state is keyed to the content hash |
+| Reject a stale patch | Passed in server behavior tests | Compare-and-swap rejects changed source content |
+| Undo an eligible patch | Passed in server behavior tests | Bounded rollback restores unchanged source state |
 
 ## Accessibility and appearance
 
-- VoiceOver: Pending
-- Keyboard-only operation: Pending
-- Logical focus order: Pending
-- Non-color risk indicators: Pending
-- Reduced motion: Pending
-- Large text: Pending
-- Light appearance: Pending
-- Dark appearance: Pending
-- Accessibility identifiers in critical flows: Pending
+- VoiceOver and Accessibility Inspector: Manual validation not yet recorded
+- Keyboard-only operation and logical focus order: Manual validation not yet recorded
+- Non-color risk indicators: Covered by presentation behavior tests; manual appearance review remains
+- Reduced motion: Manual system-setting validation not yet recorded; new consumer states do not depend on motion for meaning
+- Large text: Manual validation not yet recorded
+- Light and dark appearance: Five SwiftUI previews are provided; screenshot and manual contrast evidence are not recorded
+- Accessibility identifiers in critical flows: Covered by Swift tests and used by the signed UI suite
 
 ## Privacy and security checks
 
-- Protected local API rejects missing or invalid authority: Pending
-- Child runtime receives only approved environment values: Pending
-- Model prompts contain bounded redacted evidence: Pending
-- Literal fake credentials never appear in logs or returned evidence: Pending
-- Critical risk blocks preflight until review: Pending
-- Automated patch policy rejects unrestricted access and arbitrary commands: Pending
-- Review state becomes stale after content change: Pending
+- Protected local API rejects missing or invalid authority: Passed in server behavior tests
+- Child runtime receives only approved environment values: Passed in server behavior tests
+- Model prompts contain bounded redacted evidence: Passed in server behavior tests
+- Literal fake credentials never appear in logs or returned evidence: Passed in redaction and security-rule tests
+- Critical risk blocks preflight until resolved: Passed in server behavior tests
+- Automated patch policy rejects unrestricted access and arbitrary commands: Passed in server behavior tests
+- Review state becomes stale after content change: Passed in server behavior tests
 - Demo fixtures contain no credentials or personal paths: Passed during documentation batch
 
 ## Baseline comparison
 
-Record any intentional changes to existing agent parsing, scheduling, execution, run history, connections, and menu bar behavior. Existing agents should remain compatible. No permission, schedule, connection, model, or file scope should change without an approved user action.
+Existing agent Markdown and YAML remain the source of truth and continue through the existing parser, scheduler, runtime, connection, and run-history systems. The main intentional execution change is a shared security preflight for manual and automatic trigger paths. Unreviewed automatic high-risk runs are skipped and recorded; critical configurations are blocked until fixed. Safe tests use an ephemeral restricted configuration and do not change the saved agent. No permission, schedule, connection, model, or file scope changes without an approved patch.
+
+The cleanup work also extracted the server run lifecycle, split macOS guidance and security services, isolated child environments, fixed runtime path resolution and process waiting, bounded tracking state, and removed tracked machine-local files.
 
 ## Known limitations
 
-Copy the final validated limitations from `BUILD_WEEK.md` and add any issues found during manual testing.
+- Model-assisted steps require an available structured-output runtime.
+- Some connection authorization remains service-specific.
+- Failed-run notifications do not yet open the Debugger directly. Failed run detail, agent detail, and context actions provide debugger entry points.
+- Static connection secrets remain in the existing owner-only local environment file. A Keychain migration needs a matching server token bridge.
+- Static analysis cannot guarantee that an approved agent will behave safely.
+- Bounded undo is unavailable after a conflicting file edit.
+- Manual VoiceOver, Accessibility Inspector, keyboard-only, large-text, reduced-motion, and light and dark appearance validation is not yet recorded.
+- Five SwiftUI previews are provided instead of standalone screenshot artifacts.
 
 ## Final decision
 
-Release recommendation: Pending
+Release recommendation: Ready for product and manual release validation
 
-Open blockers: Pending
+Open blockers: None found by the non-interactive automated verification. Complete the manual accessibility and appearance matrix before release distribution. If UI automation is repeated, run it in an isolated session where other applications cannot steal focus.
 
-Reviewer: Pending
+Reviewer: Codex automated verification
 
-Verification date: Pending
+Verification date: 2026-07-18

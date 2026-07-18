@@ -1,6 +1,6 @@
 # Build Week plan: Guided creation, debugging, and security
 
-Status: Approved. Implementation in progress.
+Status: Feature implementation and automated verification complete. Manual release validation remains.
 
 ## Approved cleanup integration
 
@@ -14,17 +14,16 @@ features depend on them:
   environment substitution, same-origin and Host validation, WebSocket and
   terminal-payload redaction, file-log redaction, real client address rate
   limiting, and heartbeat correction.
-- [ ] Milestone 2 reliability: split Swift transport and decoding failures,
+- [x] Milestone 2 reliability: split Swift transport and decoding failures,
   resolve Node through the configured child PATH, move process waiting off the
   main actor, wire or remove dead settings toggles, and bound tracking sets.
-- [ ] Milestones 2 through 5 structural work: extract run lifecycle, split the
-  capability catalog and Claude executor, consolidate permission decisions, make
-  `StatusMonitor` injectable, consolidate env parsing, and merge connection
-  sheets when the touched feature needs the seam.
-- [ ] Milestone 7 cleanup: remove verified dead server and macOS code with its
-  dedicated tests, fix stale documentation, replace the inaccurate `AGENTS.md`,
-  untrack `.wrangler/`, and apply the listed focused hygiene fixes that do not
-  require a separate product decision.
+- [x] Structural work needed by these features: extract the tested run lifecycle,
+  consolidate permission decisions, split macOS guidance and security services,
+  isolate environment-file access, and add focused process and endpoint seams.
+- [x] Local hygiene in scope: untrack Wrangler and Xcode user state, remove the
+  replaced creation sheet, and update feature documentation. Broader catalog,
+  executor, and generated project-instruction cleanup remains outside this
+  feature branch unless a future change needs those seams.
 - [ ] Defer Keychain migration until the server has a matching token bridge.
   Keep the current `0600` local secret store during this implementation.
 
@@ -171,7 +170,7 @@ narrow capability that can be tested without side effects.
   current duplicate run-ID behavior.
 - [x] Add shared analysis models and discriminated unions.
 - [x] Replace narrow regex-only redaction with bounded, context-aware redaction.
-- [ ] Reject literal provider credentials at schema and patch boundaries.
+- [x] Reject literal provider credentials at schema and patch boundaries.
 - [x] Sanitize WebSocket metadata and stored diagnostic evidence.
 - [x] Unify run IDs across API, store, reporter, WebSocket, cancellation, and
   lock-contention paths.
@@ -179,149 +178,162 @@ narrow capability that can be tested without side effects.
 
 ### 2. Security analyzer and review state
 
-- [ ] Write failing behavior tests for each deterministic security rule.
-- [ ] Add normalized sensitive-path detection for home roots, hidden secrets,
+- [x] Write failing behavior tests for each deterministic security rule.
+- [x] Add normalized sensitive-path detection for home roots, hidden secrets,
   SSH, cloud credentials, browser profiles, Keychain data, signing material,
   application support, `.env`, and password stores.
-- [ ] Add redacted secret detection for YAML, Markdown, URLs, headers, provider
+- [x] Add redacted secret detection for YAML, Markdown, URLs, headers, provider
   config, MCP config, and prompts.
-- [ ] Analyze tools, denials, permissions, sandbox, network, working directory,
+- [x] Analyze tools, denials, permissions, sandbox, network, working directory,
   watch paths, schedules, endpoints, notification targets, interaction targets,
   chaining, command arguments, and automatic triggers.
-- [ ] Add semantic prompt-risk analysis through validated local Codex output.
-- [ ] Merge deterministic and semantic findings without allowing the model to
+- [x] Add semantic prompt-risk analysis through validated local Codex output.
+- [x] Merge deterministic and semantic findings without allowing the model to
   downgrade deterministic severity.
-- [ ] Cache analysis by content hash and analyzer version.
-- [ ] Add local review records, acknowledgements, staleness, and redacted report
+- [x] Cache analysis by content hash and analyzer version.
+- [x] Add local review records, acknowledgements, staleness, and redacted report
   export data.
-- [ ] Add security analysis, global summary, mark-reviewed, and preflight API
+- [x] Add security analysis, global summary, mark-reviewed, and preflight API
   routes.
 
 ### 3. Structured patch preview, apply, and undo
 
-- [ ] Expand `AgentPatchSchema` to cover working directory, permissions, Codex
+- [x] Expand `AgentPatchSchema` to cover working directory, permissions, Codex
   sandbox, MCP servers, watches, triggers, interactions, conversations,
   telemetry, model settings, notifications, and enabled state.
-- [ ] Define low, medium, high, and forbidden patch operations.
-- [ ] Reject attempts to grant `danger-full-access`, unrestricted home access,
+- [x] Define low, medium, high, and forbidden patch operations.
+- [x] Reject attempts to grant `danger-full-access`, unrestricted home access,
   arbitrary command execution, credentials, deletion, or unrelated-agent edits
   through automated fixes.
-- [ ] Add preview with consumer changes, safety impact, exact redacted diff, and
+- [x] Add preview with consumer changes, safety impact, exact redacted diff, and
   expected source hash.
-- [ ] Add apply with complete-result validation and an audit record containing
+- [x] Add apply with complete-result validation and an audit record containing
   source, time, before hash, after hash, and affected fields.
-- [ ] Add bounded backup restore for Undo.
-- [ ] Test unknown-field and comment preservation, concurrent file edits,
+- [x] Add bounded backup restore for Undo.
+- [x] Test unknown-field and comment preservation, concurrent file edits,
   malformed input, stale previews, rollback, and nested-field limitations.
 
 ### 4. Conversational agent creation
 
-- [ ] Define and test `AgentProposalSchema` with name, description,
+- [x] Define and test `AgentProposalSchema` with name, description,
   instructions, trigger, schedule, timezone, capabilities, connections, paths,
   read/write intent, commands, network, notifications, runtime, risk,
   explanation, missing information, and required questions.
-- [ ] Add a dedicated least-privilege generation prompt and strict local Codex
+- [x] Add a dedicated least-privilege generation prompt and strict local Codex
   adapter with timeout, cancellation, one validation retry, and deterministic
   fallback.
-- [ ] Map proposal capabilities to the existing server capability catalog and
+- [x] Map proposal capabilities to the existing server capability catalog and
   current connection readiness.
-- [ ] Generate frontmatter plus Markdown with explicit permissions, safe
+- [x] Generate frontmatter plus Markdown with explicit permissions, safe
   defaults, success criteria, output expectations, missing-data behavior,
   secret handling, and destructive-action constraints.
-- [ ] Extend creation to save every proposal field without creating a second
+- [x] Extend creation to save every proposal field without creating a second
   config format.
-- [ ] Support source-agent redacted cloning and proposal differences.
-- [ ] Run the security analyzer before save and preflight before safe test.
-- [ ] Add a safe-test run mode and typed outcome.
+- [x] Support source-agent redacted cloning and proposal differences.
+- [x] Run the security analyzer before save and preflight before safe test.
+- [x] Add a safe-test run mode and typed outcome.
 
 ### 5. Deterministic and model-assisted debugger
 
-- [ ] Persist the bounded evidence required for local diagnosis without Agent
+- [x] Persist the bounded evidence required for local diagnosis without Agent
   Panel.
-- [ ] Add checks for malformed files, schedules, time zones, paths, permissions,
+- [x] Add checks for malformed files, schedules, time zones, paths, permissions,
   connections, environment references, runtimes, models, endpoints, network,
   sandbox, notifications, locks, active runs, and expected outputs.
-- [ ] Add known-error heuristics with consumer explanations and evidence.
-- [ ] Add a redacted Codex diagnosis only after local checks, with strict schema,
+- [x] Add known-error heuristics with consumer explanations and evidence.
+- [x] Add a redacted Codex diagnosis only after local checks, with strict schema,
   confidence, alternatives, risk, affected settings, and safe-rerun guidance.
-- [ ] Add repair preview through the shared patch system.
-- [ ] Add apply, retry linkage, resolution comparison, and undo.
-- [ ] Add prevention guidance based on the resolved deterministic cause.
+- [x] Add repair preview through the shared patch system.
+- [x] Add apply, retry linkage, resolution comparison, and undo.
+- [x] Add prevention guidance based on the resolved deterministic cause.
 
 ### 6. Native macOS experience
 
-- [ ] Preserve the current sheet host and rebuild `CreateAgentSheet` as a guided
+- [x] Preserve the current sheet host and rebuild `CreateAgentSheet` as a guided
   state machine: describe, answer, proposal, connections, security, save/test.
-- [ ] Reuse NerdsUI tokens, `ScheduleField`, `CapabilityIconView`, connection
+- [x] Reuse NerdsUI tokens, `ScheduleField`, `CapabilityIconView`, connection
   sheets, agent detail drawer, run detail tabs, Markdown editor, and status
   patterns.
-- [ ] Add folder and file selection with `NSOpenPanel` or `fileImporter` and
+- [x] Add folder and file selection with `NSOpenPanel` or `fileImporter` and
   normalized native path presentation.
-- [ ] Add New agent entry points in the sidebar empty state and Command-N.
-- [ ] Add Create something similar from agent detail.
-- [ ] Add a Debugger tab for failed runs, friendly failure banner, fix preview,
+- [x] Add New agent entry points in the sidebar empty state and Command-N.
+- [x] Add Create something similar from agent detail.
+- [x] Add a Debugger tab for failed runs, friendly failure banner, fix preview,
   apply/retry status, technical details, copy, and undo.
-- [ ] Add agent security summary, preflight confirmation, settings entry, context
+- [x] Add agent security summary, preflight confirmation, settings entry, context
   action, and a global Security check top drawer.
 - [ ] Add notification routing with run and agent IDs so a failed notification
   can open the debugger.
-- [ ] Add shared card, finding, severity, empty, loading, error, and Advanced
+- [x] Add shared card, finding, severity, empty, loading, error, and Advanced
   details components using the existing visual tokens.
-- [ ] Respect reduced motion in every new transition and fix existing pulsing
-  status views where they ignore that setting.
-- [ ] Add VoiceOver labels, non-color severity symbols, focus order, status
+- [ ] Complete a manual reduced-motion review of the new flows and existing
+  pulsing status views. New consumer states do not rely on motion for meaning.
+- [x] Add VoiceOver labels, non-color severity symbols, focus order, status
   announcements, large-text-safe layouts, keyboard shortcuts, and stable
   accessibility identifiers.
 
 ### 7. macOS state tests and UI flows
 
-- [ ] Add pure Swift state machines and presentation formatters to
+- [x] Add pure Swift state machines and presentation formatters to
   `AgentServerCore` for creation, schedule, permissions, risk, finding groups,
   debugger, patch preview, review staleness, loading, and errors.
-- [ ] Add XCTest coverage for all state transitions and summaries.
-- [ ] Add an `AgentServerUITests` target through `project.yml` and regenerate the
+- [x] Add XCTest coverage for state transitions and summaries.
+- [x] Add an `AgentServerUITests` target through `project.yml` and regenerate the
   Xcode project.
-- [ ] Add deterministic demo launch fixtures with no credentials or personal
+- [x] Add deterministic demo launch fixtures with no credentials or personal
   paths.
-- [ ] Cover the eight requested UI flows with a small set of stable tests.
-- [ ] Add SwiftUI previews for proposal, debugger, findings, global dashboard,
+- [x] Cover the eight requested UI behaviors with four deterministic signed test
+  scenarios. The complete suite passed once; later focus interference is noted
+  in the final verification report.
+- [x] Add SwiftUI previews for proposal, debugger, findings, global dashboard,
   empty, loading, and error states where practical.
 - [ ] Inspect the built app with Accessibility Inspector and keyboard-only use.
+  This remains a manual release task and is not claimed by automated checks.
 
 ### 8. Documentation, demo, and final verification
 
-- [ ] Add feature, architecture, privacy, security, model-use, deterministic
+- [x] Add feature, architecture, privacy, security, model-use, deterministic
   logic, secret protection, test, limitation, and future-work documentation.
-- [ ] Add the concise threat model with assets, trust boundaries, attacker
+- [x] Add the concise threat model with assets, trust boundaries, attacker
   inputs, mitigations, residual risk, and blocked operations.
-- [ ] Add a manual matrix for fresh install, upgrade, offline server, missing
+- [x] Add a manual matrix for fresh install, upgrade, offline server, missing
   runtime, missing connections, malformed and large inputs, VoiceOver,
   keyboard-only use, themes, reduced motion, no network, and first run.
-- [ ] Add redacted demo agents and run evidence for the suggested demo flow.
-- [ ] Add a Build Week section with baseline commit, new work, Codex role,
+- [x] Add redacted demo agents and run evidence for the suggested demo flow.
+- [x] Add a Build Week section with baseline commit, new work, Codex role,
   GPT-5.6 role, human decisions, tests, session placeholder, and demo steps.
-- [ ] Capture light and dark previews or screenshots without personal data.
-- [ ] Run `pnpm test`, `pnpm test:coverage`, `pnpm lint`, `pnpm type-check`,
+- [x] Add five deterministic SwiftUI previews without personal data. Standalone
+  screenshot capture remains a manual release task.
+- [x] Run `pnpm test`, `pnpm test:coverage`, `pnpm lint`, `pnpm type-check`,
   `pnpm build`, Swift tests, UI tests, and macOS build.
-- [ ] Record results, known limitations, file links, commit IDs, and the final
+- [x] Record results, known limitations, file links, commit IDs, and the final
   verification report in this document.
 
 ## Commits
 
 Each commit includes its tests and keeps the repository buildable:
 
-1. `65d033a Harden local execution and add analysis foundation`
-2. `919c6fe Simplify local security and reliability policies`
-3. `Add local security analysis and review state`
-4. `Add safe patch preview apply and undo`
-5. `Add structured agent proposal generation`
-6. `Add guided run diagnosis and retry links`
-7. `Build native creation debugger and security views`
-8. `Add UI fixtures accessibility coverage and previews`
-9. `Document Build Week features and verification`
-
-Commit IDs will be recorded after each verified milestone. No commit will mix
-unrelated cleanup with this work.
+1. `65d033a` Harden local execution and add analysis foundation
+2. `919c6fe` Simplify local security and reliability policies
+3. `2a3b249` Add structured security proposal and diagnostic services
+4. `f73f3b1` Fix confirmed network patch materialization
+5. `47e5d5e` Add native creation debugger and security flows
+6. `3e4e61c` Document consumer agent tools and demo
+7. `40e8e1b` Wire guided creation and validated debugging
+8. `866fe30` Integrate guided creation security and debugging APIs
+9. `aacac2b` Split macOS guidance and security services
+10. `53a6cfe` Harden macOS process management and local hygiene
+11. `7b43031` Enforce reviewed execution and linked recovery
+12. `5d60414` Simplify run trigger contract
+13. `67f41a6` Add similar-agent and connection guidance flows
+14. `d3877ef` Polish guided creation source layout
+15. `f56645e` Remove tracked Xcode user state
+16. `5b920a1` Extract tested server run lifecycle
+17. `bcf7502` Clarify lifecycle integration boundary
+18. `c40aa0d` Add deterministic macOS consumer UI flows
+19. `09d8ddc` Inherit shared UI test signing settings
+20. `36e6efa` Add Create Agent to main navigation
+21. `2f523fe` Consolidate macOS environment and run history state
 
 ## Plan review questions
 
@@ -335,9 +347,22 @@ unrelated cleanup with this work.
 
 ## Review notes
 
-- Production implementation is in progress on `creation-experience`.
-- The first two verified batches pass 913 server tests, 143 Swift tests, lint,
-  TypeScript checking, the server build, and the unsigned macOS build.
+- Feature implementation and automated verification are complete on
+  `creation-experience` through `2f523fe`.
+- Final server verification passes 1,045 tests across 80 files, lint, strict
+  TypeScript checking, and the production build.
+- Server coverage is 78.82% statements, 74.59% branches, 80.28% functions, and
+  80.23% lines.
+- Swift verification passes 180 behavior tests. The full four-test signed
+  macOS UI suite passed once in 34.8 seconds and covers the eight requested UI
+  behaviors. A later redundant rerun was interrupted after another app stole
+  focus, and UI testing stopped at the user's request.
+- Five deterministic SwiftUI previews cover creation, proposal review,
+  debugging, the global dashboard, and an agent security check. Standalone
+  screenshots were not captured.
+- Manual Accessibility Inspector, VoiceOver, keyboard-only, large-text,
+  reduced-motion, and light and dark appearance checks remain release tasks.
+- The final evidence record is in `docs/FINAL_VERIFICATION.md`.
 - The existing v2 plan remains below for historical context.
 
 # Agent Server v2 plan

@@ -49,9 +49,9 @@ The verified baseline had 862 server tests across 60 files and 126 Swift tests. 
 
 ## Cleanup audit integration
 
-The work includes prerequisites from the codebase cleanup audit. The first two commits improved local API authentication, child-process environment isolation, executor defaults, run identity, redaction, WebSocket recovery, polling, settings draft safety, and shared permission policies. These changes support safe previews and reliable run-to-debugger routing.
+The work includes the relevant items from the codebase cleanup audit. It improved local API authentication, child-process environment isolation, executor defaults, run identity, redaction, WebSocket recovery, polling, settings draft safety, and shared permission policies. It also resolves Node through the configured child path, moves process waiting off the main actor, bounds tracking collections, removes tracked local Xcode and Wrangler state, and extracts the tested server run lifecycle from the main server composition file.
 
-The cleanup remains part of feature delivery. Each consequential batch is tested, committed, reviewed for simpler structure, and cleaned before the next batch. Dead code is removed only after behavior coverage shows that it is unused.
+Large macOS services were split by responsibility. Guidance, security, agent actions, endpoint handling, environment-file storage, and process reliability now have focused seams with behavior coverage. Each consequential batch was tested, committed, reviewed for simpler structure, and cleaned before the next batch.
 
 ## Codex role
 
@@ -79,9 +79,9 @@ GPT-5.6 is an optional structured model when the user has selected a compatible 
 
 The feature work adds server behavior coverage for shared schemas, environment and permission policies, redaction, proposal validation and fallback, diagnostics, security rules and review state, patch preview and application, conflicts, rollback, runtime integration, and analysis APIs.
 
-Swift behavior coverage includes proposal and debugger state changes, consumer risk and schedule presentation, security payloads, accessibility identifiers, drawer routing, transport recovery, and stale state protection. A small deterministic UI test set covers the main demo and safety paths.
+Swift behavior coverage includes proposal and debugger state changes, consumer risk and schedule presentation, security payloads, accessibility identifiers, drawer routing, transport recovery, and stale state protection. Four signed macOS UI tests cover the requested creation, missing-connection, safe-test, debugger, low-risk repair, embedded-secret, folder-narrowing, and high-risk review behaviors using deterministic launch scenarios.
 
-Final test totals and build results belong in the final verification report after all feature commits are complete.
+The final non-interactive run passed 1,045 server tests across 80 files and 180 Swift tests. Server coverage was 78.82% statements, 74.59% branches, 80.28% functions, and 80.23% lines. The full four-flow signed UI suite passed once in 34.8 seconds. A later redundant UI rerun was interrupted after another app stole focus, and UI testing then stopped at the user's request. See [FINAL_VERIFICATION.md](FINAL_VERIFICATION.md) for the full record.
 
 ## Demo
 
@@ -101,23 +101,40 @@ Use [BUILD_WEEK_DEMO.md](BUILD_WEEK_DEMO.md) and the redacted fixtures under `se
 
 - Model-assisted steps require an available structured-output runtime.
 - Some connection authorization remains service-specific.
+- Failed-run notifications do not yet open the Debugger directly. Failed run detail, agent detail, and context actions provide debugger entry points.
+- Static connection secrets remain in the existing owner-only local environment file. A Keychain migration needs a matching server token bridge.
 - Static analysis cannot guarantee that an approved agent will behave safely.
 - Bounded undo is unavailable after a conflicting file edit.
-- Final screenshot capture depends on a complete signed or unsigned app build with deterministic demo data.
+- Manual VoiceOver, Accessibility Inspector, keyboard-only, and light and dark appearance checks remain release validation tasks.
+- SwiftUI previews are included for the main consumer states. No standalone screenshot artifacts are included.
 
 ## Future improvements
 
 - Expand service-specific access summaries and fixes.
 - Add more resolved-failure patterns to the deterministic debugger.
-- Add a signed redacted security report export.
 - Add more UI automation once native macOS controls can be driven reliably in CI.
 - Continue pruning duplicated and dead code under behavior coverage.
 
 ## Commit list
 
-The final verification report must list every branch commit associated with this work, starting with:
-
 1. `65d033a` Harden local execution and add analysis foundation
 2. `919c6fe` Simplify local security and reliability policies
-
-Add later implementation, UI, documentation, and verification commits before release.
+3. `2a3b249` Add structured security proposal and diagnostic services
+4. `f73f3b1` Fix confirmed network patch materialization
+5. `47e5d5e` Add native creation debugger and security flows
+6. `3e4e61c` Document consumer agent tools and demo
+7. `40e8e1b` Wire guided creation and validated debugging
+8. `866fe30` Integrate guided creation security and debugging APIs
+9. `aacac2b` Split macOS guidance and security services
+10. `53a6cfe` Harden macOS process management and local hygiene
+11. `7b43031` Enforce reviewed execution and linked recovery
+12. `5d60414` Simplify run trigger contract
+13. `67f41a6` Add similar-agent and connection guidance flows
+14. `d3877ef` Polish guided creation source layout
+15. `f56645e` Remove tracked Xcode user state
+16. `5b920a1` Extract tested server run lifecycle
+17. `bcf7502` Clarify lifecycle integration boundary
+18. `c40aa0d` Add deterministic macOS consumer UI flows
+19. `09d8ddc` Inherit shared UI test signing settings
+20. `36e6efa` Add Create Agent to main navigation
+21. `2f523fe` Consolidate macOS environment and run history state

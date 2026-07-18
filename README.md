@@ -1,6 +1,6 @@
 # Agent Server
 
-A lightweight orchestration server that runs AI agents in the background using [Claude Code](https://docs.anthropic.com/en/docs/claude-code) as its execution engine. Includes a native macOS menu bar app for monitoring and managing agents.
+A lightweight orchestration server that runs local AI agents in the background using Claude Code or Codex. It includes a native macOS app for creating, monitoring, debugging, and reviewing agents.
 
 ## Consumer agent tools
 
@@ -25,9 +25,9 @@ agent-server/
 
 ## How it works
 
-Agent Server uses the [Claude Agent SDK](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) to run Claude Code programmatically. It calls the SDK's `query()` function with the agent's prompt, streams structured messages from the async generator, and extracts tool usage, file operations, and command metadata from each turn.
+Agent Server uses executor adapters for Claude Code and Codex. Each adapter streams structured runtime events and records tool usage, file operations, command metadata, and run results through the same lifecycle.
 
-This means agents inherit everything Claude Code provides: MCP server integrations (Slack, Linear, Notion, GitHub, etc.), tool permissions, model selection, and context management. Agent Server just runs the prompt and records what happens.
+Agents can use local files, connected services, schedules, messaging channels, model selection, and runtime-specific tools. The shared permission, security, run-history, and debugger layers apply regardless of the selected executor.
 
 ```
 ~/.agent-server/
@@ -60,7 +60,7 @@ This creates `~/.agent-server/` with `agents/`, `locks/`, and `logs/` directorie
 
 ### 3. Configure environment variables
 
-Add your keys to `~/.agent-server/.env`. At minimum you need an Anthropic API key. The panel URL and API key are optional but required for the Agent Panel dashboard.
+Static connection keys can be added to `~/.agent-server/.env`. Claude Code and Codex can use their existing local subscription logins, so no cloud API key is required for core local use. The Agent Panel settings are optional.
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-...
