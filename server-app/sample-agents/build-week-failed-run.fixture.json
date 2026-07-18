@@ -1,0 +1,23 @@
+{
+  "run_id": "demo-run-failed-001",
+  "agent_id": "build-week-github-slack",
+  "status": "failed",
+  "started_at": "2026-07-17T16:00:00.000Z",
+  "completed_at": "2026-07-17T16:00:03.000Z",
+  "error": "The Slack connection is not ready.",
+  "evidence": [
+    {
+      "code": "connection-missing",
+      "label": "Slack connection",
+      "detail": "Needs setup",
+      "source": "connection"
+    },
+    {
+      "code": "message-not-sent",
+      "label": "External message",
+      "detail": "No message was sent",
+      "source": "run"
+    }
+  ],
+  "redaction": "No credentials or message contents are included in this fixture."
+}

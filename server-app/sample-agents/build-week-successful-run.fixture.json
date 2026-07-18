@@ -1,0 +1,15 @@
+{
+  "run_id": "demo-run-success-002",
+  "agent_id": "build-week-github-slack",
+  "retry_of_run_id": "demo-run-failed-001",
+  "status": "completed",
+  "started_at": "2026-07-17T16:02:00.000Z",
+  "completed_at": "2026-07-17T16:02:08.000Z",
+  "summary": "The weekly summary was sent to the selected demo Slack destination.",
+  "tools_used": [
+    "mcp__github__list_activity",
+    "mcp__github__read_activity",
+    "mcp__slack__send_message"
+  ],
+  "redaction": "No activity content, destination identifier, or credential is included in this fixture."
+}

@@ -2,6 +2,10 @@
 
 A lightweight orchestration server that runs AI agents in the background using [Claude Code](https://docs.anthropic.com/en/docs/claude-code) as its execution engine. Includes a native macOS menu bar app for monitoring and managing agents.
 
+## Consumer agent tools
+
+The macOS app includes guided agent creation, plain-language run debugging, and local security analysis. See the [consumer feature guide](docs/CONSUMER_AGENT_TOOLS.md), [architecture](docs/CONSUMER_AGENT_ARCHITECTURE.md), [security threat model](docs/SECURITY_THREAT_MODEL.md), [manual test matrix](docs/MANUAL_TEST_MATRIX.md), and [Build Week summary](docs/BUILD_WEEK.md).
+
 Define agents as Markdown or YAML files with cron schedules. Agent Server discovers them, runs them on schedule, prevents concurrent execution with file locks, and reports telemetry in [A2A](https://google.github.io/A2A/) format. Agents can request user input via Telegram, send completion notifications, chain to other agents, and trigger on file changes.
 
 ## Repository structure
