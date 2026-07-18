@@ -39,7 +39,9 @@ struct GuidedAgentCreationView: View {
             footer
         }
         .frame(minWidth: 680, minHeight: 600)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.tokens.background)
+        .shadow(color: Color.black.opacity(0.18), radius: 14, x: 5, y: 0)
         .fileImporter(
             isPresented: $isChoosingFolder,
             allowedContentTypes: [.folder],

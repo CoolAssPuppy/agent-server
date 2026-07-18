@@ -11,6 +11,11 @@ enum Drawer: Equatable {
     case debugger(runId: String)
 }
 
+enum DrawerPresentationPlacement: Equatable {
+    case mainPaneLeading
+    case windowTop
+}
+
 // MARK: - Router
 
 /// Governs which drawer (if any) is open in the main window. Only one drawer
@@ -122,6 +127,17 @@ final class DrawerRouter: ObservableObject {
     var openAgentId: String? {
         if case .detail(let id) = open { return id }
         return nil
+    }
+
+    var presentationPlacement: DrawerPresentationPlacement? {
+        switch open {
+        case .creation, .detail:
+            return .mainPaneLeading
+        case .settings, .connections, .security, .debugger:
+            return .windowTop
+        case nil:
+            return nil
+        }
     }
 }
 

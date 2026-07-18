@@ -203,6 +203,15 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(ConsumerFlowAccessibility.debuggerOpen, "debugger.open")
     }
 
+    func testSidebarFooterPresentsCreationThenFolderChoice() {
+        XCTAssertEqual(
+            SidebarFooterAction.allCases,
+            [.newAgent, .chooseFolder]
+        )
+        XCTAssertEqual(SidebarFooterAction.newAgent.title, "New Agent")
+        XCTAssertEqual(SidebarFooterAction.chooseFolder.title, "Choose a folder")
+    }
+
     func testDemoFixturesAreDeterministicAndContainNoCredentials() {
         XCTAssertEqual(ConsumerFlowDemoFixtures.proposal.name, "Friday GitHub summary")
         XCTAssertEqual(ConsumerFlowDemoFixtures.dashboard.agents.count, 3)

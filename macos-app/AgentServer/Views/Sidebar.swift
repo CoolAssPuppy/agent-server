@@ -181,7 +181,7 @@ struct Sidebar: View {
     private var emptyStateMessage: String {
         if let error = monitor.localAPISetupError { return error }
         return monitor.isServerReachable
-            ? "Choose Create Agent below to create your first one."
+            ? "Choose New Agent below to create your first one."
             : "Start the agent server daemon to see your agents."
     }
 
@@ -190,7 +190,7 @@ struct Sidebar: View {
             Button(action: onNewAgent) {
                 HStack(spacing: NSpacing.xs) {
                     Image(systemName: "plus")
-                    Text("Create Agent")
+                    Text(SidebarFooterAction.newAgent.title)
                     Spacer(minLength: 0)
                 }
                 .font(NTypography.bodyMedium)
@@ -206,11 +206,11 @@ struct Sidebar: View {
                 .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Create Agent")
+            .accessibilityLabel(SidebarFooterAction.newAgent.title)
             .accessibilityIdentifier(ConsumerFlowAccessibility.sidebarCreateAgent)
 
             Button(action: onOpenFolder) {
-                Label("Open agents folder", systemImage: "folder")
+                Label(SidebarFooterAction.chooseFolder.title, systemImage: "folder")
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
             }

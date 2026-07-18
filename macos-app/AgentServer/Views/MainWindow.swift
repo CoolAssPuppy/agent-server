@@ -86,31 +86,37 @@ struct MainWindow: View {
     // MARK: - Overlays
 
     private var creationDrawerLayer: some View {
-        ZStack(alignment: .top) {
-            if router.isCreationOpen {
-                let sourceAgentId = router.creationSourceAgentId
-                GuidedAgentCreationView(
-                    actions: GuidedAgentCreationActions(
-                        prepare: { request, answers in
-                            if let sourceAgentId {
-                                return await monitor.prepareSimilarAgent(
-                                    sourceAgentId: sourceAgentId,
-                                    request: request,
-                                    answers: answers
-                                )
-                            }
-                            return await monitor.prepareGuidedAgent(request: request, answers: answers)
-                        },
-                        save: monitor.saveGuidedAgent
-                    ),
-                    onCancel: router.close,
-                    onCreated: openCreatedAgent,
-                    copy: sourceAgentId == nil ? .newAgent : .similarAgent,
-                    setUpConnections: presentConnectionSetup
-                )
-                .id(sourceAgentId ?? "new-agent")
-                .transition(.move(edge: .top).combined(with: .opacity))
+        HStack(spacing: 0) {
+            Color.clear.frame(width: Sidebar.width)
+            ZStack(alignment: .leading) {
+                if router.isCreationOpen,
+                   router.presentationPlacement == .mainPaneLeading {
+                    let sourceAgentId = router.creationSourceAgentId
+                    GuidedAgentCreationView(
+                        actions: GuidedAgentCreationActions(
+                            prepare: { request, answers in
+                                if let sourceAgentId {
+                                    return await monitor.prepareSimilarAgent(
+                                        sourceAgentId: sourceAgentId,
+                                        request: request,
+                                        answers: answers
+                                    )
+                                }
+                                return await monitor.prepareGuidedAgent(request: request, answers: answers)
+                            },
+                            save: monitor.saveGuidedAgent
+                        ),
+                        onCancel: router.close,
+                        onCreated: openCreatedAgent,
+                        copy: sourceAgentId == nil ? .newAgent : .similarAgent,
+                        setUpConnections: presentConnectionSetup
+                    )
+                    .id(sourceAgentId ?? "new-agent")
+                    .transition(.move(edge: .leading))
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            .clipped()
         }
         .animation(.easeOut(duration: SettingsDrawer.slideDuration), value: router.isCreationOpen)
     }

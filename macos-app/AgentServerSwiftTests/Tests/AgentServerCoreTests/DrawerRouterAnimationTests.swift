@@ -27,6 +27,12 @@ final class DrawerRouterAnimationTests: XCTestCase {
         XCTAssertTrue(router.isSettingsOpen)
     }
 
+    func testCreationUsesAnAnchoredMainPaneDrawer() {
+        let router = DrawerRouter(open: .creation())
+
+        XCTAssertEqual(router.presentationPlacement, .mainPaneLeading)
+    }
+
     func testCloseReturnsToNilForAnimatedExit() {
         // The window-close animation relies on the router going from
         // open -> nil so the drawer's .move transition can play the
