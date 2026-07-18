@@ -131,11 +131,13 @@ struct HealthResponse: Codable {
     let status: String
     let timestamp: String
     let startedAt: String?
+    let apiVersion: Int?
 
     enum CodingKeys: String, CodingKey {
         case status
         case timestamp
         case startedAt = "started_at"
+        case apiVersion = "api_version"
     }
 }
 

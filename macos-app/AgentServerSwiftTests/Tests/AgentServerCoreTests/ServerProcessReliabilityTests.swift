@@ -2,6 +2,15 @@ import XCTest
 @testable import AgentServerCore
 
 final class ServerProcessReliabilityTests: XCTestCase {
+    func testCurrentServerAPIVersionCanBeAdopted() {
+        XCTAssertFalse(LocalServerCompatibility.shouldReplace(apiVersion: 2))
+    }
+
+    func testMissingOrOlderServerAPIVersionMustBeReplaced() {
+        XCTAssertTrue(LocalServerCompatibility.shouldReplace(apiVersion: nil))
+        XCTAssertTrue(LocalServerCompatibility.shouldReplace(apiVersion: 1))
+    }
+
     func testNodeResolverPrefersExecutableOverride() throws {
         let resolved = try NodeExecutableResolver.resolve(
             override: "/custom/node",

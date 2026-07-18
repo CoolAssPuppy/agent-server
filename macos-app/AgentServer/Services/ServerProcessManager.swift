@@ -88,9 +88,13 @@ final class ServerProcessManager {
     }
 
     func startIfNeeded() async {
-        let alreadyRunning = await isServerRunning()
+        let health = await serverHealth()
         guard !Task.isCancelled else { return }
-        if alreadyRunning {
+        if let health {
+            if LocalServerCompatibility.shouldReplace(apiVersion: health.apiVersion) {
+                await restart()
+                return
+            }
             lifecycle.observedExistingServer()
             return
         }
@@ -136,16 +140,21 @@ final class ServerProcessManager {
     }
 
     private func isServerRunning() async -> Bool {
+        await serverHealth() != nil
+    }
+
+    private func serverHealth() async -> HealthResponse? {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 2
         let session = URLSession(configuration: config)
 
         do {
-            let (_, response) = try await session.data(from: healthURL)
-            guard let http = response as? HTTPURLResponse else { return false }
-            return http.statusCode == 200
+            let (data, response) = try await session.data(from: healthURL)
+            guard let http = response as? HTTPURLResponse,
+                  http.statusCode == 200 else { return nil }
+            return try JSONDecoder().decode(HealthResponse.self, from: data)
         } catch {
-            return false
+            return nil
         }
     }
 

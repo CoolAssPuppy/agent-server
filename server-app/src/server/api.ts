@@ -32,6 +32,7 @@ import {
 } from './security-utils.js';
 
 type EnvSource = Record<string, string | undefined>;
+const LOCAL_API_VERSION = 2;
 
 type ConnectionSnapshot = {
   servers: DiscoveredConnection[];
@@ -262,6 +263,7 @@ export function createApi(deps: ApiDependencies): Hono {
   app.get('/health', (c) => {
     return c.json({
       status: 'ok',
+      api_version: LOCAL_API_VERSION,
       timestamp: new Date().toISOString(),
       ...(deps.startedAt ? { started_at: deps.startedAt } : {}),
     });

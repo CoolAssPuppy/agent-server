@@ -1,5 +1,14 @@
 import Foundation
 
+public enum LocalServerCompatibility {
+    public static let requiredAPIVersion = 2
+
+    public static func shouldReplace(apiVersion: Int?) -> Bool {
+        guard let apiVersion else { return true }
+        return apiVersion < requiredAPIVersion
+    }
+}
+
 public enum NodeExecutableResolutionError: Error, Equatable, Sendable {
     case invalidOverride
     case notFound
