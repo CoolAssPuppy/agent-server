@@ -1,7 +1,7 @@
 import { mkdir, writeFile, readdir, readFile, unlink } from 'fs/promises';
 import { homedir } from 'os';
 import { join } from 'path';
-import { sanitizeText } from '../server/security-utils.js';
+import { sanitizeMetadata, sanitizeStructuredValue, sanitizeText } from '../server/security-utils.js';
 import { toErrorMessage } from '../util/errors.js';
 
 export type StatusState =
@@ -127,7 +127,7 @@ export class TelemetryReporter {
         ? `[batched ${throttled + 1} updates] ${safeMessage}`
         : safeMessage,
       metadata: {
-        ...(metadata ?? {}),
+        ...sanitizeMetadata(metadata ?? {}),
         ...(throttled > 0 ? { batched_progress_updates: throttled } : {}),
       },
     });
@@ -150,15 +150,20 @@ export class TelemetryReporter {
     }
     this.terminalSent = true;
     console.log(`[telemetry] Sending completion for "${this.config.agentName}" to ${this.config.endpoint}`);
+    const safeSummary = sanitizeText(executionResult.summary, 2_000);
+    const safeTools = executionResult.toolsUsed.slice(0, 128).map((value) => sanitizeText(value, 120));
+    const safeFilesRead = executionResult.filesRead.slice(0, 128).map((value) => sanitizeText(value, 240));
+    const safeFilesWritten = executionResult.filesWritten.slice(0, 128).map((value) => sanitizeText(value, 240));
+    const safeCommands = executionResult.commandsRun.slice(0, 128).map((value) => sanitizeText(value, 400));
     const accomplishments: string[] = [];
-    if (executionResult.filesWritten.length > 0) {
-      accomplishments.push(`Wrote ${executionResult.filesWritten.length} file(s): ${executionResult.filesWritten.join(', ')}`);
+    if (safeFilesWritten.length > 0) {
+      accomplishments.push(`Wrote ${safeFilesWritten.length} file(s): ${safeFilesWritten.join(', ')}`);
     }
-    if (executionResult.commandsRun.length > 0) {
-      accomplishments.push(`Ran ${executionResult.commandsRun.length} command(s)`);
+    if (safeCommands.length > 0) {
+      accomplishments.push(`Ran ${safeCommands.length} command(s)`);
     }
-    if (executionResult.filesRead.length > 0) {
-      accomplishments.push(`Read ${executionResult.filesRead.length} file(s)`);
+    if (safeFilesRead.length > 0) {
+      accomplishments.push(`Read ${safeFilesRead.length} file(s)`);
     }
     // AgentResultSchema requires accomplishments.min(1). When a run produced
     // no observable side-effects we still need one non-empty entry. (Fix 1)
@@ -166,7 +171,7 @@ export class TelemetryReporter {
       accomplishments.push(`Completed in ${executionResult.turnCount} turn(s)`);
     }
 
-    const usage = this.normalizeUsage(executionResult.usage);
+    const usage = sanitizeStructuredValue(this.normalizeUsage(executionResult.usage)) as Record<string, unknown>;
     const model = executionResult.model
       ?? (typeof executionResult.usage.model === 'string' ? executionResult.usage.model : undefined)
       ?? 'unknown';
@@ -175,16 +180,16 @@ export class TelemetryReporter {
       await this.send({
         state: 'completed',
         result: {
-          summary: executionResult.summary,
-          accomplishments,
+          summary: safeSummary,
+          accomplishments: accomplishments.map((value) => sanitizeText(value, 500)),
           usage,
           model,
           output: {
             turn_count: executionResult.turnCount,
-            tools_used: executionResult.toolsUsed,
-            files_read: executionResult.filesRead,
-            files_written: executionResult.filesWritten,
-            commands_run: executionResult.commandsRun,
+            tools_used: safeTools,
+            files_read: safeFilesRead,
+            files_written: safeFilesWritten,
+            commands_run: safeCommands,
             ...(this.progressEntries.length > 0
               ? { progress_updates: this.progressEntries, progress_updates_dropped: this.progressEntriesDropped }
               : {}),
@@ -398,11 +403,13 @@ export class TelemetryReporter {
       message: sanitizeText(message, 280),
     };
     if (this.config.includeProgressMetadata && metadata) {
-      entry.metadata = metadata;
+      entry.metadata = sanitizeMetadata(metadata);
     } else if (metadata) {
       const compact: Record<string, unknown> = {};
       if (typeof metadata.turns_completed === 'number') compact.turns_completed = metadata.turns_completed;
-      if (Array.isArray(metadata.tools_used)) compact.tools_used = metadata.tools_used;
+      if (Array.isArray(metadata.tools_used)) {
+        compact.tools_used = metadata.tools_used.slice(0, 64).map((value) => sanitizeText(String(value), 120));
+      }
       if (Object.keys(compact).length > 0) entry.metadata = compact;
     }
     this.progressEntries.push(entry);

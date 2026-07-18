@@ -79,3 +79,17 @@ final class DrawerRouter: ObservableObject {
         return nil
     }
 }
+
+// MARK: - Agent settings selection
+
+/// Keeps an open settings draft tied to the agent that seeded it. A selection
+/// change must close the editor before the new agent identifier can be paired
+/// with the old draft.
+enum AgentSettingsSelectionPolicy {
+    static func shouldDismissSettings(
+        previousAgentId: String,
+        selectedAgentId: String
+    ) -> Bool {
+        previousAgentId != selectedAgentId
+    }
+}

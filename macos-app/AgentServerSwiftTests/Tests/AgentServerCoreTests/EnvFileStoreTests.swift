@@ -82,6 +82,87 @@ final class EnvFileStoreTests: XCTestCase {
         XCTAssertEqual(pairs, [])
     }
 
+    func testValueLoadsNamedSecretWithoutExposingOtherValues() throws {
+        let url = tempURL()
+        try "AGENT_SERVER_API_KEY=local-secret\nOTHER_SECRET=do-not-return\n"
+            .write(to: url, atomically: true, encoding: .utf8)
+
+        let value = try EnvFileStore.value(forKey: "AGENT_SERVER_API_KEY", from: url)
+
+        XCTAssertEqual(value, "local-secret")
+    }
+
+    func testValueReturnsNilForMissingOrEmptyKey() throws {
+        let url = tempURL()
+        try "AGENT_SERVER_API_KEY=\n"
+            .write(to: url, atomically: true, encoding: .utf8)
+
+        XCTAssertNil(try EnvFileStore.value(forKey: "AGENT_SERVER_API_KEY", from: url))
+        XCTAssertNil(try EnvFileStore.value(forKey: "MISSING_KEY", from: url))
+    }
+
+    func testLocalAPIAuthenticationUsesHeaderAndDoesNotExposeKeyInURL() throws {
+        let url = tempURL()
+        try "AGENT_SERVER_API_KEY=local-secret\n"
+            .write(to: url, atomically: true, encoding: .utf8)
+        let endpoint = URL(string: "http://127.0.0.1:47821/agents")!
+
+        let request = try LocalAPIAuthentication.authenticatedRequest(
+            URLRequest(url: endpoint),
+            environmentURLs: [url],
+            processEnvironment: [:]
+        )
+
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer local-secret")
+        XCTAssertEqual(request.url, endpoint)
+    }
+
+    func testLocalAPIAuthenticationRejectsMissingKey() {
+        let url = tempURL()
+        let endpoint = URL(string: "http://127.0.0.1:47821/agents")!
+
+        XCTAssertThrowsError(
+            try LocalAPIAuthentication.authenticatedRequest(
+                URLRequest(url: endpoint),
+                environmentURLs: [url],
+                processEnvironment: [:]
+            )
+        ) { error in
+            XCTAssertEqual(error as? LocalAPIAuthenticationError, .missingAPIKey)
+        }
+    }
+
+    func testLocalAPIAuthenticationMatchesServerEnvironmentPrecedence() throws {
+        let base = tempURL().deletingLastPathComponent()
+        let localURL = base.appendingPathComponent(".env.local")
+        let envURL = base.appendingPathComponent(".env")
+        try "AGENT_SERVER_API_KEY=local-file-key\n"
+            .write(to: localURL, atomically: true, encoding: .utf8)
+        try "AGENT_SERVER_API_KEY=base-file-key\n"
+            .write(to: envURL, atomically: true, encoding: .utf8)
+        let endpoint = URL(string: "http://127.0.0.1:47821/agents")!
+
+        let localRequest = try LocalAPIAuthentication.authenticatedRequest(
+            URLRequest(url: endpoint),
+            environmentURLs: [localURL, envURL],
+            processEnvironment: [:]
+        )
+        let processRequest = try LocalAPIAuthentication.authenticatedRequest(
+            URLRequest(url: endpoint),
+            environmentURLs: [localURL, envURL],
+            processEnvironment: ["AGENT_SERVER_API_KEY": "process-key"]
+        )
+
+        XCTAssertEqual(
+            localRequest.value(forHTTPHeaderField: "Authorization"),
+            "Bearer local-file-key"
+        )
+        XCTAssertEqual(
+            processRequest.value(forHTTPHeaderField: "Authorization"),
+            "Bearer process-key"
+        )
+    }
+
     // MARK: - Round-trip preserving comments and order
 
     func testLoadSaveLoadPreservesCommentsAndOrdering() throws {

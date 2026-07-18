@@ -64,6 +64,23 @@ describe('file-logger', () => {
     expect(stdoutLog).toContain('error:also mirrored');
   });
 
+  it('redacts secrets before writing console arguments to disk', () => {
+    const handle = startFileLogger({ logsDir: tmp });
+    try {
+      console.error('request failed', {
+        authorization: 'Bearer hidden-token-value',
+        password: 'correct-horse-battery-staple',
+      });
+    } finally {
+      handle.stop();
+    }
+
+    const contents = readFileSync(logFilePath(tmp, new Date()), 'utf8');
+    expect(contents).toContain('[REDACTED]');
+    expect(contents).not.toContain('hidden-token-value');
+    expect(contents).not.toContain('correct-horse-battery-staple');
+  });
+
   it('rotates to a new file when the day changes', () => {
     // Dates are compared by local-time day, so use noon to avoid tz edge cases.
     const day1 = new Date(2026, 3, 14, 12, 0, 0);

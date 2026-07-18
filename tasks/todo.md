@@ -1,3 +1,343 @@
+# Build Week plan: Guided creation, debugging, and security
+
+Status: Approved. Implementation in progress.
+
+## Approved cleanup integration
+
+The audit at `~/Desktop/codebase-cleanup.md` is part of this plan. Its work is
+sequenced as follows so security and reliability fixes land before model-backed
+features depend on them:
+
+- [ ] Milestone 1 prerequisites: wrong-agent draft overwrite, persistent
+  WebSocket reconnect, always-on local API key, authenticated macOS client,
+  Claude child environment allowlist, safer default permissions, restricted
+  environment substitution, same-origin and Host validation, WebSocket and
+  terminal-payload redaction, file-log redaction, real client address rate
+  limiting, and heartbeat correction.
+- [ ] Milestone 2 reliability: split Swift transport and decoding failures,
+  resolve Node through the configured child PATH, move process waiting off the
+  main actor, wire or remove dead settings toggles, and bound tracking sets.
+- [ ] Milestones 2 through 5 structural work: extract run lifecycle, split the
+  capability catalog and Claude executor, consolidate permission decisions, make
+  `StatusMonitor` injectable, consolidate env parsing, and merge connection
+  sheets when the touched feature needs the seam.
+- [ ] Milestone 7 cleanup: remove verified dead server and macOS code with its
+  dedicated tests, fix stale documentation, replace the inaccurate `AGENTS.md`,
+  untrack `.wrangler/`, and apply the listed focused hygiene fixes that do not
+  require a separate product decision.
+- [ ] Defer Keychain migration until the server has a matching token bridge.
+  Keep the current `0600` local secret store during this implementation.
+
+Every cleanup item will be checked against current callers before deletion.
+Security fixes receive behavior tests before production changes.
+
+## Verified baseline
+
+- [x] Baseline commit: `5b779736985e918874b80b390372be71645dc19a`
+- [x] Branch: `main`
+- [x] Worktree clean before discovery
+- [x] Server tests: 862 passed across 60 files
+- [x] Swift tests: 126 passed
+- [x] Lint, TypeScript check, server build, and unsigned macOS build passed
+- [x] Xcode 26.6, Swift 6.3.3, macOS 26.5 SDK, xcodegen 2.45.4 available
+- [x] Accessibility Inspector and Apple test tooling available
+- [x] Existing creation, connection, agent editing, run history, theme, and drawer patterns inspected
+
+## Product assumptions
+
+- Core operation stays local and requires no cloud account.
+- Local Codex with the user's current ChatGPT login is the default model service
+  for proposal generation and semantic diagnosis. The model runs with no tools,
+  no network, a read-only sandbox, strict output schemas, and a bounded timeout.
+- GPT-5.6 remains an adapter option if the installed runtime exposes it. No new
+  hosted API dependency or credential is required for this work.
+- The Node server owns parsing, deterministic analysis, content hashing,
+  structured patches, and model-output validation because it already owns the
+  canonical agent schema and lossless writer.
+- The macOS app owns native guided state, file and folder selection, connection
+  setup, review, confirmation, presentation, accessibility, and undo controls.
+- Agent Markdown remains the source of truth. Security review metadata and fix
+  history stay in local app data and never enter agent files.
+- Existing connection secrets remain in the current `.env.local` path for this
+  milestone. A move to Keychain requires a matching server token bridge and must
+  be done as one separate security change.
+- Existing agents continue to run after upgrade unless a deterministic critical
+  issue is found. New or changed high-risk agents require review before their
+  first manual run or schedule activation. Critical agents are blocked until the
+  specific critical finding is reviewed or fixed.
+
+## Architecture decisions
+
+### Shared local analysis core
+
+Add `server-app/src/analysis/` as the shared domain boundary:
+
+- `models.ts`: strict Zod schemas for severity, evidence, findings, actions,
+  patches, proposal, diagnosis, preflight, and validation results.
+- `redaction.ts`: allowlisted redaction for prompts, URLs, headers, command
+  arguments, tool evidence, logs, model inputs, model outputs, and API responses.
+- `security-rules.ts`: deterministic rules for permissions, paths, secrets,
+  commands, external endpoints, triggers, chaining, and prompt risks.
+- `diagnostic-rules.ts`: deterministic checks and error-pattern heuristics.
+- `patch.ts`: typed patch validation, preview, content hash checks, apply, and
+  rollback records built on the existing YAML `Document` writer.
+- `structured-model.ts`: local Codex structured-output adapter with one careful
+  retry for malformed output and deterministic fallback.
+- `prompts/`: versioned proposal, diagnosis, and semantic-risk prompts.
+- `review-store.ts`: local SQLite review metadata keyed by agent ID, content
+  hash, and analyzer version.
+
+The data flow will be:
+
+```text
+SwiftUI guided state
+        |
+        v
+Typed localhost API -> parse and redact -> deterministic rules
+        |                                      |
+        |                                      v
+        |                              immediate safe result
+        v
+Optional local Codex structured pass -> schema validation -> merged result
+        |
+        v
+Previewed typed patch -> content-hash check -> atomic write -> undo record
+```
+
+### Canonical agent document access
+
+Evolve the existing writer into a repository interface that can read a raw local
+document internally, parse it, compute its content hash, preview a patch, apply
+with compare-and-swap protection, and restore a bounded backup. Raw unredacted
+documents never cross the localhost API.
+
+Keep the current guarantees:
+
+- Preserve unknown top-level fields, ordering, comments, and Markdown body.
+- Validate the complete result with `AgentConfigSchema` before writing.
+- Use atomic temp-file replacement.
+- Refuse apply when the source hash changed after preview.
+- Return a redacted exact diff for Advanced details.
+- Keep a bounded local backup only for applied patches so Undo is practical.
+
+Nested comments inside a replaced field such as `mcp_servers` may not survive a
+whole-field replacement. Prefer narrow child edits where the YAML library can
+preserve them, test the limitation, and document it.
+
+### Run evidence and identity
+
+Unify run ID ownership before debugger work. The API, WebSocket, local store,
+telemetry reporter, cancellation path, retry link, and lock-contention result
+must all refer to one run ID.
+
+Persist bounded, structured diagnostic evidence rather than full transcripts:
+
+- Tool name and redacted failure summary
+- Exit code and bounded stderr or stdout excerpts
+- MCP connection state
+- Runtime identity and availability
+- Effective sandbox and network settings
+- Parsed configuration hash
+- Stop reason and error code
+- Expected-output checks
+- `retry_of_run_id`, `repair_id`, and safe-test mode
+
+Evidence is redacted before storage, size-capped, and returned only for the
+requested run. Existing failed runs remain unchanged when a retry starts.
+
+### Before-run policy
+
+Add a deterministic preflight used by creation, Run now, safe test, debugger
+fixes, and the scheduler. It returns `allow`, `confirm`, or `block` plus specific
+findings. A stored acknowledgement applies only to the same content hash and
+analyzer version.
+
+- Low risk: allow.
+- Needs review: show context but do not require repeated confirmation.
+- High risk: require explicit confirmation before first run or schedule enable.
+- Critical: block literal-secret and unrestricted destructive plus network cases
+  until reviewed or fixed.
+
+Safe test uses a transient execution override. It never edits the saved agent to
+reduce permissions. The override disables writes, commands, network, external
+messages, and automatic chaining unless the approved proposal requires a single
+narrow capability that can be tested without side effects.
+
+## Milestone plan
+
+### 1. Shared schemas, redaction, and run identity
+
+- [ ] Write failing tests for shared schemas, redaction, content hashes, and the
+  current duplicate run-ID behavior.
+- [ ] Add shared analysis models and discriminated unions.
+- [ ] Replace narrow regex-only redaction with bounded, context-aware redaction.
+- [ ] Reject literal provider credentials at schema and patch boundaries.
+- [ ] Sanitize WebSocket metadata and stored diagnostic evidence.
+- [ ] Unify run IDs across API, store, reporter, WebSocket, cancellation, and
+  lock-contention paths.
+- [ ] Run server tests, lint, type check, and build.
+
+### 2. Security analyzer and review state
+
+- [ ] Write failing behavior tests for each deterministic security rule.
+- [ ] Add normalized sensitive-path detection for home roots, hidden secrets,
+  SSH, cloud credentials, browser profiles, Keychain data, signing material,
+  application support, `.env`, and password stores.
+- [ ] Add redacted secret detection for YAML, Markdown, URLs, headers, provider
+  config, MCP config, and prompts.
+- [ ] Analyze tools, denials, permissions, sandbox, network, working directory,
+  watch paths, schedules, endpoints, notification targets, interaction targets,
+  chaining, command arguments, and automatic triggers.
+- [ ] Add semantic prompt-risk analysis through validated local Codex output.
+- [ ] Merge deterministic and semantic findings without allowing the model to
+  downgrade deterministic severity.
+- [ ] Cache analysis by content hash and analyzer version.
+- [ ] Add local review records, acknowledgements, staleness, and redacted report
+  export data.
+- [ ] Add security analysis, global summary, mark-reviewed, and preflight API
+  routes.
+
+### 3. Structured patch preview, apply, and undo
+
+- [ ] Expand `AgentPatchSchema` to cover working directory, permissions, Codex
+  sandbox, MCP servers, watches, triggers, interactions, conversations,
+  telemetry, model settings, notifications, and enabled state.
+- [ ] Define low, medium, high, and forbidden patch operations.
+- [ ] Reject attempts to grant `danger-full-access`, unrestricted home access,
+  arbitrary command execution, credentials, deletion, or unrelated-agent edits
+  through automated fixes.
+- [ ] Add preview with consumer changes, safety impact, exact redacted diff, and
+  expected source hash.
+- [ ] Add apply with complete-result validation and an audit record containing
+  source, time, before hash, after hash, and affected fields.
+- [ ] Add bounded backup restore for Undo.
+- [ ] Test unknown-field and comment preservation, concurrent file edits,
+  malformed input, stale previews, rollback, and nested-field limitations.
+
+### 4. Conversational agent creation
+
+- [ ] Define and test `AgentProposalSchema` with name, description,
+  instructions, trigger, schedule, timezone, capabilities, connections, paths,
+  read/write intent, commands, network, notifications, runtime, risk,
+  explanation, missing information, and required questions.
+- [ ] Add a dedicated least-privilege generation prompt and strict local Codex
+  adapter with timeout, cancellation, one validation retry, and deterministic
+  fallback.
+- [ ] Map proposal capabilities to the existing server capability catalog and
+  current connection readiness.
+- [ ] Generate frontmatter plus Markdown with explicit permissions, safe
+  defaults, success criteria, output expectations, missing-data behavior,
+  secret handling, and destructive-action constraints.
+- [ ] Extend creation to save every proposal field without creating a second
+  config format.
+- [ ] Support source-agent redacted cloning and proposal differences.
+- [ ] Run the security analyzer before save and preflight before safe test.
+- [ ] Add a safe-test run mode and typed outcome.
+
+### 5. Deterministic and model-assisted debugger
+
+- [ ] Persist the bounded evidence required for local diagnosis without Agent
+  Panel.
+- [ ] Add checks for malformed files, schedules, time zones, paths, permissions,
+  connections, environment references, runtimes, models, endpoints, network,
+  sandbox, notifications, locks, active runs, and expected outputs.
+- [ ] Add known-error heuristics with consumer explanations and evidence.
+- [ ] Add a redacted Codex diagnosis only after local checks, with strict schema,
+  confidence, alternatives, risk, affected settings, and safe-rerun guidance.
+- [ ] Add repair preview through the shared patch system.
+- [ ] Add apply, retry linkage, resolution comparison, and undo.
+- [ ] Add prevention guidance based on the resolved deterministic cause.
+
+### 6. Native macOS experience
+
+- [ ] Preserve the current sheet host and rebuild `CreateAgentSheet` as a guided
+  state machine: describe, answer, proposal, connections, security, save/test.
+- [ ] Reuse NerdsUI tokens, `ScheduleField`, `CapabilityIconView`, connection
+  sheets, agent detail drawer, run detail tabs, Markdown editor, and status
+  patterns.
+- [ ] Add folder and file selection with `NSOpenPanel` or `fileImporter` and
+  normalized native path presentation.
+- [ ] Add New agent entry points in the sidebar empty state and Command-N.
+- [ ] Add Create something similar from agent detail.
+- [ ] Add a Debugger tab for failed runs, friendly failure banner, fix preview,
+  apply/retry status, technical details, copy, and undo.
+- [ ] Add agent security summary, preflight confirmation, settings entry, context
+  action, and a global Security check top drawer.
+- [ ] Add notification routing with run and agent IDs so a failed notification
+  can open the debugger.
+- [ ] Add shared card, finding, severity, empty, loading, error, and Advanced
+  details components using the existing visual tokens.
+- [ ] Respect reduced motion in every new transition and fix existing pulsing
+  status views where they ignore that setting.
+- [ ] Add VoiceOver labels, non-color severity symbols, focus order, status
+  announcements, large-text-safe layouts, keyboard shortcuts, and stable
+  accessibility identifiers.
+
+### 7. macOS state tests and UI flows
+
+- [ ] Add pure Swift state machines and presentation formatters to
+  `AgentServerCore` for creation, schedule, permissions, risk, finding groups,
+  debugger, patch preview, review staleness, loading, and errors.
+- [ ] Add XCTest coverage for all state transitions and summaries.
+- [ ] Add an `AgentServerUITests` target through `project.yml` and regenerate the
+  Xcode project.
+- [ ] Add deterministic demo launch fixtures with no credentials or personal
+  paths.
+- [ ] Cover the eight requested UI flows with a small set of stable tests.
+- [ ] Add SwiftUI previews for proposal, debugger, findings, global dashboard,
+  empty, loading, and error states where practical.
+- [ ] Inspect the built app with Accessibility Inspector and keyboard-only use.
+
+### 8. Documentation, demo, and final verification
+
+- [ ] Add feature, architecture, privacy, security, model-use, deterministic
+  logic, secret protection, test, limitation, and future-work documentation.
+- [ ] Add the concise threat model with assets, trust boundaries, attacker
+  inputs, mitigations, residual risk, and blocked operations.
+- [ ] Add a manual matrix for fresh install, upgrade, offline server, missing
+  runtime, missing connections, malformed and large inputs, VoiceOver,
+  keyboard-only use, themes, reduced motion, no network, and first run.
+- [ ] Add redacted demo agents and run evidence for the suggested demo flow.
+- [ ] Add a Build Week section with baseline commit, new work, Codex role,
+  GPT-5.6 role, human decisions, tests, session placeholder, and demo steps.
+- [ ] Capture light and dark previews or screenshots without personal data.
+- [ ] Run `pnpm test`, `pnpm test:coverage`, `pnpm lint`, `pnpm type-check`,
+  `pnpm build`, Swift tests, UI tests, and macOS build.
+- [ ] Record results, known limitations, file links, commit IDs, and the final
+  verification report in this document.
+
+## Planned commits
+
+Each commit includes its tests and keeps the repository buildable:
+
+1. `Unify run identity and add analysis schemas`
+2. `Add local security analysis and review state`
+3. `Add safe patch preview apply and undo`
+4. `Add structured agent proposal generation`
+5. `Add guided run diagnosis and retry links`
+6. `Build native creation debugger and security views`
+7. `Add UI fixtures accessibility coverage and previews`
+8. `Document Build Week features and verification`
+
+Commit IDs will be recorded after each verified milestone. No commit will mix
+unrelated cleanup with this work.
+
+## Plan review questions
+
+- Confirm the before-run policy for existing agents: only deterministic critical
+  findings block them after upgrade; high-risk findings warn until the content
+  changes or the user edits the agent.
+- Confirm local Codex as the default structured model service, with deterministic
+  fallback when it is unavailable.
+- Confirm a separate local SQLite review database under `~/.agent-server/` rather
+  than writing review metadata into agent Markdown.
+
+## Review notes
+
+- Production implementation has not started.
+- Discovery changed only this plan and the correction note in `tasks/lessons.md`.
+- The existing v2 plan remains below for historical context.
+
 # Agent Server v2 plan
 
 Local-first personal agent runner, powered by the user's own Claude and Codex

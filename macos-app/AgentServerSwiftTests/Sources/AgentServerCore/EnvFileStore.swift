@@ -28,6 +28,50 @@ public enum EnvFileStoreError: Error, Equatable {
     case writeFailed(String)
 }
 
+public enum LocalAPIAuthenticationError: Error, Equatable {
+    case missingAPIKey
+}
+
+/// Adds the local API credential to a request without placing it in the URL,
+/// logs, or a public client property. Shared by HTTP and WebSocket clients.
+public enum LocalAPIAuthentication {
+    public static func defaultEnvironmentURLs(
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> [URL] {
+        let baseDirectory = homeDirectory.appendingPathComponent(".agent-server")
+        return [
+            baseDirectory.appendingPathComponent(".env.local"),
+            baseDirectory.appendingPathComponent(".env")
+        ]
+    }
+
+    public static func authenticatedRequest(
+        _ request: URLRequest,
+        environmentURLs: [URL] = defaultEnvironmentURLs(),
+        processEnvironment: [String: String] = ProcessInfo.processInfo.environment
+    ) throws -> URLRequest {
+        let apiKey = try processEnvironment["AGENT_SERVER_API_KEY"]
+            ?? environmentURLs.lazy.compactMap {
+                try EnvFileStore.value(forKey: "AGENT_SERVER_API_KEY", from: $0)
+            }.first
+        guard let apiKey, !apiKey.isEmpty else {
+            throw LocalAPIAuthenticationError.missingAPIKey
+        }
+
+        var authenticated = request
+        authenticated.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        return authenticated
+    }
+
+    /// Convenience overload for an explicitly injected environment file.
+    public static func authenticatedRequest(
+        _ request: URLRequest,
+        environmentURL: URL
+    ) throws -> URLRequest {
+        try authenticatedRequest(request, environmentURLs: [environmentURL])
+    }
+}
+
 // MARK: - EnvFileStore
 
 /// Atomic reader/writer for a `.env` file. Preserves comments, blank lines,
@@ -69,6 +113,13 @@ public enum EnvFileStore {
         guard FileManager.default.fileExists(atPath: url.path) else { return [] }
         let content = try String(contentsOf: url, encoding: .utf8)
         return parsePairs(from: content)
+    }
+
+    /// Reads one named value without returning unrelated secrets to the caller.
+    public static func value(forKey key: String, from url: URL) throws -> String? {
+        let value = try load(from: url).first(where: { $0.key == key })?.value
+        guard let value, !value.isEmpty else { return nil }
+        return value
     }
 
     private static func parsePairs(from content: String) -> [EnvPair] {

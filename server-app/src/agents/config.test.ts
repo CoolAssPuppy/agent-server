@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseAgentYaml, parseAgentFile, AgentConfigSchema, resolveEnvVars } from './config.js';
+import { parseAgentYaml, parseAgentFile, AgentConfigSchema, resolveEnvString, resolveEnvVars } from './config.js';
 
 const VALID_YAML = `
 id: hello-world
@@ -256,6 +256,78 @@ describe('AgentConfigSchema', () => {
 
     expect(result.provider?.base_url).toBe('http://localhost:11434/v1');
     expect(result.provider?.api_key).toBeUndefined();
+  });
+
+  it('accepts HTTP provider endpoints only on the local machine', () => {
+    for (const base_url of [
+      'http://localhost:11434/v1',
+      'http://127.0.0.1:11434/v1',
+      'http://[::1]:11434/v1',
+    ]) {
+      const result = AgentConfigSchema.safeParse({
+        id: 'local-model',
+        name: 'Local Model',
+        prompt: 'Run against a local endpoint.',
+        provider: { base_url },
+      });
+      expect(result.success, base_url).toBe(true);
+    }
+  });
+
+  it('rejects insecure remote provider endpoints and URL credentials', () => {
+    for (const base_url of [
+      'http://api.example.com/v1',
+      'ftp://api.example.com/v1',
+      'https://user:password@api.example.com/v1',
+    ]) {
+      const result = AgentConfigSchema.safeParse({
+        id: 'unsafe-provider',
+        name: 'Unsafe Provider',
+        prompt: 'Do something.',
+        provider: { base_url },
+      });
+      expect(result.success, base_url).toBe(false);
+    }
+  });
+
+  it('requires provider api_key to be one exact environment reference', () => {
+    for (const api_key of ['literal-secret', 'Bearer ${MOONSHOT_API_KEY}', '${ONE}${TWO}']) {
+      const result = AgentConfigSchema.safeParse({
+        id: 'unsafe-provider-key',
+        name: 'Unsafe Provider Key',
+        prompt: 'Do something.',
+        provider: { base_url: 'https://api.example.com/v1', api_key },
+      });
+      expect(result.success, api_key).toBe(false);
+    }
+  });
+
+  it('rejects provider references to Agent Server secrets', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'server-secret-provider',
+      name: 'Server Secret Provider',
+      prompt: 'Do something.',
+      provider: {
+        base_url: 'https://api.example.com/v1',
+        api_key: '${AGENT_SERVER_PANEL_API_KEY}',
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects provider references to secrets unrelated to the endpoint', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'unrelated-provider-secret',
+      name: 'Unrelated Provider Secret',
+      prompt: 'Do something.',
+      provider: {
+        base_url: 'https://api.moonshot.ai/v1',
+        api_key: '${DATABASE_URL}',
+      },
+    });
+
+    expect(result.success).toBe(false);
   });
 
   it('rejects a provider whose base_url is not a URL', () => {
@@ -618,6 +690,23 @@ describe('mcp_servers config', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('rejects Agent Server and unrelated secret references in MCP configuration', () => {
+    for (const value of ['${AGENT_SERVER_API_KEY}', '${DATABASE_URL}']) {
+      const result = AgentConfigSchema.safeParse({
+        id: 'unsafe-mcp-agent',
+        name: 'Unsafe MCP Agent',
+        prompt: 'Do something.',
+        mcp_servers: {
+          notion: {
+            command: 'npx',
+            env: { NOTION_TOKEN: value },
+          },
+        },
+      });
+      expect(result.success, value).toBe(false);
+    }
+  });
 });
 
 describe('resolveEnvVars', () => {
@@ -654,6 +743,17 @@ describe('resolveEnvVars', () => {
   it('returns empty object for empty input', () => {
     const resolved = resolveEnvVars({}, {});
     expect(resolved).toEqual({});
+  });
+
+  it('refuses to substitute Agent Server control-plane secrets', () => {
+    expect(() => resolveEnvString(
+      '${AGENT_SERVER_PANEL_API_KEY}',
+      { AGENT_SERVER_PANEL_API_KEY: 'panel-secret' },
+    )).toThrow(/not available to agents/i);
+    expect(() => resolveEnvVars(
+      { TOKEN: 'Bearer ${AGENT_SERVER_API_KEY}' },
+      { AGENT_SERVER_API_KEY: 'local-api-secret' },
+    )).toThrow(/not available to agents/i);
   });
 });
 

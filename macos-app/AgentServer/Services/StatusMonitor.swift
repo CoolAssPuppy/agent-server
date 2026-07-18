@@ -26,6 +26,11 @@ final class StatusMonitor: ObservableObject {
     private let pollInterval: TimeInterval = 5
     private var webSocketTask: URLSessionWebSocketTask?
     private var isWebSocketConnected = false
+    private var webSocketReconnectTask: Task<Void, Never>?
+    private var webSocketFailureCount = 0
+    private var webSocketGeneration = 0
+    private var isMonitoring = false
+    private let webSocketReconnectPolicy = WebSocketReconnectPolicy()
 
     private weak var serverProcess: ServerProcessManager?
     private var notificationManager: NotificationManager?
@@ -54,6 +59,7 @@ final class StatusMonitor: ObservableObject {
     }
 
     func start() {
+        isMonitoring = true
         poll()
         pollDecisions()
         connectWebSocket()
@@ -68,6 +74,7 @@ final class StatusMonitor: ObservableObject {
     }
 
     func stop() {
+        isMonitoring = false
         timer?.invalidate()
         timer = nil
         disconnectWebSocket()
@@ -138,6 +145,7 @@ final class StatusMonitor: ObservableObject {
                             self.staleRunCount = self.previousActiveRunIds.count
                         }
                         self.notificationManager?.notifyServerRestarted()
+                        self.resetWebSocketConnection()
                     }
                     self.previousServerStartedAt = serverStartedAt
                 }
@@ -192,14 +200,26 @@ final class StatusMonitor: ObservableObject {
                 }
                 self.lastRunByAgent = latest
             } catch {
-                self.isServerReachable = false
-                self.activeRuns = []
-                self.consecutiveFailures += 1
-
-                if self.consecutiveFailures == Self.restartThreshold {
-                    self.autoRestartServer()
-                }
+                self.handlePollFailure(error)
             }
+        }
+    }
+
+    private func handlePollFailure(_ error: Error) {
+        switch MonitorPollFailureClassifier.kind(for: error) {
+        case .reachability:
+            isServerReachable = false
+            activeRuns = []
+            consecutiveFailures += 1
+            if consecutiveFailures == Self.restartThreshold {
+                autoRestartServer()
+            }
+        case .responseSchema, .serverResponse:
+            // The daemon answered. Restarting it cannot repair an incompatible
+            // response shape or a valid HTTP error, and can create a loop that
+            // hides the real problem from the user.
+            isServerReachable = true
+            consecutiveFailures = 0
         }
     }
 
@@ -213,8 +233,10 @@ final class StatusMonitor: ObservableObject {
 
     func requestServerRestart() {
         guard let serverProcess else { return }
+        disconnectWebSocket()
         Task {
             await serverProcess.restart()
+            resetWebSocketConnection()
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             poll()
         }
@@ -385,30 +407,54 @@ final class StatusMonitor: ObservableObject {
     // MARK: - WebSocket
 
     private func connectWebSocket() {
+        guard isMonitoring, webSocketTask == nil else { return }
         guard let url = LocalServerEndpoint.webSocketURL(port: 47821) else { return }
+        guard let request = try? LocalAPIAuthentication.authenticatedRequest(
+            URLRequest(url: url)
+        ) else {
+            // Secure local setup may still be in progress. Keep retrying so a
+            // key written by the daemon is picked up without relaunching.
+            scheduleWebSocketReconnect()
+            return
+        }
         let session = URLSession(configuration: .default)
-        webSocketTask = session.webSocketTask(with: url)
+        let task = session.webSocketTask(with: request)
+        webSocketGeneration += 1
+        let generation = webSocketGeneration
+        webSocketTask = task
         webSocketTask?.resume()
         isWebSocketConnected = true
-        receiveWebSocketMessage()
+        receiveWebSocketMessage(generation: generation)
     }
 
     private func disconnectWebSocket() {
+        webSocketGeneration += 1
+        webSocketReconnectTask?.cancel()
+        webSocketReconnectTask = nil
         webSocketTask?.cancel(with: .goingAway, reason: nil)
         webSocketTask = nil
         isWebSocketConnected = false
     }
 
-    private func receiveWebSocketMessage() {
+    private func resetWebSocketConnection() {
+        disconnectWebSocket()
+        webSocketFailureCount = 0
+        connectWebSocket()
+    }
+
+    private func receiveWebSocketMessage(generation: Int) {
         webSocketTask?.receive { [weak self] result in
             Task { @MainActor [weak self] in
-                guard let self else { return }
+                guard let self, generation == self.webSocketGeneration else { return }
 
                 switch result {
                 case .success(let message):
+                    self.webSocketFailureCount = 0
+                    self.isWebSocketConnected = true
                     self.handleWebSocketMessage(message)
-                    self.receiveWebSocketMessage()
+                    self.receiveWebSocketMessage(generation: generation)
                 case .failure:
+                    self.webSocketTask = nil
                     self.isWebSocketConnected = false
                     self.scheduleWebSocketReconnect()
                 }
@@ -463,13 +509,16 @@ final class StatusMonitor: ObservableObject {
     }
 
     private func scheduleWebSocketReconnect() {
-        Task {
-            try? await Task.sleep(nanoseconds: 5_000_000_000)
-            await MainActor.run {
-                if self.isServerReachable && !self.isWebSocketConnected {
-                    self.connectWebSocket()
-                }
-            }
+        guard isMonitoring, webSocketReconnectTask == nil else { return }
+        webSocketFailureCount += 1
+        let delay = webSocketReconnectPolicy.delay(afterFailureCount: webSocketFailureCount)
+        let nanoseconds = UInt64(delay * 1_000_000_000)
+
+        webSocketReconnectTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: nanoseconds)
+            guard !Task.isCancelled, let self else { return }
+            self.webSocketReconnectTask = nil
+            self.connectWebSocket()
         }
     }
 }

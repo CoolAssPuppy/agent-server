@@ -156,6 +156,10 @@ function isSameOriginRequest(request: Request, expectedHost?: string): boolean {
 
 export function createApi(deps: ApiDependencies): Hono {
   const app = new Hono();
+  const apiKey = (deps.apiKey ?? process.env.AGENT_SERVER_API_KEY ?? '').trim();
+  if (apiKey.length < 16) {
+    throw new Error('A strong AGENT_SERVER_API_KEY is required');
+  }
 
   const generalLimiter = new InMemoryRateLimiter(180, 60_000);
   const triggerLimiter = new InMemoryRateLimiter(20, 60_000);
@@ -198,14 +202,14 @@ export function createApi(deps: ApiDependencies): Hono {
       return response;
     }
 
-    if (!deps.apiKey || c.req.path === '/health') {
+    if (c.req.path === '/health') {
       await next();
       if (c.res) setSecurityHeaders(c.res.headers);
       return c.res;
     }
 
     const requestKey = extractApiKeyHeader(c.req.raw);
-    if (!isAuthorized(requestKey, deps.apiKey)) {
+    if (!isAuthorized(requestKey, apiKey)) {
       const failure = authFailures.registerFailure(ip);
       console.warn(`[api] Unauthorized request from ${sanitizeText(ip, 64)} to ${sanitizeText(c.req.path, 80)}`);
       if (!failure.allowed) {

@@ -35,7 +35,7 @@ export async function executeAgent(
     ? expandHome(agent.working_directory)
     : process.env.HOME ?? process.cwd();
 
-  const permissionMode = agent.permission_mode ?? 'bypassPermissions';
+  const permissionMode = agent.permission_mode ?? 'default';
 
   const options: Options = {
     maxTurns: agent.max_turns,
@@ -625,8 +625,8 @@ function reportMcpStatus(servers: McpServerInfo[], reporter: Reporter): void {
  * run only. Returns undefined when the agent has no provider, leaving the SDK
  * on its default (the subscription login, since `cli.ts` strips
  * `ANTHROPIC_API_KEY` globally at startup). When a provider is set, the base URL
- * and the resolved key are layered over the current process env so the run has
- * PATH etc. but points at the custom endpoint.
+ * and the resolved key are layered over an explicit runtime allowlist so the
+ * child can execute without inheriting server, connection, or database secrets.
  */
 export function buildProviderEnv(agent: AgentConfig): Record<string, string | undefined> | undefined {
   const provider = agent.provider;
@@ -634,10 +634,32 @@ export function buildProviderEnv(agent: AgentConfig): Record<string, string | un
 
   const apiKey = provider.api_key ? resolveEnvString(provider.api_key) : undefined;
   return {
-    ...process.env,
+    ...getClaudeChildEnvironment(),
     ANTHROPIC_BASE_URL: provider.base_url,
     ...(apiKey ? { ANTHROPIC_API_KEY: apiKey } : {}),
   };
+}
+
+function getClaudeChildEnvironment(): Record<string, string> {
+  const allowedNames = [
+    'COLORTERM',
+    'HOME',
+    'LANG',
+    'LC_ALL',
+    'LOGNAME',
+    'PATH',
+    'SHELL',
+    'TERM',
+    'TMPDIR',
+    'USER',
+    'XDG_CONFIG_HOME',
+  ];
+  const environment: Record<string, string> = {};
+  for (const name of allowedNames) {
+    const value = process.env[name];
+    if (value !== undefined) environment[name] = value;
+  }
+  return environment;
 }
 
 export function buildMcpServers(agent: AgentConfig): Options['mcpServers'] {

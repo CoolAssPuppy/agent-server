@@ -1,4 +1,5 @@
-import { mkdirSync, writeFileSync, existsSync, readdirSync } from 'fs';
+import { appendFileSync, chmodSync, mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync } from 'fs';
+import { randomBytes } from 'crypto';
 import { join } from 'path';
 
 const SEED_MARKER = '.seeded';
@@ -73,8 +74,8 @@ Capture a quick snapshot of the Mac's current state and append it as one row to 
 `;
 
 const ENV_SCAFFOLD = `# Agent Server environment configuration.
-# Every line below is commented out by default. Uncomment and fill in
-# only the sections you actually need.
+# Optional settings below are commented out by default. Uncomment and fill in
+# only the sections you need. Local API authentication is added automatically.
 
 # --- Agent Panel (optional) ---
 # Sign up at https://www.agentpanel.dev for free to get run history,
@@ -141,6 +142,7 @@ export function initAgentServer(baseDir: string, options: InitOptions = {}): voi
   writeIfMissing(markerPath, '', verbose);
 
   writeIfMissing(join(baseDir, '.env'), ENV_SCAFFOLD, verbose);
+  ensureLocalApiKey(join(baseDir, '.env'));
 
   if (verbose) {
     console.log(`Agent Server initialized at: ${baseDir}`);
@@ -150,6 +152,28 @@ export function initAgentServer(baseDir: string, options: InitOptions = {}): voi
     console.log('  2. Edit ' + join(baseDir, '.env') + ' to enable Panel telemetry or Telegram');
     console.log('  3. Start the daemon: agent-server start');
   }
+}
+
+function ensureLocalApiKey(envPath: string): void {
+  // Restrict the file before adding a credential. New scaffold files contain
+  // no secret yet, while existing files may already hold connection tokens.
+  chmodSync(envPath, 0o600);
+  const content = readFileSync(envPath, 'utf-8');
+  const configuredKey = content.match(/^\s*AGENT_SERVER_API_KEY\s*=\s*(\S+)\s*$/m)?.[1];
+
+  if (!configuredKey) {
+    const separator = content.endsWith('\n') ? '\n' : '\n\n';
+    const apiKey = randomBytes(32).toString('base64url');
+    appendFileSync(
+      envPath,
+      `${separator}# Local API authentication (generated automatically).\nAGENT_SERVER_API_KEY=${apiKey}\n`,
+      { encoding: 'utf-8', mode: 0o600 },
+    );
+  }
+
+  // The environment file contains the local API key and connection secrets.
+  // Enforce owner-only permissions even when it existed before initialization.
+  chmodSync(envPath, 0o600);
 }
 
 function writeIfMissing(filePath: string, content: string, verbose: boolean): void {

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { AuthFailureTracker, InMemoryRateLimiter, getClientIp, sanitizeStoredRun, sanitizeText } from './security-utils.js';
+import {
+  AuthFailureTracker,
+  InMemoryRateLimiter,
+  getClientIp,
+  sanitizeProgressEvent,
+  sanitizeStoredRun,
+  sanitizeText,
+} from './security-utils.js';
 import { makeStoredRun } from '../test-factories.js';
 
 describe('security-utils', () => {
@@ -18,6 +25,25 @@ describe('security-utils', () => {
     const sanitized = sanitizeStoredRun(run);
     expect(sanitized.summary).toContain('[REDACTED]');
     expect(sanitized.commandsRun[0]).toContain('[REDACTED]');
+  });
+
+  it('removes tool-call payloads and redacts nested WebSocket metadata', () => {
+    const sanitized = sanitizeProgressEvent({
+      type: 'run_progress',
+      runId: 'run-1',
+      agentId: 'agent-1',
+      timestamp: '2026-07-18T12:00:00.000Z',
+      metadata: {
+        turns_completed: 2,
+        tool_calls: [{ input: { token: 'secret-value' }, output: 'private file contents' }],
+        mcp_servers: [{ name: 'slack', error: 'Authorization: Bearer hidden-token-value' }],
+      },
+    });
+
+    expect(sanitized.metadata?.turns_completed).toBe(2);
+    expect(sanitized.metadata).not.toHaveProperty('tool_calls');
+    expect(JSON.stringify(sanitized.metadata)).not.toContain('hidden-token-value');
+    expect(JSON.stringify(sanitized.metadata)).toContain('[REDACTED]');
   });
 
   it('enforces rate limits', () => {

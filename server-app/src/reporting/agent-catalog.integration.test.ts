@@ -45,8 +45,11 @@ describe('watch-only agent catalog lifecycle', () => {
         getAgents: () => discoverAgents(directory),
         store: new RunStore(),
         triggerRun: vi.fn().mockResolvedValue('run-id'),
+        apiKey: 'catalog-integration-key-123456',
       });
-      const response = await app.request('/agents');
+      const response = await app.request('/agents', {
+        headers: { 'x-agent-server-key': 'catalog-integration-key-123456' },
+      });
       const agents = await response.json() as Array<{ id: string }>;
       return agents.map((agent) => agent.id);
     };

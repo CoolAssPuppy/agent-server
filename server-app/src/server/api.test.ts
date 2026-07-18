@@ -3,11 +3,24 @@ import { createApi } from './api.js';
 import { RunStore } from '../reporting/store.js';
 import { makeAgent, makeStoredRun } from '../test-factories.js';
 
+const API_TEST_KEY = 'local-api-test-key-1234567890';
+
+function authenticatedRequest(
+  app: ReturnType<typeof createApi>,
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const headers = new Headers(init.headers);
+  headers.set('x-agent-server-key', API_TEST_KEY);
+  return app.request(path, { ...init, headers });
+}
+
 describe('API routes', () => {
   let store: RunStore;
   let triggerRun: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    process.env.AGENT_SERVER_API_KEY = API_TEST_KEY;
     store = new RunStore();
     triggerRun = vi.fn().mockResolvedValue('run-123');
   });
@@ -23,7 +36,7 @@ describe('API routes', () => {
     });
   }
 
-  function createSecuredApp(apiKey = 'secret-key') {
+  function createSecuredApp(apiKey = API_TEST_KEY) {
     const agents = [makeAgent(), makeAgent({ id: 'other-agent', name: 'Other' })];
     return createApi({
       getAgents: async () => agents,
@@ -37,7 +50,7 @@ describe('API routes', () => {
   describe('GET /agents', () => {
     it('returns all agents', async () => {
       const app = createApp();
-      const res = await app.request('/agents');
+      const res = await authenticatedRequest(app, '/agents');
       expect(res.status).toBe(200);
 
       const body = await res.json();
@@ -58,7 +71,7 @@ describe('API routes', () => {
         triggerRun,
       });
 
-      const res = await app.request('/agents');
+      const res = await authenticatedRequest(app, '/agents');
       const body = await res.json() as Array<Record<string, unknown>>;
 
       expect(body.map((agent) => agent.id)).toEqual([
@@ -76,7 +89,7 @@ describe('API routes', () => {
   describe('GET /agents/:id', () => {
     it('returns a specific agent', async () => {
       const app = createApp();
-      const res = await app.request('/agents/test-agent');
+      const res = await authenticatedRequest(app, '/agents/test-agent');
       expect(res.status).toBe(200);
 
       const body = await res.json();
@@ -87,7 +100,7 @@ describe('API routes', () => {
 
     it('blocks cross-origin mutation requests', async () => {
       const app = createApp('127.0.0.1');
-      const res = await app.request('/agents/test-agent/run', {
+      const res = await authenticatedRequest(app, '/agents/test-agent/run', {
         method: 'POST',
         headers: { Origin: 'https://evil.example' },
       });
@@ -97,7 +110,7 @@ describe('API routes', () => {
 
     it('allows loopback origin mutation requests when server host is loopback', async () => {
       const app = createApp('127.0.0.1');
-      const res = await app.request('/agents/test-agent/run', {
+      const res = await authenticatedRequest(app, '/agents/test-agent/run', {
         method: 'POST',
         headers: { Origin: 'http://localhost:3000' },
       });
@@ -106,7 +119,7 @@ describe('API routes', () => {
     });
     it('returns 404 for unknown agent', async () => {
       const app = createApp();
-      const res = await app.request('/agents/nonexistent');
+      const res = await authenticatedRequest(app, '/agents/nonexistent');
       expect(res.status).toBe(404);
     });
   });
@@ -114,7 +127,7 @@ describe('API routes', () => {
   describe('POST /agents/:id/run', () => {
     it('triggers a run and returns run ID', async () => {
       const app = createApp();
-      const res = await app.request('/agents/test-agent/run', { method: 'POST' });
+      const res = await authenticatedRequest(app, '/agents/test-agent/run', { method: 'POST' });
       expect(res.status).toBe(202);
 
       const body = await res.json();
@@ -124,7 +137,7 @@ describe('API routes', () => {
 
     it('passes prompt suffix from request body', async () => {
       const app = createApp();
-      const res = await app.request('/agents/test-agent/run', {
+      const res = await authenticatedRequest(app, '/agents/test-agent/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ with: 'Bougainville tonight for 4' }),
@@ -135,7 +148,7 @@ describe('API routes', () => {
 
     it('rejects invalid request body', async () => {
       const app = createApp();
-      const res = await app.request('/agents/test-agent/run', {
+      const res = await authenticatedRequest(app, '/agents/test-agent/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ with: 123 }),
@@ -146,7 +159,7 @@ describe('API routes', () => {
 
     it('rejects invalid JSON request body', async () => {
       const app = createApp();
-      const res = await app.request('/agents/test-agent/run', {
+      const res = await authenticatedRequest(app, '/agents/test-agent/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: '{bad',
@@ -157,7 +170,7 @@ describe('API routes', () => {
 
     it('returns 404 for unknown agent', async () => {
       const app = createApp();
-      const res = await app.request('/agents/nonexistent/run', { method: 'POST' });
+      const res = await authenticatedRequest(app, '/agents/nonexistent/run', { method: 'POST' });
       expect(res.status).toBe(404);
     });
   });
@@ -168,7 +181,7 @@ describe('API routes', () => {
       store.add(makeStoredRun({ runId: 'r2' }));
 
       const app = createApp();
-      const res = await app.request('/runs');
+      const res = await authenticatedRequest(app, '/runs');
       expect(res.status).toBe(200);
 
       const body = await res.json();
@@ -180,7 +193,7 @@ describe('API routes', () => {
       store.add(makeStoredRun({ runId: 'r2', agentId: 'agent-b' }));
 
       const app = createApp();
-      const res = await app.request('/runs?agent_id=agent-a');
+      const res = await authenticatedRequest(app, '/runs?agent_id=agent-a');
       expect(res.status).toBe(200);
 
       const body = await res.json();
@@ -193,7 +206,7 @@ describe('API routes', () => {
     it('returns a specific run', async () => {
       store.add(makeStoredRun({ progressMessages: ['Step 1'] }));
       const app = createApp();
-      const res = await app.request('/runs/run-1');
+      const res = await authenticatedRequest(app, '/runs/run-1');
       expect(res.status).toBe(200);
 
       const body = await res.json();
@@ -203,7 +216,7 @@ describe('API routes', () => {
 
     it('returns 404 for unknown run', async () => {
       const app = createApp();
-      const res = await app.request('/runs/nonexistent');
+      const res = await authenticatedRequest(app, '/runs/nonexistent');
       expect(res.status).toBe(404);
     });
   });
@@ -219,7 +232,7 @@ describe('API routes', () => {
         cancelRun,
       });
 
-      const res = await app.request('/runs/r1/cancel', { method: 'POST' });
+      const res = await authenticatedRequest(app, '/runs/r1/cancel', { method: 'POST' });
       expect(res.status).toBe(200);
 
       const body = await res.json();
@@ -236,7 +249,7 @@ describe('API routes', () => {
         cancelRun,
       });
 
-      const res = await app.request('/runs/nonexistent/cancel', { method: 'POST' });
+      const res = await authenticatedRequest(app, '/runs/nonexistent/cancel', { method: 'POST' });
       expect(res.status).toBe(404);
     });
 
@@ -250,7 +263,7 @@ describe('API routes', () => {
         cancelRun,
       });
 
-      const res = await app.request('/runs/r1/cancel', { method: 'POST' });
+      const res = await authenticatedRequest(app, '/runs/r1/cancel', { method: 'POST' });
       expect(res.status).toBe(409);
     });
   });
@@ -260,7 +273,7 @@ describe('API routes', () => {
       store.add(makeStoredRun({ runId: 'r-del-1', status: 'completed' }));
       const app = createApp('127.0.0.1');
 
-      const res = await app.request('/runs/r-del-1', { method: 'DELETE' });
+      const res = await authenticatedRequest(app, '/runs/r-del-1', { method: 'DELETE' });
       expect(res.status).toBe(200);
 
       const body = await res.json();
@@ -270,7 +283,7 @@ describe('API routes', () => {
 
     it('returns 404 when the run does not exist', async () => {
       const app = createApp('127.0.0.1');
-      const res = await app.request('/runs/missing', { method: 'DELETE' });
+      const res = await authenticatedRequest(app, '/runs/missing', { method: 'DELETE' });
       expect(res.status).toBe(404);
     });
   });
@@ -278,7 +291,7 @@ describe('API routes', () => {
   describe('GET /health', () => {
     it('returns ok', async () => {
       const app = createApp();
-      const res = await app.request('/health');
+      const res = await authenticatedRequest(app, '/health');
       expect(res.status).toBe(200);
 
       const body = await res.json();
@@ -295,7 +308,7 @@ describe('API routes', () => {
         startedAt,
       });
 
-      const res = await app.request('/health');
+      const res = await authenticatedRequest(app, '/health');
       expect(res.status).toBe(200);
 
       const body = await res.json();
@@ -315,7 +328,7 @@ describe('API routes', () => {
         cleanupFn,
       });
 
-      const res = await app.request('/cleanup', { method: 'POST' });
+      const res = await authenticatedRequest(app, '/cleanup', { method: 'POST' });
       expect(res.status).toBe(200);
 
       const body = await res.json();
@@ -326,7 +339,7 @@ describe('API routes', () => {
 
     it('returns 501 when no cleanup function is configured', async () => {
       const app = createApp();
-      const res = await app.request('/cleanup', { method: 'POST' });
+      const res = await authenticatedRequest(app, '/cleanup', { method: 'POST' });
       expect(res.status).toBe(501);
     });
   });
@@ -334,7 +347,7 @@ describe('API routes', () => {
   describe('security middleware', () => {
     it('sets security headers', async () => {
       const app = createApp();
-      const res = await app.request('/health');
+      const res = await authenticatedRequest(app, '/health');
 
       expect(res.headers.get('x-content-type-options')).toBe('nosniff');
       expect(res.headers.get('x-frame-options')).toBe('DENY');
@@ -343,7 +356,7 @@ describe('API routes', () => {
 
     it('requires json content type for non-empty trigger body', async () => {
       const app = createApp();
-      const res = await app.request('/agents/test-agent/run', {
+      const res = await authenticatedRequest(app, '/agents/test-agent/run', {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
         body: '{"with":"hello"}',
@@ -353,6 +366,16 @@ describe('API routes', () => {
     });
   });
   describe('API key authentication', () => {
+    it('refuses to create an API without a strong local key', () => {
+      delete process.env.AGENT_SERVER_API_KEY;
+
+      expect(() => createApi({
+        getAgents: async () => [],
+        store,
+        triggerRun,
+      })).toThrow('A strong AGENT_SERVER_API_KEY is required');
+    });
+
     it('rejects unauthorized requests when api key is configured', async () => {
       const app = createSecuredApp();
       const res = await app.request('/agents');
@@ -363,7 +386,7 @@ describe('API routes', () => {
     it('accepts x-agent-server-key header', async () => {
       const app = createSecuredApp();
       const res = await app.request('/agents', {
-        headers: { 'x-agent-server-key': 'secret-key' },
+        headers: { 'x-agent-server-key': API_TEST_KEY },
       });
 
       expect(res.status).toBe(200);
@@ -372,7 +395,7 @@ describe('API routes', () => {
     it('accepts bearer auth header', async () => {
       const app = createSecuredApp();
       const res = await app.request('/agents', {
-        headers: { Authorization: 'Bearer secret-key' },
+        headers: { Authorization: `Bearer ${API_TEST_KEY}` },
       });
 
       expect(res.status).toBe(200);
@@ -389,7 +412,7 @@ describe('API routes', () => {
   describe('agent capabilities enrichment', () => {
     it('includes derived capabilities on GET /agents', async () => {
       const app = createApp();
-      const res = await app.request('/agents');
+      const res = await authenticatedRequest(app, '/agents');
       const body = await res.json() as Array<{ capabilities: Array<{ id: string; enabled: boolean }> }>;
 
       const readFiles = body[0].capabilities.find((cap) => cap.id === 'read-files');
@@ -404,7 +427,7 @@ describe('API routes', () => {
       })];
       const app = createApi({ getAgents: async () => agents, store, triggerRun });
 
-      const res = await app.request('/agents/test-agent');
+      const res = await authenticatedRequest(app, '/agents/test-agent');
       const body = await res.json() as {
         mcp_servers: Record<string, { env?: Record<string, string> }>;
       };
@@ -419,7 +442,7 @@ describe('API routes', () => {
         triggerRun,
         getEnv: () => ({ NOTION_API_KEY: 'x' }),
       });
-      const res = await app.request('/capabilities');
+      const res = await authenticatedRequest(app, '/capabilities');
       expect(res.status).toBe(200);
 
       const body = await res.json() as { capabilities: Array<{ id: string; env_ready: boolean }> };
@@ -445,7 +468,7 @@ describe('API routes', () => {
 
     it('returns 501 when no writer is configured', async () => {
       const app = createApp();
-      const res = await app.request('/agents/test-agent', {
+      const res = await authenticatedRequest(app, '/agents/test-agent', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: '{"name":"Renamed"}',
@@ -457,7 +480,7 @@ describe('API routes', () => {
       const update = vi.fn().mockResolvedValue(makeAgent({ name: 'Renamed' }));
       const app = createWriterApp({ update });
 
-      const res = await app.request('/agents/test-agent', {
+      const res = await authenticatedRequest(app, '/agents/test-agent', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ name: 'Renamed', capabilities: [{ id: 'run-commands', enabled: false }] }),
@@ -475,7 +498,7 @@ describe('API routes', () => {
 
     it('rejects patches with unknown fields', async () => {
       const app = createWriterApp({});
-      const res = await app.request('/agents/test-agent', {
+      const res = await authenticatedRequest(app, '/agents/test-agent', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: '{"id":"sneaky-rename"}',
@@ -490,7 +513,7 @@ describe('API routes', () => {
       );
       const app = createWriterApp({ update });
 
-      const res = await app.request('/agents/test-agent', {
+      const res = await authenticatedRequest(app, '/agents/test-agent', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: '{"name":"X"}',
@@ -505,7 +528,7 @@ describe('API routes', () => {
       const update = vi.fn().mockRejectedValue(new AgentWriteError('nope', 'not_found'));
       const app = createWriterApp({ update });
 
-      const res = await app.request('/agents/ghost', {
+      const res = await authenticatedRequest(app, '/agents/ghost', {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: '{"name":"X"}',
@@ -517,7 +540,7 @@ describe('API routes', () => {
       const create = vi.fn().mockResolvedValue(makeAgent({ id: 'new-agent', name: 'New Agent' }));
       const app = createWriterApp({ create });
 
-      const res = await app.request('/agents', {
+      const res = await authenticatedRequest(app, '/agents', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ name: 'New Agent', prompt: 'Do things.' }),
@@ -533,7 +556,7 @@ describe('API routes', () => {
 
       const bigPrompt = 'x'.repeat(30_000);
       const body = JSON.stringify({ prompt: bigPrompt });
-      const res = await app.request('/agents/test-agent', {
+      const res = await authenticatedRequest(app, '/agents/test-agent', {
         method: 'PUT',
         headers: {
           'content-type': 'application/json',
@@ -546,7 +569,7 @@ describe('API routes', () => {
 
     it('still rejects oversized bodies on other routes', async () => {
       const app = createApp();
-      const res = await app.request('/agents/test-agent/run', {
+      const res = await authenticatedRequest(app, '/agents/test-agent/run', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -561,7 +584,7 @@ describe('API routes', () => {
       const remove = vi.fn().mockResolvedValue(undefined);
       const app = createWriterApp({ remove });
 
-      const res = await app.request('/agents/test-agent', { method: 'DELETE' });
+      const res = await authenticatedRequest(app, '/agents/test-agent', { method: 'DELETE' });
       expect(res.status).toBe(200);
       expect(remove).toHaveBeenCalledWith('test-agent');
     });
@@ -576,7 +599,7 @@ describe('API routes', () => {
           create: vi.fn(),
           remove: vi.fn(),
         },
-        apiKey: 'secret-key',
+        apiKey: API_TEST_KEY,
       });
 
       const res = await app.request('/agents/test-agent', {
@@ -591,7 +614,7 @@ describe('API routes', () => {
   describe('connections', () => {
     it('GET /connections serves an empty snapshot when no cache is wired', async () => {
       const app = createApp();
-      const res = await app.request('/connections');
+      const res = await authenticatedRequest(app, '/connections');
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual({ servers: [], discovered_at: null });
     });
@@ -607,7 +630,7 @@ describe('API routes', () => {
         triggerRun,
         connections: { get: () => snapshot, refresh: async () => snapshot },
       });
-      const res = await app.request('/connections');
+      const res = await authenticatedRequest(app, '/connections');
       expect(await res.json()).toEqual(snapshot);
     });
 
@@ -623,7 +646,7 @@ describe('API routes', () => {
         triggerRun,
         connections: { get: () => ({ servers: [], discovered_at: null }), refresh },
       });
-      const res = await app.request('/connections/refresh', { method: 'POST' });
+      const res = await authenticatedRequest(app, '/connections/refresh', { method: 'POST' });
       expect(res.status).toBe(200);
       expect(await res.json()).toEqual(refreshed);
       expect(refresh).toHaveBeenCalledOnce();
@@ -640,7 +663,7 @@ describe('API routes', () => {
         triggerRun,
         connections: { get: () => snapshot, refresh: async () => snapshot },
       });
-      const res = await app.request('/agents/test-agent');
+      const res = await authenticatedRequest(app, '/agents/test-agent');
       const body = await res.json();
       const slack = body.capabilities.find((cap: { id: string }) => cap.id === 'slack');
       expect(slack).toBeDefined();

@@ -12,8 +12,19 @@ const SECRET_PATTERNS: RegExp[] = [
   /\b(Bearer\s+)[A-Za-z0-9._~+/=-]{10,}\b/gi,
   /\b(x-agent-server-key\s*[:=]\s*)[^\s,;]+/gi,
   /\b(authorization\s*[:=]\s*bearer\s+)[^\s,;]+/gi,
+  /\b(authorization\s*[:=]\s*['"]?bearer\s+)[^\s,;'"}]+/gi,
+  /\b(password|passwd|token|secret|api[_-]?key)\s*[:=]\s*['"][^'"]+['"]/gi,
   /\b(password|passwd|token|secret|api[_-]?key)\s*[:=]\s*[^\s,;]+/gi,
 ];
+
+const OMITTED_METADATA_KEYS = new Set([
+  'tool_call',
+  'tool_calls',
+  'tool_input',
+  'tool_inputs',
+  'tool_output',
+  'tool_outputs',
+]);
 
 function replaceSecrets(text: string): string {
   let sanitized = text;
@@ -42,6 +53,33 @@ export function sanitizePromptSuffix(input: string): string {
   return sanitizeText(input, 4_000);
 }
 
+/**
+ * Sanitizes an unknown JSON-like value with hard depth and collection bounds.
+ * Tool-call payloads are omitted because they can contain full file contents,
+ * command output, and credentials that a string redactor cannot classify.
+ */
+export function sanitizeStructuredValue(value: unknown, depth = 0): unknown {
+  if (depth > 5) return '[TRUNCATED]';
+  if (typeof value === 'string') return sanitizeText(value, 800);
+  if (typeof value === 'number' || typeof value === 'boolean' || value === null) return value;
+  if (Array.isArray(value)) {
+    return value.slice(0, 50).map((entry) => sanitizeStructuredValue(entry, depth + 1));
+  }
+  if (typeof value !== 'object') return undefined;
+
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value).slice(0, 50)) {
+    if (OMITTED_METADATA_KEYS.has(key.toLowerCase())) continue;
+    const safeEntry = sanitizeStructuredValue(entry, depth + 1);
+    if (safeEntry !== undefined) sanitized[sanitizeText(key, 120)] = safeEntry;
+  }
+  return sanitized;
+}
+
+export function sanitizeMetadata(metadata: Record<string, unknown>): Record<string, unknown> {
+  return sanitizeStructuredValue(metadata) as Record<string, unknown>;
+}
+
 export function sanitizeStoredRun(run: StoredRun): StoredRun {
   return {
     ...run,
@@ -61,7 +99,7 @@ export function sanitizeProgressEvent(event: ProgressEvent): ProgressEvent {
     message: event.message ? sanitizeText(event.message, 400) : undefined,
     error: event.error ? sanitizeText(event.error, 400) : undefined,
     summary: event.summary ? sanitizeText(event.summary, 800) : undefined,
-    metadata: event.metadata,
+    metadata: event.metadata ? sanitizeMetadata(event.metadata) : undefined,
   };
 }
 

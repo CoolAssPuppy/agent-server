@@ -236,6 +236,10 @@ function createRunStore(runDbPath: string): RunStoreLike {
 
 export function startServer(config: ServerConfig, options?: StartServerOptions): ServerInstance {
   validateNetworkExposure(config.host, config.apiKey);
+  const apiKey = config.apiKey?.trim();
+  if (!apiKey) {
+    throw new Error('AGENT_SERVER_API_KEY is required. Run agent-server init to generate one.');
+  }
 
   const startedAt = new Date().toISOString();
   const serverId = `${hostname()}-${process.pid}`;
@@ -417,6 +421,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     }));
 
     runAgent({
+      runId,
       agent,
       lockDir: config.lockDir,
       buildDecisionContext,
@@ -659,7 +664,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       get: () => connectionCache.get(),
       refresh: () => connectionCache.refresh(),
     },
-    apiKey: config.apiKey,
+    apiKey,
     startedAt,
     host: config.host,
   });

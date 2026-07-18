@@ -37,23 +37,84 @@ export const AgentTelemetrySchema = z.object({
 
 export type AgentTelemetry = z.infer<typeof AgentTelemetrySchema>;
 
+const ENV_REFERENCE_PATTERN = /\$\{([A-Z][A-Z0-9_]*)}/g;
+const EXACT_ENV_REFERENCE_PATTERN = /^\$\{([A-Z][A-Z0-9_]*)}$/;
+
+function isProtectedAgentEnvName(name: string): boolean {
+  return name.startsWith('AGENT_SERVER_')
+    || name === 'ANTHROPIC_API_KEY'
+    || name === 'OPENAI_API_KEY';
+}
+
+const GENERIC_REFERENCE_PREFIXES = new Set([
+  'API', 'HTTP', 'HTTPS', 'LOCAL', 'MCP', 'MY', 'REMOTE', 'SERVER', 'WWW',
+]);
+
+function referencePrefix(value: string): string | undefined {
+  const prefix = value.toUpperCase().split(/[^A-Z0-9]+/).find(Boolean);
+  return prefix && !GENERIC_REFERENCE_PREFIXES.has(prefix) ? prefix : undefined;
+}
+
+function endpointReferencePrefixes(value: string): Set<string> {
+  const prefixes = new Set<string>();
+  try {
+    const url = new URL(value);
+    for (const label of url.hostname.split('.')) {
+      const prefix = referencePrefix(label);
+      if (prefix) prefixes.add(prefix);
+    }
+  } catch {
+    // URL validation reports the malformed endpoint separately.
+  }
+  return prefixes;
+}
+
+function validateRelatedReference(
+  value: string,
+  allowedPrefixes: ReadonlySet<string>,
+  ctx: z.RefinementCtx,
+): void {
+  for (const match of value.matchAll(ENV_REFERENCE_PATTERN)) {
+    const prefix = referencePrefix(match[1]);
+    if (!prefix || !allowedPrefixes.has(prefix)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `Environment variable ${match[1]} is unrelated to this connection`,
+      });
+    }
+  }
+}
+
+function validateAgentEnvReferences(value: string, ctx: z.RefinementCtx): void {
+  for (const match of value.matchAll(ENV_REFERENCE_PATTERN)) {
+    if (isProtectedAgentEnvName(match[1])) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `Environment variable ${match[1]} is not available to agents`,
+      });
+    }
+  }
+}
+
+const AgentEnvValueSchema = z.string().superRefine(validateAgentEnvReferences);
+
 const McpStdioServerSchema = z.object({
   type: z.literal('stdio').optional(),
   command: z.string().min(1),
   args: z.array(z.string()).optional(),
-  env: z.record(z.string(), z.string()).optional(),
+  env: z.record(z.string(), AgentEnvValueSchema).optional(),
 });
 
 const McpSseServerSchema = z.object({
   type: z.literal('sse'),
   url: z.string().url(),
-  headers: z.record(z.string(), z.string()).optional(),
+  headers: z.record(z.string(), AgentEnvValueSchema).optional(),
 });
 
 const McpHttpServerSchema = z.object({
   type: z.literal('http'),
   url: z.string().url(),
-  headers: z.record(z.string(), z.string()).optional(),
+  headers: z.record(z.string(), AgentEnvValueSchema).optional(),
 });
 
 const McpServerConfigSchema = z.union([
@@ -64,14 +125,17 @@ const McpServerConfigSchema = z.union([
 
 export type McpServerConfig = z.infer<typeof McpServerConfigSchema>;
 
-const ENV_VAR_PATTERN = /\$\{([^}]+)}/g;
-
 /** Resolve `${VAR}` references in a single string from `source` (undefined -> ''). */
 export function resolveEnvString(
   value: string,
   source: Record<string, string | undefined> = process.env as Record<string, string | undefined>,
 ): string {
-  return value.replace(ENV_VAR_PATTERN, (_match, varName: string) => source[varName] ?? '');
+  return value.replace(ENV_REFERENCE_PATTERN, (_match, varName: string) => {
+    if (isProtectedAgentEnvName(varName)) {
+      throw new Error(`Environment variable ${varName} is not available to agents`);
+    }
+    return source[varName] ?? '';
+  });
 }
 
 export function resolveEnvVars(
@@ -91,9 +155,58 @@ export function resolveEnvVars(
  * for the Claude runtime. `base_url` is a literal URL; `api_key` holds a
  * `${VAR}` reference resolved from `.env` at run time, never a literal secret.
  */
+const ProviderBaseUrlSchema = z.string().trim().url().max(1024).superRefine((value, ctx) => {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return;
+  }
+  const isLoopback = url.hostname === 'localhost'
+    || url.hostname === '127.0.0.1'
+    || url.hostname === '[::1]';
+  if (url.username || url.password) {
+    ctx.addIssue({ code: 'custom', message: 'Provider URLs cannot contain credentials' });
+  }
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLoopback)) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Provider URLs must use HTTPS, except for local loopback endpoints',
+    });
+  }
+});
+
+const ProviderApiKeySchema = z.string().trim().max(512).superRefine((value, ctx) => {
+  const match = EXACT_ENV_REFERENCE_PATTERN.exec(value);
+  if (!match) {
+    ctx.addIssue({ code: 'custom', message: 'Provider api_key must be one ${VAR} reference' });
+    return;
+  }
+  if (isProtectedAgentEnvName(match[1])) {
+    ctx.addIssue({
+      code: 'custom',
+      message: `Environment variable ${match[1]} is not available to agents`,
+    });
+  }
+});
+
 export const ProviderConfigSchema = z.object({
-  base_url: z.string().trim().url().max(1024),
-  api_key: z.string().trim().min(1).max(512).optional(),
+  base_url: ProviderBaseUrlSchema,
+  api_key: ProviderApiKeySchema.optional(),
+}).superRefine((provider, ctx) => {
+  if (!provider.api_key) return;
+  let url: URL;
+  try {
+    url = new URL(provider.base_url);
+  } catch {
+    return;
+  }
+  const isLoopback = url.hostname === 'localhost'
+    || url.hostname === '127.0.0.1'
+    || url.hostname === '[::1]';
+  if (!isLoopback) {
+    validateRelatedReference(provider.api_key, endpointReferencePrefixes(provider.base_url), ctx);
+  }
 });
 
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
@@ -127,7 +240,22 @@ export const AgentConfigSchema = z
     conversation: ConversationConfigSchema.optional(),
     telemetry: AgentTelemetrySchema.optional(),
   })
-  .passthrough();
+  .passthrough()
+  .superRefine((agent, ctx) => {
+    for (const [serverName, server] of Object.entries(agent.mcp_servers ?? {})) {
+      const allowedPrefixes = endpointReferencePrefixes('url' in server ? server.url : '');
+      for (const part of serverName.split(/[^A-Za-z0-9]+/)) {
+        const prefix = referencePrefix(part);
+        if (prefix) allowedPrefixes.add(prefix);
+      }
+      const values = 'command' in server ? server.env : server.headers;
+      for (const [targetName, value] of Object.entries(values ?? {})) {
+        const targetPrefix = referencePrefix(targetName);
+        if (targetPrefix) allowedPrefixes.add(targetPrefix);
+        validateRelatedReference(value, allowedPrefixes, ctx);
+      }
+    }
+  });
 
 export type AgentConfig = z.infer<typeof AgentConfigSchema>;
 

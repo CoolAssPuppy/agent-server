@@ -32,6 +32,8 @@ export type Reporter = {
 };
 
 type RunAgentOptions = {
+  /** Canonical ID allocated by the caller that owns local run state. */
+  runId?: string;
   agent: AgentConfig;
   lockDir: string;
   execute: (
@@ -71,6 +73,7 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
     timeoutMs,
     abortController,
   } = options;
+  const runId = options.runId ?? randomUUID();
 
   if (!acquireLock(lockDir, agent.id)) {
     // Fix 4: Panel should still record that a concurrent invocation was
@@ -78,7 +81,6 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
     // `lock_contention` so the run appears in history instead of silently
     // vanishing.
     try {
-      const runId = randomUUID();
       const reporter = options.createReporter(runId, agent.name, options.conversationId);
       if (typeof reporter.cancel === 'function') {
         await reporter.cancel('Another invocation of this agent is already running.', 'lock_contention');
@@ -95,10 +97,9 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
         `[runner] Failed to emit lock_contention notification for agent=${agent.id} name=${agent.name}: ${message}`,
       );
     }
-    return { status: 'skipped' };
+    return { runId, status: 'skipped' };
   }
 
-  const runId = randomUUID();
   const reporter = createReporter(runId, agent.name, conversationId);
 
   const safePromptSuffix = promptSuffix ? sanitizePromptSuffix(promptSuffix) : undefined;

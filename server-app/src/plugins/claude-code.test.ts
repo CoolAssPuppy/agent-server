@@ -28,6 +28,11 @@ function createAgentConfig(overrides?: Partial<AgentConfig>): AgentConfig {
   };
 }
 
+function restoreEnv(name: string, value: string | undefined): void {
+  if (value === undefined) delete process.env[name];
+  else process.env[name] = value;
+}
+
 const mockMcpServerStatus = vi.fn();
 const mockReconnectMcpServer = vi.fn();
 const mockQuery = vi.fn();
@@ -83,8 +88,8 @@ describe('executeAgent with Agent SDK', () => {
         maxTurns: 5,
         allowedTools: ['Read', 'Write', 'Bash'],
         cwd: '/tmp/test-dir',
-        permissionMode: 'bypassPermissions',
-        allowDangerouslySkipPermissions: true,
+        permissionMode: 'default',
+        allowDangerouslySkipPermissions: undefined,
       }),
     });
   });
@@ -136,6 +141,52 @@ describe('executeAgent with Agent SDK', () => {
       if (previous === undefined) delete process.env.MOONSHOT_API_KEY;
       else process.env.MOONSHOT_API_KEY = previous;
     }
+  });
+
+  it('passes only safe process variables to a custom-provider Claude child', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+    const previousPanelKey = process.env.AGENT_SERVER_PANEL_API_KEY;
+    const previousDatabaseUrl = process.env.DATABASE_URL;
+    const previousProviderKey = process.env.MOONSHOT_API_KEY;
+    process.env.AGENT_SERVER_PANEL_API_KEY = 'panel-secret';
+    process.env.DATABASE_URL = 'postgres://secret';
+    process.env.MOONSHOT_API_KEY = 'provider-secret';
+    try {
+      mockQuery.mockReturnValue(createAsyncGenerator([
+        createResultSuccess({ result: 'Done', num_turns: 1 }),
+      ]));
+
+      await executeAgent(createAgentConfig({
+        provider: { base_url: 'https://api.moonshot.ai/anthropic', api_key: '${MOONSHOT_API_KEY}' },
+      }), createMockReporter());
+
+      const environment = mockQuery.mock.calls[0][0].options.env as Record<string, string | undefined>;
+      expect(environment.AGENT_SERVER_PANEL_API_KEY).toBeUndefined();
+      expect(environment.DATABASE_URL).toBeUndefined();
+      expect(environment.PATH).toBe(process.env.PATH);
+      expect(environment.HOME).toBe(process.env.HOME);
+      expect(environment.ANTHROPIC_API_KEY).toBe('provider-secret');
+    } finally {
+      restoreEnv('AGENT_SERVER_PANEL_API_KEY', previousPanelKey);
+      restoreEnv('DATABASE_URL', previousDatabaseUrl);
+      restoreEnv('MOONSHOT_API_KEY', previousProviderKey);
+    }
+  });
+
+  it('keeps bypassPermissions available only when an agent opts in', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createResultSuccess({ result: 'Done', num_turns: 1 }),
+    ]));
+
+    await executeAgent(
+      createAgentConfig({ permission_mode: 'bypassPermissions' }),
+      createMockReporter(),
+    );
+
+    const options = mockQuery.mock.calls[0][0].options;
+    expect(options.permissionMode).toBe('bypassPermissions');
+    expect(options.allowDangerouslySkipPermissions).toBe(true);
   });
 
   it('leaves env undefined when the agent has no provider (subscription default)', async () => {

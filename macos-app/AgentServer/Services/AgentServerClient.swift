@@ -4,8 +4,9 @@ actor AgentServerClient {
     private let baseURL: URL
     private let session: URLSession
     private let decoder: JSONDecoder
+    private let environmentURLs: [URL]
 
-    init(port: Int = 47821) {
+    init(port: Int = 47821, environmentURL: URL? = nil) {
         // Fail loud during init with a clear message if the host/port combo
         // ever produces an invalid URL — better than a force-unwrap crash
         // miles away in the call site.
@@ -13,6 +14,8 @@ actor AgentServerClient {
             preconditionFailure("AgentServerClient: invalid base URL for port \(port)")
         }
         self.baseURL = url
+        self.environmentURLs = environmentURL.map { [$0] }
+            ?? LocalAPIAuthentication.defaultEnvironmentURLs()
 
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 5
@@ -24,7 +27,7 @@ actor AgentServerClient {
     }
 
     func health() async throws -> HealthResponse {
-        try await get("/health")
+        try await get("/health", requiresAuthentication: false)
     }
 
     func agents() async throws -> [Agent] {
@@ -44,7 +47,8 @@ actor AgentServerClient {
         guard let composed = components.url else {
             throw ClientError.invalidResponse
         }
-        let (data, response) = try await session.data(from: composed)
+        let request = try authenticatedRequest(URLRequest(url: composed))
+        let (data, response) = try await session.data(for: request)
         try validateResponse(response)
         return try decoder.decode([Run].self, from: data)
     }
@@ -59,7 +63,8 @@ actor AgentServerClient {
     /// carry sub-second precision that the default `.iso8601` strategy rejects.
     func fetchPendingDecisions() async throws -> [Decision] {
         let url = baseURL.appendingPathComponent("/decisions")
-        let (data, response) = try await session.data(from: url)
+        let request = try authenticatedRequest(URLRequest(url: url))
+        let (data, response) = try await session.data(for: request)
         try validateResponse(response)
         return try Self.decisionDecoder.decode(DecisionsResponse.self, from: data).decisions
     }
@@ -88,6 +93,7 @@ actor AgentServerClient {
     func cancelRun(id: String) async throws {
         var request = URLRequest(url: baseURL.appendingPathComponent("/runs/\(id)/cancel"))
         request.httpMethod = "POST"
+        request = try authenticatedRequest(request)
         let (_, response) = try await session.data(for: request)
         try validateResponse(response)
     }
@@ -95,6 +101,7 @@ actor AgentServerClient {
     func deleteRun(id: String) async throws {
         var request = URLRequest(url: baseURL.appendingPathComponent("/runs/\(id)"))
         request.httpMethod = "DELETE"
+        request = try authenticatedRequest(request)
         let (_, response) = try await session.data(for: request)
         try validateResponse(response)
     }
@@ -102,6 +109,7 @@ actor AgentServerClient {
     func cleanupStaleRuns() async throws -> CleanupResponse {
         var request = URLRequest(url: baseURL.appendingPathComponent("/cleanup"))
         request.httpMethod = "POST"
+        request = try authenticatedRequest(request)
         let (data, response) = try await session.data(for: request)
         try validateResponse(response)
         return try decoder.decode(CleanupResponse.self, from: data)
@@ -116,6 +124,7 @@ actor AgentServerClient {
         request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: patch)
+        request = try authenticatedRequest(request)
 
         let (data, response) = try await session.data(for: request)
         try validateWriteResponse(data: data, response: response)
@@ -148,6 +157,7 @@ actor AgentServerClient {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        request = try authenticatedRequest(request)
 
         let (data, response) = try await session.data(for: request)
         try validateWriteResponse(data: data, response: response)
@@ -157,6 +167,7 @@ actor AgentServerClient {
     func deleteAgent(id: String) async throws {
         var request = URLRequest(url: baseURL.appendingPathComponent("/agents/\(id)"))
         request.httpMethod = "DELETE"
+        request = try authenticatedRequest(request)
         let (data, response) = try await session.data(for: request)
         try validateWriteResponse(data: data, response: response)
     }
@@ -177,6 +188,7 @@ actor AgentServerClient {
     func refreshConnections() async throws -> ConnectionSnapshot {
         var request = URLRequest(url: baseURL.appendingPathComponent("/connections/refresh"))
         request.httpMethod = "POST"
+        request = try authenticatedRequest(request)
         let (data, response) = try await session.data(for: request)
         try validateResponse(response)
         return try decoder.decode(ConnectionSnapshot.self, from: data)
@@ -209,16 +221,36 @@ actor AgentServerClient {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
         }
 
+        request = try authenticatedRequest(request)
+
         let (data, response) = try await session.data(for: request)
         try validateResponse(response)
         return try decoder.decode(TriggerResponse.self, from: data)
     }
 
-    private func get<T: Decodable>(_ path: String) async throws -> T {
+    private func get<T: Decodable>(
+        _ path: String,
+        requiresAuthentication: Bool = true
+    ) async throws -> T {
         let url = baseURL.appendingPathComponent(path)
-        let (data, response) = try await session.data(from: url)
+        let initialRequest = URLRequest(url: url)
+        let request = requiresAuthentication
+            ? try authenticatedRequest(initialRequest)
+            : initialRequest
+        let (data, response) = try await session.data(for: request)
         try validateResponse(response)
         return try decoder.decode(T.self, from: data)
+    }
+
+    private func authenticatedRequest(_ request: URLRequest) throws -> URLRequest {
+        do {
+            return try LocalAPIAuthentication.authenticatedRequest(
+                request,
+                environmentURLs: environmentURLs
+            )
+        } catch LocalAPIAuthenticationError.missingAPIKey {
+            throw ClientError.missingLocalAPIKey
+        }
     }
 
     private func validateResponse(_ response: URLResponse) throws {
@@ -243,6 +275,7 @@ struct AgentWriteErrorBody: Decodable {
 
 enum ClientError: LocalizedError {
     case invalidResponse
+    case missingLocalAPIKey
     case httpError(statusCode: Int)
     case writeFailed(message: String, missingEnv: [String])
 
@@ -250,6 +283,8 @@ enum ClientError: LocalizedError {
         switch self {
         case .invalidResponse:
             return "Invalid response from server"
+        case .missingLocalAPIKey:
+            return "Agent Server needs to finish its secure local setup. Restart the server and try again."
         case .httpError(let statusCode):
             return "HTTP error: \(statusCode)"
         case .writeFailed(let message, _):

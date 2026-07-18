@@ -29,7 +29,7 @@ describe('active-run shutdown drain', () => {
           runId,
           agentName: name,
           endpoint: `https://panel.example/api/runs/${runId}/status`,
-          apiKey: 'ap_live_drain',
+          apiKey: 'local-drain-test-key-123456',
           fetch: fetchImpl,
           heartbeatMs: 0,
         });

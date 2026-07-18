@@ -39,6 +39,31 @@ describe('runAgent', () => {
     expect(result.status).toBe('completed');
   });
 
+  it('uses one caller-supplied run ID for execution, reporting, and result', async () => {
+    const lockDir = createTempDir('runner');
+    dirs.push(lockDir);
+    const createReporter = vi.fn().mockReturnValue({
+      start: noop,
+      progress: noop,
+      complete: noop,
+      fail: noop,
+      stop: () => {},
+    });
+    const execute = vi.fn().mockResolvedValue(makeExecutionResult());
+
+    const result = await runAgent({
+      runId: 'api-run-id',
+      agent: makeAgent(),
+      lockDir,
+      execute,
+      createReporter,
+    });
+
+    expect(result.runId).toBe('api-run-id');
+    expect(createReporter).toHaveBeenCalledWith('api-run-id', 'Test Agent', undefined);
+    expect(execute.mock.calls[0][2]).toEqual(expect.objectContaining({ runId: 'api-run-id' }));
+  });
+
   it('calls execute with the agent config', async () => {
     const lockDir = createTempDir('runner');
     dirs.push(lockDir);
@@ -438,7 +463,7 @@ describe('runAgent', () => {
     });
 
     expect(result.status).toBe('skipped');
-    expect(result.runId).toBeUndefined();
+    expect(result.runId).toBeDefined();
   });
 
   it('reports a canceled status with lock_contention code when agent is locked', async () => {

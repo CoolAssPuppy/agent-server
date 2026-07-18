@@ -110,6 +110,31 @@ describe('TelemetryReporter', () => {
     });
   });
 
+  it('redacts secrets from every terminal result string', async () => {
+    const mockFetch = createMockFetch();
+    const reporter = makeReporter({ fetch: mockFetch });
+
+    await reporter.start();
+    await reporter.complete({
+      summary: 'Authorization: Bearer hidden-summary-token',
+      output: {},
+      usage: {},
+      turnCount: 1,
+      toolsUsed: ['tool token=hidden-tool-token'],
+      filesRead: ['/tmp/password=hidden-read-secret'],
+      filesWritten: ['/tmp/token=hidden-write-secret'],
+      commandsRun: ['curl -H "Authorization: Bearer hidden-command-token"'],
+    });
+
+    const bodyText = String(mockFetch.mock.calls[1][1].body);
+    expect(bodyText).toContain('[REDACTED]');
+    expect(bodyText).not.toContain('hidden-summary-token');
+    expect(bodyText).not.toContain('hidden-tool-token');
+    expect(bodyText).not.toContain('hidden-read-secret');
+    expect(bodyText).not.toContain('hidden-write-secret');
+    expect(bodyText).not.toContain('hidden-command-token');
+  });
+
   it('sends a failed event on error', async () => {
     const mockFetch = createMockFetch();
     const reporter = makeReporter({ fetch: mockFetch });

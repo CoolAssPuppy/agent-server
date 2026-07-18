@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { existsSync, mkdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { initAgentServer } from './init.js';
@@ -25,6 +25,37 @@ describe('initAgentServer', () => {
     expect(existsSync(join(base, 'agents'))).toBe(true);
     expect(existsSync(join(base, 'locks'))).toBe(true);
     expect(existsSync(join(base, 'logs'))).toBe(true);
+  });
+
+  it('creates a strong local API key in the owner-only environment file', () => {
+    const base = createTempPath();
+    dirs.push(base);
+
+    initAgentServer(base);
+
+    const envPath = join(base, '.env');
+    const content = readFileSync(envPath, 'utf-8');
+    const match = content.match(/^AGENT_SERVER_API_KEY=(\S+)$/m);
+    expect(match?.[1]).toBeDefined();
+    expect(match?.[1].length).toBeGreaterThanOrEqual(32);
+    expect(statSync(envPath).mode & 0o777).toBe(0o600);
+  });
+
+  it('preserves an existing local API key across initialization', () => {
+    const base = createTempPath();
+    dirs.push(base);
+    mkdirSync(base, { recursive: true });
+    const envPath = join(base, '.env');
+    const existingKey = 'existing-local-api-key-1234567890';
+    writeFileSync(envPath, `AGENT_SERVER_API_KEY=${existingKey}\nCUSTOM=value\n`);
+
+    initAgentServer(base);
+
+    const content = readFileSync(envPath, 'utf-8');
+    expect(content).toContain(`AGENT_SERVER_API_KEY=${existingKey}`);
+    expect(content).toContain('CUSTOM=value');
+    expect(content.match(/^AGENT_SERVER_API_KEY=/gm)).toHaveLength(1);
+    expect(statSync(envPath).mode & 0o777).toBe(0o600);
   });
 
   it('creates a sample hello-world agent', () => {

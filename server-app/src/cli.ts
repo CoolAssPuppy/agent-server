@@ -34,6 +34,10 @@ program
     // user having to run `agent-server init` manually.
     initAgentServer(baseDir);
 
+    // Initialization creates the local API key on first launch. Reload the
+    // file so that same launch uses the freshly generated credential.
+    Object.assign(process.env, loadEnvFile(baseDir, process.env));
+
     const config = loadConfig();
 
     // Mirror console output to a rotated file sink so users can diagnose

@@ -66,8 +66,14 @@ struct AgentDetailDrawer: View {
         .compositingGroup()
         .shadow(color: Color.black.opacity(0.25), radius: 20, x: -8, y: 0)
         .offset(x: dragOffset)
-        .onChange(of: agentId) { _ in
+        .onChange(of: agentId) { previousAgentId, selectedAgentId in
             showHistory = false
+            if AgentSettingsSelectionPolicy.shouldDismissSettings(
+                previousAgentId: previousAgentId,
+                selectedAgentId: selectedAgentId
+            ) {
+                showSettings = false
+            }
         }
     }
 

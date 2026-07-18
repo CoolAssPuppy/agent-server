@@ -2,6 +2,7 @@ import { mkdirSync, openSync, writeSync, closeSync, readdirSync, statSync, unlin
 import { join } from 'path';
 import { homedir } from 'os';
 import { inspect } from 'util';
+import { sanitizeText } from '../server/security-utils.js';
 
 /**
  * Mirrors console.{log,warn,error} into a daily-rotated file sink. Does not
@@ -50,7 +51,7 @@ function formatArg(arg: unknown): string {
 }
 
 function formatLine(level: ConsoleLevel, args: readonly unknown[], now: Date): string {
-  const message = args.map(formatArg).join(' ');
+  const message = sanitizeText(args.map(formatArg).join(' '), 8_000);
   return `[${now.toISOString()}] [${level}] ${message}\n`;
 }
 
