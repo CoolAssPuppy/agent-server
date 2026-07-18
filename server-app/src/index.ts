@@ -88,6 +88,14 @@ export {
 } from './analysis/semantic-security.js';
 export { createAnalysisApi, type AnalysisApiDependencies, type SecurityContentSource } from './analysis/security-api.js';
 export { createAnalysisRuntime } from './analysis/runtime.js';
+export {
+  evaluateRunPreflight,
+  type RunPreflightContext,
+  type RunPreflightOutcome,
+  type RunTriggerSource,
+} from './analysis/run-preflight.js';
+export { createRunPreflightGate, RunPreflightDeniedError } from './analysis/run-preflight-gate.js';
+export { PreflightSkipRecorder } from './analysis/preflight-skip-recorder.js';
 export { startServer, type ServerInstance } from './server/server.js';
 export { evaluateTriggers } from './agents/triggers.js';
 export { FileWatcher, extractWatchConfigs, expandHome, type FileWatchConfig } from './agents/file-watcher.js';

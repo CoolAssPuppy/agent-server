@@ -43,6 +43,8 @@ type RunRow = {
   output_tokens: number | null;
   model: string | null;
   run_mode: string;
+  retry_of_run_id: string | null;
+  repair_id: string | null;
 };
 
 /**
@@ -159,7 +161,9 @@ export class SqliteRunStore implements RunStoreLike {
         input_tokens INTEGER,
         output_tokens INTEGER,
         model TEXT,
-        run_mode TEXT NOT NULL DEFAULT 'normal'
+        run_mode TEXT NOT NULL DEFAULT 'normal',
+        retry_of_run_id TEXT,
+        repair_id TEXT
       );
       CREATE INDEX IF NOT EXISTS idx_runs_started_at ON runs (started_at DESC);
       CREATE INDEX IF NOT EXISTS idx_runs_agent_started ON runs (agent_id, started_at DESC);
@@ -167,6 +171,12 @@ export class SqliteRunStore implements RunStoreLike {
     const columns = this.db.prepare('PRAGMA table_info(runs)').all() as Array<{ name: string }>;
     if (!columns.some((column) => column.name === 'run_mode')) {
       this.db.exec("ALTER TABLE runs ADD COLUMN run_mode TEXT NOT NULL DEFAULT 'normal'");
+    }
+    if (!columns.some((column) => column.name === 'retry_of_run_id')) {
+      this.db.exec('ALTER TABLE runs ADD COLUMN retry_of_run_id TEXT');
+    }
+    if (!columns.some((column) => column.name === 'repair_id')) {
+      this.db.exec('ALTER TABLE runs ADD COLUMN repair_id TEXT');
     }
   }
 
@@ -177,8 +187,9 @@ export class SqliteRunStore implements RunStoreLike {
           run_id, agent_id, agent_name, status, started_at, completed_at,
           summary, error, turn_count, tools_used, files_read, files_written,
           commands_run, progress_messages, conversation_id, duration_ms,
-          estimated_cost_usd, input_tokens, output_tokens, model, run_mode
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          estimated_cost_usd, input_tokens, output_tokens, model, run_mode,
+          retry_of_run_id, repair_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         run.runId,
@@ -202,6 +213,8 @@ export class SqliteRunStore implements RunStoreLike {
         run.outputTokens ?? null,
         run.model ?? null,
         run.mode ?? 'normal',
+        run.retryOfRunId ?? null,
+        run.repairId ?? null,
       );
   }
 
@@ -250,6 +263,8 @@ function rowToRun(row: RunRow): StoredRun {
     inputTokens: row.input_tokens ?? undefined,
     outputTokens: row.output_tokens ?? undefined,
     model: row.model ?? undefined,
+    retryOfRunId: row.retry_of_run_id ?? undefined,
+    repairId: row.repair_id ?? undefined,
     ...(row.run_mode === 'safe_test' ? { mode: 'safe_test' as const } : {}),
   };
 }

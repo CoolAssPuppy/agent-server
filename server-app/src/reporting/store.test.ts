@@ -15,6 +15,16 @@ describe('RunStore', () => {
     expect(store.get('run-1')).toEqual(run);
   });
 
+  it('bounds retry linkage metadata before storing it', () => {
+    store.add(makeStoredRun({
+      retryOfRunId: `failed-${'a'.repeat(500)}`,
+      repairId: `repair-${'b'.repeat(500)}`,
+    }));
+
+    expect(store.get('run-1')?.retryOfRunId?.length).toBe(129);
+    expect(store.get('run-1')?.repairId?.length).toBe(129);
+  });
+
   it('returns undefined for unknown run', () => {
     expect(store.get('nonexistent')).toBeUndefined();
   });

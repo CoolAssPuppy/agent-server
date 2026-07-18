@@ -7,6 +7,7 @@ import { expandHome } from '../agents/file-watcher.js';
 import { renderReviewedAgentFile } from '../agents/reviewed-agent-writer.js';
 import { AgentWriteError, type AgentWriter } from '../agents/writer.js';
 import type { PreflightResult, SecurityAnalysis } from '../analysis/models.js';
+import { RunPreflightDeniedError } from '../analysis/run-preflight-gate.js';
 import { redactAgentSecrets } from '../agents/capabilities.js';
 import type { RunStoreLike } from '../reporting/store.js';
 import { analyzeRunFailure, type DiagnosticReadiness } from '../diagnostics/diagnostic-service.js';
@@ -15,6 +16,7 @@ import { createAgentProposal, type ProposalModel } from './proposal-service.js';
 import { deriveProposalAgentId, proposalToAgentConfig } from './proposal-configuration.js';
 import { CreationProposalSchema, ProposalAnswerSchema, type CreationProposal } from './proposal-schema.js';
 import { prepareSafeTestAgent } from './safe-test.js';
+import { buildSimilarAgentRequest } from './similar-agent.js';
 
 const ProposalApiRequestSchema = z.object({
   request: z.string().trim().min(1).max(8_000),
@@ -24,7 +26,19 @@ const ProposalApiRequestSchema = z.object({
 }).strict();
 
 const SaveProposalRequestSchema = z.object({ confirmed: z.literal(true) }).strict();
-const RetryRequestSchema = z.object({ confirmed: z.literal(true) }).strict();
+const LinkIdSchema = z.string().trim().min(1).max(128).regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/);
+const ContentHashSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/);
+const RetryRequestSchema = z.object({
+  confirmed: z.literal(true),
+  repair_id: LinkIdSchema.optional(),
+  confirmed_content_hash: ContentHashSchema.optional(),
+}).strict();
+
+export type GuidanceRetryMetadata = {
+  retryOfRunId: string;
+  repairId?: string;
+  confirmedContentHash?: string;
+};
 
 type GuidanceSecurity = {
   analyze(input: { agent: AgentConfig; content: string }): Promise<SecurityAnalysis>;
@@ -38,7 +52,7 @@ export type GuidanceApiDependencies = {
   store: Pick<RunStoreLike, 'get'>;
   security?: GuidanceSecurity;
   content?: { get(agentId: string): Promise<{ agent: AgentConfig; content: string } | undefined> };
-  triggerRun?: (agentId: string) => Promise<string>;
+  triggerRun?: (agentId: string, metadata: GuidanceRetryMetadata) => Promise<string>;
   diagnosticReadiness?: (agent: AgentConfig) => DiagnosticReadiness;
   now?: () => number;
 };
@@ -107,6 +121,31 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
     } catch (error) {
       return context.json({
         error: error instanceof TypeError ? error.message : 'The agent request is invalid.',
+        saved: false,
+      }, 400);
+    }
+  });
+
+  app.post('/guidance/agents/:agentId/similar-proposals', async (context) => {
+    try {
+      const request = ProposalApiRequestSchema.parse(await readJson(context.req.raw));
+      const source = (await dependencies.getAgents())
+        .find((agent) => agent.id === context.req.param('agentId'));
+      if (!source) {
+        return context.json({ error: 'The agent to copy could not be found.', saved: false }, 404);
+      }
+      const result = await createAgentProposal({
+        request: buildSimilarAgentRequest(source, request.request),
+        timezone: request.timezone,
+        connectedServices: request.connected_services,
+        answers: request.answers,
+        model: dependencies.model,
+      });
+      if (result.status !== 'proposal') return context.json(result);
+      return context.json({ ...result, proposal_id: remember(result.proposal) });
+    } catch (error) {
+      return context.json({
+        error: error instanceof TypeError ? error.message : 'The similar agent request is invalid.',
         saved: false,
       }, 400);
     }
@@ -183,23 +222,34 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
 
   app.post('/guidance/runs/:runId/retry', async (context) => {
     try {
-      RetryRequestSchema.parse(await readJson(context.req.raw));
+      const request = RetryRequestSchema.parse(await readJson(context.req.raw));
       const run = dependencies.store.get(context.req.param('runId'));
       if (!run) return context.json({ error: 'The failed run could not be found.', saved: false }, 404);
       if (run.status !== 'failed') return context.json({ error: 'Only failed runs can be retried.', saved: false }, 409);
       const agent = (await dependencies.getAgents()).find((candidate) => candidate.id === run.agentId);
       if (!agent) return context.json({ error: 'The agent for this run could not be found.', saved: false }, 404);
       if (!dependencies.triggerRun) return context.json({ error: 'Retry is unavailable.', saved: false }, 501);
-      const runId = await dependencies.triggerRun(agent.id);
+      const runId = await dependencies.triggerRun(agent.id, {
+        retryOfRunId: run.runId,
+        ...(request.repair_id ? { repairId: request.repair_id } : {}),
+        ...(request.confirmed_content_hash
+          ? { confirmedContentHash: request.confirmed_content_hash }
+          : {}),
+      });
       return context.json({
         run_id: runId,
-        retry_of: run.runId,
-        linkage: {
-          persisted: false,
-          reason: 'Run history does not support retry links yet.',
-        },
+        retry_of_run_id: run.runId,
+        ...(request.repair_id ? { repair_id: request.repair_id } : {}),
       }, 202);
     } catch (error) {
+      if (error instanceof RunPreflightDeniedError) {
+        return context.json({
+          error: error.message,
+          saved: false,
+          code: error.outcome.code,
+          content_hash: error.outcome.contentHash,
+        }, error.outcome.code === 'blocked' ? 422 : 409);
+      }
       return context.json({ error: error instanceof TypeError ? error.message : 'The retry request is invalid.', saved: false }, 400);
     }
   });

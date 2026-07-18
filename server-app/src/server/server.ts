@@ -47,6 +47,9 @@ import { toErrorMessage } from '../util/errors.js';
 import { createAnalysisRuntime } from '../analysis/runtime.js';
 import { createGuidanceApi } from '../creation/guidance-api.js';
 import { createLocalStructuredModel } from '../creation/local-structured-model.js';
+import { createRunPreflightGate } from '../analysis/run-preflight-gate.js';
+import { PreflightSkipRecorder } from '../analysis/preflight-skip-recorder.js';
+import type { RunTriggerSource } from '../analysis/run-preflight.js';
 import { createSafeTestTrigger } from '../creation/safe-test.js';
 
 export type ServerInstance = {
@@ -370,7 +373,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       const downstream = evaluateTriggers(agents, sourceAgentId, status);
       for (const agent of downstream) {
         console.log(`[triggers] ${status} ${sourceAgentId} -> triggering ${agent.id}`);
-        triggerRunForAgent(agent);
+        await checkedTriggerRunForAgent(agent, {}, 'chain');
       }
     } catch (err) {
       console.error(`[triggers] Failed to evaluate triggers for ${sourceAgentId}:`, err);
@@ -384,13 +387,15 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     onDone?: RunDoneCallback;
     conversationId?: string;
     mode?: 'normal' | 'safe_test';
+    retryOfRunId?: string;
+    repairId?: string;
   };
 
   function triggerRunForAgent(agent: AgentConfig, optionsOrSuffix?: string | TriggerRunOptions, onDoneArg?: RunDoneCallback): string {
     const opts: TriggerRunOptions = typeof optionsOrSuffix === 'string'
       ? { promptSuffix: optionsOrSuffix, onDone: onDoneArg }
       : optionsOrSuffix ?? {};
-    const { promptSuffix, onDone, conversationId, mode = 'normal' } = opts;
+    const { promptSuffix, onDone, conversationId, mode = 'normal', retryOfRunId, repairId } = opts;
     if (activeControllers.size >= config.maxConcurrentRuns) {
       throw new Error('Too many active runs. Please retry later.');
     }
@@ -417,6 +422,8 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       progressMessages: [],
       conversationId,
       mode,
+      retryOfRunId,
+      repairId,
     });
 
     broadcaster.emit(sanitizeProgressEvent({
@@ -586,11 +593,50 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     return runId;
   }
 
-  async function triggerRun(agentId: string, promptSuffix?: string): Promise<string> {
+  async function triggerRun(
+    agentId: string,
+    promptSuffix?: string,
+    security?: { confirmedContentHash?: string },
+  ): Promise<string> {
     const agents = await discoverAgents(config.agentsDir);
     const agent = agents.find((a) => a.id === agentId);
     if (!agent) throw new Error(`Agent not found: ${agentId}`);
-    return triggerRunForAgent(agent, promptSuffix);
+    const runId = await checkedTriggerRunForAgent(
+      agent,
+      { promptSuffix },
+      'manual',
+      security?.confirmedContentHash,
+    );
+    if (!runId) throw new Error('Security review is required before this run.');
+    return runId;
+  }
+
+  async function triggerAutomaticRun(
+    agentId: string,
+    promptSuffix: string | undefined,
+    source: Exclude<RunTriggerSource, 'manual' | 'safe_test'>,
+  ): Promise<string | undefined> {
+    const agents = await discoverAgents(config.agentsDir);
+    const agent = agents.find((candidate) => candidate.id === agentId);
+    if (!agent) throw new Error(`Agent not found: ${agentId}`);
+    return checkedTriggerRunForAgent(agent, { promptSuffix }, source);
+  }
+
+  async function triggerGuidanceRetry(
+    agentId: string,
+    metadata: { retryOfRunId: string; repairId?: string; confirmedContentHash?: string },
+  ): Promise<string> {
+    const agents = await discoverAgents(config.agentsDir);
+    const agent = agents.find((candidate) => candidate.id === agentId);
+    if (!agent) throw new Error(`Agent not found: ${agentId}`);
+    const runId = await checkedTriggerRunForAgent(
+      agent,
+      { retryOfRunId: metadata.retryOfRunId, repairId: metadata.repairId },
+      'manual',
+      metadata.confirmedContentHash,
+    );
+    if (!runId) throw new Error('Security review is required before this retry.');
+    return runId;
   }
 
   const triggerSafeTest = createSafeTestTrigger({
@@ -626,7 +672,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
         for (const agent of missedAgents) {
           try {
             console.log(`[catch-up] Triggering missed agent: ${agent.id}`);
-            triggerRunForAgent(agent);
+            await checkedTriggerRunForAgent(agent, {}, 'schedule');
           } catch (err) {
             console.error(`[catch-up] ${agent.id}: error - ${err}`);
           }
@@ -643,7 +689,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
 
     for (const agent of dueAgents) {
       try {
-        triggerRunForAgent(agent);
+        await checkedTriggerRunForAgent(agent, {}, 'schedule');
       } catch (err) {
         console.error(`  ${agent.id}: error - ${err}`);
       }
@@ -665,6 +711,31 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     agentsDir: config.agentsDir,
     model: guidanceModel,
   });
+  const runPreflightGate = createRunPreflightGate<TriggerRunOptions>({
+    preflight: (agent) => analysisRuntime.preflight(agent),
+    trigger: (agent, triggerOptions) => triggerRunForAgent(agent, triggerOptions),
+    skipRecorder: new PreflightSkipRecorder(store),
+    onAutomaticSkip: (agent, outcome, runId) => {
+      console.warn(`[security] Skipped automatic run for ${agent.id}: ${outcome.message}`);
+      broadcaster.emit(sanitizeProgressEvent({
+        type: 'run_failed',
+        runId,
+        agentId: agent.id,
+        error: outcome.message,
+        code: `security_preflight_${outcome.code}`,
+        timestamp: new Date().toISOString(),
+      }));
+    },
+  });
+
+  async function checkedTriggerRunForAgent(
+    agent: AgentConfig,
+    triggerOptions: TriggerRunOptions,
+    source: RunTriggerSource,
+    confirmedContentHash?: string,
+  ): Promise<string | undefined> {
+    return runPreflightGate.run(agent, triggerOptions, { source, confirmedContentHash });
+  }
   const getAgents = (): Promise<AgentConfig[]> => discoverAgents(config.agentsDir);
   const guidanceApi = createGuidanceApi({
     model: guidanceModel,
@@ -673,7 +744,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     store,
     security: analysisRuntime.security,
     content: analysisRuntime.content,
-    triggerRun,
+    triggerRun: triggerGuidanceRetry,
   });
 
   const app = createApi({
@@ -681,6 +752,11 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     store,
     triggerRun,
     triggerSafeTest,
+    preflightRun: async (agentId) => {
+      const agent = (await getAgents()).find((candidate) => candidate.id === agentId);
+      if (!agent) throw new Error(`Agent not found: ${agentId}`);
+      return analysisRuntime.preflight(agent);
+    },
     cancelRun,
     cleanupFn: panelClient
       ? () => panelClient.failOrphanedRuns(serverId)
@@ -794,7 +870,10 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
         sseEvents: realtimeClient.events,
         invokeRun: async ({ agent, promptSuffix, onRunStart }) => {
           try {
-            const runId = triggerRunForAgent(agent, { promptSuffix });
+            const runId = await checkedTriggerRunForAgent(agent, { promptSuffix }, 'panel');
+            if (!runId) {
+              return { status: 'skipped', error: 'Security review is required before this panel run.' };
+            }
             await onRunStart(runId);
             // TriggerHandler expects to report a terminal state to the panel
             // after invokeRun resolves; wait for this run's terminal waiter.
@@ -834,7 +913,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       watches: watchConfigs,
       onChange: (agentId, filePath) => {
         console.log(`[file-watch] ${filePath} changed, triggering ${agentId}`);
-        void triggerRun(agentId).catch((err) => {
+        void triggerAutomaticRun(agentId, undefined, 'watcher').catch((err) => {
           console.error(`[file-watch] Failed to trigger ${agentId}: ${err}`);
         });
       },
@@ -870,9 +949,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
         const history = formatConversationHistory(activeConv.messages.concat([{ role: 'user', content: text, createdAt: new Date() }]));
         const contextSuffix = `${history}\n\nUser's latest message: ${text}`;
 
-        await sink.notifyText(`Running ${agent.name}...`);
-
-        triggerRunForAgent(agent, {
+        const runId = await checkedTriggerRunForAgent(agent, {
           promptSuffix: contextSuffix,
           conversationId: activeConv.id,
           onDone: (done) => {
@@ -886,7 +963,12 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
               void sink.notify(data);
             }
           },
-        });
+        }, 'channel');
+        if (!runId) {
+          await sink.notifyText('Security review is required before this agent can run from messages.');
+          return;
+        }
+        await sink.notifyText(`Running ${agent.name}...`);
         return;
       }
 
@@ -913,9 +995,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
         conversationStore.addMessage(conv.id, 'user', text);
       }
 
-      await sink.notifyText(`Running ${agent.name}...`);
-
-      triggerRunForAgent(agent, {
+      const runId = await checkedTriggerRunForAgent(agent, {
         promptSuffix: result.context,
         conversationId: convId,
         onDone: (done) => {
@@ -929,7 +1009,12 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
             void sink.notify(data);
           }
         },
-      });
+      }, 'channel');
+      if (!runId) {
+        await sink.notifyText('Security review is required before this agent can run from messages.');
+        return;
+      }
+      await sink.notifyText(`Running ${agent.name}...`);
     } catch (err) {
       const msg = toErrorMessage(err);
       console.error(`[${sink.channelName}] Message routing failed: ${msg}`);
@@ -947,7 +1032,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     if (!promptSuffix) return;
 
     console.log(`[${channelName}] Reply for ${interaction.agentId}, triggering ${interaction.replyAgentId}`);
-    void triggerRun(interaction.replyAgentId, promptSuffix).catch((err) => {
+    void triggerAutomaticRun(interaction.replyAgentId, promptSuffix, 'interaction').catch((err) => {
       console.error(`[${channelName}] Failed to trigger ${interaction.replyAgentId}: ${err}`);
     });
   }

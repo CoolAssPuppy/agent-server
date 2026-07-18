@@ -19,6 +19,9 @@ import {
 import type { RunStoreLike } from '../reporting/store.js';
 import { computeAgentMetrics } from '../reporting/metrics.js';
 import type { PendingDecision } from '../reporting/realtime-client.js';
+import type { PreflightResult } from '../analysis/models.js';
+import { evaluateRunPreflight, type RunPreflightOutcome } from '../analysis/run-preflight.js';
+import { RunPreflightDeniedError } from '../analysis/run-preflight-gate.js';
 import {
   AuthFailureTracker,
   InMemoryRateLimiter,
@@ -44,8 +47,13 @@ type ConnectionSource = {
 type ApiDependencies = {
   getAgents: () => Promise<AgentConfig[]>;
   store: RunStoreLike;
-  triggerRun: (agentId: string, promptSuffix?: string) => Promise<string>;
+  triggerRun: (
+    agentId: string,
+    promptSuffix?: string,
+    security?: { confirmedContentHash?: string },
+  ) => Promise<string>;
   triggerSafeTest?: (agentId: string) => Promise<string>;
+  preflightRun?: (agentId: string) => Promise<PreflightResult>;
   cancelRun?: (runId: string) => boolean;
   cleanupFn?: () => Promise<number>;
   /**
@@ -86,12 +94,22 @@ const MAX_BODY_BYTES = 8_192;
 const MAX_AGENT_WRITE_BODY_BYTES = 256 * 1024;
 const TriggerRunBodySchema = z.object({
   with: z.string().trim().max(4_000).optional(),
+  confirmed_content_hash: z.string().regex(/^sha256:[a-f0-9]{64}$/).optional(),
 });
 
 function isAgentWriteRequest(method: string, path: string): boolean {
   if (method === 'POST' && path === '/agents') return true;
   if (method === 'POST' && path.startsWith('/guidance/agent-proposals')) return true;
+  if (method === 'POST' && /^\/guidance\/agents\/[^/]+\/similar-proposals$/.test(path)) return true;
   return method === 'PUT' && /^\/agents\/[^/]+$/.test(path);
+}
+
+function preflightDeniedStatus(
+  code: Extract<RunPreflightOutcome, { allowed: false }>['code'],
+): 403 | 409 | 428 {
+  if (code === 'blocked') return 403;
+  if (code === 'content_changed') return 409;
+  return 428;
 }
 
 function isAuthorized(requestKey: string | undefined, expectedKey: string): boolean {
@@ -383,6 +401,7 @@ export function createApi(deps: ApiDependencies): Hono {
     if (!agent) return c.json({ error: 'Agent not found' }, 404);
 
     let promptSuffix: string | undefined = undefined;
+    let confirmedContentHash: string | undefined = undefined;
     const rawBody = await c.req.text();
 
     if (rawBody.trim().length > 0) {
@@ -395,18 +414,53 @@ export function createApi(deps: ApiDependencies): Hono {
         const body = JSON.parse(rawBody) as unknown;
         const parsed = TriggerRunBodySchema.safeParse(body);
         if (!parsed.success) {
-          return c.json({ error: 'Invalid request body. Expected optional string field "with" (max 4000 chars).' }, 400);
+          return c.json({
+            error: 'Invalid request body. Expected optional "with" text and confirmed_content_hash from Security check.',
+          }, 400);
         }
         promptSuffix = parsed.data.with ? sanitizePromptSuffix(parsed.data.with) : undefined;
+        confirmedContentHash = parsed.data.confirmed_content_hash;
       } catch {
         return c.json({ error: 'Invalid JSON body' }, 400);
       }
     }
 
+    if (deps.preflightRun) {
+      let preflight: PreflightResult;
+      try {
+        preflight = await deps.preflightRun(agentId);
+      } catch (err) {
+        console.error(`[api] Security preflight failed: ${sanitizeText(toErrorMessage(err), 300)}`);
+        return c.json({ error: 'Security check is unavailable. Nothing was run.' }, 503);
+      }
+      const outcome = evaluateRunPreflight(preflight, {
+        source: 'manual',
+        confirmedContentHash,
+      });
+      if (!outcome.allowed) {
+        return c.json({
+          error: outcome.message,
+          code: outcome.code,
+          content_hash: outcome.contentHash,
+          risk: preflight.risk,
+        }, preflightDeniedStatus(outcome.code));
+      }
+    }
+
     try {
-      const runId = await deps.triggerRun(agentId, promptSuffix);
+      const runId = confirmedContentHash
+        ? await deps.triggerRun(agentId, promptSuffix, { confirmedContentHash })
+        : await deps.triggerRun(agentId, promptSuffix);
       return c.json({ runId, agentId }, 202);
     } catch (err) {
+      if (err instanceof RunPreflightDeniedError) {
+        const { outcome } = err;
+        return c.json({
+          error: outcome.message,
+          code: outcome.code,
+          content_hash: outcome.contentHash,
+        }, preflightDeniedStatus(outcome.code));
+      }
       const message = toErrorMessage(err);
       if (message.includes('Too many active runs')) {
         return c.json({ error: message }, 429);

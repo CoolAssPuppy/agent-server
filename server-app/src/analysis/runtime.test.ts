@@ -1,8 +1,9 @@
-import { mkdir, mkdtemp, rm, stat, writeFile } from 'fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { describe, expect, it } from 'vitest';
 import { createAnalysisRuntime } from './runtime.js';
+import { parseAgentFile } from '../agents/config.js';
 
 describe('analysis runtime', () => {
   it('wires file-backed analysis and closes its private review database cleanly', async () => {
@@ -59,6 +60,9 @@ Review notes.
       });
       const response = await runtime.api.request('/security/agents/reader');
       expect((await response.json()).model_status).toBe('completed');
+      expect(calls).toBe(1);
+      const source = await readFile(join(agentsDir, 'reader.md'), 'utf8');
+      expect((await runtime.preflight(parseAgentFile(source))).decision).toBe('allow');
       expect(calls).toBe(1);
       runtime.close();
     } finally {

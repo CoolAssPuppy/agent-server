@@ -6,6 +6,7 @@ import { SqliteSecurityReviewStore } from './review-store.js';
 import { createAnalysisApi } from './security-api.js';
 import { SecurityAnalysisService } from './security-service.js';
 import type { LocalStructuredModel } from '../creation/local-structured-model.js';
+import type { AgentConfig } from '../agents/config.js';
 
 export function createAnalysisRuntime(options: {
   agentsDir: string;
@@ -27,6 +28,10 @@ export function createAnalysisRuntime(options: {
     api: createAnalysisApi({ security, patches, content: repository }),
     security,
     content: repository,
+    preflight: async (agent: AgentConfig) => security.preflight({
+      agent,
+      content: await repository.read(agent.id),
+    }),
     close: (): void => reviewStore.close(),
   };
 }

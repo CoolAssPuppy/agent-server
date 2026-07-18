@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { DatabaseSync } from 'node:sqlite';
 import { mkdtempSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -38,12 +39,54 @@ describe('SqliteRunStore', () => {
       outputTokens: 120,
       model: 'claude-opus-4-8',
       mode: 'safe_test',
+      retryOfRunId: 'failed-run',
+      repairId: 'repair-42',
       filesRead: ['a.txt'],
       filesWritten: ['b.txt'],
       commandsRun: ['ls'],
     });
     store.add(run);
     expect(store.get('run-1')).toEqual(run);
+  });
+
+  it('migrates existing run databases with retry linkage columns', () => {
+    store.close();
+    const legacy = new DatabaseSync(dbPath);
+    legacy.exec('DROP TABLE runs');
+    legacy.exec(`
+      CREATE TABLE runs (
+        run_id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL,
+        agent_name TEXT NOT NULL,
+        status TEXT NOT NULL,
+        started_at INTEGER NOT NULL,
+        completed_at INTEGER,
+        summary TEXT,
+        error TEXT,
+        turn_count INTEGER NOT NULL DEFAULT 0,
+        tools_used TEXT NOT NULL DEFAULT '[]',
+        files_read TEXT NOT NULL DEFAULT '[]',
+        files_written TEXT NOT NULL DEFAULT '[]',
+        commands_run TEXT NOT NULL DEFAULT '[]',
+        progress_messages TEXT NOT NULL DEFAULT '[]',
+        conversation_id TEXT,
+        duration_ms INTEGER,
+        estimated_cost_usd REAL,
+        input_tokens INTEGER,
+        output_tokens INTEGER,
+        model TEXT,
+        run_mode TEXT NOT NULL DEFAULT 'normal'
+      )
+    `);
+    legacy.close();
+
+    store = new SqliteRunStore({ path: dbPath });
+    store.add(makeStoredRun({ retryOfRunId: 'failed-run', repairId: 'repair-42' }));
+
+    expect(store.get('run-1')).toMatchObject({
+      retryOfRunId: 'failed-run',
+      repairId: 'repair-42',
+    });
   });
 
   it('returns undefined for an unknown run', () => {

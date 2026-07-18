@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { createApi as createProductionApi } from './api.js';
 import { RunStore } from '../reporting/store.js';
 import { makeAgent, makeStoredRun } from '../test-factories.js';
+import { RunPreflightDeniedError } from '../analysis/run-preflight-gate.js';
 
 const API_TEST_KEY = 'local-api-test-key-1234567890';
 
@@ -242,6 +243,22 @@ describe('API routes', () => {
       const body = await res.json();
       expect(body.runId).toBe('run-1');
       expect(body.progressMessages).toEqual(['Step 1']);
+    });
+
+    it('returns retry linkage while redacting unsafe identifier content', async () => {
+      store.add(makeStoredRun({
+        retryOfRunId: 'failed-token="secret-retry-value"',
+        repairId: 'repair-token="secret-repair-value"',
+      }));
+      const app = createApp();
+
+      const res = await authenticatedRequest(app, '/runs/run-1');
+      const body = await res.json();
+
+      expect(body.retryOfRunId).toContain('[REDACTED]');
+      expect(body.repairId).toContain('[REDACTED]');
+      expect(JSON.stringify(body)).not.toContain('secret-retry-value');
+      expect(JSON.stringify(body)).not.toContain('secret-repair-value');
     });
 
     it('returns 404 for unknown run', async () => {
@@ -741,6 +758,91 @@ describe('API routes', () => {
         headers: { origin: 'https://outside.example' },
       });
       expect(response.status).toBe(403);
+    });
+  });
+
+  describe('manual run security preflight', () => {
+    const hash = `sha256:${'a'.repeat(64)}`;
+
+    function createPreflightApp(decision: 'allow' | 'confirm' | 'block') {
+      const preflightRun = vi.fn().mockResolvedValue({
+        schema_version: 1,
+        agent_id: 'test-agent',
+        content_hash: hash,
+        analyzer_version: '1.1.0',
+        decision,
+        risk: {
+          level: decision === 'allow' ? 'low' : decision === 'confirm' ? 'high' : 'critical',
+          reasons: decision === 'allow' ? [] : ['Review required'],
+          finding_count: 0,
+        },
+        findings: [],
+        acknowledgement_required: decision !== 'allow',
+      });
+      const app = createApi({
+        getAgents: async () => [makeAgent()], store, triggerRun, preflightRun,
+        triggerSafeTest: vi.fn().mockResolvedValue('safe-run'),
+      });
+      return { app, preflightRun };
+    }
+
+    it('requires exact content-hash confirmation for an unreviewed high-risk manual run', async () => {
+      const { app } = createPreflightApp('confirm');
+      const missing = await authenticatedRequest(app, '/agents/test-agent/run', { method: 'POST' });
+      expect(missing.status).toBe(428);
+      expect(await missing.json()).toMatchObject({
+        error: 'Security review confirmation required', content_hash: hash,
+      });
+      expect(triggerRun).not.toHaveBeenCalled();
+
+      const changed = await authenticatedRequest(app, '/agents/test-agent/run', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ confirmed_content_hash: `sha256:${'b'.repeat(64)}` }),
+      });
+      expect(changed.status).toBe(409);
+
+      const confirmed = await authenticatedRequest(app, '/agents/test-agent/run', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ confirmed_content_hash: hash }),
+      });
+      expect(confirmed.status).toBe(202);
+      expect(triggerRun).toHaveBeenCalledOnce();
+      expect(triggerRun).toHaveBeenCalledWith('test-agent', undefined, {
+        confirmedContentHash: hash,
+      });
+    });
+
+    it('blocks critical manual runs but does not gate safe tests', async () => {
+      const { app, preflightRun } = createPreflightApp('block');
+      const blocked = await authenticatedRequest(app, '/agents/test-agent/run', { method: 'POST' });
+      expect(blocked.status).toBe(403);
+      expect(triggerRun).not.toHaveBeenCalled();
+
+      const safe = await authenticatedRequest(app, '/agents/test-agent/safe-test', { method: 'POST' });
+      expect(safe.status).toBe(202);
+      expect(preflightRun).toHaveBeenCalledOnce();
+    });
+
+    it('rejects a run when the agent changes between the API check and execution', async () => {
+      const { app } = createPreflightApp('confirm');
+      triggerRun.mockRejectedValueOnce(new RunPreflightDeniedError({
+        allowed: false,
+        code: 'content_changed',
+        message: 'The agent changed after review. Review the current security check before running.',
+        contentHash: `sha256:${'b'.repeat(64)}`,
+      }));
+
+      const response = await authenticatedRequest(app, '/agents/test-agent/run', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ confirmed_content_hash: hash }),
+      });
+
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({
+        code: 'content_changed',
+        content_hash: `sha256:${'b'.repeat(64)}`,
+      });
     });
   });
 });

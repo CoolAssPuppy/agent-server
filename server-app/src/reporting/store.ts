@@ -30,6 +30,8 @@ export type StoredRun = {
   outputTokens?: number;
   model?: string;
   mode?: 'normal' | 'safe_test';
+  retryOfRunId?: string;
+  repairId?: string;
 };
 
 /**

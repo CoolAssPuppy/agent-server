@@ -12,6 +12,7 @@ const MAX_TEXT_LENGTH = 4_000;
 const MAX_SUMMARY_LENGTH = 8_000;
 const MAX_ERROR_LENGTH = 2_000;
 const MAX_PROGRESS_MESSAGE_LENGTH = 1_000;
+const MAX_LINK_ID_LENGTH = 128;
 
 export function truncate(value: string, maxLength = MAX_TEXT_LENGTH): string {
   if (value.length <= maxLength) return value;
@@ -37,6 +38,8 @@ export function normalizeStoredRun(run: StoredRun): StoredRun {
     ...run,
     summary: run.summary ? truncate(run.summary, MAX_SUMMARY_LENGTH) : undefined,
     error: run.error ? truncate(run.error, MAX_ERROR_LENGTH) : undefined,
+    retryOfRunId: run.retryOfRunId ? truncate(run.retryOfRunId, MAX_LINK_ID_LENGTH) : undefined,
+    repairId: run.repairId ? truncate(run.repairId, MAX_LINK_ID_LENGTH) : undefined,
     toolsUsed: trimArray(run.toolsUsed),
     filesRead: trimArray(run.filesRead),
     filesWritten: trimArray(run.filesWritten),
