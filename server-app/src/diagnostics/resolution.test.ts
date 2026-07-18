@@ -64,4 +64,30 @@ describe('diagnostic fix resolution', () => {
       limitation: 'Choose the exact file or folder before allowing changes.',
     });
   });
+
+  it('does not treat a friendly placeholder as a failed file path', async () => {
+    const agent = makeAgent({
+      id: 'reports',
+      tools: ['Read'],
+      working_directory: '/Users/example/Documents/Reports',
+      file_access: [{
+        path: '/Users/example/Documents/Reports', kind: 'folder', access: 'read_only',
+      }],
+    });
+    const diagnosis = await analyzeRunFailure({
+      agent,
+      run: makeStoredRun({
+        agentId: 'reports',
+        status: 'failed',
+        error: 'save denied by read-only access',
+        filesWritten: [],
+      }),
+      readiness: { serverOnline: true, runtimeAvailable: true, workingDirectoryExists: true },
+    });
+
+    expect(buildDiagnosticResolution(diagnosis, agent, content)).toMatchObject({
+      type: 'manual',
+      limitation: 'Choose the exact file or folder before allowing changes.',
+    });
+  });
 });

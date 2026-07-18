@@ -129,7 +129,12 @@ const permissionRules: DiagnosticRule[] = [
       summary: 'This agent tried to save a file, but file editing is turned off.',
       cause: 'The run needed to create or update a file outside its current read-only access.',
       evidence: [
-        evidence('write-attempt', 'File save attempted', input.run.filesWritten[0] ?? 'The run reported a blocked save.', 'run'),
+        evidence(
+          input.run.filesWritten[0] ? 'write-path' : 'write-attempt',
+          'File save attempted',
+          input.run.filesWritten[0] ?? 'The run reported a blocked save.',
+          'run',
+        ),
         evidence('write-disabled', 'File editing is off', 'No file editing tool is allowed for this agent.', 'configuration'),
       ],
       fix: action('review-write-access', 'Review file editing access', 'Allow edits only in the folder that should receive the output.', 'configuration_patch', 'high', true),

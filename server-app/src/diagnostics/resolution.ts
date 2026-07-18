@@ -51,7 +51,7 @@ function debuggerPatch(
     reason: diagnosis.suggested_fix.label,
   };
   if (diagnosis.suggested_fix.id === 'review-write-access') {
-    const writtenPath = diagnosis.evidence.find((item) => item.code === 'write-attempt')?.detail;
+    const writtenPath = diagnosis.evidence.find((item) => item.code === 'write-path')?.detail;
     const reviewedGrant = writtenPath ? reviewedWritableGrant(agent, writtenPath) : undefined;
     if (!reviewedGrant || !agent.file_access) return undefined;
     const added = ['Write', 'Edit'];
