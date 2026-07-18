@@ -6,6 +6,24 @@
     <description>Agent Server updates</description>
     <language>en</language>
     <item>
+      <title>Version 3.0.1</title>
+      <pubDate>Sat, 18 Jul 2026 05:51:12 +0000</pubDate>
+      <sparkle:version>26</sparkle:version>
+      <sparkle:shortVersionString>3.0.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <p>Messaging: a Slack or Telegram message to your agent bot now routes to the right agent from a keyword, so short prompts like "French quiz" reach the correct agent.</p>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.0.1.dmg"
+        sparkle:edSignature="yiIU4KpqXC8+5Mf1/IYavae/6uVL+r/jVqVp0fd51Q/YusS/z2oe6AAfPs0ftyNN0p5ISMbJsvCRGqsj45YKBw=="
+        length="189594157"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
       <title>Version 3.0.0</title>
       <pubDate>Sat, 18 Jul 2026 00:56:27 +0000</pubDate>
       <sparkle:version>25</sparkle:version>
