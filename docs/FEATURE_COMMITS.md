@@ -1,6 +1,6 @@
 # Feature commits
 
-This is the complete chronological commit list after baseline `5b779736985e918874b80b390372be71645dc19a` through verified implementation head `59f95e8`.
+This is the complete chronological commit list after baseline `5b779736985e918874b80b390372be71645dc19a` through verified implementation head `462b710`.
 
 1. `65d033a` Harden local execution and add analysis foundation
 2. `919c6fe` Simplify local security and reliability policies
@@ -73,3 +73,4 @@ This is the complete chronological commit list after baseline `5b779736985e91887
 69. `2e29e12` Require observed paths for debugger fixes
 70. `6644891` Align debugger integration with scoped file fixes
 71. `59f95e8` Use lint-safe service label sanitization
+72. `462b710` Allow folder-only access selection

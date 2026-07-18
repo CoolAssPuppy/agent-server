@@ -91,7 +91,7 @@ Build the server and app from the `creation-experience` branch. Use demo agents 
 
 ## Release checks
 
-Current automated evidence: 1,136 server tests across 83 files, 204 Swift tests,
+Current automated evidence: 1,136 server tests across 83 files, 206 Swift tests,
 and the non-interactive lint, type-check, production build, and macOS build gates
 pass. The last recorded coverage before the final scoped-access batch was 78.82%
 statements, 74.59% branches, 80.28% functions, and 80.23% lines. The full
