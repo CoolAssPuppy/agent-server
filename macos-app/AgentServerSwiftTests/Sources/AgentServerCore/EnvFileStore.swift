@@ -38,11 +38,7 @@ public enum LocalAPIAuthentication {
     public static func defaultEnvironmentURLs(
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
     ) -> [URL] {
-        let baseDirectory = homeDirectory.appendingPathComponent(".agent-server")
-        return [
-            baseDirectory.appendingPathComponent(".env.local"),
-            baseDirectory.appendingPathComponent(".env")
-        ]
+        EnvFileStore.defaultURLs(homeDirectory: homeDirectory)
     }
 
     public static func authenticatedRequest(
@@ -51,9 +47,7 @@ public enum LocalAPIAuthentication {
         processEnvironment: [String: String] = ProcessInfo.processInfo.environment
     ) throws -> URLRequest {
         let apiKey = try processEnvironment["AGENT_SERVER_API_KEY"]
-            ?? environmentURLs.lazy.compactMap {
-                try EnvFileStore.value(forKey: "AGENT_SERVER_API_KEY", from: $0)
-            }.first
+            ?? EnvFileStore.firstValue(forKey: "AGENT_SERVER_API_KEY", from: environmentURLs)
         guard let apiKey, !apiKey.isEmpty else {
             throw LocalAPIAuthenticationError.missingAPIKey
         }
@@ -81,6 +75,16 @@ public enum EnvFileStore {
 
     private static let keyPattern = #"^[A-Z][A-Z0-9_]*$"#
     private static let secretSuffixes = ["_KEY", "_SECRET", "_TOKEN"]
+
+    public static func defaultURLs(
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> [URL] {
+        let baseDirectory = homeDirectory.appendingPathComponent(".agent-server")
+        return [
+            baseDirectory.appendingPathComponent(".env.local"),
+            baseDirectory.appendingPathComponent(".env")
+        ]
+    }
 
     // MARK: Validation
 
@@ -120,6 +124,17 @@ public enum EnvFileStore {
         let value = try load(from: url).first(where: { $0.key == key })?.value
         guard let value, !value.isEmpty else { return nil }
         return value
+    }
+
+    /// Returns the first non-empty value using the supplied file order.
+    /// Callers pass `.env.local` before `.env` to match the server's precedence.
+    public static func firstValue(forKey key: String, from urls: [URL]) throws -> String? {
+        for url in urls {
+            if let value = try value(forKey: key, from: url) {
+                return value
+            }
+        }
+        return nil
     }
 
     private static func parsePairs(from content: String) -> [EnvPair] {

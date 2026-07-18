@@ -130,4 +130,18 @@ final class MonitorReliabilityTests: XCTestCase {
             .serverResponse
         )
     }
+
+    func testBoundedIdentifierHistoryEvictsTheOldestIdentifier() {
+        var history = BoundedIdentifierHistory(limit: 2)
+
+        XCTAssertTrue(history.insert("run-a"))
+        XCTAssertTrue(history.insert("run-b"))
+        XCTAssertFalse(history.insert("run-b"))
+        XCTAssertTrue(history.insert("run-c"))
+
+        XCTAssertFalse(history.contains("run-a"))
+        XCTAssertTrue(history.contains("run-b"))
+        XCTAssertTrue(history.contains("run-c"))
+        XCTAssertEqual(history.count, 2)
+    }
 }

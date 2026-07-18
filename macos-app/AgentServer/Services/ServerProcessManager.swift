@@ -57,26 +57,7 @@ final class ServerProcessManager {
         if let inherited = ProcessInfo.processInfo.environment[key], !inherited.isEmpty {
             return inherited
         }
-        let envPath = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".agent-server/.env").path
-        if let content = try? String(contentsOfFile: envPath, encoding: .utf8) {
-            for line in content.components(separatedBy: .newlines) {
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                if trimmed.hasPrefix("#") || trimmed.isEmpty { continue }
-                guard let eqIndex = trimmed.firstIndex(of: "=") else { continue }
-                let parsedKey = String(trimmed[trimmed.startIndex..<eqIndex]).trimmingCharacters(in: .whitespaces)
-                if parsedKey == key {
-                    var value = String(trimmed[trimmed.index(after: eqIndex)...]).trimmingCharacters(in: .whitespaces)
-                    if (value.hasPrefix("\"") && value.hasSuffix("\"")) ||
-                       (value.hasPrefix("'") && value.hasSuffix("'")) {
-                        value = String(value.dropFirst().dropLast())
-                    }
-                    if !value.isEmpty { return value }
-                }
-            }
-        }
-
-        return nil
+        return try? EnvFileStore.firstValue(forKey: key, from: EnvFileStore.defaultURLs())
     }
 
     static func setLocation(_ path: String?) {

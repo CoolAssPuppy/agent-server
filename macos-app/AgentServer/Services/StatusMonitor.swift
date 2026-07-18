@@ -45,7 +45,7 @@ final class StatusMonitor: ObservableObject {
     private var previousActiveRunIds: Set<String> = []
     /// Last-seen terminal status per runId, used to emit run_completed /
     /// run_failed exactly once as runs transition from active to terminal.
-    private var reportedTerminalRuns: Set<String> = []
+    private var reportedTerminalRuns = BoundedIdentifierHistory(limit: 2_000)
     private var reportedDecisionIds: Set<String> = []
     private var reportedAgentIds: Set<String> = []
     /// True after the very first poll completes. We use this to suppress
@@ -191,8 +191,7 @@ final class StatusMonitor: ObservableObject {
                 self.recentRuns = fetchedRuns.sorted { $0.startedAt > $1.startedAt }
 
                 for run in fetchedRuns where !run.isActive {
-                    guard !self.reportedTerminalRuns.contains(run.runId) else { continue }
-                    self.reportedTerminalRuns.insert(run.runId)
+                    guard self.reportedTerminalRuns.insert(run.runId) else { continue }
                     // Suppress telemetry on the first poll. Those are runs
                     // seeded from panel history, not events that just happened
                     // on this daemon. Only emit for transitions observed in

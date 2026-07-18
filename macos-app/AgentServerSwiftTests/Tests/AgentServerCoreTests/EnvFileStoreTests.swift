@@ -101,6 +101,35 @@ final class EnvFileStoreTests: XCTestCase {
         XCTAssertNil(try EnvFileStore.value(forKey: "MISSING_KEY", from: url))
     }
 
+    func testFirstValueUsesEnvironmentFileOrderAndSkipsMissingValues() throws {
+        let base = tempURL().deletingLastPathComponent()
+        let localURL = base.appendingPathComponent(".env.local")
+        let envURL = base.appendingPathComponent(".env")
+        try "OTHER=value\nAGENT_SERVER_PANEL_URL=\n"
+            .write(to: localURL, atomically: true, encoding: .utf8)
+        try "AGENT_SERVER_PANEL_URL=https://panel.example\n"
+            .write(to: envURL, atomically: true, encoding: .utf8)
+
+        XCTAssertEqual(
+            try EnvFileStore.firstValue(
+                forKey: "AGENT_SERVER_PANEL_URL",
+                from: [localURL, envURL]
+            ),
+            "https://panel.example"
+        )
+
+        try "AGENT_SERVER_PANEL_URL=https://local.example\n"
+            .write(to: localURL, atomically: true, encoding: .utf8)
+
+        XCTAssertEqual(
+            try EnvFileStore.firstValue(
+                forKey: "AGENT_SERVER_PANEL_URL",
+                from: [localURL, envURL]
+            ),
+            "https://local.example"
+        )
+    }
+
     func testLocalAPIAuthenticationUsesHeaderAndDoesNotExposeKeyInURL() throws {
         let url = tempURL()
         try "AGENT_SERVER_API_KEY=local-secret\n"

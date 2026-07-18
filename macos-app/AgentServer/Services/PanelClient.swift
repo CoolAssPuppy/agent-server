@@ -39,9 +39,15 @@ actor PanelClient {
     }
 
     static func fromEnv() -> PanelClient? {
-        let env = EnvFile.load()
-        let url = env.entries.first { $0.key == "AGENT_SERVER_PANEL_URL" }?.value ?? ""
-        let key = env.entries.first { $0.key == "AGENT_SERVER_PANEL_API_KEY" }?.value ?? ""
+        let environmentURLs = EnvFileStore.defaultURLs()
+        let url = (try? EnvFileStore.firstValue(
+            forKey: "AGENT_SERVER_PANEL_URL",
+            from: environmentURLs
+        )) ?? ""
+        let key = (try? EnvFileStore.firstValue(
+            forKey: "AGENT_SERVER_PANEL_API_KEY",
+            from: environmentURLs
+        )) ?? ""
         return PanelClient(panelURL: url, apiKey: key)
     }
 
