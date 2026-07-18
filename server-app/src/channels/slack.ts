@@ -316,7 +316,14 @@ export async function createSlackChannel(
       if (channel.getChannelId() !== event.channel) return;
     }
     await pairChannel(event.channel);
-    if (channel.getChannelId() !== event.channel) return;
+    if (channel.getChannelId() !== event.channel) {
+      console.warn(
+        `[slack] Ignoring message on ${event.channel}: paired to ${channel.getChannelId()}. ` +
+        `Delete slack.json to re-pair (e.g. after switching bots).`,
+      );
+      return;
+    }
+    console.log(`[slack] Message received on ${event.channel}, routing`);
     channel.handleIncomingMessage(event.text);
   });
 

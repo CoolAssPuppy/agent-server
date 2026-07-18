@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildRoutingPrompt, parseRoutingResponse, routeMessage } from './router.js';
+import { buildRoutingPrompt, heuristicRoute, parseRoutingResponse, routeMessage } from './router.js';
 import type { AgentConfig } from '../agents/config.js';
 
 function makeAgent(overrides: Partial<AgentConfig> = {}): AgentConfig {
@@ -139,5 +139,47 @@ describe('routeMessage', () => {
     expect(callArgs.model).toBeDefined();
     expect(callArgs.max_tokens).toBeDefined();
     expect(callArgs.messages[0].content).toContain('my-agent');
+  });
+
+  it('routes without an API key when only one agent exists (keyless fallback)', async () => {
+    const only = makeAgent({ id: 'slack-smoke', name: 'Slack Smoke Test' });
+    // No create fn and no apiKey: must not hit the metered API.
+    const result = await routeMessage('hey, are you connected?', [only]);
+    expect(result).toEqual({ type: 'route', agent: only, context: 'hey, are you connected?' });
+  });
+
+  it('lists capabilities keylessly for a meta-question', async () => {
+    const agents = [makeAgent({ id: 'a' }), makeAgent({ id: 'b' })];
+    const result = await routeMessage('what can you do?', agents);
+    expect(result.type).toBe('list');
+  });
+});
+
+describe('heuristicRoute', () => {
+  it('routes to an agent named in the message', () => {
+    const agents = [
+      makeAgent({ id: 'daily-standup', name: 'Daily Standup' }),
+      makeAgent({ id: 'restaurant-checker', name: 'Restaurant Checker' }),
+    ];
+    const result = heuristicRoute('run the restaurant-checker please', agents);
+    expect(result).toEqual({
+      type: 'route',
+      agent: agents[1],
+      context: 'run the restaurant-checker please',
+    });
+  });
+
+  it('returns none when several agents could match and none is named', () => {
+    const agents = [makeAgent({ id: 'a' }), makeAgent({ id: 'b' })];
+    expect(heuristicRoute('do the thing', agents).type).toBe('none');
+  });
+
+  it('ignores disabled agents when auto-selecting the only one', () => {
+    const agents = [
+      makeAgent({ id: 'on' }),
+      makeAgent({ id: 'off', enabled: false }),
+    ];
+    const result = heuristicRoute('anything', agents);
+    expect(result).toEqual({ type: 'route', agent: agents[0], context: 'anything' });
   });
 });
