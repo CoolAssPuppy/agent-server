@@ -53,8 +53,9 @@ struct Sidebar: View {
         .frame(maxHeight: .infinity)
         .background(theme.tokens.background)
         .sheet(isPresented: $showNewAgentSheet) {
-            NewAgentSheet(isPresented: $showNewAgentSheet) { _ in
+            CreateAgentSheet(monitor: monitor, isPresented: $showNewAgentSheet) { agentId in
                 monitor.poll()
+                router.openDetail(agentId: agentId)
             }
         }
     }
@@ -134,7 +135,7 @@ struct Sidebar: View {
                 .font(NTypography.bodyMedium)
                 .foregroundStyle(theme.tokens.mutedForeground)
             Text(monitor.isServerReachable
-                 ? "Drop a markdown file into ~/.agent-server/agents to add one."
+                 ? "Click New agent below to create your first one."
                  : "Start the agent server daemon to see your agents.")
                 .font(NTypography.captionSmall)
                 .foregroundStyle(theme.tokens.mutedForeground.opacity(0.8))
@@ -159,9 +160,8 @@ struct Sidebar: View {
 
             // `onNewAgent` callback is kept on the view so callers can
             // intercept (e.g., open the agents folder), but the default
-            // behavior now presents the NewAgentSheet template flow from
-            // the legacy UI. Tap → sheet, user fills in details, onCreate
-            // → we re-poll monitor so the new agent appears in the list.
+            // behavior presents the consumer CreateAgentSheet. On create we
+            // re-poll and open the new agent's detail drawer.
             Button {
                 showNewAgentSheet = true
             } label: {
@@ -190,7 +190,7 @@ private struct SidebarRowView: View {
             statusDot
                 .padding(.top, 6)
 
-            VStack(alignment: .leading, spacing: NSpacing.xxxs) {
+            VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: NSpacing.xs) {
                     Text(row.name)
                         .font(NTypography.bodyMedium)
@@ -210,7 +210,7 @@ private struct SidebarRowView: View {
                     }
 
                     if !row.isEnabled {
-                        Text("Disabled")
+                        Text("Off")
                             .font(NTypography.badge)
                             .foregroundStyle(theme.tokens.mutedForeground)
                             .padding(.horizontal, NSpacing.xs)
@@ -222,23 +222,26 @@ private struct SidebarRowView: View {
                     Spacer(minLength: 0)
                 }
 
-                if let description = row.description, !description.isEmpty {
-                    Text(description)
-                        .font(NTypography.caption)
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                        .lineLimit(3)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if let schedule = row.scheduleLabel, !schedule.isEmpty {
-                    Text(schedule)
-                        .font(NTypography.captionSmall)
-                        .foregroundStyle(theme.tokens.mutedForeground.opacity(0.8))
-                        .lineLimit(1)
+                // One calm secondary line, schedule-first, in plain language —
+                // never a raw cron string or a 3-line description wall.
+                if let secondary = secondaryLine {
+                    HStack(spacing: 5) {
+                        if showsScheduleGlyph {
+                            Image(systemName: "clock")
+                                .font(.system(size: 10))
+                                .foregroundStyle(theme.tokens.mutedForeground.opacity(0.7))
+                        }
+                        Text(secondary)
+                            .font(NTypography.captionSmall)
+                            .foregroundStyle(theme.tokens.mutedForeground)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
                 }
             }
         }
         .padding(.horizontal, NSpacing.sm)
-        .padding(.vertical, NSpacing.sm)
+        .padding(.vertical, NSpacing.md)
         .background(rowBackground)
         .overlay(rowBorder)
         .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
@@ -261,6 +264,26 @@ private struct SidebarRowView: View {
                 .foregroundStyle(iconColor)
                 .frame(width: 14, height: 14)
         }
+    }
+
+    /// A parsed, plain-language schedule (e.g. "Daily at 5:00 AM"). The English
+    /// formatter falls back to the raw cron string when it can't parse; a raw
+    /// cron always contains "*", so we treat that as "not friendly" and never
+    /// show it in the list.
+    private var hasFriendlySchedule: Bool {
+        guard let s = row.scheduleLabel, !s.isEmpty else { return false }
+        return !s.contains("*")
+    }
+
+    private var showsScheduleGlyph: Bool { hasFriendlySchedule }
+
+    /// The single secondary line: a friendly schedule first, then a one-line
+    /// description, then a plain "Custom schedule" — but never raw cron.
+    private var secondaryLine: String? {
+        if hasFriendlySchedule { return row.scheduleLabel }
+        if let description = row.description, !description.isEmpty { return description }
+        if row.scheduleLabel != nil { return "Custom schedule" }
+        return nil
     }
 
     private var iconColor: Color {

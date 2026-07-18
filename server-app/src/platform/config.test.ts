@@ -23,6 +23,7 @@ describe('loadConfig', () => {
     expect(config.apiKey).toBeUndefined();
     expect(config.maxConcurrentRuns).toBe(8);
     expect(config.maxWebSocketClients).toBe(100);
+    expect(config.runDbPath).toBe(join(homedir(), '.agent-server', 'runs.db'));
   });
 
   it('reads from environment variables', () => {
@@ -41,7 +42,9 @@ describe('loadConfig', () => {
       AGENT_SERVER_TELEMETRY_PROGRESS_SAMPLE_MS: '7000',
       AGENT_SERVER_TELEMETRY_PROGRESS_MAX_ENTRIES: '20',
       AGENT_SERVER_TELEMETRY_PROGRESS_INCLUDE_METADATA: 'true',
+      AGENT_SERVER_RUN_DB: '/tmp/history.db',
     });
+    expect(config.runDbPath).toBe('/tmp/history.db');
     expect(config.agentsDir).toBe('/tmp/agents');
     expect(config.lockDir).toBe('/tmp/locks');
     expect(config.panelUrl).toBe('https://panel.example.com');
@@ -65,6 +68,19 @@ describe('loadConfig', () => {
   it('treats empty panel URL as undefined', () => {
     const config = loadConfig({ AGENT_SERVER_PANEL_URL: '' });
     expect(config.panelUrl).toBeUndefined();
+  });
+
+  it('reads Slack tokens from bare or prefixed names', () => {
+    const bare = loadConfig({ SLACK_BOT_TOKEN: 'xoxb-1', SLACK_APP_TOKEN: 'xapp-1' });
+    expect(bare.slackBotToken).toBe('xoxb-1');
+    expect(bare.slackAppToken).toBe('xapp-1');
+
+    // The AGENT_SERVER_-prefixed form wins when both are present.
+    const prefixed = loadConfig({
+      AGENT_SERVER_SLACK_BOT_TOKEN: 'xoxb-pref',
+      SLACK_BOT_TOKEN: 'xoxb-bare',
+    });
+    expect(prefixed.slackBotToken).toBe('xoxb-pref');
   });
 });
 
@@ -115,6 +131,30 @@ describe('loadEnvFile', () => {
 
     expect(env.AGENT_SERVER_PORT).toBe('1234');
     expect(env.AGENT_SERVER_PANEL_URL).toBe('https://from-file.com');
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('reads .env.local and lets it override .env', () => {
+    const dir = createTempDir();
+    writeFileSync(join(dir, '.env'), 'NOTION_API_KEY=from-env\nSHARED=base\n');
+    writeFileSync(join(dir, '.env.local'), 'NOTION_API_KEY=from-local\nLOCAL_ONLY=secret\n');
+
+    const env = loadEnvFile(dir);
+
+    expect(env.NOTION_API_KEY).toBe('from-local'); // .env.local wins over .env
+    expect(env.SHARED).toBe('base'); // .env fills what .env.local doesn't set
+    expect(env.LOCAL_ONLY).toBe('secret');
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('keeps shell env above both .env.local and .env', () => {
+    const dir = createTempDir();
+    writeFileSync(join(dir, '.env'), 'NOTION_API_KEY=from-env\n');
+    writeFileSync(join(dir, '.env.local'), 'NOTION_API_KEY=from-local\n');
+
+    const env = loadEnvFile(dir, { NOTION_API_KEY: 'from-shell' });
+
+    expect(env.NOTION_API_KEY).toBe('from-shell');
     rmSync(dir, { recursive: true, force: true });
   });
 });

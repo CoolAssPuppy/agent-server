@@ -78,17 +78,36 @@ type RouteMessageOptions = {
   apiKey?: string;
 };
 
-export async function routeMessage(
+const CAPABILITY_QUERY = /\b(what can you|what do you do|which agents|list (the )?agents|what agents|who are you|help|capabilities)\b/i;
+
+/**
+ * A keyless router used when no metered Anthropic key is available (the common
+ * case for subscription-only users). It can't reason like the LLM, but it
+ * covers the everyday shapes: a capability question -> list; a single agent ->
+ * that agent; a message that names an agent -> that agent. Anything ambiguous
+ * across multiple agents falls through to `none` rather than guessing.
+ */
+export function heuristicRoute(message: string, agents: AgentConfig[]): RouteResult {
+  if (CAPABILITY_QUERY.test(message)) return { type: 'list', context: message };
+
+  const lower = message.toLowerCase();
+  const named = agents.find(
+    (a) => lower.includes(a.id.toLowerCase()) || lower.includes(a.name.toLowerCase()),
+  );
+  if (named) return { type: 'route', agent: named, context: message };
+
+  const enabled = agents.filter((a) => a.enabled !== false);
+  if (enabled.length === 1) return { type: 'route', agent: enabled[0], context: message };
+
+  return { type: 'none', context: message };
+}
+
+async function runLlmRoute(
+  create: CreateMessageFn,
   message: string,
   agents: AgentConfig[],
-  createOrOptions?: CreateMessageFn | RouteMessageOptions,
 ): Promise<RouteResult> {
-  const opts: RouteMessageOptions = typeof createOrOptions === 'function'
-    ? { create: createOrOptions }
-    : createOrOptions ?? {};
-  const create = opts.create ?? createDefaultCreateMessage(opts.apiKey);
   const prompt = buildRoutingPrompt(message, agents);
-
   const response = await create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 64,
@@ -101,10 +120,33 @@ export async function routeMessage(
     .join('');
 
   const parsed = parseRoutingResponse(text, agents);
-
   if (parsed.type === 'route') {
     return { type: 'route', agent: parsed.agent, context: message };
   }
-
   return { ...parsed, context: message };
+}
+
+export async function routeMessage(
+  message: string,
+  agents: AgentConfig[],
+  createOrOptions?: CreateMessageFn | RouteMessageOptions,
+): Promise<RouteResult> {
+  const opts: RouteMessageOptions = typeof createOrOptions === 'function'
+    ? { create: createOrOptions }
+    : createOrOptions ?? {};
+
+  // Explicit create fn (tests / custom transports) always wins.
+  if (opts.create) return runLlmRoute(opts.create, message, agents);
+
+  // No metered key -> don't hit the Anthropic API; route heuristically so
+  // subscription-only users still get inbound chat routing.
+  if (!opts.apiKey) return heuristicRoute(message, agents);
+
+  try {
+    return await runLlmRoute(createDefaultCreateMessage(opts.apiKey), message, agents);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[router] LLM routing failed, falling back to heuristic: ${msg}`);
+    return heuristicRoute(message, agents);
+  }
 }

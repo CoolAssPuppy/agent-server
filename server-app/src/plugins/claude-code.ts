@@ -1,7 +1,7 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { Options, Query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentConfig } from '../agents/config.js';
-import { resolveEnvVars } from '../agents/config.js';
+import { resolveEnvVars, resolveEnvString } from '../agents/config.js';
 import type { Reporter } from '../execution/runner.js';
 import {
   truncate,
@@ -19,6 +19,11 @@ type ExecuteAgentExtra = {
   abortController?: AbortController;
   decisionContext?: DecisionContext;
   runId?: string;
+  /**
+   * Path to the user's installed Claude executable. When set, the SDK uses it
+   * instead of the bundled runtime. Undefined keeps the bundled default.
+   */
+  claudeExecutablePath?: string;
 };
 
 export async function executeAgent(
@@ -36,6 +41,11 @@ export async function executeAgent(
     maxTurns: agent.max_turns,
     cwd,
     permissionMode,
+    // Per-agent model selection. Undefined falls back to the runtime's default
+    // model (the user's Claude Code default), so unset agents are unaffected.
+    // This is what lets an agent pin a specific model or point at a custom
+    // provider's model name.
+    model: agent.model,
     allowDangerouslySkipPermissions: permissionMode === 'bypassPermissions' ? true : undefined,
     allowedTools: agent.tools.length > 0 ? agent.tools : undefined,
     disallowedTools: agent.disallowed_tools && agent.disallowed_tools.length > 0
@@ -44,6 +54,14 @@ export async function executeAgent(
     canUseTool: agent.permissions ? buildCanUseTool(agent.permissions) : undefined,
     abortController: extra?.abortController,
     mcpServers: buildMcpServers(agent),
+    // Use the user's installed Claude runtime when discovery found one;
+    // undefined falls back to the SDK's bundled executable.
+    pathToClaudeCodeExecutable: extra?.claudeExecutablePath,
+    // A custom provider points Claude at an Anthropic-compatible endpoint (e.g.
+    // Moonshot for Kimi) for this run only, via per-session env — without
+    // mutating the global process.env that keeps other agents on the
+    // subscription login. Undefined leaves the subscription default.
+    env: buildProviderEnv(agent),
   };
 
   let turnCount = 0;
@@ -488,6 +506,38 @@ function logMcpStatus(servers: McpServerInfo[]): void {
   }
 }
 
+/**
+ * Discover which MCP servers the Claude runtime can reach — the account-level
+ * connectors from the user's claude.ai (Notion, Linear, Gmail, …) plus any
+ * injected local server (eventkit). Runs a `query()` only far enough to read
+ * `mcpServerStatus()`, then aborts before any model turn is consumed, so the
+ * probe costs an MCP connection but no tokens.
+ *
+ * The result is a cache of what's available, never a source of truth — it's
+ * regenerated on demand. Returns [] on any failure so the UI degrades to "no
+ * connectors discovered" rather than erroring.
+ */
+export async function probeMcpServers(): Promise<McpServerInfo[]> {
+  const abortController = new AbortController();
+  const options: Options = {
+    maxTurns: 1,
+    permissionMode: 'bypassPermissions',
+    abortController,
+    // No agent servers; account-level connectors are inherited from the
+    // subscription automatically. eventkit is injected when the app set the bin.
+    mcpServers: buildMcpServers({ mcp_servers: undefined, tools: [], disallowed_tools: [] } as unknown as AgentConfig),
+  };
+
+  try {
+    const stream = query({ prompt: 'probe', options });
+    const servers = await fetchMcpStatus(stream);
+    try { abortController.abort(); } catch { /* ignore */ }
+    return servers;
+  } catch {
+    return [];
+  }
+}
+
 async function fetchMcpStatus(stream: Query): Promise<McpServerInfo[]> {
   try {
     const statuses = await stream.mcpServerStatus();
@@ -567,6 +617,27 @@ function reportMcpStatus(servers: McpServerInfo[], reporter: Reporter): void {
       mcp_servers: servers,
     });
   }
+}
+
+/**
+ * Build the per-session environment for a custom-provider Claude agent, so it
+ * targets an Anthropic-compatible endpoint (e.g. Moonshot for Kimi) for this
+ * run only. Returns undefined when the agent has no provider, leaving the SDK
+ * on its default (the subscription login, since `cli.ts` strips
+ * `ANTHROPIC_API_KEY` globally at startup). When a provider is set, the base URL
+ * and the resolved key are layered over the current process env so the run has
+ * PATH etc. but points at the custom endpoint.
+ */
+export function buildProviderEnv(agent: AgentConfig): Record<string, string | undefined> | undefined {
+  const provider = agent.provider;
+  if (!provider) return undefined;
+
+  const apiKey = provider.api_key ? resolveEnvString(provider.api_key) : undefined;
+  return {
+    ...process.env,
+    ANTHROPIC_BASE_URL: provider.base_url,
+    ...(apiKey ? { ANTHROPIC_API_KEY: apiKey } : {}),
+  };
 }
 
 export function buildMcpServers(agent: AgentConfig): Options['mcpServers'] {

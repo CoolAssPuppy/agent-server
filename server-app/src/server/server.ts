@@ -7,15 +7,21 @@ import type { AgentConfig } from '../agents/config.js';
 import type { Reporter } from '../execution/runner.js';
 import { createApi } from './api.js';
 import { discoverAgents } from '../agents/discovery.js';
+import { createAgentWriter } from '../agents/writer.js';
+import { ConnectionCache } from '../connections/cache.js';
+import { loadEnvFile } from '../platform/config.js';
+import type { RunStoreLike } from '../reporting/store.js';
 import { RunStore } from '../reporting/store.js';
+import { SqliteRunStore } from '../reporting/sqlite-store.js';
+import { failOrphanedLocalRuns } from '../reporting/local-reconcile.js';
 import { runAgent } from '../execution/runner.js';
-import { executeAgent } from '../plugins/claude-code.js';
+import { executeAgent, probeMcpServers } from '../plugins/claude-code.js';
 import { executeCodexAgent } from '../plugins/codex.js';
 import { ExecutorRegistry } from '../execution/executor-registry.js';
+import { discoverRuntimePaths } from '../execution/runtime-discovery.js';
 import type { McpServerInfo } from '../execution/executor.js';
 import { createReporter } from '../reporting/reporter-factory.js';
 import { createPanelClient } from '../reporting/panel-client.js';
-import { seedRunStoreFromPanel } from './seed-run-store.js';
 import { replayPendingTerminals } from '../reporting/reporter.js';
 import { ScheduleSync } from '../reporting/sync-schedule.js';
 import { RealtimeClient } from '../reporting/realtime-client.js';
@@ -30,6 +36,7 @@ import { ConversationStore } from '../conversation/store.js';
 import { formatConversationHistory } from '../conversation/history-formatter.js';
 import type { InteractionRequest } from '../interaction/schema.js';
 import { createTelegramChannel } from '../channels/telegram.js';
+import { createSlackChannel } from '../channels/slack.js';
 import { formatAgentListMessage, type NotificationData } from '../interaction/notification.js';
 import { routeMessage } from '../channels/router.js';
 import { randomUUID } from 'crypto';
@@ -119,12 +126,19 @@ export function validateNetworkExposure(host: string, apiKey?: string): void {
   }
 }
 
-export function shouldSendTelegramRunNotification(
+/**
+ * Whether an ad-hoc run triggered by a chat message should send its own
+ * completion/failure notice on `channelName`. Returns false only when the agent
+ * already declares a `notification` block for this same channel that will fire,
+ * so we don't double-notify.
+ */
+export function shouldSendChannelRunNotification(
   agent: AgentConfig,
   status: 'completed' | 'failed',
+  channelName: string,
 ): boolean {
   const notification = agent.notification;
-  if (!notification || notification.channel !== 'telegram') {
+  if (!notification || notification.channel !== channelName) {
     return true;
   }
 
@@ -133,6 +147,26 @@ export function shouldSendTelegramRunNotification(
   }
 
   return notification.on_failure !== true;
+}
+
+export function shouldSendTelegramRunNotification(
+  agent: AgentConfig,
+  status: 'completed' | 'failed',
+): boolean {
+  return shouldSendChannelRunNotification(agent, status, 'telegram');
+}
+
+/**
+ * A stable positive integer key for a string channel id (Slack DMs are keyed by
+ * string; the conversation store keys by number). djb2 hash — collisions across
+ * one user's handful of DMs are not a practical concern.
+ */
+export function chatKeyFromString(id: string): number {
+  let hash = 5381;
+  for (let i = 0; i < id.length; i++) {
+    hash = ((hash << 5) + hash + id.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
 }
 
 /**
@@ -174,7 +208,30 @@ export function shouldDispatchNotification(
 
 type StartServerOptions = {
   anthropicApiKey?: string;
+  /**
+   * Override the run-history store. Defaults to a durable `SqliteRunStore` at
+   * `config.runDbPath`. Injected in tests to avoid touching the real database.
+   */
+  store?: RunStoreLike;
 };
+
+/**
+ * Build the durable run store, falling back to an in-memory store if SQLite
+ * cannot be opened (corrupt file, read-only volume). Run history is valuable
+ * but never worth blocking the server from starting, so a failure degrades to
+ * ephemeral history with a warning rather than crashing.
+ */
+function createRunStore(runDbPath: string): RunStoreLike {
+  try {
+    return new SqliteRunStore({ path: runDbPath });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(
+      `[runs] Failed to open run database at ${runDbPath}; falling back to in-memory history: ${message}`,
+    );
+    return new RunStore();
+  }
+}
 
 export function startServer(config: ServerConfig, options?: StartServerOptions): ServerInstance {
   validateNetworkExposure(config.host, config.apiKey);
@@ -183,7 +240,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   const serverId = `${hostname()}-${process.pid}`;
   const panelClient = createPanelClient(config);
 
-  const store = new RunStore();
+  const store = options?.store ?? createRunStore(config.runDbPath);
   const interactionStore = new InteractionStore();
   const conversationStore = new ConversationStore();
   const channelDispatcher = new ChannelDispatcher();
@@ -193,6 +250,18 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   executorRegistry.register('claude-code', executeAgent);
   executorRegistry.register('codex', executeCodexAgent);
   executorRegistry.setDefault('claude-code');
+
+  // Discover the user's installed Claude / Codex binaries once at startup so
+  // runs use the runtimes (and subscription logins) they already have, falling
+  // back to the SDK's bundled runtimes when none is found. Resolved once — a
+  // `which` lookup per run would be wasteful.
+  const runtimePaths = discoverRuntimePaths();
+  if (runtimePaths.claudeExecutablePath) {
+    console.log(`  Claude runtime: ${runtimePaths.claudeExecutablePath} (installed)`);
+  }
+  if (runtimePaths.codexExecutablePath) {
+    console.log(`  Codex runtime: ${runtimePaths.codexExecutablePath} (installed)`);
+  }
 
   const activeControllers = new Map<string, AbortController>();
   // Resolvers that fire when the reporter wrapper observes a terminal event
@@ -402,7 +471,11 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
           stop: () => reporter.stop(),
         };
         const executor = executorRegistry.resolve(a);
-        const result = await executor(a, wrappedReporter, { abortController });
+        const result = await executor(a, wrappedReporter, {
+          abortController,
+          claudeExecutablePath: runtimePaths.claudeExecutablePath,
+          codexExecutablePath: runtimePaths.codexExecutablePath,
+        });
         // Pull token / cost telemetry from ExecutionResult.usage so the
         // local server's /runs response can render duration and cost in the
         // macOS app without round-tripping through the panel.
@@ -558,6 +631,12 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     }
   }
 
+  // App-wide, regenerable cache of the MCP discovery probe. Warmed in the
+  // background at boot so the first capability read has connectors populated;
+  // the app can force a re-probe via POST /connections/refresh.
+  const connectionCache = new ConnectionCache(() => probeMcpServers());
+  void connectionCache.refresh().catch(() => {});
+
   const app = createApi({
     getAgents: () => discoverAgents(config.agentsDir),
     store,
@@ -569,6 +648,16 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     getPendingDecisions: realtimeClient
       ? () => realtimeClient.getPendingDecisions()
       : undefined,
+    agentWriter: createAgentWriter(config.agentsDir, {
+      connections: () => connectionCache.servers(),
+    }),
+    // Fresh .env read per request so keys saved via the app's Connect flow
+    // are visible to capability checks without a server restart.
+    getEnv: () => loadEnvFile(join(config.agentsDir, '..'), process.env),
+    connections: {
+      get: () => connectionCache.get(),
+      refresh: () => connectionCache.refresh(),
+    },
     apiKey: config.apiKey,
     startedAt,
     host: config.host,
@@ -632,6 +721,15 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   injectWebSocket(httpServer);
   console.log(`Agent Server API listening on http://${config.host}:${port}`);
 
+  // Local ghost-run cleanup. A fresh process owns no in-flight runs, so any run
+  // left `running` in the durable store belongs to a previous instance that was
+  // killed mid-run. Fail them locally so the macOS app never shows a run
+  // "working" forever. This needs no panel — the server owns its own runs.
+  const orphaned = failOrphanedLocalRuns(store);
+  if (orphaned.length > 0) {
+    console.log(`[startup] Failed ${orphaned.length} local run(s) left in progress by a previous server instance`);
+  }
+
   if (panelClient) {
     void panelClient.failOrphanedRuns(serverId)
       .then((cleaned) => {
@@ -690,41 +788,18 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       })
     : undefined;
 
-  // Seed the in-memory RunStore from the panel so the macOS app's Feed /
-  // Artifacts cards are populated on daemon restart. We don't block on this:
-  // start the scheduler after the seed finishes OR a 2-second timeout, so a
-  // slow or offline panel doesn't delay daemon readiness.
-  const SEED_TIMEOUT_MS = 2_000;
-  const seedPromise: Promise<void> = panelClient
-    ? seedRunStoreFromPanel({ panelClient, store })
-        .then((result) => {
-          console.log(
-            `[seed] Seeded RunStore from panel: inserted=${result.inserted}, skipped=${result.skipped}, fetched=${result.fetched}`,
-          );
-        })
-        .catch((err) => {
-          const message = err instanceof Error ? err.message : String(err);
-          console.warn(`[seed] Failed to seed RunStore from panel: ${message}`);
-        })
-    : Promise.resolve();
+  // Run history lives in the durable local SQLite store, so there is nothing to
+  // seed from the panel on boot and no seed to wait on — the scheduler starts
+  // immediately. When a panel is configured, ScheduleSync / RealtimeClient /
+  // TriggerHandler still run as optional, config-gated integrations.
+  if (scheduleSync) void scheduleSync.start();
+  if (triggerHandler) triggerHandler.start();
+  if (realtimeClient) void realtimeClient.start();
 
-  const seedOrTimeout = Promise.race([
-    seedPromise,
-    new Promise<void>((resolve) => setTimeout(resolve, SEED_TIMEOUT_MS)),
-  ]);
-
-  let interval: NodeJS.Timeout | undefined;
-
-  void seedOrTimeout.then(() => {
-    if (scheduleSync) void scheduleSync.start();
-    if (triggerHandler) triggerHandler.start();
-    if (realtimeClient) void realtimeClient.start();
-
+  void runDueAgents();
+  const interval: NodeJS.Timeout = setInterval(() => {
     void runDueAgents();
-    interval = setInterval(() => {
-      void runDueAgents();
-    }, config.checkIntervalMs);
-  });
+  }, config.checkIntervalMs);
 
   async function setupFileWatchers(): Promise<FileWatcher | null> {
     const agents = await discoverAgents(config.agentsDir);
@@ -747,6 +822,113 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
 
   const fileWatcherPromise = setupFileWatchers();
 
+  // Where a chat message routes to. Shared by Telegram and Slack so both drive
+  // the same conversation/routing/notification flow; only the transport differs.
+  type ChatChannelSink = {
+    channelName: string;
+    chatKey: number;
+    notifyText: (msg: string) => Promise<unknown>;
+    notify: (data: NotificationData) => Promise<unknown>;
+  };
+
+  async function handleChannelMessage(text: string, sink: ChatChannelSink): Promise<void> {
+    try {
+      const activeConv = conversationStore.findActiveByChat(sink.chatKey);
+      if (activeConv) {
+        const agents = await discoverAgents(config.agentsDir);
+        const agent = agents.find((a) => a.id === activeConv.agentId);
+        if (!agent) {
+          conversationStore.expire(activeConv.id);
+          await sink.notifyText('Conversation expired (agent not found).');
+          return;
+        }
+
+        conversationStore.addMessage(activeConv.id, 'user', text);
+        const history = formatConversationHistory(activeConv.messages.concat([{ role: 'user', content: text, createdAt: new Date() }]));
+        const contextSuffix = `${history}\n\nUser's latest message: ${text}`;
+
+        await sink.notifyText(`Running ${agent.name}...`);
+
+        triggerRunForAgent(agent, {
+          promptSuffix: contextSuffix,
+          conversationId: activeConv.id,
+          onDone: (done) => {
+            if (done.status === 'completed' && done.summary) {
+              conversationStore.addMessage(activeConv.id, 'assistant', done.summary);
+            }
+            const data: NotificationData = done.status === 'completed'
+              ? { agentName: agent.name, status: 'completed', summary: done.summary }
+              : { agentName: agent.name, status: 'failed', error: done.error };
+            if (shouldSendChannelRunNotification(agent, done.status, sink.channelName)) {
+              void sink.notify(data);
+            }
+          },
+        });
+        return;
+      }
+
+      const agents = await discoverAgents(config.agentsDir);
+      const result = await routeMessage(text, agents, { apiKey: options?.anthropicApiKey });
+
+      if (result.type === 'list') {
+        await sink.notifyText(formatAgentListMessage(agents));
+        return;
+      }
+
+      if (result.type === 'none') {
+        await sink.notifyText('No matching agent found for your message.');
+        return;
+      }
+
+      const { agent } = result;
+      let convId: string | undefined;
+
+      if (agent.conversation?.enabled === true) {
+        const ttlMs = parseDuration(agent.conversation?.ttl, DEFAULT_CONVERSATION_TTL_MS);
+        const conv = conversationStore.create(sink.chatKey, agent.id, ttlMs);
+        convId = conv.id;
+        conversationStore.addMessage(conv.id, 'user', text);
+      }
+
+      await sink.notifyText(`Running ${agent.name}...`);
+
+      triggerRunForAgent(agent, {
+        promptSuffix: result.context,
+        conversationId: convId,
+        onDone: (done) => {
+          if (convId && done.status === 'completed' && done.summary) {
+            conversationStore.addMessage(convId, 'assistant', done.summary);
+          }
+          const data: NotificationData = done.status === 'completed'
+            ? { agentName: agent.name, status: 'completed', summary: done.summary }
+            : { agentName: agent.name, status: 'failed', error: done.error };
+          if (shouldSendChannelRunNotification(agent, done.status, sink.channelName)) {
+            void sink.notify(data);
+          }
+        },
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[${sink.channelName}] Message routing failed: ${msg}`);
+      void sink.notifyText(`Error: ${msg}`);
+    }
+  }
+
+  // Route an interaction reply (button tap / free text) to the on_reply agent.
+  function handleInteractionReply(channelName: string, reply: { interactionId: string; selectedValue?: string; freeText?: string }): void {
+    const interaction = interactionStore.get(reply.interactionId);
+    if (!interaction || interaction.status !== 'pending') return;
+
+    interactionStore.markActed(reply.interactionId);
+    const promptSuffix = reply.selectedValue ?? reply.freeText;
+    if (!promptSuffix) return;
+
+    console.log(`[${channelName}] Reply for ${interaction.agentId}, triggering ${interaction.replyAgentId}`);
+    void triggerRun(interaction.replyAgentId, promptSuffix).catch((err) => {
+      console.error(`[${channelName}] Failed to trigger ${interaction.replyAgentId}: ${err}`);
+    });
+  }
+
   async function setupTelegram(): Promise<void> {
     if (!config.telegramBotToken) {
       console.log('Telegram bot disabled (no AGENT_SERVER_TELEGRAM_BOT_TOKEN set)');
@@ -760,107 +942,17 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       allowedChatId: config.telegramAllowedChatId,
     });
 
-    telegramChannel.onReply((reply) => {
-      const interaction = interactionStore.get(reply.interactionId);
-      if (!interaction || interaction.status !== 'pending') return;
-
-      interactionStore.markActed(reply.interactionId);
-      const promptSuffix = reply.selectedValue ?? reply.freeText;
-      if (!promptSuffix) return;
-
-      console.log(`[telegram] Reply for ${interaction.agentId}, triggering ${interaction.replyAgentId}`);
-      void triggerRun(interaction.replyAgentId, promptSuffix).catch((err) => {
-        console.error(`[telegram] Failed to trigger ${interaction.replyAgentId}: ${err}`);
-      });
-    });
+    telegramChannel.onReply((reply) => handleInteractionReply('telegram', reply));
 
     telegramChannel.onMessage((text) => {
-      void (async () => {
-        try {
-          const chatId = telegramChannel.getChatId();
-          if (!chatId) return;
-
-          const activeConv = conversationStore.findActiveByChat(chatId);
-          if (activeConv) {
-            const agents = await discoverAgents(config.agentsDir);
-            const agent = agents.find((a) => a.id === activeConv.agentId);
-            if (!agent) {
-              conversationStore.expire(activeConv.id);
-              await telegramChannel.notifyText('Conversation expired (agent not found).');
-              return;
-            }
-
-            conversationStore.addMessage(activeConv.id, 'user', text);
-            const history = formatConversationHistory(activeConv.messages.concat([{ role: 'user', content: text, createdAt: new Date() }]));
-            const contextSuffix = `${history}\n\nUser's latest message: ${text}`;
-
-            await telegramChannel.notifyText(`Running ${agent.name}...`);
-
-            triggerRunForAgent(agent, {
-              promptSuffix: contextSuffix,
-              conversationId: activeConv.id,
-              onDone: (done) => {
-                if (done.status === 'completed' && done.summary) {
-                  conversationStore.addMessage(activeConv.id, 'assistant', done.summary);
-                }
-                const data: NotificationData = done.status === 'completed'
-                  ? { agentName: agent.name, status: 'completed', summary: done.summary }
-                  : { agentName: agent.name, status: 'failed', error: done.error };
-                if (shouldSendTelegramRunNotification(agent, done.status)) {
-                  void telegramChannel.notify(data);
-                }
-              },
-            });
-            return;
-          }
-
-          const agents = await discoverAgents(config.agentsDir);
-          const result = await routeMessage(text, agents, { apiKey: options?.anthropicApiKey });
-
-          if (result.type === 'list') {
-            await telegramChannel.notifyText(formatAgentListMessage(agents));
-            return;
-          }
-
-          if (result.type === 'none') {
-            await telegramChannel.notifyText('No matching agent found for your message.');
-            return;
-          }
-
-          const { agent } = result;
-          const isConversational = agent.conversation?.enabled === true;
-          let convId: string | undefined;
-
-          if (isConversational) {
-            const ttlMs = parseDuration(agent.conversation?.ttl, DEFAULT_CONVERSATION_TTL_MS);
-            const conv = conversationStore.create(chatId, agent.id, ttlMs);
-            convId = conv.id;
-            conversationStore.addMessage(conv.id, 'user', text);
-          }
-
-          await telegramChannel.notifyText(`Running ${agent.name}...`);
-
-          triggerRunForAgent(agent, {
-            promptSuffix: result.context,
-            conversationId: convId,
-            onDone: (done) => {
-              if (convId && done.status === 'completed' && done.summary) {
-                conversationStore.addMessage(convId, 'assistant', done.summary);
-              }
-              const data: NotificationData = done.status === 'completed'
-                ? { agentName: agent.name, status: 'completed', summary: done.summary }
-                : { agentName: agent.name, status: 'failed', error: done.error };
-              if (shouldSendTelegramRunNotification(agent, done.status)) {
-                void telegramChannel.notify(data);
-              }
-            },
-          });
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.error(`[telegram] Message routing failed: ${msg}`);
-          void telegramChannel.notifyText(`Error: ${msg}`);
-        }
-      })();
+      const chatId = telegramChannel.getChatId();
+      if (!chatId) return;
+      void handleChannelMessage(text, {
+        channelName: 'telegram',
+        chatKey: chatId,
+        notifyText: (m) => telegramChannel.notifyText(m),
+        notify: (d) => telegramChannel.notify(d),
+      });
     });
 
     channelDispatcher.register(telegramChannel);
@@ -868,7 +960,39 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     console.log('  Telegram: connected');
   }
 
+  async function setupSlack(): Promise<void> {
+    if (!config.slackBotToken || !config.slackAppToken) {
+      console.log('Slack bot disabled (set AGENT_SERVER_SLACK_BOT_TOKEN and AGENT_SERVER_SLACK_APP_TOKEN to enable)');
+      return;
+    }
+
+    const channelIdPath = join(config.agentsDir, '..', 'slack.json');
+    const slackChannel = await createSlackChannel({
+      botToken: config.slackBotToken,
+      appToken: config.slackAppToken,
+      channelIdPath,
+    });
+
+    slackChannel.onReply((reply) => handleInteractionReply('slack', reply));
+
+    slackChannel.onMessage((text) => {
+      const channelId = slackChannel.getChannelId();
+      if (!channelId) return;
+      void handleChannelMessage(text, {
+        channelName: 'slack',
+        chatKey: chatKeyFromString(channelId),
+        notifyText: (m) => slackChannel.notifyText(m),
+        notify: (d) => slackChannel.notify(d),
+      });
+    });
+
+    channelDispatcher.register(slackChannel);
+    await slackChannel.start();
+    console.log('  Slack: connected');
+  }
+
   const telegramPromise = setupTelegram();
+  const slackPromise = setupSlack();
 
   const expiryInterval = setInterval(() => {
     const expiredConvs = conversationStore.expireStale();
@@ -925,7 +1049,9 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       await drainActiveRuns();
       httpServer.close();
       void fileWatcherPromise.then((w) => w?.stop());
-      void telegramPromise.then(() => channelDispatcher.stopAll());
+      // Wait for both channel setups to finish registering before stopping all.
+      void Promise.allSettled([telegramPromise, slackPromise]).then(() => channelDispatcher.stopAll());
+      store.close();
       console.log('Agent Server stopped.');
     },
   };

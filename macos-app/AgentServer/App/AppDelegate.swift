@@ -6,7 +6,6 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var statusItem: NSStatusItem?
     private let popover = NSPopover()
-    private var settingsWindow: NSWindow?
     private var aboutWindow: NSWindow?
     private var mainWindow: NSWindow?
     let monitor = StatusMonitor()
@@ -38,6 +37,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         Task {
             await serverProcess.startIfNeeded()
             monitor.start()
+        }
+
+        // Dev affordance: auto-open a screen on launch so UI can be inspected
+        // and screenshotted without driving the menu bar. Never fires in normal
+        // use (no env var set).
+        if let route = ProcessInfo.processInfo.environment["AGENT_SERVER_UI_AUTOOPEN"] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                switch route {
+                case "settings": self?.openMainWindow(route: .settings)
+                case "connections": self?.openMainWindow(route: .connections)
+                case let r where r.hasPrefix("detail:"):
+                    self?.openMainWindow(route: .detail(agentId: String(r.dropFirst("detail:".count))))
+                default: self?.openMainWindow()
+                }
+            }
         }
     }
 
@@ -263,9 +277,16 @@ private extension AppDelegate {
 // MARK: - Actions
 
 extension AppDelegate {
+    /// Opens the main window on a specific agent's detail drawer, or on the
+    /// settings drawer when no agent is given. This is the single deep-link
+    /// path into the app (popover rows, notifications).
     func openSettingsForAgent(_ agentId: String?) {
         popover.performClose(nil)
-        showSettings(deepLinkAgentId: agentId)
+        if let agentId {
+            openMainWindow(route: .detail(agentId: agentId))
+        } else {
+            openMainWindow(route: .settings)
+        }
     }
 
     /// Brings the main window to front with the requested drawer (settings or
@@ -355,48 +376,7 @@ extension AppDelegate {
 
     @objc func showSettings() {
         // Single path: reveal the main window with the settings drawer down.
-        // The legacy standalone Settings window is deliberately NOT used —
-        // it competed with the drawer and flashed as a separate sheet.
         openMainWindow(route: .settings)
-    }
-
-    private func showSettings(deepLinkAgentId: String?) {
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(100))
-            NSApp.activate(ignoringOtherApps: true)
-
-            if let existingWindow = settingsWindow {
-                existingWindow.makeKeyAndOrderFront(nil)
-                if let deepLinkAgentId {
-                    monitor.deepLinkAgentId = deepLinkAgentId
-                }
-                return
-            }
-
-            let settingsView = SettingsView(monitor: monitor)
-                .environmentObject(themeManager)
-
-            let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 980, height: 600),
-                styleMask: [.titled, .closable, .miniaturizable, .resizable],
-                backing: .buffered,
-                defer: false
-            )
-            window.contentView = NSHostingView(rootView: settingsView)
-            window.title = "Agent Server"
-            window.isReleasedWhenClosed = false
-            window.center()
-            window.makeKeyAndOrderFront(nil)
-            window.delegate = self
-
-            settingsWindow = window
-
-            if let deepLinkAgentId {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                    self.monitor.deepLinkAgentId = deepLinkAgentId
-                }
-            }
-        }
     }
 
     @objc func cleanupStaleRuns() {
@@ -451,11 +431,6 @@ extension AppDelegate: NSWindowDelegate {
 
         if window == aboutWindow {
             aboutWindow = nil
-            return
-        }
-
-        if window == settingsWindow {
-            settingsWindow = nil
             return
         }
 

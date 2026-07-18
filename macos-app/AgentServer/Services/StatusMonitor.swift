@@ -15,7 +15,6 @@ final class StatusMonitor: ObservableObject {
     @Published private(set) var isServerReachable = false
     @Published private(set) var staleRunCount: Int = 0
     @Published private(set) var pendingDecisions: [Decision] = []
-    @Published var deepLinkAgentId: String?
 
     private let client = AgentServerClient()
     // Retained only for resolving decisions (a write, POSTed to the panel with
@@ -229,6 +228,131 @@ final class StatusMonitor: ObservableObject {
             } catch {
                 // Run trigger failed silently; next poll will show current state
             }
+        }
+    }
+
+    // MARK: - Agent writes
+
+    /// Outcome of an agent write, shaped for the consumer UI: missing env
+    /// vars trigger the Connect flow rather than a bare error string.
+    enum AgentWriteOutcome: Equatable {
+        case success
+        case missingEnv([String])
+        case failure(String)
+    }
+
+    private func writeOutcome(for error: Error) -> AgentWriteOutcome {
+        if let clientError = error as? ClientError, !clientError.missingEnvVars.isEmpty {
+            return .missingEnv(clientError.missingEnvVars)
+        }
+        return .failure(error.localizedDescription)
+    }
+
+    /// Applies a structured patch through the server's write API and swaps
+    /// the returned agent into the published list so the UI updates without
+    /// waiting for the next poll.
+    @discardableResult
+    func updateAgent(id: String, patch: [String: Any]) async -> AgentWriteOutcome {
+        do {
+            let updated = try await client.updateAgent(id: id, patch: patch)
+            if let index = agents.firstIndex(where: { $0.id == updated.id }) {
+                agents[index] = updated
+            }
+            return .success
+        } catch {
+            return writeOutcome(for: error)
+        }
+    }
+
+    @discardableResult
+    func setCapability(agentId: String, capabilityId: String, enabled: Bool) async -> AgentWriteOutcome {
+        do {
+            let updated = try await client.setCapability(
+                agentId: agentId,
+                capabilityId: capabilityId,
+                enabled: enabled
+            )
+            if let index = agents.firstIndex(where: { $0.id == updated.id }) {
+                agents[index] = updated
+            }
+            return .success
+        } catch {
+            return writeOutcome(for: error)
+        }
+    }
+
+    func createAgent(
+        name: String,
+        description: String?,
+        prompt: String,
+        schedule: String?,
+        capabilities: [(id: String, enabled: Bool)]
+    ) async -> Result<Agent, Error> {
+        do {
+            let created = try await client.createAgent(
+                name: name,
+                description: description,
+                prompt: prompt,
+                schedule: schedule,
+                capabilities: capabilities
+            )
+            poll()
+            return .success(created)
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    @discardableResult
+    func deleteAgent(id: String) async -> AgentWriteOutcome {
+        do {
+            try await client.deleteAgent(id: id)
+            agents.removeAll { $0.id == id }
+            poll()
+            return .success
+        } catch {
+            return writeOutcome(for: error)
+        }
+    }
+
+    /// Full capability catalog for the new-agent flow. Empty on failure —
+    /// the sheet degrades to name/prompt/schedule only.
+    func capabilityCatalog() async -> [CapabilityCatalogEntry] {
+        (try? await client.capabilityCatalog()) ?? []
+    }
+
+    /// The cached connectors the Claude runtime can reach. Empty snapshot on
+    /// failure so the Connections screen degrades gracefully.
+    func connections() async -> ConnectionSnapshot {
+        (try? await client.connections()) ?? .empty
+    }
+
+    /// Forces a fresh discovery probe (the "Refresh connections" action).
+    func refreshConnections() async -> ConnectionSnapshot {
+        (try? await client.refreshConnections()) ?? .empty
+    }
+
+    /// Saves connection keys into ~/.agent-server/.env.local. The server reads
+    /// it fresh for capability checks (and layers it over .env), so a follow-up
+    /// toggle succeeds immediately; the running daemon picks the values up for
+    /// agent runs on its next restart, which we trigger here only when nothing
+    /// is running. Keeping secrets in .env.local (separate from the general
+    /// .env) is a deliberate, temporary choice.
+    func saveConnectionKeys(_ values: [String: String]) throws {
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".agent-server/.env.local")
+        var pairs = try EnvFileStore.load(from: url)
+        for (key, value) in values {
+            if let index = pairs.firstIndex(where: { $0.key == key }) {
+                pairs[index] = EnvPair(key: key, value: value)
+            } else {
+                pairs.append(EnvPair(key: key, value: value))
+            }
+        }
+        try EnvFileStore.save(pairs, to: url)
+
+        if activeRuns.isEmpty {
+            requestServerRestart()
         }
     }
 

@@ -32,6 +32,8 @@ struct MainWindow: View {
             detailDrawerLayer
 
             settingsDrawerLayer
+
+            connectionsDrawerLayer
         }
         .frame(minWidth: 1080, minHeight: 640)
         .nTheme(themeManager.themeConfig)
@@ -51,6 +53,7 @@ struct MainWindow: View {
         switch pending {
         case .detail: duration = AgentDetailDrawer.slideDuration
         case .settings: duration = SettingsDrawer.slideDuration
+        case .connections: duration = SettingsDrawer.slideDuration
         }
         DispatchQueue.main.async {
             withAnimation(.easeOut(duration: duration)) {
@@ -128,6 +131,26 @@ struct MainWindow: View {
             .easeOut(duration: SettingsDrawer.slideDuration),
             value: router.isSettingsOpen
         )
+    }
+
+    /// Connections drawer: slides down from the top like Settings.
+    private var connectionsDrawerLayer: some View {
+        ZStack(alignment: .top) {
+            Group {
+                if router.isConnectionsOpen {
+                    Color.black.opacity(0.22)
+                        .onTapGesture(perform: router.close)
+                        .transition(.opacity)
+                }
+            }
+            Group {
+                if router.isConnectionsOpen {
+                    ConnectionsView(monitor: monitor, router: router)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+        }
+        .animation(.easeOut(duration: SettingsDrawer.slideDuration), value: router.isConnectionsOpen)
     }
 
     // MARK: - Actions

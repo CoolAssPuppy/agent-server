@@ -4,19 +4,28 @@ import { join } from 'path';
 import { existsSync, readFileSync } from 'fs';
 import { parse as parseDotenv } from 'dotenv';
 
+/**
+ * Load `~/.agent-server/.env.local` and `.env`, layered under `existing`
+ * (shell env). Precedence: existing > .env.local > .env, so secrets the app
+ * writes to `.env.local` (e.g. connection keys from the Connect flow) override
+ * the general `.env`, and both defer to real shell/Doppler env. Missing files
+ * are skipped.
+ */
 export function loadEnvFile(
   dir: string,
   existing: Record<string, string | undefined> = {},
 ): Record<string, string | undefined> {
-  const envPath = join(dir, '.env');
-  if (!existsSync(envPath)) {
-    return { ...existing };
-  }
-  const fileVars = parseDotenv(readFileSync(envPath, 'utf-8'));
   const merged = { ...existing };
-  for (const [key, value] of Object.entries(fileVars)) {
-    if (merged[key] === undefined) {
-      merged[key] = value;
+  // .env.local first so its values win over .env (each file only fills keys
+  // still undefined in `merged`).
+  for (const filename of ['.env.local', '.env']) {
+    const envPath = join(dir, filename);
+    if (!existsSync(envPath)) continue;
+    const fileVars = parseDotenv(readFileSync(envPath, 'utf-8'));
+    for (const [key, value] of Object.entries(fileVars)) {
+      if (merged[key] === undefined) {
+        merged[key] = value;
+      }
     }
   }
   return merged;
@@ -26,6 +35,10 @@ export const ServerConfigSchema = z.object({
   agentsDir: z.string().default(() => join(homedir(), '.agent-server', 'agents')),
   lockDir: z.string().default(() => join(homedir(), '.agent-server', 'locks')),
   logsDir: z.string().default(() => join(homedir(), '.agent-server', 'logs')),
+  // Local SQLite database for durable run history. Survives restarts so the
+  // macOS app's run history no longer depends on the panel. `:memory:` keeps
+  // runs ephemeral (useful for throwaway/test servers).
+  runDbPath: z.string().default(() => join(homedir(), '.agent-server', 'runs.db')),
   panelUrl: z.string().url().optional(),
   panelApiKey: z.string().optional(),
   checkIntervalMs: z.number().int().positive().default(60_000),
@@ -45,6 +58,10 @@ export const ServerConfigSchema = z.object({
    * pair via `/start` and all callbacks from other chats are ignored.
    */
   telegramAllowedChatId: z.number().int().optional(),
+  /** Slack bot token (xoxb-…): drives the Web API for sending messages. */
+  slackBotToken: z.string().optional(),
+  /** Slack app-level token (xapp-…): opens the Socket Mode connection. */
+  slackAppToken: z.string().optional(),
   apiKey: z.string().min(16).optional(),
   catchUp: z.boolean().default(false),
   maxConcurrentRuns: z.number().int().positive().default(8),
@@ -63,6 +80,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     agentsDir: env.AGENT_SERVER_AGENTS_DIR,
     lockDir: env.AGENT_SERVER_LOCK_DIR,
     logsDir: env.AGENT_SERVER_LOGS_DIR,
+    runDbPath: env.AGENT_SERVER_RUN_DB || undefined,
     panelUrl: env.AGENT_SERVER_PANEL_URL || undefined,
     panelApiKey: env.AGENT_SERVER_PANEL_API_KEY || undefined,
     checkIntervalMs: env.AGENT_SERVER_CHECK_INTERVAL_MS
@@ -89,6 +107,11 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     telegramAllowedChatId: env.AGENT_SERVER_TELEGRAM_CHAT_ID
       ? Number(env.AGENT_SERVER_TELEGRAM_CHAT_ID)
       : undefined,
+    // Accept both the AGENT_SERVER_-prefixed names (consistent with the rest of
+    // our config) and the bare SLACK_* names (Slack's own convention, and what
+    // users typically already keep in Doppler/.env).
+    slackBotToken: env.AGENT_SERVER_SLACK_BOT_TOKEN || env.SLACK_BOT_TOKEN || undefined,
+    slackAppToken: env.AGENT_SERVER_SLACK_APP_TOKEN || env.SLACK_APP_TOKEN || undefined,
     apiKey: env.AGENT_SERVER_API_KEY || undefined,
     catchUp: env.AGENT_SERVER_CATCH_UP === 'true',
     maxConcurrentRuns: env.AGENT_SERVER_MAX_CONCURRENT_RUNS

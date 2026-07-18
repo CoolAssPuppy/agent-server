@@ -28,6 +28,8 @@ struct SettingsDrawer: View {
     @State private var selectedIndex: Int? = nil
     @State private var launchAtLogin: Bool = LaunchAtLoginManager.shared.isEnabled
     @State private var resumeAfterWake: Bool = true
+    @State private var useInstalledClaude: Bool = true
+    @State private var useInstalledCodex: Bool = true
     @State private var autoUpdates: Bool = true
     @State private var telemetryOptIn: Bool = Telemetry.isOptedIn
     @State private var didLoad: Bool = false
@@ -40,6 +42,7 @@ struct SettingsDrawer: View {
     @State private var telemetrySampleSeconds: Int = 5
     @State private var telemetryMaxEntries: Int = 50
     @State private var telemetryIncludeMetadata: Bool = false
+    @State private var showAdvancedSettings: Bool = false
 
     static let height: CGFloat = 640
     static let slideDuration: Double = 0.26
@@ -117,16 +120,39 @@ struct SettingsDrawer: View {
                 generalCard
                 notificationsCard
             }
-            VStack(spacing: NSpacing.lg) {
-                panelConnectionsCard
-                telemetryCard
-            }
-            VStack(spacing: NSpacing.lg) {
+            VStack(alignment: .trailing, spacing: NSpacing.lg) {
                 updatesCard
                 contactCard
+                // Advanced sits under Contact, right-aligned; toggling it opens
+                // the power-user panels in the column to the right.
+                advancedDisclosure
+            }
+            // Power-user knobs (panel telemetry, raw env grid) stay one click
+            // away instead of front and center.
+            VStack(alignment: .leading, spacing: NSpacing.lg) {
+                if showAdvancedSettings {
+                    panelConnectionsCard
+                    telemetryCard
+                }
             }
         }
         .padding(.horizontal, NSpacing.xxl)
+    }
+
+    private var advancedDisclosure: some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.15)) { showAdvancedSettings.toggle() }
+        } label: {
+            HStack(spacing: NSpacing.xs) {
+                Image(systemName: showAdvancedSettings ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                Text("Advanced")
+                    .font(NTypography.labelMedium)
+            }
+            .foregroundStyle(theme.tokens.mutedForeground)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var footer: some View {
@@ -153,6 +179,20 @@ struct SettingsDrawer: View {
                 }
 
             settingsToggle("Resume scheduled agents after wake", isOn: $resumeAfterWake)
+
+            settingsToggle("Use my installed Claude", isOn: $useInstalledClaude)
+                .onChange(of: useInstalledClaude) { _, newValue in
+                    persistRuntimeFlag(RuntimeEnvKey.useInstalledClaude, useInstalled: newValue)
+                }
+
+            settingsToggle("Use my installed Codex", isOn: $useInstalledCodex)
+                .onChange(of: useInstalledCodex) { _, newValue in
+                    persistRuntimeFlag(RuntimeEnvKey.useInstalledCodex, useInstalled: newValue)
+                }
+
+            Text("Runtime changes take effect after the server restarts.")
+                .font(NTypography.captionSmall)
+                .foregroundStyle(theme.tokens.mutedForeground)
 
             settingsToggle("Help improve Agent Server", isOn: $telemetryOptIn)
                 .onChange(of: telemetryOptIn) { _, newValue in
@@ -704,6 +744,30 @@ struct SettingsDrawer: View {
         }
         refreshValidation()
         loadTelemetryFromPairs()
+        loadRuntimeFromPairs()
+    }
+
+    // MARK: - Runtime flag persistence
+
+    private func loadRuntimeFromPairs() {
+        let lookup = Dictionary(uniqueKeysWithValues: pairs.map { ($0.key, $0.value) })
+        // Absent means the default (on); only an explicit "false" turns it off.
+        useInstalledClaude = lookup[RuntimeEnvKey.useInstalledClaude] != "false"
+        useInstalledCodex = lookup[RuntimeEnvKey.useInstalledCodex] != "false"
+    }
+
+    /// Persist a "use my installed runtime" toggle. The default is on, so we
+    /// keep `.env` clean by removing the key when enabled and writing an
+    /// explicit `false` only when the user opts out.
+    private func persistRuntimeFlag(_ key: String, useInstalled: Bool) {
+        if useInstalled {
+            pairs.removeAll { $0.key == key }
+        } else if let idx = pairs.firstIndex(where: { $0.key == key }) {
+            pairs[idx] = EnvPair(key: key, value: "false", isSecret: false)
+        } else {
+            pairs.append(EnvPair(key: key, value: "false", isSecret: false))
+        }
+        persistIfValid()
     }
 
     // MARK: - Telemetry persistence
@@ -818,6 +882,11 @@ enum TelemetryMode: String, Hashable {
     case batched
 }
 
+private enum RuntimeEnvKey {
+    static let useInstalledClaude = "AGENT_SERVER_USE_INSTALLED_CLAUDE"
+    static let useInstalledCodex = "AGENT_SERVER_USE_INSTALLED_CODEX"
+}
+
 private enum TelemetryEnvKey {
     static let mode = "AGENT_SERVER_TELEMETRY_PROGRESS_MODE"
     static let sampleMs = "AGENT_SERVER_TELEMETRY_PROGRESS_SAMPLE_MS"
@@ -827,7 +896,9 @@ private enum TelemetryEnvKey {
 
 // MARK: - Bottom-only rounded rectangle
 
-private struct BottomRoundedRectangle: Shape {
+/// A rectangle with only its bottom corners rounded. Shared by the Settings
+/// and Connections drawers so both read as the same sheet sliding down.
+struct BottomRoundedRectangle: Shape {
     let radius: CGFloat
 
     func path(in rect: CGRect) -> Path {

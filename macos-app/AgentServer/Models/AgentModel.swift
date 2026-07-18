@@ -14,13 +14,30 @@ struct Agent: Codable, Identifiable {
     let notification: NotificationConfig?
     let onComplete: [TriggerRef]?
     let onFailure: [TriggerRef]?
+    let disallowedTools: [String]?
+    let timezone: String?
+    let model: String?
+    /// "claude-code" (default) or "codex". Optional so older servers decode.
+    let executor: String?
+    /// Custom model provider (endpoint + ${VAR} key), when the agent runs on a
+    /// non-default model. Optional so older servers decode.
+    let provider: ProviderConfig?
+    let timeout: String?
+    let permissionMode: String?
+    let workingDirectory: String?
+    /// Derived by the server from tools/disallowed_tools/mcp_servers.
+    /// Optional so the app still decodes agents from older servers.
+    let capabilities: [AgentCapability]?
 
     enum CodingKeys: String, CodingKey {
         case id, name, description, schedule, prompt, tools, enabled
-        case watch, interaction, notification
+        case watch, interaction, notification, timezone, model, executor, provider, timeout, capabilities
         case maxTurns = "max_turns"
         case onComplete = "on_complete"
         case onFailure = "on_failure"
+        case disallowedTools = "disallowed_tools"
+        case permissionMode = "permission_mode"
+        case workingDirectory = "working_directory"
     }
 
     var isScheduled: Bool {
@@ -56,6 +73,128 @@ struct Agent: Codable, Identifiable {
         }
         return AgentTriggerPresentation(schedule: nil, hasWatch: hasWatch).fallbackLabel ?? "On demand"
     }
+}
+
+/// A custom model provider (endpoint + key reference) for an agent. `apiKey`
+/// holds a `${VAR}` reference resolved from `.env` at run time, never a literal
+/// secret.
+struct ProviderConfig: Codable, Equatable {
+    let baseURL: String
+    let apiKey: String?
+
+    enum CodingKeys: String, CodingKey {
+        case baseURL = "base_url"
+        case apiKey = "api_key"
+    }
+}
+
+/// One consumer-facing capability row ("Read your files", "Notion", ...)
+/// derived server-side from the agent's YAML. Toggling sends the id back
+/// via the capabilities field of an agent patch.
+struct AgentCapability: Codable, Identifiable, Equatable {
+    let id: String
+    let label: String
+    let description: String
+    let icon: String
+    let kind: String
+    /// How this connection authenticates: "none", "api_key", or "oauth".
+    /// Optional so agents from an older server still decode.
+    let auth: ConnectionAuth?
+    let enabled: Bool
+    let custom: Bool
+    let requiredEnv: [String]
+    let envReady: Bool
+    let serverName: String?
+    /// Connection status from the discovery probe when this capability maps to
+    /// a reachable runtime connector ("connected", "needs-auth", "failed", …).
+    /// Absent for local tools and unconfigured services.
+    let status: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, label, description, icon, kind, auth, enabled, custom, status
+        case requiredEnv = "required_env"
+        case envReady = "env_ready"
+        case serverName = "server_name"
+    }
+}
+
+/// How a connection authenticates. Drives which Connect flow the app runs.
+/// Unknown/absent values decode as `.none` so future servers never crash us.
+enum ConnectionAuth: String, Codable, Equatable {
+    case none
+    case apiKey = "api_key"
+    case oauth
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = ConnectionAuth(rawValue: raw) ?? .none
+    }
+}
+
+/// Catalog entry from GET /capabilities, used by the new-agent flow to
+/// offer every known capability before the agent exists.
+struct CapabilityCatalogEntry: Codable, Identifiable, Equatable {
+    let id: String
+    let label: String
+    let description: String
+    let icon: String
+    let kind: String
+    let auth: ConnectionAuth?
+    let builtin: Bool
+    let requiredEnv: [String]
+    let envReady: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case id, label, description, icon, kind, auth, builtin
+        case requiredEnv = "required_env"
+        case envReady = "env_ready"
+    }
+}
+
+struct CapabilityCatalogResponse: Codable {
+    let capabilities: [CapabilityCatalogEntry]
+}
+
+/// One MCP server the Claude runtime reported it can reach — an account
+/// connector ("claude.ai Slack"), a plugin, or a local server ("eventkit").
+struct DiscoveredConnection: Codable, Identifiable, Equatable {
+    let name: String
+    let status: String
+    let error: String?
+
+    var id: String { name }
+
+    /// True when the runtime is actively connected (not needs-auth / failed).
+    var isConnected: Bool { status == "connected" }
+    var needsAuth: Bool { status == "needs-auth" }
+
+    /// A human label: drop the "claude.ai " account-connector prefix and take
+    /// the last segment of a "plugin:x:y" name, so rows read "Slack", "Figma".
+    var displayName: String {
+        var rest = name
+        if let range = rest.range(of: "claude.ai ", options: [.caseInsensitive, .anchored]) {
+            rest.removeSubrange(range)
+        }
+        if rest.lowercased().hasPrefix("plugin:") {
+            let parts = rest.split(separator: ":")
+            if let last = parts.last { rest = String(last) }
+        }
+        return rest.isEmpty ? name : rest
+    }
+}
+
+/// The cached discovery snapshot from GET /connections. `discoveredAt` is nil
+/// until the server's first probe completes.
+struct ConnectionSnapshot: Codable, Equatable {
+    let servers: [DiscoveredConnection]
+    let discoveredAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case servers
+        case discoveredAt = "discovered_at"
+    }
+
+    static let empty = ConnectionSnapshot(servers: [], discoveredAt: nil)
 }
 
 struct FileWatch: Codable {

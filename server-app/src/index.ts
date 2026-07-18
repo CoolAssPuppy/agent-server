@@ -1,6 +1,29 @@
-export { AgentConfigSchema, PermissionsSchema, parseAgentYaml, parseAgentFile, resolveEnvVars, type AgentConfig, type McpServerConfig, type Permissions } from './agents/config.js';
+export { AgentConfigSchema, PermissionsSchema, ProviderConfigSchema, parseAgentYaml, parseAgentFile, resolveEnvVars, resolveEnvString, type AgentConfig, type McpServerConfig, type Permissions, type ProviderConfig } from './agents/config.js';
 export { matchesPattern, isToolAllowed, buildCanUseTool } from './execution/permissions.js';
 export { discoverAgents } from './agents/discovery.js';
+export {
+  CAPABILITY_CATALOG,
+  CapabilityError,
+  applyCapabilityChanges,
+  catalogSummary,
+  deriveCapabilities,
+  mcpServerKey,
+  redactAgentSecrets,
+  type AgentCapability,
+  type CapabilityChange,
+  type CapabilityDefinition,
+  type DiscoveredConnection,
+} from './agents/capabilities.js';
+export { ConnectionCache, type ConnectionSnapshot } from './connections/cache.js';
+export {
+  AgentPatchSchema,
+  AgentWriteError,
+  NewAgentSchema,
+  createAgentWriter,
+  type AgentPatch,
+  type AgentWriter,
+  type NewAgentInput,
+} from './agents/writer.js';
 export { shouldRun, getNextRun, hasMissedRun } from './agents/scheduler.js';
 export { acquireLock, releaseLock, isLocked } from './execution/lockfile.js';
 export { TelemetryReporter, replayPendingTerminals, type StatusEvent, type StatusState } from './reporting/reporter.js';
@@ -10,7 +33,18 @@ export { executeCodexAgent } from './plugins/codex.js';
 export { runAgent, type RunResult, type Reporter } from './execution/runner.js';
 export { loadConfig, ServerConfigSchema, type ServerConfig } from './platform/config.js';
 export { runDueAgents, runSingleAgent, listAgents, startDaemon } from './server/daemon.js';
-export { RunStore, type StoredRun } from './reporting/store.js';
+export { RunStore, type StoredRun, type RunStoreLike } from './reporting/store.js';
+export { SqliteRunStore, type SqliteRunStoreOptions } from './reporting/sqlite-store.js';
+export { failOrphanedLocalRuns, ORPHANED_RUN_ERROR } from './reporting/local-reconcile.js';
+export { computeAgentMetrics, type AgentMetrics } from './reporting/metrics.js';
+export {
+  discoverRuntimePaths,
+  discoverClaudeExecutable,
+  discoverCodexExecutable,
+  createDefaultProbe,
+  type RuntimeProbe,
+  type RuntimePaths,
+} from './execution/runtime-discovery.js';
 export { createApi } from './server/api.js';
 export { startServer, type ServerInstance } from './server/server.js';
 export { evaluateTriggers } from './agents/triggers.js';

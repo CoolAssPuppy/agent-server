@@ -1,8 +1,21 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { timingSafeEqual } from 'crypto';
 import { z } from 'zod';
 import type { AgentConfig } from '../agents/config.js';
-import type { RunStore } from '../reporting/store.js';
+import {
+  catalogSummary,
+  deriveCapabilities,
+  redactAgentSecrets,
+  type DiscoveredConnection,
+} from '../agents/capabilities.js';
+import {
+  AgentPatchSchema,
+  AgentWriteError,
+  NewAgentSchema,
+  type AgentWriter,
+} from '../agents/writer.js';
+import type { RunStoreLike } from '../reporting/store.js';
+import { computeAgentMetrics } from '../reporting/metrics.js';
 import type { PendingDecision } from '../reporting/realtime-client.js';
 import {
   AuthFailureTracker,
@@ -13,9 +26,22 @@ import {
   sanitizeText,
 } from './security-utils.js';
 
+type EnvSource = Record<string, string | undefined>;
+
+type ConnectionSnapshot = {
+  servers: DiscoveredConnection[];
+  discovered_at: string | null;
+};
+
+/** Read/refresh surface over the app-wide connection discovery cache. */
+type ConnectionSource = {
+  get: () => ConnectionSnapshot;
+  refresh: () => Promise<ConnectionSnapshot>;
+};
+
 type ApiDependencies = {
   getAgents: () => Promise<AgentConfig[]>;
-  store: RunStore;
+  store: RunStoreLike;
   triggerRun: (agentId: string, promptSuffix?: string) => Promise<string>;
   cancelRun?: (runId: string) => boolean;
   cleanupFn?: () => Promise<number>;
@@ -24,15 +50,41 @@ type ApiDependencies = {
    * Realtime subscription. Absent when the daemon has no panel configured.
    */
   getPendingDecisions?: () => PendingDecision[];
+  /**
+   * Structured writes to agent definition files. Absent in contexts that
+   * have no agents directory (e.g. some tests); write routes then 501.
+   */
+  agentWriter?: AgentWriter;
+  /**
+   * Env source used for capability readiness checks. Should read fresh
+   * .env values so newly saved keys are visible without a restart.
+   */
+  getEnv?: () => EnvSource;
+  /**
+   * App-wide cache of the MCP discovery probe (the connectors the Claude
+   * runtime can reach). `get()` is a synchronous read of the last snapshot;
+   * `refresh()` re-probes (the "Refresh connections" action). Absent in
+   * tests/contexts without a runtime; the connection routes then serve an
+   * empty snapshot and capability lists fall back to built-ins + configured.
+   */
+  connections?: ConnectionSource;
   apiKey?: string;
   startedAt?: string;
   host?: string;
 };
 
 const MAX_BODY_BYTES = 8_192;
+// Agent definitions carry the full prompt (up to 40k chars), so create and
+// update bodies need far more headroom than the other routes.
+const MAX_AGENT_WRITE_BODY_BYTES = 256 * 1024;
 const TriggerRunBodySchema = z.object({
   with: z.string().trim().max(4_000).optional(),
 });
+
+function isAgentWriteRequest(method: string, path: string): boolean {
+  if (method === 'POST' && path === '/agents') return true;
+  return method === 'PUT' && /^\/agents\/[^/]+$/.test(path);
+}
 
 function isAuthorized(requestKey: string | undefined, expectedKey: string): boolean {
   if (!requestKey) return false;
@@ -127,8 +179,11 @@ export function createApi(deps: ApiDependencies): Hono {
       return response;
     }
 
+    const bodyLimit = isAgentWriteRequest(c.req.method, c.req.path)
+      ? MAX_AGENT_WRITE_BODY_BYTES
+      : MAX_BODY_BYTES;
     const contentLength = parseContentLength(c.req.raw);
-    if (contentLength !== undefined && contentLength > MAX_BODY_BYTES) {
+    if (contentLength !== undefined && contentLength > bodyLimit) {
       const response = c.json({ error: 'Request body too large' }, 413);
       setSecurityHeaders(response.headers);
       return response;
@@ -174,16 +229,121 @@ export function createApi(deps: ApiDependencies): Hono {
     });
   });
 
+  const getEnv = deps.getEnv ?? ((): EnvSource => process.env);
+
+  // Agents served over HTTP get secrets masked and a derived `capabilities`
+  // array so clients can render consumer-friendly toggles without knowing
+  // YAML semantics.
+  const getConnections = (): DiscoveredConnection[] => deps.connections?.get().servers ?? [];
+
+  function enrichAgent(agent: AgentConfig): Record<string, unknown> {
+    return {
+      ...redactAgentSecrets(agent),
+      capabilities: deriveCapabilities(agent, getEnv(), getConnections()),
+    };
+  }
+
+  function agentWriteErrorResponse(c: Context, err: unknown): Response {
+    if (err instanceof AgentWriteError) {
+      switch (err.code) {
+        case 'not_found':
+          return c.json({ error: err.message }, 404);
+        case 'already_exists':
+          return c.json({ error: err.message }, 409);
+        case 'missing_env':
+          return c.json({ error: err.message, missing_env: err.missingEnv ?? [] }, 409);
+        case 'invalid':
+          return c.json({ error: err.message }, 400);
+      }
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[api] Agent write failed: ${sanitizeText(message, 300)}`);
+    return c.json({ error: 'Agent write failed' }, 500);
+  }
+
+  async function readJsonBody(c: Context): Promise<
+    { ok: true; body: unknown } | { ok: false; response: Response }
+  > {
+    const contentType = c.req.header('content-type')?.toLowerCase() ?? '';
+    if (!contentType.includes('application/json')) {
+      return { ok: false, response: c.json({ error: 'Expected Content-Type: application/json' }, 415) };
+    }
+    try {
+      return { ok: true, body: JSON.parse(await c.req.text()) as unknown };
+    } catch {
+      return { ok: false, response: c.json({ error: 'Invalid JSON body' }, 400) };
+    }
+  }
+
   app.get('/agents', async (c) => {
     const agents = await deps.getAgents();
-    return c.json(agents);
+    return c.json(agents.map((agent) => enrichAgent(agent)));
   });
 
   app.get('/agents/:id', async (c) => {
     const agents = await deps.getAgents();
     const agent = agents.find((a) => a.id === c.req.param('id'));
     if (!agent) return c.json({ error: 'Agent not found' }, 404);
-    return c.json(agent);
+    return c.json(enrichAgent(agent));
+  });
+
+  app.get('/capabilities', (c) => {
+    return c.json({ capabilities: catalogSummary(getEnv()) });
+  });
+
+  app.put('/agents/:id', async (c) => {
+    if (!deps.agentWriter) {
+      return c.json({ error: 'Agent editing is not available on this server' }, 501);
+    }
+
+    const read = await readJsonBody(c);
+    if (!read.ok) return read.response;
+
+    const parsed = AgentPatchSchema.safeParse(read.body);
+    if (!parsed.success) {
+      return c.json({ error: `Invalid agent patch: ${parsed.error.issues[0]?.message ?? 'bad request'}` }, 400);
+    }
+
+    try {
+      const updated = await deps.agentWriter.update(c.req.param('id'), parsed.data);
+      return c.json(enrichAgent(updated));
+    } catch (err) {
+      return agentWriteErrorResponse(c, err);
+    }
+  });
+
+  app.post('/agents', async (c) => {
+    if (!deps.agentWriter) {
+      return c.json({ error: 'Agent editing is not available on this server' }, 501);
+    }
+
+    const read = await readJsonBody(c);
+    if (!read.ok) return read.response;
+
+    const parsed = NewAgentSchema.safeParse(read.body);
+    if (!parsed.success) {
+      return c.json({ error: `Invalid agent: ${parsed.error.issues[0]?.message ?? 'bad request'}` }, 400);
+    }
+
+    try {
+      const created = await deps.agentWriter.create(parsed.data);
+      return c.json(enrichAgent(created), 201);
+    } catch (err) {
+      return agentWriteErrorResponse(c, err);
+    }
+  });
+
+  app.delete('/agents/:id', async (c) => {
+    if (!deps.agentWriter) {
+      return c.json({ error: 'Agent editing is not available on this server' }, 501);
+    }
+
+    try {
+      await deps.agentWriter.remove(c.req.param('id'));
+      return c.json({ success: true, agentId: c.req.param('id') });
+    } catch (err) {
+      return agentWriteErrorResponse(c, err);
+    }
   });
 
   app.post('/agents/:id/run', async (c) => {
@@ -242,6 +402,39 @@ export function createApi(deps: ApiDependencies): Hono {
     const run = deps.store.get(c.req.param('id'));
     if (!run) return c.json({ error: 'Run not found' }, 404);
     return c.json(sanitizeStoredRun(run));
+  });
+
+  const emptySnapshot: ConnectionSnapshot = { servers: [], discovered_at: null };
+
+  // The connectors the Claude runtime can reach (account connectors + injected
+  // local servers). A regenerable cache of what's available, never config.
+  // GET reads the cached snapshot; POST /connections/refresh re-probes.
+  app.get('/connections', (c) => {
+    return c.json(deps.connections?.get() ?? emptySnapshot);
+  });
+
+  app.post('/connections/refresh', async (c) => {
+    if (!deps.connections) return c.json(emptySnapshot);
+    try {
+      return c.json(await deps.connections.refresh());
+    } catch (err) {
+      console.error(`[api] Connection refresh failed: ${sanitizeText(String(err), 300)}`);
+      return c.json(deps.connections.get());
+    }
+  });
+
+  // Back-compat alias for older clients that expect `{ servers }`.
+  app.get('/connections/discover', (c) => {
+    return c.json({ servers: deps.connections?.get().servers ?? [] });
+  });
+
+  // Per-agent run metrics (success rate, avg duration, cost, last run) computed
+  // from the durable run store. Local, no panel. Filter to one agent with
+  // ?agent_id=.
+  app.get('/metrics', (c) => {
+    const agentId = c.req.query('agent_id');
+    const runs = agentId ? deps.store.listByAgent(agentId) : deps.store.list();
+    return c.json({ metrics: computeAgentMetrics(runs) });
   });
 
   // Pending decisions the daemon learned about over Supabase Realtime. Served

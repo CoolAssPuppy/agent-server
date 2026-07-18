@@ -19,6 +19,8 @@ server-app/src/
   agents/
     config.ts            -- Zod schema + YAML/frontmatter parser for agent definitions
     discovery.ts         -- Reads agent files (.yaml, .yml, .md) from agents directory
+    capabilities.ts      -- Consumer capability catalog + derivation + toggle translation
+    writer.ts            -- Lossless structured writes to agent files (create/update/delete)
     scheduler.ts         -- Cron expression evaluation (cron-parser v5)
     triggers.ts          -- Agent chaining (on_complete, on_failure)
     file-watcher.ts      -- File watch triggers with debounce and glob
@@ -76,6 +78,7 @@ sample-agents/           -- Example agent YAML configs
 - @hono/node-ws for WebSocket streaming
 - Commander for CLI
 - grammY for Telegram bot (long-polling, inline keyboards)
+- @slack/socket-mode + @slack/web-api for the Slack bot (Socket Mode, Block Kit)
 - yaml for YAML parsing
 - vitest for testing
 
@@ -105,6 +108,18 @@ executor: codex  # defaults to 'claude-code' if omitted
 The `Reporter` type in `execution/runner.ts` is the interface all reporters implement. The `TelemetryReporter` class implements it for real HTTP reporting. The daemon creates a noop reporter when no panel URL is configured. Never cast to `TelemetryReporter` in daemon or runner code.
 
 The reporter includes `worker_id` (hostname-pid) in metadata on every event, allowing the panel to track which server instance owns each run.
+
+### Local run persistence (SQLite)
+
+Run history is durable, backed by SQLite via Node's built-in `node:sqlite` (no native dependency to compile or code-sign into the macOS app bundle). `SqliteRunStore` (`reporting/sqlite-store.ts`) is a drop-in for the in-memory `RunStore` behind the shared `RunStoreLike` interface; both normalize through `reporting/run-normalization.ts`. The database lives at `~/.agent-server/runs.db` (`AGENT_SERVER_RUN_DB`; `:memory:` for ephemeral). `startServer` builds it with a graceful fallback to in-memory history if the file is unusable, and closes it on shutdown. Because history now survives restarts, `failOrphanedLocalRuns()` (`reporting/local-reconcile.ts`) runs at boot to fail any run left `running` by a killed previous instance — local ghost-run cleanup that needs no panel.
+
+### Runtime discovery and custom model providers
+
+Runs use the user's installed Claude/Codex binaries and subscription logins when found. `execution/runtime-discovery.ts` resolves both once at startup (opt-out flag > explicit `AGENT_SERVER_CLAUDE_PATH`/`AGENT_SERVER_CODEX_PATH` > `~/.claude/local/claude` > PATH; set `AGENT_SERVER_USE_INSTALLED_CLAUDE`/`_CODEX=false` to force bundled). The resolved paths thread through `ExecutorFnOptions` into `Options.pathToClaudeCodeExecutable` (Claude) and `CodexOptions.codexPathOverride` (Codex); undefined falls back to the SDK's bundled runtime.
+
+Agents can point at a custom model provider via the `provider` block (`base_url` + optional `api_key`), executor-agnostic — each runtime maps it to its own mechanism. For the **Codex** runtime it maps to `CodexOptions.baseUrl`/`apiKey`, so an OpenAI-compatible endpoint like Moonshot's Kimi K2 works directly (see `sample-agents/kimi-summarizer.yaml`). For the **Claude** runtime, `buildProviderEnv()` layers `ANTHROPIC_BASE_URL` + `ANTHROPIC_API_KEY` over the process env via the SDK's per-session `Options.env` (so it targets an Anthropic-compatible endpoint for that run only, without mutating the global `process.env` that keeps other agents on the subscription login — `cli.ts` strips `ANTHROPIC_API_KEY` at startup). `base_url` is a literal URL; `api_key` holds a `${VAR}` reference resolved from `.env` at run time (via `resolveEnvString`), never a literal secret in the agent file.
+
+**Codex safety mapping.** Codex ignores the Claude tool allowlist (`tools`/`disallowed_tools`/`canUseTool`), so `execution/codex-safety.ts` translates an agent's capability/permission model into Codex's own safety knobs, keeping the UI toggles meaningful on the Codex path (which every custom-model/Kimi agent uses). `deriveCodexSandbox()` maps write/exec permission onto `sandboxMode` (read-only when the agent may neither write files nor run commands, else workspace-write; an explicit `codex_sandbox` and `permission_mode: plan` still win; `danger-full-access` is never derived). `deriveCodexNetworkAccess()` maps an explicit web-tool grant onto `networkAccessEnabled` (off by default). The mapping is deliberately coarse — Codex safety is broad tiers, not per-tool. MCP-based capabilities carry over directly (the Codex executor passes `mcp_servers`).
 
 ### Panel client and ghost run cleanup
 
@@ -255,7 +270,10 @@ Channels implement the `Channel` interface from `channels/channel.ts`. Each chan
 
 - **Console**: Numbered options + readline. Used in `agent-server run` CLI mode.
 - **Telegram**: Inline keyboards via grammY long-polling. No public IP needed. Set `AGENT_SERVER_TELEGRAM_BOT_TOKEN` to enable. Expired interactions are cleaned up by editing the Telegram message to show "This request has expired." and removing the inline keyboard.
+- **Slack** (`channels/slack.ts`): Block Kit buttons over Socket Mode (`@slack/socket-mode` for receiving, `@slack/web-api` for sending) — no public IP needed, mirroring Telegram's long-polling model. Needs TWO tokens: a bot token (`xoxb-…`, Web API) and an app-level token (`xapp-…`, Socket Mode). Read from `AGENT_SERVER_SLACK_BOT_TOKEN`/`AGENT_SERVER_SLACK_APP_TOKEN` OR the bare `SLACK_BOT_TOKEN`/`SLACK_APP_TOKEN` (Slack's own naming). The DM channel is learned from the first inbound message and persisted to `slack.json`. Expired interactions edit the message to "This request has expired." and drop the buttons. This is the "chat with a Slack bot" messaging channel — distinct from the Slack MCP *data* capability an agent reads.
 - **Dispatcher**: `ChannelDispatcher` maps channel names to instances. Calls `expireInteractions()` to clean up expired interactions across channels.
+
+Telegram and Slack share the same inbound-message flow (`handleChannelMessage` in `server.ts`): conversation lookup → `routeMessage` → run trigger → completion notice. Only the transport differs. The conversation store keys by number, so Slack's string channel id is hashed via `chatKeyFromString()`.
 
 ### Telegram message routing
 
@@ -283,7 +301,23 @@ Callback data uses `index:interactionId` encoding to stay within Telegram's 64-b
 
 ### HTTP API
 
-Hono app created via `createApi()` with dependency injection. Routes: `/agents`, `/agents/:id`, `/agents/:id/run`, `/runs`, `/runs/:id`, `/runs/:id/cancel`, `/cleanup`, `/health`, `/ws`. The `startServer()` function combines HTTP + scheduler + Telegram + WebSocket in one process.
+Hono app created via `createApi()` with dependency injection. Routes: `/agents` (GET list, POST create), `/agents/:id` (GET, PUT update, DELETE), `/agents/:id/run`, `/capabilities`, `/runs`, `/runs/:id`, `/runs/:id/cancel`, `/cleanup`, `/health`, `/ws`. The `startServer()` function combines HTTP + scheduler + Telegram + WebSocket in one process.
+
+Agent GET responses are **enriched**: hard-coded secrets in `mcp_servers` env/headers are masked (`${VAR}` references pass through), and a derived `capabilities` array is attached so clients can render consumer toggles without knowing YAML semantics. Agent write routes accept bodies up to 256 KB (prompts); all other routes keep the 8 KB cap.
+
+### Capability catalog
+
+`agents/capabilities.ts` is the translation layer between agent YAML and the consumer UI. `CAPABILITY_CATALOG` maps human capabilities ("Read your files", "Notion", "TripMaster", "CalorieNerds", ...) onto tools/`mcp_servers` entries. Key functions:
+
+- `deriveCapabilities(agent, env)` -- computes each capability's on/off state; unrecognized MCP servers and tools surface as generic custom entries (ids `mcp:<key>` / `tool:<name>`), never hidden.
+- `applyCapabilityChanges(agent, changes, env)` -- turns toggles into field updates. Disabling never deletes config: tool capabilities are denied via `disallowed_tools`, MCP capabilities via the server-level `mcp__<name>` rule, so every toggle is reversible. Enabling a catalog MCP capability writes its server entry (secrets stay as `${VAR}` references; remote URLs resolve from env at enable time because the schema requires literal URLs) and adds allowlist coverage when `tools` is non-empty.
+- Capabilities that need keys report `required_env`/`env_ready`; enabling without them fails with a `missing_env` error (HTTP 409 + `missing_env` array) so the UI can run its Connect flow.
+
+A `permissions` block is deliberately out of scope for capability toggles — agents using it are edited via the raw editor.
+
+### Agent writer
+
+`agents/writer.ts` owns all file mutation for the API. Updates go through the `yaml` package's Document API (`parseDocument` + per-key set/delete), so comments, key order, and passthrough fields survive edits; for `.md` agents only the frontmatter is rewritten and the body is replaced only when the prompt itself changes. `POST /agents` renders a frontmatter+markdown file, building an explicit `tools` allowlist from enabled capabilities. `DELETE /agents/:id` soft-deletes by moving the file into `.deleted/` (invisible to discovery). Errors carry a typed code (`not_found`, `already_exists`, `invalid`, `missing_env`) that the API maps to status codes. The writer (and the API's capability checks) reads `~/.agent-server/.env` fresh per call, so keys saved by the app's Connect flow work without a server restart — though the running daemon only picks them up for agent runs after its next restart.
 
 The `/health` endpoint returns `{ status, timestamp, started_at }` where `started_at` is the server boot time (ISO string). The macOS app uses `started_at` to detect server restarts and identify orphaned runs. The `/cleanup` endpoint calls the panel to fail orphaned runs owned by this server instance.
 
@@ -340,6 +374,10 @@ permissions:             # optional, glob-based tool permissions (allowlist mode
   deny:
     - "mcp__*__create_*"
 executor: claude-code    # optional, defaults to claude-code
+model: kimi-k2           # optional per-agent model name
+provider:                # optional custom model provider (see below)
+  base_url: https://api.moonshot.ai/v1   # literal URL (OpenAI- or Anthropic-compatible)
+  api_key: "${MOONSHOT_API_KEY}"         # ${VAR} ref resolved from .env; never a literal secret
 mcp_servers:             # optional, additional MCP servers for this agent
   my-server:
     command: npx
@@ -425,12 +463,19 @@ The CLI loads `~/.agent-server/.env` at startup. Shell env vars and Doppler (`do
 | AGENT_SERVER_AGENTS_DIR | ~/.agent-server/agents | Directory containing agent definition files |
 | AGENT_SERVER_LOCK_DIR | ~/.agent-server/locks | Lock file directory |
 | AGENT_SERVER_LOGS_DIR | ~/.agent-server/logs | Log directory |
+| AGENT_SERVER_RUN_DB | ~/.agent-server/runs.db | Durable run-history SQLite database. `:memory:` for ephemeral. |
+| AGENT_SERVER_USE_INSTALLED_CLAUDE | true | Use the user's installed Claude binary when found. Set `false` to force the bundled runtime. |
+| AGENT_SERVER_USE_INSTALLED_CODEX | true | Use the user's installed Codex binary when found. Set `false` to force the bundled runtime. |
+| AGENT_SERVER_CLAUDE_PATH | (auto) | Explicit path to the Claude executable, overriding auto-discovery. |
+| AGENT_SERVER_CODEX_PATH | (auto) | Explicit path to the Codex executable, overriding auto-discovery. |
 | AGENT_SERVER_CHECK_INTERVAL_MS | 60000 | Daemon check interval |
 | AGENT_SERVER_PANEL_URL | (none) | Agent Panel URL for telemetry |
 | AGENT_SERVER_PANEL_API_KEY | (none) | API key for Agent Panel |
 | AGENT_SERVER_HEARTBEAT_MS | 60000 | Heartbeat interval (ms). Panel marks runs stale after 90s, so 60s gives a 1.5x safety buffer against single dropped heartbeats. |
 | AGENT_SERVER_PORT | 47821 | HTTP API port |
 | AGENT_SERVER_TELEGRAM_BOT_TOKEN | (none) | Telegram bot token for interactive agents |
+| AGENT_SERVER_SLACK_BOT_TOKEN / SLACK_BOT_TOKEN | (none) | Slack bot token (`xoxb-…`) for the Slack messaging channel (Web API) |
+| AGENT_SERVER_SLACK_APP_TOKEN / SLACK_APP_TOKEN | (none) | Slack app-level token (`xapp-…`) for Socket Mode. Both Slack tokens are required to enable the channel. |
 | AGENT_SERVER_CATCH_UP | false | Resume missed scheduled agents after sleep/wake |
 | AGENT_SERVER_RUN_TIMEOUT_MS | 1800000 | Wall-clock ceiling per run (ms). Agents can override via `timeout` field. Set `0` to disable. |
 | AGENT_SERVER_TELEMETRY_PROGRESS_MODE | live | Panel progress reporting mode. `live` throttles updates to one per sample window; `batched` defers all updates to the terminal payload. |
@@ -490,10 +535,13 @@ macos-app/
       EventKitPermissionManager.swift -- Requests Calendar + Reminders access at startup
       LaunchAtLoginManager.swift      -- SMAppService wrapper
     Views/
-      SettingsView.swift              -- Tab container (Agents, Settings)
-      AgentsListView.swift            -- Agent list with run buttons
-      SettingsTabView.swift           -- Launch at login + env editor
-      EnvEditorView.swift             -- Key-value editor for .env
+      MainWindow.swift                -- Sidebar + main pane + drawer overlays
+      Sidebar.swift                   -- Agent list (left, 240px)
+      MainPane.swift                  -- Home dashboard cards
+      AgentDetailDrawer.swift         -- Consumer agent page (last run, capabilities, gear)
+      AgentSettingsView.swift         -- Gear editor: basics, schedule, capability toggles, Connect flow, advanced raw editor
+      CreateAgentSheet.swift          -- Consumer new-agent flow (POST /agents)
+      SettingsDrawer.swift            -- App settings (power-user cards behind Advanced)
     Assets.xcassets/                  -- App icon + menu bar icons
     Info.plist                        -- Includes NSCalendarsFullAccessUsageDescription + NSRemindersFullAccessUsageDescription
   AgentServerEventKit/
@@ -507,6 +555,7 @@ macos-app/
 
 ### Key patterns
 
+- **Consumer UI**: The main window is sidebar (agents) + home pane, with slide-in drawers governed by `DrawerRouter`. Clicking an agent opens `AgentDetailDrawer` — a consumer page showing the schedule in plain English, the last run's outcome (rendered markdown summary), and enabled-capability chips; full run history hides behind "View history". The gear opens `AgentSettingsSheet`: name/description/schedule/instructions plus a capability toggle list driven by the server's derived `capabilities` array. Toggles PUT `/agents/:id` immediately; a capability missing its keys triggers `ConnectCapabilitySheet`, which saves values into `~/.agent-server/.env` via `EnvFileStore` (restarting the server if idle) and retries. A raw-file editor (`AgentPromptEditor`) stays available behind an Advanced disclosure. `CreateAgentSheet` creates agents through `POST /agents` with capability checkboxes from `GET /capabilities`. `SchedulePreset` (AgentServerCore) maps the picker to cron and back; unrecognized cron shapes stay "Custom" so hand-written schedules are never rewritten. The legacy `NavigationSplitView` stack (SettingsView/AgentsListView/AgentEditorView/AgentDetailView/SettingsTabView/EnvEditorView) was removed; notification deep-links route into the drawer via `openMainWindow(route:)`.
 - **NSStatusBar + NSMenu**: Menu bar icon with dropdown showing active runs and scheduled agent count. Icon switches from template (idle) to tinted (active runs).
 - **StatusMonitor**: Connects to `ws://localhost:47821/ws` for real-time run events. Falls back to HTTP polling every 5 seconds if WebSocket disconnects. Reconnects automatically after 5 seconds. Uses `@Published` properties for reactive UI updates. On lifecycle events (`run_completed`, `run_failed`, `mcp_status`) it calls `poll()` and routes to `NotificationManager`. Routes `run_failed` with `code == "run_timeout"` to `notifyRunTimedOut` and `run_failed` without a timeout code to `notifyRunFailed` — both tier-2. Detects server restarts by comparing `/health` `started_at` values between polls and fires `notifyServerRestarted` on change. Does NOT notify on `run_started` (too noisy).
 - **AgentServerClient**: HTTP client with `cancelRun(id:)` for aborting running agents via `POST /runs/:id/cancel`.
@@ -528,7 +577,7 @@ Two-tier UserDefaults-backed model defined in `AgentServerSwiftTests/Sources/Age
 | Notify for agent output | `notifications.includeAgentOutput` | `.agentOutput` | Run completed | `.success` (`agent-server-success.aiff`) |
 |  |  |  | Run failed (non-timeout), Run timed out | `.failure` (`agent-server-failure.aiff`) |
 
-Both toggles default ON. `shouldPost(.systemEvent)` requires only the master; `shouldPost(.agentOutput)` requires both. `NotificationCategory` lives in the core test module so the gate matrix is unit-testable. UI settings live in `SettingsDrawer.notificationsCard` (primary) and `SettingsTabView` (legacy sheet path); both bind to `NotificationPreferences.shared`. The second toggle is conditionally rendered (hidden, not greyed) when the master is off. Chimes are mono/22050Hz AIFF — the format that decodes reliably in `AVAudioPlayer` on macOS Sonoma+.
+Both toggles default ON. `shouldPost(.systemEvent)` requires only the master; `shouldPost(.agentOutput)` requires both. `NotificationCategory` lives in the core test module so the gate matrix is unit-testable. UI settings live in `SettingsDrawer.notificationsCard`, bound to `NotificationPreferences.shared`. The second toggle is conditionally rendered (hidden, not greyed) when the master is off. Chimes are mono/22050Hz AIFF — the format that decodes reliably in `AVAudioPlayer` on macOS Sonoma+.
 
 The server emits structured hints that the Swift side uses to pick categories: `run_failed` events carry an optional `code` field (currently `"run_timeout"` from `execution/runner.ts` when the wall-clock timer fires), and MCP authentication issues fan out as a dedicated `mcp_status` WebSocket event with `mcp_needs_auth_servers: string[]`, emitted by the `wrappedReporter` in `server/server.ts` whenever progress metadata contains `mcp_servers` with `status: "needs-auth"` entries.
 - **No sandbox**: App needs filesystem access for `~/.agent-server/.env` and network access for localhost API.

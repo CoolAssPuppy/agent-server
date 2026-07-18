@@ -1,5 +1,7 @@
 import { Codex, type ThreadEvent, type ThreadItem, type ThreadOptions } from '@openai/codex-sdk';
 import type { AgentConfig, McpServerConfig } from '../agents/config.js';
+import { resolveEnvString } from '../agents/config.js';
+import { deriveCodexSandbox, deriveCodexNetworkAccess } from '../execution/codex-safety.js';
 import { expandHome } from '../agents/file-watcher.js';
 import type { ExecutionResult, ToolCallTrace } from '../execution/executor.js';
 import { truncate } from '../execution/executor.js';
@@ -8,6 +10,11 @@ import { parseInteractionBlock } from '../interaction/parser.js';
 
 type ExecuteCodexExtra = {
   abortController?: AbortController;
+  /**
+   * Path to the user's installed Codex executable. When set, Codex uses it
+   * instead of the codex-sdk's bundled binary. Undefined keeps the default.
+   */
+  codexExecutablePath?: string;
 };
 
 type CodexState = {
@@ -35,6 +42,13 @@ export async function executeCodexAgent(
   const codex = new Codex({
     env: getSubscriptionEnvironment(),
     config: getCodexConfig(agent),
+    // Use the user's installed Codex binary when discovery found one;
+    // undefined falls back to the codex-sdk's bundled binary.
+    codexPathOverride: extra?.codexExecutablePath,
+    // A custom provider points Codex at an OpenAI-compatible endpoint (e.g.
+    // Moonshot for Kimi K2) instead of the ChatGPT subscription. Without a
+    // provider these stay undefined and the ChatGPT login is used.
+    ...getProviderOptions(agent),
   });
   const thread = codex.startThread(getThreadOptions(agent));
   const { events } = await thread.runStreamed(agent.prompt, {
@@ -49,12 +63,12 @@ export async function executeCodexAgent(
 }
 
 function getThreadOptions(agent: AgentConfig): ThreadOptions {
-  const configuredSandbox = getStringField(agent, 'codex_sandbox');
-  const sandboxMode = configuredSandbox === 'read-only'
-    || configuredSandbox === 'workspace-write'
-    || configuredSandbox === 'danger-full-access'
-    ? configuredSandbox
-    : agent.permission_mode === 'plan' ? 'read-only' : 'workspace-write';
+  // Codex ignores the Claude tool allowlist, so the UI capability toggles are
+  // translated into Codex's own safety knobs here: read-only vs workspace-write
+  // sandbox from whether the agent may write/run, and network access from an
+  // explicit web-tool grant. This keeps the toggles meaningful on Codex.
+  const sandboxMode = deriveCodexSandbox(agent);
+  const networkAccessEnabled = deriveCodexNetworkAccess(agent);
 
   return {
     workingDirectory: agent.working_directory
@@ -64,7 +78,7 @@ function getThreadOptions(agent: AgentConfig): ThreadOptions {
     model: getStringField(agent, 'model'),
     sandboxMode,
     approvalPolicy: 'never',
-    networkAccessEnabled: false,
+    networkAccessEnabled,
     webSearchMode: 'disabled',
   };
 }
@@ -90,6 +104,23 @@ function getSubscriptionEnvironment(): Record<string, string> {
     if (value !== undefined) environment[name] = value;
   }
   return environment;
+}
+
+/**
+ * Resolve a custom provider into Codex constructor options. `base_url` is a
+ * literal URL; `api_key` is resolved from `.env` via its `${VAR}` reference so
+ * the secret never lives in the agent file. Returns an empty object when the
+ * agent has no provider, so the ChatGPT subscription is used.
+ */
+function getProviderOptions(agent: AgentConfig): { baseUrl?: string; apiKey?: string } {
+  const provider = agent.provider;
+  if (!provider) return {};
+
+  const apiKey = provider.api_key ? resolveEnvString(provider.api_key) : undefined;
+  return {
+    baseUrl: provider.base_url,
+    ...(apiKey ? { apiKey } : {}),
+  };
 }
 
 function getCodexConfig(agent: AgentConfig): Record<string, Record<string, CodexMcpServer>> | undefined {

@@ -66,16 +66,37 @@ export type McpServerConfig = z.infer<typeof McpServerConfigSchema>;
 
 const ENV_VAR_PATTERN = /\$\{([^}]+)}/g;
 
+/** Resolve `${VAR}` references in a single string from `source` (undefined -> ''). */
+export function resolveEnvString(
+  value: string,
+  source: Record<string, string | undefined> = process.env as Record<string, string | undefined>,
+): string {
+  return value.replace(ENV_VAR_PATTERN, (_match, varName: string) => source[varName] ?? '');
+}
+
 export function resolveEnvVars(
   env: Record<string, string>,
   source: Record<string, string | undefined> = process.env as Record<string, string | undefined>,
 ): Record<string, string> {
   const resolved: Record<string, string> = {};
   for (const [key, value] of Object.entries(env)) {
-    resolved[key] = value.replace(ENV_VAR_PATTERN, (_match, varName: string) => source[varName] ?? '');
+    resolved[key] = resolveEnvString(value, source);
   }
   return resolved;
 }
+
+/**
+ * A custom model provider for an agent — an OpenAI-compatible endpoint for the
+ * Codex runtime (e.g. Moonshot / Kimi K2) or an Anthropic-compatible endpoint
+ * for the Claude runtime. `base_url` is a literal URL; `api_key` holds a
+ * `${VAR}` reference resolved from `.env` at run time, never a literal secret.
+ */
+export const ProviderConfigSchema = z.object({
+  base_url: z.string().trim().url().max(1024),
+  api_key: z.string().trim().min(1).max(512).optional(),
+});
+
+export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 
 export const AgentConfigSchema = z
   .object({
@@ -97,6 +118,7 @@ export const AgentConfigSchema = z
     watch: z.array(FileWatchSchema).max(32).optional(),
     executor: z.enum(['claude-code', 'codex']).optional(),
     model: z.string().trim().min(1).max(120).optional(),
+    provider: ProviderConfigSchema.optional(),
     codex_sandbox: z.enum(['read-only', 'workspace-write', 'danger-full-access']).optional(),
     permissions: PermissionsSchema.optional(),
     mcp_servers: z.record(z.string().min(1), McpServerConfigSchema).optional(),
@@ -117,11 +139,11 @@ export function parseAgentYaml(yaml: string): AgentConfig {
 const FRONTMATTER_OPEN = /^---\r?\n/;
 const FRONTMATTER_CLOSE = /\r?\n---\s*(?:\r?\n|$)/;
 
-function hasFrontmatter(content: string): boolean {
+export function hasFrontmatter(content: string): boolean {
   return FRONTMATTER_OPEN.test(content);
 }
 
-function splitFrontmatter(content: string): { yaml: string; body: string } {
+export function splitFrontmatter(content: string): { yaml: string; body: string } {
   const afterOpener = content.slice(content.indexOf('\n') + 1);
   const closeMatch = FRONTMATTER_CLOSE.exec(afterOpener);
   if (!closeMatch) {
