@@ -186,5 +186,3 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.strategicnerds.agent-server.ui-tests
         TEST_TARGET_NAME: AgentServer
         GENERATE_INFOPLIST_FILE: YES
-        CODE_SIGN_STYLE: Automatic
-        DEVELOPMENT_TEAM: 955GSY56UT
