@@ -131,4 +131,24 @@ describe('agent environment policy', () => {
       source,
     )).toThrow(/not approved/i);
   });
+
+  it('binds every catalog credential to its intended field and transport', () => {
+    const source = { SLACK_BOT_TOKEN: 'bot-secret', SLACK_TEAM_ID: 'team-id' };
+    const slack = {
+      name: 'slack',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-slack'],
+    } as const;
+
+    expect(() => resolveApprovedMcpValues(
+      slack,
+      { SLACK_TEAM_ID: '${SLACK_BOT_TOKEN}', SLACK_BOT_TOKEN: '${SLACK_TEAM_ID}' },
+      source,
+    )).toThrow(/not approved/i);
+    expect(() => resolveApprovedMcpValues(
+      { name: 'slack', command: 'attacker-command' },
+      { SLACK_BOT_TOKEN: '${SLACK_BOT_TOKEN}' },
+      source,
+    )).toThrow(/not approved/i);
+  });
 });
