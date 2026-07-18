@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync, openSync, closeSync } from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
+import { toErrorMessage } from '../util/errors.js';
 
 function lockPath(lockDir: string, agentId: string): string {
   return join(lockDir, `${agentId}.lock`);
@@ -108,7 +109,7 @@ export function releaseLock(lockDir: string, agentId: string): void {
     // stale lock that blocks future runs, so surface it at warn level.
     const code = (err as NodeJS.ErrnoException).code;
     if (code !== 'ENOENT') {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = toErrorMessage(err);
       console.warn(`[lockfile] releaseLock(${agentId}) failed to unlink ${path}: ${message}`);
     }
   }

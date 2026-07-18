@@ -1,4 +1,5 @@
 import type { InteractionRequest } from './schema.js';
+import { evictOldest, sweepExpired } from '../util/map-store.js';
 
 export type PendingInteraction = {
   id: string;
@@ -36,21 +37,11 @@ export class InteractionStore {
   }
 
   expireStale(): string[] {
-    const now = new Date();
-    const expired: string[] = [];
-
-    for (const [id, interaction] of this.interactions) {
-      if (interaction.status === 'pending' && interaction.expiresAt <= now) {
-        this.interactions.set(id, { ...interaction, status: 'expired' });
-        expired.push(id);
-      }
-
-      if (interaction.status !== 'pending' && now.getTime() - interaction.createdAt.getTime() > 24 * 60 * 60 * 1000) {
-        this.interactions.delete(id);
-      }
-    }
-
-    return expired;
+    return sweepExpired(this.interactions, new Date(), {
+      isActive: (i) => i.status === 'pending',
+      hasExpired: (i, now) => i.expiresAt <= now,
+      toExpired: (i) => ({ ...i, status: 'expired' as const }),
+    });
   }
 
   listPending(): PendingInteraction[] {
@@ -58,14 +49,6 @@ export class InteractionStore {
   }
 
   private evictOldestIfNeeded(): void {
-    if (this.interactions.size <= MAX_INTERACTIONS) return;
-
-    const entries = [...this.interactions.entries()]
-      .sort(([, a], [, b]) => a.createdAt.getTime() - b.createdAt.getTime());
-
-    const removeCount = this.interactions.size - MAX_INTERACTIONS;
-    for (const [id] of entries.slice(0, removeCount)) {
-      this.interactions.delete(id);
-    }
+    evictOldest(this.interactions, MAX_INTERACTIONS, (i) => i.createdAt.getTime());
   }
 }

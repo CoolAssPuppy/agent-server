@@ -322,7 +322,7 @@ private struct ActivityRow: View {
     var body: some View {
         HStack(spacing: NSpacing.md) {
             Circle()
-                .fill(run.status.displayColor)
+                .fill(run.status.color(theme.tokens))
                 .frame(width: 7, height: 7)
             VStack(alignment: .leading, spacing: 2) {
                 Text(run.agentName)

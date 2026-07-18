@@ -6,6 +6,8 @@ import NerdsUI
 struct StatusIndicator: View {
     let status: RunStatus
 
+    @Environment(\.nTheme) private var theme
+
     private var icon: String {
         switch status {
         case .running: "circle.fill"
@@ -18,7 +20,7 @@ struct StatusIndicator: View {
     var body: some View {
         Image(systemName: icon)
             .font(.system(size: 14))
-            .foregroundStyle(status.displayColor)
+            .foregroundStyle(status.color(theme.tokens))
     }
 }
 
@@ -27,13 +29,16 @@ struct StatusIndicator: View {
 struct StatusBadge: View {
     let status: RunStatus
 
+    @Environment(\.nTheme) private var theme
+
     var body: some View {
-        Text(status.displayLabel)
+        let color = status.color(theme.tokens)
+        return Text(status.displayLabel)
             .font(.system(.caption, weight: .medium))
-            .foregroundStyle(status.displayColor)
+            .foregroundStyle(color)
             .padding(.horizontal, NSpacing.sm)
             .padding(.vertical, NSpacing.xxxs)
-            .background(status.displayColor.opacity(0.12))
+            .background(color.opacity(0.12))
             .clipShape(Capsule())
     }
 }

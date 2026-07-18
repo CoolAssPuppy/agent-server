@@ -3,6 +3,7 @@ import {
   normalizeStoredRun,
   truncateProgressMessage,
 } from './run-normalization.js';
+import { evictOldest } from '../util/map-store.js';
 
 export type StoredRun = {
   runId: string;
@@ -59,7 +60,7 @@ export class RunStore implements RunStoreLike {
 
   add(run: StoredRun): void {
     this.runs.set(run.runId, normalizeStoredRun({ ...run }));
-    this.evictOldest();
+    this.evictOldestIfNeeded();
   }
 
   get(runId: string): StoredRun | undefined {
@@ -102,15 +103,7 @@ export class RunStore implements RunStoreLike {
   /** No-op: the in-memory store holds no external handle. */
   close(): void {}
 
-  private evictOldest(): void {
-    if (this.runs.size <= this.maxRuns) return;
-
-    const sorted = [...this.runs.entries()]
-      .sort(([, a], [, b]) => a.startedAt.getTime() - b.startedAt.getTime());
-
-    const toRemove = sorted.slice(0, this.runs.size - this.maxRuns);
-    for (const [key] of toRemove) {
-      this.runs.delete(key);
-    }
+  private evictOldestIfNeeded(): void {
+    evictOldest(this.runs, this.maxRuns, (r) => r.startedAt.getTime());
   }
 }

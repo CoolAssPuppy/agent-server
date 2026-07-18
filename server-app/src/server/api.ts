@@ -1,4 +1,5 @@
 import { Hono, type Context } from 'hono';
+import { toErrorMessage } from '../util/errors.js';
 import { timingSafeEqual } from 'crypto';
 import { z } from 'zod';
 import type { AgentConfig } from '../agents/config.js';
@@ -256,7 +257,7 @@ export function createApi(deps: ApiDependencies): Hono {
           return c.json({ error: err.message }, 400);
       }
     }
-    const message = err instanceof Error ? err.message : String(err);
+    const message = toErrorMessage(err);
     console.error(`[api] Agent write failed: ${sanitizeText(message, 300)}`);
     return c.json({ error: 'Agent write failed' }, 500);
   }
@@ -384,7 +385,7 @@ export function createApi(deps: ApiDependencies): Hono {
       const runId = await deps.triggerRun(agentId, promptSuffix);
       return c.json({ runId, agentId }, 202);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = toErrorMessage(err);
       if (message.includes('Too many active runs')) {
         return c.json({ error: message }, 429);
       }
@@ -453,7 +454,7 @@ export function createApi(deps: ApiDependencies): Hono {
       const cleaned = await deps.cleanupFn();
       return c.json({ ok: true, cleaned });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = toErrorMessage(err);
       return c.json({ error: `Cleanup failed: ${message}` }, 500);
     }
   });

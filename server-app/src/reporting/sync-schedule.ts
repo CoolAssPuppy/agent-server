@@ -2,6 +2,7 @@ import { watch, type FSWatcher } from 'fs';
 import type { AgentConfig } from '../agents/config.js';
 import { discoverAgents } from '../agents/discovery.js';
 import { getNextRun } from '../agents/scheduler.js';
+import { toErrorMessage } from '../util/errors.js';
 
 const DEFAULT_FILE_CHANGE_DEBOUNCE_MS = 2_000;
 const DEFAULT_HOURLY_INTERVAL_MS = 60 * 60 * 1_000;
@@ -93,7 +94,7 @@ export async function syncAgentSchedule(options: SyncOptions): Promise<SyncResul
     const agents = await discoverAgents(options.agentsDir);
     payload = buildAgentSyncPayload(agents, now);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = toErrorMessage(err);
     console.error(`[sync-schedule] Failed to build agent catalog: ${message}`);
     return { ok: false, error: message };
   }
@@ -116,7 +117,7 @@ export async function syncAgentSchedule(options: SyncOptions): Promise<SyncResul
     console.log(`[sync-schedule] Synced ${payload.agents.length} agent(s) to panel`);
     return { ok: true, status: response.status, count: payload.agents.length };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = toErrorMessage(err);
     console.error(`[sync-schedule] Failed to sync agent schedule: ${message}`);
     return { ok: false, error: message };
   }
@@ -180,7 +181,7 @@ export class ScheduleSync {
         console.error(`[sync-schedule] File watcher error: ${err}`);
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = toErrorMessage(err);
       console.warn(`[sync-schedule] Could not watch agents directory: ${message}`);
     }
   }

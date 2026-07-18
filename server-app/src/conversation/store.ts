@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { Conversation, ConversationMessage } from './schema.js';
+import { evictOldest, sweepExpired } from '../util/map-store.js';
 
 const MAX_MESSAGES = 50;
 const MAX_CONTENT_LENGTH = 4_000;
@@ -84,32 +85,14 @@ export class ConversationStore {
   }
 
   expireStale(): string[] {
-    const now = new Date();
-    const expired: string[] = [];
-
-    for (const [id, conv] of this.conversations) {
-      if (conv.status === 'active' && conv.expiresAt <= now) {
-        this.conversations.set(id, { ...conv, status: 'expired' });
-        expired.push(id);
-      }
-
-      if (conv.status !== 'active' && now.getTime() - conv.createdAt.getTime() > 24 * 60 * 60 * 1000) {
-        this.conversations.delete(id);
-      }
-    }
-
-    return expired;
+    return sweepExpired(this.conversations, new Date(), {
+      isActive: (c) => c.status === 'active',
+      hasExpired: (c, now) => c.expiresAt <= now,
+      toExpired: (c) => ({ ...c, status: 'expired' as const }),
+    });
   }
 
   private evictOldestIfNeeded(): void {
-    if (this.conversations.size <= this.maxConversations) return;
-
-    const entries = [...this.conversations.entries()]
-      .sort(([, a], [, b]) => a.createdAt.getTime() - b.createdAt.getTime());
-
-    const removeCount = this.conversations.size - this.maxConversations;
-    for (const [id] of entries.slice(0, removeCount)) {
-      this.conversations.delete(id);
-    }
+    evictOldest(this.conversations, this.maxConversations, (c) => c.createdAt.getTime());
   }
 }

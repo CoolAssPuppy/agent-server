@@ -2,6 +2,7 @@ import { mkdir, writeFile, readdir, readFile, unlink } from 'fs/promises';
 import { homedir } from 'os';
 import { join } from 'path';
 import { sanitizeText } from '../server/security-utils.js';
+import { toErrorMessage } from '../util/errors.js';
 
 export type StatusState =
   | 'submitted'
@@ -322,7 +323,7 @@ export class TelemetryReporter {
           `for ${event.state} event of "${this.config.agentName}" (attempt ${attempt}/${maxAttempts})`
         );
       } catch (err) {
-        const message = sanitizeText(err instanceof Error ? err.message : String(err), 300);
+        const message = sanitizeText(toErrorMessage(err), 300);
         console.error(
           `[telemetry] Failed to send ${event.state} event for "${this.config.agentName}" ` +
           `(attempt ${attempt}/${maxAttempts}): ${message}`
@@ -372,7 +373,7 @@ export class TelemetryReporter {
           `${body.state} "${this.config.agentName}": HTTP ${response.status}`
         );
       } catch (err) {
-        const message = sanitizeText(err instanceof Error ? err.message : String(err), 300);
+        const message = sanitizeText(toErrorMessage(err), 300);
         console.error(
           `[telemetry] Deferred retry ${attempt}/${DEFERRED_RETRY_COUNT} for ` +
           `${body.state} "${this.config.agentName}": ${message}`
@@ -437,7 +438,7 @@ async function persistPendingTerminal(entry: PendingTerminal, dir?: string): Pro
     // endpoint and the full terminal payload including run output.
     await writeFile(file, JSON.stringify(entry), { encoding: 'utf8', mode: 0o600 });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = toErrorMessage(err);
     console.error(`[telemetry] Failed to persist pending terminal for ${entry.runId}: ${message}`);
   }
 }
@@ -477,7 +478,7 @@ export async function replayPendingTerminals(
     files = await readdir(dir);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return;
-    const message = err instanceof Error ? err.message : String(err);
+    const message = toErrorMessage(err);
     console.error(`[telemetry] Failed to read pending terminals dir: ${message}`);
     return;
   }
@@ -516,7 +517,7 @@ export async function replayPendingTerminals(
         console.error(`[telemetry] Replay failed for ${entry.runId}: ${response.status}`);
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = toErrorMessage(err);
       console.error(`[telemetry] Replay error for ${name}: ${message}`);
     }
   }
