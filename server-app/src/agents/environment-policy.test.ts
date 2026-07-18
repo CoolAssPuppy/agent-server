@@ -108,6 +108,11 @@ describe('agent environment policy', () => {
       { NOTION_API_KEY: 'work-notion-secret' },
     )).toThrow(/not approved/i);
     expect(() => resolveApprovedMcpValues(
+      { name: 'NOTION-PERSONAL', command: 'npx', args: ['-y', '@notionhq/notion-mcp-server'] },
+      { TOKEN: '${NOTION_API_KEY}' },
+      { NOTION_API_KEY: 'work-notion-secret' },
+    )).toThrow(/not approved/i);
+    expect(() => resolveApprovedMcpValues(
       { name: 'other-notion', command: 'npx', args: ['-y', '@notionhq/notion-mcp-server'] },
       { TOKEN: '${NOTION_PERSONAL_API_KEY}' },
       source,

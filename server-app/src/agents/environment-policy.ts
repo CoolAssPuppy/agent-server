@@ -9,16 +9,11 @@ type AgentEnvironmentSettings = {
   provider?: ProviderSettings;
 };
 
-export type McpCredentialOwner = {
-  name: string;
-  command?: string;
-  args?: readonly string[];
-  url?: string;
-};
-
 type McpCredentialSettings =
   | { command: string; args?: readonly string[] }
   | { url: string };
+
+export type McpCredentialOwner = { name: string } & McpCredentialSettings;
 
 export function mcpCredentialOwner(name: string, settings: McpCredentialSettings): McpCredentialOwner {
   return 'command' in settings
@@ -67,18 +62,21 @@ const MCP_CREDENTIALS: ReadonlyArray<{
   variables: ReadonlySet<string>;
 }> = [
   {
-    matches: (owner) => owner.name === 'notion-personal'
+    matches: (owner) => owner.name.toLowerCase() === 'notion-personal'
+      && 'command' in owner
       && owner.command === 'npx'
       && owner.args?.join('\0') === '-y\0@notionhq/notion-mcp-server',
     variables: new Set(['NOTION_PERSONAL_API_KEY']),
   },
   {
-    matches: (owner) => owner.name !== 'notion-personal'
+    matches: (owner) => owner.name.toLowerCase() !== 'notion-personal'
       && /(?:^|[-_])notion(?:$|[-_])/i.test(owner.name),
     variables: new Set(['NOTION_API_KEY']),
   },
   {
-    matches: (owner) => owner.name === 'hex' && owner.url === 'https://app.hex.tech/mcp',
+    matches: (owner) => owner.name === 'hex'
+      && 'url' in owner
+      && owner.url === 'https://app.hex.tech/mcp',
     variables: new Set(['HEX_PERSONAL_ACCESS_TOKEN']),
   },
   {
