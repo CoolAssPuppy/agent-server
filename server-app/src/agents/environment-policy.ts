@@ -108,10 +108,10 @@ const MCP_CREDENTIALS: ReadonlyArray<{
 function approvedMcpReferences(
   owner: McpCredentialOwner,
   source: EnvironmentSource,
-): Readonly<Record<string, ReadonlySet<string>>> {
-  return Object.assign({}, ...MCP_CREDENTIALS
+): ReadonlyMap<string, ReadonlySet<string>> {
+  return new Map(MCP_CREDENTIALS
     .filter((entry) => entry.matches(owner, source))
-    .map((entry) => entry.references));
+    .flatMap((entry) => Object.entries(entry.references)));
 }
 
 function hasEnvironmentReference(values: Record<string, string>): boolean {
@@ -144,8 +144,8 @@ export function areApprovedMcpReferences(
   if (!hasEnvironmentReference(values)) return true;
   const approved = approvedMcpReferences(owner, source);
   return Object.entries(values).every(([target, value]) => (
-    approved[target] !== undefined
-    && [...value.matchAll(ENV_REFERENCE)].every((match) => approved[target].has(match[1]))
+    approved.has(target)
+    && [...value.matchAll(ENV_REFERENCE)].every((match) => approved.get(target)?.has(match[1]) === true)
   ));
 }
 
@@ -181,11 +181,11 @@ export function resolveApprovedMcpValues(
   const approved = approvedMcpReferences(owner, source);
   const resolved: Record<string, string> = {};
   for (const [target, value] of Object.entries(values)) {
-    if (hasReferences && approved[target] === undefined) {
+    if (hasReferences && !approved.has(target)) {
       throw new Error(`Environment field ${target} is not approved for MCP server ${owner.name}`);
     }
     resolved[target] = value.replace(ENV_REFERENCE, (_match, variable: string) => {
-      if (!approved[target]?.has(variable)) {
+      if (approved.get(target)?.has(variable) !== true) {
         throw new Error(`Environment variable ${variable} is not approved for MCP server ${owner.name}`);
       }
       return resolveReference(variable, source);

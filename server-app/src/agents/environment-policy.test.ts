@@ -150,5 +150,10 @@ describe('agent environment policy', () => {
       { SLACK_BOT_TOKEN: '${SLACK_BOT_TOKEN}' },
       source,
     )).toThrow(/not approved/i);
+    expect(() => resolveApprovedMcpValues(
+      slack,
+      { constructor: '${SLACK_BOT_TOKEN}' },
+      source,
+    )).toThrow(/not approved/i);
   });
 });
