@@ -42,7 +42,8 @@ extension AgentServerClient {
         try await routeRequest(
             path: route.path,
             method: route.method,
-            usesGuidanceErrors: true
+            usesGuidanceErrors: true,
+            timeoutInterval: route.timeoutInterval
         )
     }
 
@@ -54,7 +55,8 @@ extension AgentServerClient {
             path: route.path,
             method: route.method,
             bodyData: JSONEncoder().encode(body),
-            usesGuidanceErrors: true
+            usesGuidanceErrors: true,
+            timeoutInterval: route.timeoutInterval
         )
     }
 }

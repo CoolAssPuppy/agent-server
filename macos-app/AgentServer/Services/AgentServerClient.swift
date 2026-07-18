@@ -3,6 +3,7 @@ import Foundation
 actor AgentServerClient {
     private let baseURL: URL
     private let session: URLSession
+    private let longRunningSession: URLSession
     private let decoder: JSONDecoder
     private let environmentURLs: [URL]
 
@@ -20,6 +21,11 @@ actor AgentServerClient {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 5
         self.session = URLSession(configuration: config)
+
+        let longRunningConfig = URLSessionConfiguration.default
+        longRunningConfig.timeoutIntervalForRequest = 75
+        longRunningConfig.timeoutIntervalForResource = 90
+        self.longRunningSession = URLSession(configuration: longRunningConfig)
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -252,19 +258,22 @@ actor AgentServerClient {
         path: String,
         method: HTTPRequestMethod,
         bodyData: Data? = nil,
-        usesGuidanceErrors: Bool = false
+        usesGuidanceErrors: Bool = false,
+        timeoutInterval: TimeInterval? = nil
     ) async throws -> Response {
         guard let url = URL(string: path, relativeTo: baseURL)?.absoluteURL else {
             throw ClientError.invalidResponse
         }
         var request = URLRequest(url: url)
+        if let timeoutInterval { request.timeoutInterval = timeoutInterval }
         request.httpMethod = method.rawValue
         if let bodyData {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = bodyData
         }
         request = try authenticatedRequest(request)
-        let (data, response) = try await session.data(for: request)
+        let requestSession = timeoutInterval == nil ? session : longRunningSession
+        let (data, response) = try await requestSession.data(for: request)
         if usesGuidanceErrors {
             try validateGuidanceResponse(data: data, response: response)
         } else {

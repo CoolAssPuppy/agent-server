@@ -2,6 +2,13 @@
 
 Status: Native service integration and final release verification are complete.
 
+## Proposal timeout correction
+
+- [x] Add a failing contract test that gives model-backed guidance routes enough time to finish or fall back safely.
+- [x] Keep health and ordinary local API requests on their short timeout.
+- [x] Verify 207 Swift tests and the unsigned app build, then relaunch without UI automation.
+- [x] Commit the tested correction and run a post-commit simplification review.
+
 ## Folder picker correction
 
 - [x] Replace the two file-access actions with one native picker that accepts files and folders.

@@ -12,6 +12,13 @@ public enum GuidanceServerRoute: Equatable, Sendable {
 
     public var method: HTTPRequestMethod { .post }
 
+    public var timeoutInterval: TimeInterval {
+        switch self {
+        case .createProposal, .diagnosis, .similarProposal: 75
+        default: 5
+        }
+    }
+
     public var path: String {
         switch self {
         case .createProposal:

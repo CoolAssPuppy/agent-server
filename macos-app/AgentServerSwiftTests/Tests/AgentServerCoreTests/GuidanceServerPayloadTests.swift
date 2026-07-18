@@ -200,6 +200,13 @@ final class GuidanceServerPayloadTests: XCTestCase {
         XCTAssertTrue(GuidanceServerRoute.allCasesUsePost)
     }
 
+    func testModelBackedGuidanceRoutesOutliveTheBoundedLocalModelBudget() {
+        XCTAssertEqual(GuidanceServerRoute.createProposal.timeoutInterval, 75)
+        XCTAssertEqual(GuidanceServerRoute.similarProposal("agent").timeoutInterval, 75)
+        XCTAssertEqual(GuidanceServerRoute.diagnosis("run").timeoutInterval, 75)
+        XCTAssertEqual(GuidanceServerRoute.saveProposal("proposal").timeoutInterval, 5)
+    }
+
     func testValidatedPatchUsesServerPreviewAndConfirmationWithoutChangingPayload() throws {
         let payload = try JSONDecoder().decode(GuidanceDiagnosticPayload.self, from: Data(Self.patchDiagnosisJSON.utf8))
         let preview = try JSONDecoder().decode(GuidancePatchPreview.self, from: Data(Self.previewJSON.utf8))
