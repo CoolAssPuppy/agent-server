@@ -129,6 +129,21 @@ describe('guided agent proposal creation', () => {
     expect(fake.calls()).toBe(0);
   });
 
+  it('does not silently substitute a work account for requested Personal Notion', async () => {
+    const result = await createAgentProposal({
+      request: 'Review my manuscript and save the result in Personal Notion.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [{ id: 'notion-work', name: 'Work Notion' }],
+      answers: [],
+      model: modelReturning(completeProposal()).model,
+    });
+
+    expect(result).toMatchObject({
+      status: 'needs_information',
+      questions: [{ id: 'connection-notion', choices: [{ value: 'notion-work' }] }],
+    });
+  });
+
   it('offers setup when a required service has no configured connection', async () => {
     const result = await createAgentProposal({
       request: 'Review my manuscript and save the result in Notion.',

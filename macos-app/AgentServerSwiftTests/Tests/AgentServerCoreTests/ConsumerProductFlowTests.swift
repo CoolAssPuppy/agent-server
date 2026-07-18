@@ -53,6 +53,25 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertNotNil(flow.proposal)
     }
 
+    func testReissuedQuestionClearsItsStaleAnswer() {
+        let question = CreationQuestion(
+            id: "connection-notion",
+            prompt: "Which Notion connection should this agent use?",
+            kind: .service(name: "Notion", choices: ["Personal Notion"]),
+            isRequired: true,
+            choiceValues: ["notion-personal"]
+        )
+        var flow = AgentCreationFlow(request: "Save a review in Personal Notion")
+        flow.receiveQuestions([question])
+        flow.answer(questionId: question.id, value: "removed-notion")
+
+        flow.receiveQuestions([question])
+
+        XCTAssertNil(flow.answers[question.id])
+        XCTAssertEqual(flow.nextQuestion?.id, question.id)
+        XCTAssertEqual(flow.phase, .questions)
+    }
+
     func testCreationCanReturnFromProposalWithoutSavingStaleSettings() {
         var flow = AgentCreationFlow(request: "Create a weekly summary")
         flow.receiveProposal(.fixture(reviewId: "review-1"))

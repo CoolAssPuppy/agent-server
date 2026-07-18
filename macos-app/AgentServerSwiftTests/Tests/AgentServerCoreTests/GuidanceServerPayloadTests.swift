@@ -94,8 +94,14 @@ final class GuidanceServerPayloadTests: XCTestCase {
             GuidanceConnectedService(runtimeIdentifier: "plugin:workspace:notion"),
         ])
 
-        XCTAssertEqual(services.map(\.name), ["Notion (account connection)", "Notion (plugin)"])
+        XCTAssertEqual(services.map(\.name), ["Notion (Account)", "Notion (Workspace)"])
         XCTAssertEqual(services.map(\.id), ["claude.ai Notion", "plugin:workspace:notion"])
+
+        let duplicateLocalServices = GuidanceConnectedService.disambiguating([
+            GuidanceConnectedService(id: "notion-alpha", name: "Notion"),
+            GuidanceConnectedService(id: "notion-beta", name: "Notion"),
+        ])
+        XCTAssertEqual(duplicateLocalServices.map(\.name), ["Notion (Connection 1)", "Notion (Connection 2)"])
     }
 
     func testDiagnosisMapsRecommendationWithoutInventingApplicablePatch() throws {

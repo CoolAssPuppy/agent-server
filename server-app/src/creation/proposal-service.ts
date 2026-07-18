@@ -103,7 +103,15 @@ function unansweredConnectionQuestion(request: ProposalRequest): ProposalFallbac
     answer.question_id === 'connection-notion' && typeof answer.value === 'string'
   ));
   if (connections.some((connection) => connection.id === connectionAnswer?.value)) return undefined;
-  if (connections.length === 1 && connectionAnswer === undefined) return undefined;
+  const requestedScope = /\bpersonal\s+notion\b/i.test(request.request)
+    ? 'personal'
+    : /\bwork\s+notion\b/i.test(request.request) ? 'work' : undefined;
+  const onlyConnectionMatchesRequest = requestedScope === undefined
+    || connections.some((connection) => (
+      connection.id.toLowerCase().includes(requestedScope)
+      || connection.name.toLowerCase().includes(requestedScope)
+    ));
+  if (connections.length === 1 && connectionAnswer === undefined && onlyConnectionMatchesRequest) return undefined;
   if (connections.length === 0) {
     return {
       id: 'connection-notion',

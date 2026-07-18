@@ -107,9 +107,22 @@ public struct GuidanceConnectedService: Encodable, Equatable, Sendable {
 
     public static func disambiguating(_ services: [Self]) -> [Self] {
         let counts = Dictionary(grouping: services, by: { $0.name.lowercased() }).mapValues(\.count)
-        return services.map { service in
+        let sourced = services.map { service in
             guard counts[service.name.lowercased(), default: 0] > 1 else { return service }
             return Self(id: service.id, name: "\(service.name) (\(sourceName(for: service.id)))")
+        }
+        let sourcedCounts = Dictionary(grouping: sourced, by: { $0.name.lowercased() }).mapValues(\.count)
+        var ordinals: [String: Int] = [:]
+        return sourced.map { service in
+            let key = service.name.lowercased()
+            guard sourcedCounts[key, default: 0] > 1 else { return service }
+            ordinals[key, default: 0] += 1
+            let baseName = service.name.replacingOccurrences(
+                of: #" \([^)]*\)$"#,
+                with: "",
+                options: .regularExpression
+            )
+            return Self(id: service.id, name: "\(baseName) (Connection \(ordinals[key, default: 1]))")
         }
     }
 
@@ -130,9 +143,9 @@ public struct GuidanceConnectedService: Encodable, Equatable, Sendable {
 
     private static func sourceName(for identifier: String) -> String {
         let lowered = identifier.lowercased()
-        if lowered.hasPrefix("claude.ai ") { return "account connection" }
-        if lowered.hasPrefix("plugin:") { return "plugin" }
-        return "local connection"
+        if lowered.hasPrefix("claude.ai ") { return "Account" }
+        if lowered.hasPrefix("plugin:") { return "Workspace" }
+        return "Connection"
     }
 }
 
