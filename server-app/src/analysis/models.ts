@@ -63,6 +63,7 @@ const RequirementSchema = z.object({
 
 const FileAccessProposalSchema = z.object({
   path: z.string().trim().min(1).max(1_024),
+  kind: z.enum(['file', 'folder']).default('folder'),
   access: z.enum(['read_only', 'read_write']),
   is_suggestion: z.boolean(),
   reason: z.string().trim().min(1).max(500),

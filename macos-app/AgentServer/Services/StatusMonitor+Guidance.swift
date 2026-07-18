@@ -4,7 +4,7 @@ import Foundation
 extension StatusMonitor {
     func prepareGuidedAgent(
         request: String,
-        answers: [String: String]
+        answers: [String: CreationAnswerValue]
     ) async -> Result<CreationPreparation, ConsumerFlowFailure> {
         do {
             let proposalRequest = try await makeProposalRequest(request: request, answers: answers)
@@ -23,7 +23,7 @@ extension StatusMonitor {
     func prepareSimilarAgent(
         sourceAgentId: String,
         request: String,
-        answers: [String: String]
+        answers: [String: CreationAnswerValue]
     ) async -> Result<CreationPreparation, ConsumerFlowFailure> {
         do {
             let proposalRequest = try await makeProposalRequest(request: request, answers: answers)
@@ -153,17 +153,21 @@ extension StatusMonitor {
         }
     }
 
-    private static func guidanceValue(_ value: String) -> GuidanceProposalAnswerValue {
-        switch value.lowercased() {
-        case "yes": return .boolean(true)
-        case "no": return .boolean(false)
-        default: return .string(value)
+    private static func guidanceValue(_ value: CreationAnswerValue) -> GuidanceProposalAnswerValue {
+        switch value {
+        case .string(let answer):
+            switch answer.lowercased() {
+            case "yes": return .boolean(true)
+            case "no": return .boolean(false)
+            default: return .string(answer)
+            }
+        case .fileGrants(let grants): return .fileGrants(grants)
         }
     }
 
     private func makeProposalRequest(
         request: String,
-        answers: [String: String]
+        answers: [String: CreationAnswerValue]
     ) async throws -> GuidanceProposalRequest {
         let connectedServices = try await client.services().connectedServices
         let answerPayloads = answers.sorted(by: { $0.key < $1.key }).map {

@@ -85,6 +85,28 @@ describe('executeCodexAgent', () => {
     expect(runStreamed).toHaveBeenCalledWith('Summarize the repo', { signal: abortController.signal });
   });
 
+  it('limits Codex write roots to reviewed writable folders', async () => {
+    const { executeCodexAgent } = await import('./codex.js');
+    runStreamed.mockResolvedValue({ events: streamEvents([]) });
+
+    await executeCodexAgent(makeAgent({
+      executor: 'codex',
+      working_directory: '/Users/test/Book',
+      file_access: [
+        { path: '/Users/test/Book/manuscript.docx', kind: 'file', access: 'read_only' },
+        { path: '/Users/test/Reference', kind: 'folder', access: 'read_only' },
+        { path: '/Users/test/Output', kind: 'folder', access: 'read_write' },
+      ],
+      codex_sandbox: 'workspace-write',
+    }), createMockReporter());
+
+    expect(startThread).toHaveBeenCalledWith(expect.objectContaining({
+      workingDirectory: '/Users/test/Output',
+    }));
+    const options = startThread.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(options.additionalDirectories).toBeUndefined();
+  });
+
   it('points Codex at a custom provider, resolving the api key from env', async () => {
     const { executeCodexAgent } = await import('./codex.js');
     const previous = process.env.MOONSHOT_API_KEY;

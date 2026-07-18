@@ -102,6 +102,11 @@ export const ProposalAnswerSchema = z.object({
     z.string().trim().min(1).max(2_000),
     z.boolean(),
     z.array(z.string().trim().min(1).max(500)).max(20),
+    z.array(z.object({
+      path: z.string().trim().min(1).max(1_024),
+      kind: z.enum(['file', 'folder']),
+      access: z.enum(['read_only', 'read_write']),
+    }).strict()).min(1).max(32),
   ]),
 }).strict();
 export type ProposalAnswer = z.infer<typeof ProposalAnswerSchema>;
@@ -143,7 +148,7 @@ export type ProposalRequestInput = z.input<typeof ProposalRequestSchema>;
 export const ProposalFallbackQuestionSchema = z.object({
   id: z.string().trim().min(1).max(120),
   question: z.string().trim().min(1).max(500),
-  control: z.enum(['text', 'single_choice', 'schedule', 'path', 'permission', 'service']),
+  control: z.enum(['text', 'single_choice', 'schedule', 'path', 'file_access', 'permission', 'service']),
   service_name: z.string().trim().min(1).max(120).optional(),
   required: z.boolean(),
   choices: z.array(z.object({

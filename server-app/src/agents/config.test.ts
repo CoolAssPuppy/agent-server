@@ -59,6 +59,23 @@ describe('AgentConfigSchema', () => {
     expect(result.description).toBeUndefined();
   });
 
+  it('keeps multiple file grants with independent access', () => {
+    const result = AgentConfigSchema.parse({
+      id: 'manuscript-review',
+      name: 'Manuscript review',
+      prompt: 'Review the manuscript.',
+      file_access: [
+        { path: '~/Books/manuscript.docx', kind: 'file', access: 'read_only' },
+        { path: '~/Books/Notes', kind: 'folder', access: 'read_write' },
+      ],
+    });
+
+    expect(result.file_access).toEqual([
+      { path: '~/Books/manuscript.docx', kind: 'file', access: 'read_only' },
+      { path: '~/Books/Notes', kind: 'folder', access: 'read_write' },
+    ]);
+  });
+
   it('rejects missing required fields', () => {
     const result = AgentConfigSchema.safeParse({
       id: 'test',

@@ -26,6 +26,31 @@ final class GuidanceServerPayloadTests: XCTestCase {
         XCTAssertTrue(questions.first?.requiresConnectionSetup == true)
     }
 
+    func testFileAccessQuestionAndAnswerKeepEachReviewedGrant() throws {
+        let data = Data(#"{"status":"needs_information","questions":[{"id":"file-access","question":"Which files or folders?","control":"file_access","required":true}],"explanation":"Choose access."}"#.utf8)
+        let response = try JSONDecoder().decode(GuidanceProposalResponse.self, from: data)
+        guard case .needsInformation(let questions, _) = response else { return XCTFail("Expected a question") }
+        XCTAssertEqual(questions.first?.kind, .fileAccess)
+
+        let request = GuidanceProposalRequest(
+            request: "Review my manuscript",
+            timezone: "Europe/Lisbon",
+            connectedServices: [],
+            availableCalendars: [],
+            answers: [GuidanceProposalAnswer(questionId: "file-access", value: .fileGrants([
+                CreationFileGrant(path: "/Users/test/Book/manuscript.docx", kind: .file, access: .readOnly),
+                CreationFileGrant(path: "/Users/test/Book/Notes", kind: .folder, access: .readWrite),
+            ]))]
+        )
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(request)) as? [String: Any])
+        let answers = try XCTUnwrap(object["answers"] as? [[String: Any]])
+        let grants = try XCTUnwrap(answers.first?["value"] as? [[String: String]])
+        XCTAssertEqual(grants, [
+            ["path": "/Users/test/Book/manuscript.docx", "kind": "file", "access": "read_only"],
+            ["path": "/Users/test/Book/Notes", "kind": "folder", "access": "read_write"],
+        ])
+    }
+
     func testGenericServiceQuestionDoesNotBecomeNotionSpecific() throws {
         let data = Data(#"{"status":"needs_information","questions":[{"id":"destination","question":"Where should the result be sent?","control":"service","required":true,"choices":[{"label":"Slack","value":"slack"}]}],"explanation":"Choose a destination."}"#.utf8)
 

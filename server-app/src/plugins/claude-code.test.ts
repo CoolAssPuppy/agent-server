@@ -444,6 +444,28 @@ describe('executeAgent with Agent SDK', () => {
     expect(unlisted.behavior).toBe('deny');
   });
 
+  it('passes reviewed file grants to the runtime permission callback', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+    mockQuery.mockReturnValue(createAsyncGenerator([createResultSuccess({ result: 'Done', num_turns: 1 })]));
+    const agent = createAgentConfig({
+      working_directory: '/Users/test/Book',
+      file_access: [
+        { path: '/Users/test/Book/manuscript.docx', kind: 'file', access: 'read_only' },
+        { path: '/Users/test/Book/Notes', kind: 'folder', access: 'read_write' },
+      ],
+      permissions: { allow: ['Read', 'Write'], deny: [] },
+    });
+
+    await executeAgent(agent, createMockReporter());
+    const canUseTool = mockQuery.mock.calls[0][0].options.canUseTool;
+    const opts = { signal: new AbortController().signal, toolUseID: 't1' };
+
+    await expect(canUseTool('Write', { file_path: '/Users/test/Book/manuscript.docx' }, opts))
+      .resolves.toMatchObject({ behavior: 'deny' });
+    await expect(canUseTool('Write', { file_path: '/Users/test/Book/Notes/review.md' }, opts))
+      .resolves.toEqual({ behavior: 'allow' });
+  });
+
   it('pauses and resumes when assistant emits a decision block', async () => {
     const { executeAgent } = await import('./claude-code.js');
     const bus = new EventEmitter() as SseEventBus;

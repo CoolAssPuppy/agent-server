@@ -2,6 +2,7 @@ import type { AgentConfig } from '../agents/config.js';
 import { mcpServerKey } from '../agents/capabilities.js';
 import type { McpServerConfig } from '../agents/config.js';
 import type { CreationProposal } from './proposal-schema.js';
+import { dirname } from 'node:path';
 
 const FILE_READ_TOOLS = ['Read', 'Glob', 'Grep'] as const;
 const FILE_WRITE_TOOLS = ['Write', 'Edit'] as const;
@@ -69,6 +70,9 @@ export function proposalToAgentConfig(
       }),
   );
   const primaryPath = proposal.file_access[0]?.path;
+  const workingDirectory = proposal.file_access[0]?.kind === 'file' && primaryPath
+    ? dirname(primaryPath)
+    : primaryPath;
   const watch = proposal.trigger.type === 'watch' && proposal.trigger.watched_path
     ? [{ path: proposal.trigger.watched_path }]
     : undefined;
@@ -83,7 +87,8 @@ export function proposalToAgentConfig(
     prompt: proposal.markdown_instructions,
     schedule: proposal.trigger.type === 'schedule' ? proposal.trigger.schedule : undefined,
     timezone: proposal.timezone,
-    working_directory: primaryPath ?? proposal.trigger.watched_path,
+    working_directory: workingDirectory ?? proposal.trigger.watched_path,
+    file_access: proposal.file_access.map(({ path, kind, access }) => ({ path, kind, access })),
     watch,
     calendar_access: proposal.calendar_access.map(({ id: calendarId, name, access }) => ({
       id: calendarId,

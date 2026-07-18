@@ -52,6 +52,20 @@ function parseModelValue(value: unknown): CreationProposal | undefined {
   return parsed.success ? parsed.data : undefined;
 }
 
+function matchesConfirmedFileAccess(proposal: CreationProposal, request: ProposalRequest): boolean {
+  const answer = request.answers.find((candidate) => candidate.question_id === 'file-access');
+  if (!answer || !Array.isArray(answer.value) || answer.value.length === 0) return proposal.file_access.length === 0;
+  const key = (grant: { path: string; kind: string; access: string }) => (
+    `${grant.path}\0${grant.kind}\0${grant.access}`
+  );
+  const confirmed = answer.value.map((grant) => typeof grant === 'string' ? undefined : key(grant));
+  if (confirmed.some((value) => value === undefined)) return false;
+  const confirmedKeys = confirmed.filter((value): value is string => value !== undefined).sort();
+  const proposed = proposal.file_access.map(key).sort();
+  return confirmedKeys.length === proposed.length
+    && confirmedKeys.every((value, index) => value === proposed[index]);
+}
+
 function needsFileAccess(intent: string): boolean {
   return /\b(files?|folders?|documents?|directory|manuscripts?)\b/.test(intent);
 }
@@ -60,9 +74,9 @@ function fallbackQuestions(request: ProposalRequest): ProposalFallbackQuestion[]
   const intent = request.request.toLowerCase();
   if (needsFileAccess(intent)) {
     return [{
-      id: 'file-location',
-      question: 'Which folder should this agent use?',
-      control: 'path',
+      id: 'file-access',
+      question: 'Which files or folders may this agent use?',
+      control: 'file_access',
       required: true,
     }];
   }
@@ -136,19 +150,12 @@ function unansweredScopeQuestion(request: ProposalRequest): ProposalFallbackQues
   const intent = request.request.toLowerCase();
   const answers = new Set(request.answers.map((answer) => answer.question_id));
   if (needsFileAccess(intent)) {
-    if (!answers.has('file-location')) {
-      return { id: 'file-location', question: 'Which folder may this agent use?', control: 'path', required: true };
-    }
     if (!answers.has('file-access')) {
       return {
         id: 'file-access',
-        question: 'May this agent only view files, or may it make changes?',
-        control: 'single_choice',
+        question: 'Which files or folders may this agent use?',
+        control: 'file_access',
         required: true,
-        choices: [
-          { label: 'View only', value: 'read_only' },
-          { label: 'Make changes', value: 'read_write' },
-        ],
       };
     }
   }
@@ -213,7 +220,7 @@ export async function createAgentProposal(input: CreateProposalInput): Promise<P
     try {
       const value = await input.model.generate(prompt, outputSchema, { requestKey: 'agent-proposal' });
       const proposal = parseModelValue(value);
-      if (proposal) {
+      if (proposal && matchesConfirmedFileAccess(proposal, request)) {
         if (proposal.missing_information.length > 0 || proposal.questions.some((question) => question.required)) {
           return {
             status: 'needs_information',

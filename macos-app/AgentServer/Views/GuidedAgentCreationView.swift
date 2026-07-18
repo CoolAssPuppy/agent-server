@@ -9,7 +9,7 @@ enum CreationPreparation {
 }
 
 struct GuidedAgentCreationActions {
-    let prepare: (String, [String: String]) async -> Result<CreationPreparation, ConsumerFlowFailure>
+    let prepare: (String, [String: CreationAnswerValue]) async -> Result<CreationPreparation, ConsumerFlowFailure>
     let save: (AgentProposalPresentation, Bool) async -> Result<SavedAgentPresentation, ConsumerFlowFailure>
 }
 
@@ -24,6 +24,7 @@ struct GuidedAgentCreationView: View {
     @State private var request = ""
     @State private var answer = ""
     @State private var scheduleAnswer = ScheduleDraft()
+    @State private var fileGrants: [CreationFileGrant] = []
     @State private var isChoosingFolder = false
     @State private var flow = AgentCreationFlow(request: "")
     @State private var pendingHighRiskSave: Bool?
@@ -45,9 +46,9 @@ struct GuidedAgentCreationView: View {
         .shadow(color: Color.black.opacity(0.18), radius: 14, x: 5, y: 0)
         .fileImporter(
             isPresented: $isChoosingFolder,
-            allowedContentTypes: [.folder],
-            allowsMultipleSelection: false,
-            onCompletion: chooseFolder
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: true,
+            onCompletion: chooseFiles
         )
         .confirmationDialog(
             "Save a high-risk agent?",
@@ -137,6 +138,42 @@ struct GuidedAgentCreationView: View {
                 Spacer()
                 Button("Choose folder") { isChoosingFolder = true }
                     .accessibilityIdentifier(ConsumerFlowAccessibility.creationFolderPicker)
+            }
+        case .fileAccess:
+            VStack(alignment: .leading, spacing: NSpacing.sm) {
+                ForEach(fileGrants) { grant in
+                    HStack(spacing: NSpacing.sm) {
+                        Image(systemName: grant.kind == .folder ? "folder" : "doc")
+                            .accessibilityHidden(true)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(URL(fileURLWithPath: grant.path).lastPathComponent)
+                            Text(grant.path)
+                                .font(NTypography.caption)
+                                .foregroundStyle(theme.tokens.mutedForeground)
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                        Picker("Access for \(grant.path)", selection: accessBinding(for: grant)) {
+                            Text("View only").tag(CreationFileGrant.Access.readOnly)
+                            Text("Can make changes").tag(CreationFileGrant.Access.readWrite)
+                        }
+                        .labelsHidden()
+                        Button("Remove \(grant.path)", systemImage: "minus.circle") {
+                            fileGrants.removeAll { $0.id == grant.id }
+                        }
+                        .labelStyle(.iconOnly)
+                    }
+                    .padding(NSpacing.sm)
+                    .background(theme.tokens.card)
+                    .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
+                }
+                Button(fileGrants.isEmpty ? "Choose files or folders" : "Add another file or folder") {
+                    isChoosingFolder = true
+                }
+                .accessibilityIdentifier(ConsumerFlowAccessibility.creationFolderPicker)
+                Text("Set access for each item. View only is the safer default.")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
             }
         case .schedule:
             ScheduleField(draft: $scheduleAnswer)
@@ -238,7 +275,7 @@ struct GuidedAgentCreationView: View {
                 Button("Continue", action: answerQuestion)
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
-                    .disabled(currentAnswer.isEmpty)
+                    .disabled(currentAnswerValue?.isEmpty ?? true)
             }
         case .proposal:
             Button("Edit details") { flow.returnToRequest() }
@@ -269,10 +306,11 @@ struct GuidedAgentCreationView: View {
     }
 
     private func answerQuestion() {
-        guard let question = flow.nextQuestion else { return }
-        flow.answer(questionId: question.id, value: currentAnswer)
+        guard let question = flow.nextQuestion, let currentAnswerValue else { return }
+        flow.answer(questionId: question.id, value: currentAnswerValue)
         answer = ""
         scheduleAnswer = ScheduleDraft()
+        fileGrants = []
         if flow.canRequestProposal {
             flow.beginProposalRequest()
             prepare()
@@ -336,12 +374,40 @@ struct GuidedAgentCreationView: View {
         if flow.phase == .request { return }
     }
 
-    private func chooseFolder(_ result: Result<[URL], Error>) {
-        if case .success(let urls) = result, let url = urls.first { answer = url.path(percentEncoded: false) }
+    private func chooseFiles(_ result: Result<[URL], Error>) {
+        guard case .success(let urls) = result else { return }
+        if flow.nextQuestion?.kind == .folder {
+            if let url = urls.first { answer = url.path(percentEncoded: false) }
+            return
+        }
+        let additions = urls.map { url in
+            let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
+            return CreationFileGrant(
+                path: url.path(percentEncoded: false),
+                kind: values?.isDirectory == true ? .folder : .file,
+                access: .readOnly
+            )
+        }
+        let existing = Set(fileGrants.map(\.path))
+        fileGrants.append(contentsOf: additions.filter { !existing.contains($0.path) })
     }
 
-    private var currentAnswer: String {
-        guard flow.nextQuestion?.kind == .schedule else { return answer }
-        return scheduleAnswer.cronExpression ?? "manual"
+    private func accessBinding(for grant: CreationFileGrant) -> Binding<CreationFileGrant.Access> {
+        Binding(
+            get: { fileGrants.first(where: { $0.id == grant.id })?.access ?? grant.access },
+            set: { access in
+                guard let index = fileGrants.firstIndex(where: { $0.id == grant.id }) else { return }
+                fileGrants[index] = CreationFileGrant(path: grant.path, kind: grant.kind, access: access)
+            }
+        )
+    }
+
+    private var currentAnswerValue: CreationAnswerValue? {
+        switch flow.nextQuestion?.kind {
+        case .schedule: .string(scheduleAnswer.cronExpression ?? "manual")
+        case .fileAccess: .fileGrants(fileGrants)
+        case .none: nil
+        default: .string(answer)
+        }
     }
 }

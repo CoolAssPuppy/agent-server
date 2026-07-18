@@ -55,7 +55,12 @@ export async function executeAgent(
     disallowedTools: agent.disallowed_tools && agent.disallowed_tools.length > 0
       ? agent.disallowed_tools
       : undefined,
-    canUseTool: agent.permissions ? buildCanUseTool(agent.permissions) : undefined,
+    canUseTool: agent.permissions
+      ? buildCanUseTool(
+        agent.permissions,
+        agent.file_access?.length ? { cwd, fileAccess: agent.file_access } : undefined,
+      )
+      : undefined,
     abortController: extra?.abortController,
     mcpServers: buildMcpServers(agent),
     // Use the user's installed Claude runtime when discovery found one;

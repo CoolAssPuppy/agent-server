@@ -49,7 +49,7 @@ final class ConsumerProductFlowTests: XCTestCase {
 
         XCTAssertEqual(flow.phase, .preparingProposal)
         XCTAssertEqual(flow.request, "Send a weekly summary")
-        XCTAssertEqual(flow.answers[question.id], "Slack")
+        XCTAssertEqual(flow.answers[question.id], .string("Slack"))
         XCTAssertNotNil(flow.proposal)
     }
 
@@ -81,6 +81,26 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(flow.phase, .request)
         XCTAssertNil(flow.proposal)
         XCTAssertTrue(flow.answers.isEmpty)
+    }
+
+    func testCreationKeepsMultipleFileGrantsWithIndependentAccess() {
+        let question = CreationQuestion(
+            id: "file-access",
+            prompt: "Which files or folders may this agent use?",
+            kind: .fileAccess,
+            isRequired: true
+        )
+        let grants = [
+            CreationFileGrant(path: "/Users/test/Book/manuscript.docx", kind: .file, access: .readOnly),
+            CreationFileGrant(path: "/Users/test/Book/Notes", kind: .folder, access: .readWrite),
+        ]
+        var flow = AgentCreationFlow(request: "Review my manuscript")
+        flow.receiveQuestions([question])
+
+        flow.answer(questionId: question.id, value: .fileGrants(grants))
+
+        XCTAssertEqual(flow.answers[question.id], .fileGrants(grants))
+        XCTAssertNil(flow.nextQuestion)
     }
 
     func testCreationCompletesOnlyAfterTheRequestedSafeTestFinishes() {

@@ -1,9 +1,41 @@
 import Foundation
 
+public struct CreationFileGrant: Codable, Equatable, Sendable, Identifiable {
+    public enum Kind: String, Codable, Equatable, Sendable { case file, folder }
+    public enum Access: String, Codable, Equatable, Sendable {
+        case readOnly = "read_only"
+        case readWrite = "read_write"
+    }
+
+    public let path: String
+    public let kind: Kind
+    public let access: Access
+    public var id: String { path }
+
+    public init(path: String, kind: Kind, access: Access) {
+        self.path = path
+        self.kind = kind
+        self.access = access
+    }
+}
+
+public enum CreationAnswerValue: Equatable, Sendable {
+    case string(String)
+    case fileGrants([CreationFileGrant])
+
+    public var isEmpty: Bool {
+        switch self {
+        case .string(let value): value.isEmpty
+        case .fileGrants(let grants): grants.isEmpty
+        }
+    }
+}
+
 public struct CreationQuestion: Identifiable, Equatable, Sendable {
     public enum Kind: Equatable, Sendable {
         case text
         case folder
+        case fileAccess
         case schedule
         case choice([String])
         case service(name: String?, choices: [String])
@@ -80,7 +112,7 @@ public struct AgentCreationFlow: Equatable, Sendable {
     public private(set) var phase: Phase
     public let request: String
     public private(set) var questions: [CreationQuestion]
-    public private(set) var answers: [String: String]
+    public private(set) var answers: [String: CreationAnswerValue]
     public private(set) var proposal: AgentProposalPresentation?
     public private(set) var failure: ConsumerFlowFailure?
     public private(set) var shouldRunSafeTest: Bool
@@ -114,6 +146,10 @@ public struct AgentCreationFlow: Equatable, Sendable {
     }
 
     public mutating func answer(questionId: String, value: String) {
+        answer(questionId: questionId, value: .string(value))
+    }
+
+    public mutating func answer(questionId: String, value: CreationAnswerValue) {
         guard questions.contains(where: { $0.id == questionId }) else { return }
         answers[questionId] = value
     }

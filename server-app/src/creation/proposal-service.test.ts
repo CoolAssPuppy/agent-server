@@ -5,7 +5,7 @@ import {
   type ProposalModel,
 } from './proposal-service.js';
 import { proposalToAgentConfig } from './proposal-configuration.js';
-import { CreationProposalSchema } from './proposal-schema.js';
+import { CreationProposalSchema, ProposalRequestSchema } from './proposal-schema.js';
 import { isToolPermitted } from '../execution/permission-policy.js';
 
 function validProposal(): Record<string, unknown> {
@@ -120,7 +120,7 @@ describe('guided agent proposal creation', () => {
     });
     expect(file).toMatchObject({
       status: 'needs_information',
-      questions: [{ id: 'file-location', control: 'path' }],
+      questions: [{ id: 'file-access', control: 'file_access' }],
     });
     expect(staleConnection).toMatchObject({
       status: 'needs_information',
@@ -180,8 +180,13 @@ describe('guided agent proposal creation', () => {
     });
   });
 
-  it('asks for an exact folder and whether changes are allowed before using the model', async () => {
-    const fake = modelReturning(completeProposal());
+  it('asks for one or more exact file grants before using the model', async () => {
+    const reviewed = completeProposal();
+    reviewed.file_access = [{
+      path: '~/Documents/Research', kind: 'folder', access: 'read_only',
+      is_suggestion: false, reason: 'Reads the selected research folder.',
+    }];
+    const fake = modelReturning(reviewed);
 
     const location = await createAgentProposal({
       request: 'Summarize files in a folder.',
@@ -190,23 +195,23 @@ describe('guided agent proposal creation', () => {
       answers: [],
       model: fake.model,
     });
-    const access = await createAgentProposal({
+    const ready = await createAgentProposal({
       request: 'Summarize files in a folder.',
       timezone: 'Europe/Lisbon',
       connectedServices: [],
-      answers: [{ question_id: 'file-location', value: '~/Documents/Research' }],
+      answers: [{
+        question_id: 'file-access',
+        value: [{ path: '~/Documents/Research', kind: 'folder', access: 'read_only' }],
+      }],
       model: fake.model,
     });
 
     expect(location).toMatchObject({
       status: 'needs_information',
-      questions: [{ id: 'file-location', control: 'path' }],
+      questions: [{ id: 'file-access', control: 'file_access' }],
     });
-    expect(access).toMatchObject({
-      status: 'needs_information',
-      questions: [{ id: 'file-access', control: 'single_choice' }],
-    });
-    expect(fake.calls()).toBe(0);
+    expect(ready.status).toBe('proposal');
+    expect(fake.calls()).toBe(1);
   });
 
   it('asks which available calendar and whether it may change events', async () => {
@@ -332,8 +337,7 @@ describe('guided agent proposal creation', () => {
       timezone: 'Europe/Lisbon',
       connectedServices: [],
       answers: [
-        { question_id: 'file-location', value: '~/Documents' },
-        { question_id: 'file-access', value: 'read_write' },
+        { question_id: 'file-access', value: [{ path: '~/Documents', kind: 'folder', access: 'read_write' }] },
       ],
       model: fake.model,
     });
@@ -350,8 +354,10 @@ describe('guided agent proposal creation', () => {
       timezone: 'Europe/Lisbon',
       connectedServices: [],
       answers: [
-        { question_id: 'file-location', value: '~/Documents/Research' },
-        { question_id: 'file-access', value: 'read_only' },
+        {
+          question_id: 'file-access',
+          value: [{ path: '~/Documents/Research', kind: 'folder', access: 'read_only' }],
+        },
       ],
       model: fake.model,
     });
@@ -359,7 +365,7 @@ describe('guided agent proposal creation', () => {
     expect(result).toMatchObject({
       status: 'needs_information',
       usedFallback: true,
-      questions: [{ control: 'path' }],
+      questions: [{ control: 'file_access' }],
     });
     expect(fake.calls()).toBe(2);
   });
@@ -546,5 +552,87 @@ describe('guided agent proposal creation', () => {
     expect(agent.mcp_servers).toEqual({ 'notion-personal': binding.config });
     expect(agent.permissions?.allow).toContain('mcp__notion_personal__*');
     expect(agent.permissions?.allow).not.toContain('mcp__mcp_notion_personal_abc123__*');
+  });
+
+  it('accepts multiple confirmed file grants as one structured answer', () => {
+    const request = ProposalRequestSchema.parse({
+      request: 'Review my manuscript against my series bible.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      answers: [{
+        question_id: 'file-access',
+        value: [
+          { path: '~/Books/manuscript.docx', kind: 'file', access: 'read_only' },
+          { path: '~/Books/Series Bible', kind: 'folder', access: 'read_only' },
+        ],
+      }],
+    });
+
+    expect(request.answers[0]?.value).toEqual([
+      { path: '~/Books/manuscript.docx', kind: 'file', access: 'read_only' },
+      { path: '~/Books/Series Bible', kind: 'folder', access: 'read_only' },
+    ]);
+  });
+
+  it('rejects model output that broadens the confirmed file grants', async () => {
+    const broadened = completeProposal();
+    broadened.file_access = [{
+      path: '~/', kind: 'folder', access: 'read_write', is_suggestion: false, reason: 'Broad access.',
+    }];
+    broadened.permissions = {
+      can_modify_files: true,
+      can_run_commands: false,
+      requires_network: true,
+      can_use_connected_apps: true,
+      can_send_messages: true,
+    };
+    broadened.risk = { level: 'high', reasons: ['Broad file access.'], finding_count: 0 };
+    const fake = modelReturning(broadened, broadened);
+
+    const result = await createAgentProposal({
+      request: 'Review my manuscript.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      answers: [{
+        question_id: 'file-access',
+        value: [{ path: '~/Books/manuscript.docx', kind: 'file', access: 'read_only' }],
+      }],
+      model: fake.model,
+    });
+
+    expect(result).toMatchObject({ status: 'needs_information', usedFallback: true, modelStatus: 'invalid' });
+    expect(fake.calls()).toBe(2);
+  });
+
+  it('persists every reviewed file grant and never uses a file as the working folder', () => {
+    const proposal = completeProposal();
+    proposal.connections = [];
+    proposal.notification_destination = null;
+    proposal.permissions = {
+      can_modify_files: true,
+      can_run_commands: false,
+      requires_network: false,
+      can_use_connected_apps: false,
+      can_send_messages: false,
+    };
+    proposal.risk = { level: 'high', reasons: ['Can update notes.'], finding_count: 0 };
+    proposal.file_access = [
+      {
+        path: '~/Books/manuscript.docx', kind: 'file', access: 'read_only',
+        is_suggestion: false, reason: 'Reads the manuscript.',
+      },
+      {
+        path: '~/Books/Notes', kind: 'folder', access: 'read_write',
+        is_suggestion: false, reason: 'Stores review notes.',
+      },
+    ];
+
+    const agent = proposalToAgentConfig(CreationProposalSchema.parse(proposal), 'manuscript-review');
+
+    expect(agent.file_access).toEqual([
+      { path: '~/Books/manuscript.docx', kind: 'file', access: 'read_only' },
+      { path: '~/Books/Notes', kind: 'folder', access: 'read_write' },
+    ]);
+    expect(agent.working_directory).toBe('~/Books');
   });
 });

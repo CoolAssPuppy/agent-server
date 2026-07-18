@@ -93,6 +93,14 @@ const McpServerConfigSchema = z.union([
 
 export type McpServerConfig = z.infer<typeof McpServerConfigSchema>;
 
+const FileAccessSchema = z.object({
+  path: z.string().trim().min(1).max(1_024)
+    .refine((value) => !value.includes('\0'), 'File path cannot contain a null byte')
+    .refine((value) => value.startsWith('/') || value.startsWith('~/'), 'File path must be absolute'),
+  kind: z.enum(['file', 'folder']),
+  access: z.enum(['read_only', 'read_write']),
+}).strict();
+
 /** Resolve `${VAR}` references in a single string from `source` (undefined -> ''). */
 export function resolveEnvString(
   value: string,
@@ -182,6 +190,7 @@ export const AgentConfigSchema = z
     max_turns: z.number().int().positive().default(20),
     timeout: z.string().trim().max(16).optional(),
     working_directory: z.string().max(1024).refine((v) => !v.includes('\0')).optional(),
+    file_access: z.array(FileAccessSchema).max(32).optional(),
     permission_mode: z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk']).optional(),
     enabled: z.boolean().default(true),
     on_complete: z.array(TriggerRefSchema).optional(),

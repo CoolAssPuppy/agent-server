@@ -25,7 +25,10 @@ export function buildAgentProposalPrompt(request: ProposalRequest): string {
     )).join(', ')
     : 'None';
   const answers = (request.answers ?? []).length > 0
-    ? (request.answers ?? []).map((answer) => `${answer.question_id}: ${sanitizeText(String(answer.value), 1_000)}`).join('\n')
+    ? (request.answers ?? []).map((answer) => {
+      const value = typeof answer.value === 'object' ? JSON.stringify(answer.value) : String(answer.value);
+      return `${answer.question_id}: ${sanitizeText(value, 1_000)}`;
+    }).join('\n')
     : 'None';
   const selectedCalendarIds = new Set((request.answers ?? [])
     .filter((answer) => answer.question_id === 'calendar-id' && typeof answer.value === 'string')

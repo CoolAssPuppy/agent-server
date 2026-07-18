@@ -100,6 +100,30 @@ describe('buildCanUseTool', () => {
     const result = await canUseTool('mcp__claude_ai_Linear__create_issue', {}, makeToolOptions());
     expect(result.behavior).toBe('deny');
   });
+
+  it('enforces each reviewed file grant for read and write tools', async () => {
+    const canUseTool = buildCanUseTool(
+      { allow: ['Read', 'Write', 'Edit'], deny: [] },
+      {
+        cwd: '/Users/test',
+        fileAccess: [
+          { path: '/Users/test/Book/manuscript.docx', kind: 'file', access: 'read_only' },
+          { path: '/Users/test/Book/Notes', kind: 'folder', access: 'read_write' },
+        ],
+      },
+    );
+
+    await expect(canUseTool('Read', { file_path: '/Users/test/Book/manuscript.docx' }, makeToolOptions()))
+      .resolves.toEqual({ behavior: 'allow' });
+    await expect(canUseTool('Write', { file_path: '/Users/test/Book/manuscript.docx' }, makeToolOptions()))
+      .resolves.toMatchObject({ behavior: 'deny' });
+    await expect(canUseTool('Edit', { file_path: '/Users/test/Book/Notes/review.md' }, makeToolOptions()))
+      .resolves.toEqual({ behavior: 'allow' });
+    await expect(canUseTool('Read', { file_path: '/Users/test/Book/private.md' }, makeToolOptions()))
+      .resolves.toMatchObject({ behavior: 'deny' });
+    await expect(canUseTool('Read', { file_path: '/Users/test/Book/Notes/../../private.md' }, makeToolOptions()))
+      .resolves.toMatchObject({ behavior: 'deny' });
+  });
 });
 
 function makeToolOptions() {

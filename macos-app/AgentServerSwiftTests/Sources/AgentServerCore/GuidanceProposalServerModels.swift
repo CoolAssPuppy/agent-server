@@ -46,6 +46,7 @@ public enum GuidanceProposalAnswerValue: Encodable, Equatable, Sendable {
     case string(String)
     case boolean(Bool)
     case strings([String])
+    case fileGrants([CreationFileGrant])
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
@@ -53,6 +54,7 @@ public enum GuidanceProposalAnswerValue: Encodable, Equatable, Sendable {
         case .string(let value): try container.encode(value)
         case .boolean(let value): try container.encode(value)
         case .strings(let value): try container.encode(value)
+        case .fileGrants(let value): try container.encode(value)
         }
     }
 }
@@ -246,6 +248,7 @@ private struct GuidanceQuestionPayload: Decodable, Equatable, Sendable {
     private var kind: CreationQuestion.Kind {
         switch control {
         case "path": return .folder
+        case "file_access": return .fileAccess
         case "schedule": return .schedule
         case "permission": return .confirmation
         case "single_choice": return .choice(choices?.map(\.label) ?? [])

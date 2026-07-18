@@ -3,6 +3,7 @@ import type { AgentConfig, McpServerConfig } from '../agents/config.js';
 import { buildCodexChildEnvironment, resolveApprovedProviderKey } from '../agents/environment-policy.js';
 import { deriveCodexSandbox, deriveCodexNetworkAccess } from '../execution/codex-safety.js';
 import { expandHome } from '../agents/file-watcher.js';
+import { dirname } from 'node:path';
 import type { ExecutionResult, ToolCallTrace } from '../execution/executor.js';
 import { truncate } from '../execution/executor.js';
 import type { Reporter } from '../execution/runner.js';
@@ -71,10 +72,23 @@ function getThreadOptions(agent: AgentConfig): ThreadOptions {
   const sandboxMode = deriveCodexSandbox(agent);
   const networkAccessEnabled = deriveCodexNetworkAccess(agent);
 
+  const configuredWorkingDirectory = agent.working_directory
+    ? expandHome(agent.working_directory)
+    : process.env.HOME ?? process.cwd();
+  const writableRoots = (agent.file_access ?? [])
+    .filter((grant) => grant.access === 'read_write')
+    .map((grant) => {
+      const path = expandHome(grant.path);
+      return grant.kind === 'file' ? dirname(path) : path;
+    });
+  const workingDirectory = sandboxMode === 'workspace-write' && writableRoots.length > 0
+    ? writableRoots[0]
+    : configuredWorkingDirectory;
+  const additionalDirectories = writableRoots.filter((path) => path !== workingDirectory);
+
   return {
-    workingDirectory: agent.working_directory
-      ? expandHome(agent.working_directory)
-      : process.env.HOME ?? process.cwd(),
+    workingDirectory,
+    ...(additionalDirectories.length > 0 ? { additionalDirectories } : {}),
     skipGitRepoCheck: true,
     model: getStringField(agent, 'model'),
     sandboxMode,
