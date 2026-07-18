@@ -120,6 +120,22 @@ final class GuidanceServerPayloadTests: XCTestCase {
         )
     }
 
+    func testServiceRegistryKeepsPersonalAndWorkNotionIdentity() throws {
+        let response = try JSONDecoder().decode(
+            GuidanceServiceRegistryResponse.self,
+            from: Data(Self.serviceRegistryJSON.utf8)
+        )
+
+        XCTAssertEqual(response.connections.map(\.name), ["Personal Notion", "Work Notion", "Contacts"])
+        XCTAssertEqual(
+            response.connectedServices,
+            [
+                GuidanceConnectedService(id: "mcp:notion-personal:abc123", name: "Personal Notion"),
+                GuidanceConnectedService(id: "runtime:claude.ai%20Notion", name: "Work Notion"),
+            ]
+        )
+    }
+
     func testDiagnosisMapsRecommendationWithoutInventingApplicablePatch() throws {
         let payload = try JSONDecoder().decode(GuidanceDiagnosticPayload.self, from: Data(Self.diagnosisJSON.utf8))
         let diagnosis = payload.presentation
@@ -155,6 +171,16 @@ final class GuidanceServerPayloadTests: XCTestCase {
         XCTAssertEqual(confirmed.changes, patch.changes)
         XCTAssertEqual(confirmed.confirmation?.previewContentHash, preview.resultContentHash)
     }
+
+    private static let serviceRegistryJSON = """
+    {
+      "connections": [
+        {"id":"mcp:notion-personal:abc123","service_id":"notion","name":"Personal Notion","source":"configured_api","status":"connected","actions":["read","write"]},
+        {"id":"runtime:claude.ai%20Notion","service_id":"notion","name":"Work Notion","source":"account","status":"connected","actions":["read","write"]},
+        {"id":"macos:contacts","service_id":"contacts","name":"Contacts","source":"macos","status":"needs_setup","actions":["read"]}
+      ]
+    }
+    """
 
     private static let proposalJSON = """
     {"status":"proposal","usedFallback":false,"proposal_id":"proposal-1","proposal":{

@@ -91,6 +91,30 @@ public struct GuidanceCalendarResource: Encodable, Equatable, Sendable {
     }
 }
 
+public struct GuidanceServiceRegistryResponse: Decodable, Equatable, Sendable {
+    public let connections: [GuidanceServiceConnection]
+
+    public var connectedServices: [GuidanceConnectedService] {
+        connections
+            .filter { $0.status == "connected" }
+            .map { GuidanceConnectedService(id: $0.id, name: $0.name) }
+    }
+}
+
+public struct GuidanceServiceConnection: Decodable, Equatable, Sendable, Identifiable {
+    public let id: String
+    public let serviceId: String
+    public let name: String
+    public let source: String
+    public let status: String
+    public let actions: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, source, status, actions
+        case serviceId = "service_id"
+    }
+}
+
 public struct GuidanceConnectedService: Encodable, Equatable, Sendable {
     public let id: String
     public let name: String

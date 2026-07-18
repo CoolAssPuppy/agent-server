@@ -183,6 +183,12 @@ actor AgentServerClient {
         try await get("/connections")
     }
 
+    /// Consumer-facing connection instances from MCP accounts, configured APIs,
+    /// and reusable local services. The response never includes credentials.
+    func services() async throws -> GuidanceServiceRegistryResponse {
+        try await get("/services")
+    }
+
     /// Re-probes the runtime and returns the fresh snapshot. Backs the
     /// "Refresh connections" action; costs an MCP connection, no tokens.
     func refreshConnections() async throws -> ConnectionSnapshot {
