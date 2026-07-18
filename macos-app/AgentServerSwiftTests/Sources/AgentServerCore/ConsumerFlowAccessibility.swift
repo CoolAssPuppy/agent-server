@@ -1,0 +1,15 @@
+public enum ConsumerFlowAccessibility {
+    public static let creationRequest = "creation.request"
+    public static let creationContinue = "creation.continue"
+    public static let creationReview = "creation.review"
+    public static let creationSave = "creation.save"
+    public static let creationSaveAndTest = "creation.saveAndTest"
+    public static let creationFolderPicker = "creation.folderPicker"
+    public static let debuggerReviewFix = "debugger.reviewFix"
+    public static let debuggerApplyFix = "debugger.applyFix"
+    public static let debuggerRetry = "debugger.retry"
+    public static let securityScanAll = "security.scanAll"
+    public static let securityNavigation = "security.navigation"
+    public static let securityFindingPrefix = "security.finding."
+    public static let debuggerOpen = "debugger.open"
+}

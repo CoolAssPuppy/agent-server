@@ -1,0 +1,215 @@
+import XCTest
+@testable import AgentServerCore
+
+final class ConsumerProductFlowTests: XCTestCase {
+    func testCreationAsksOnlyUnansweredRequiredQuestions() {
+        let questions = [
+            CreationQuestion(id: "folder", prompt: "Which folder should it review?", kind: .folder, isRequired: true),
+            CreationQuestion(id: "tone", prompt: "What tone should it use?", kind: .choice(["Short", "Detailed"]), isRequired: false),
+        ]
+        var flow = AgentCreationFlow(request: "Summarize my research every Friday")
+
+        flow.receiveQuestions(questions)
+        XCTAssertEqual(flow.phase, .questions)
+        XCTAssertEqual(flow.nextQuestion?.id, "folder")
+
+        flow.answer(questionId: "folder", value: "~/Documents/Research")
+        XCTAssertNil(flow.nextQuestion)
+        XCTAssertTrue(flow.canRequestProposal)
+    }
+
+    func testCreationKeepsProposalReviewableBeforeSaving() {
+        let proposal = AgentProposalPresentation.fixture(risk: .needsReview)
+        var flow = AgentCreationFlow(request: "Send a weekly summary")
+
+        flow.receiveProposal(proposal)
+        XCTAssertEqual(flow.phase, .proposal)
+        XCTAssertEqual(flow.proposal, proposal)
+        XCTAssertFalse(flow.hasSaved)
+
+        flow.beginSave(runSafeTest: true)
+        XCTAssertEqual(flow.phase, .saving)
+        XCTAssertTrue(flow.shouldRunSafeTest)
+    }
+
+    func testCreationCompletesOnlyAfterTheRequestedSafeTestFinishes() {
+        var flow = AgentCreationFlow(request: "Send a weekly summary")
+        flow.receiveProposal(.fixture())
+        flow.beginSave(runSafeTest: true)
+
+        flow.didSave()
+        XCTAssertEqual(flow.phase, .testing)
+        XCTAssertTrue(flow.hasSaved)
+
+        flow.completeTest()
+        XCTAssertEqual(flow.phase, .complete)
+    }
+
+    func testSavedAgentResultKeepsTheSafeTestRunVisible() {
+        let result = SavedAgentPresentation(agentId: "weekly-summary", safeTestRunId: "run-2")
+
+        XCTAssertEqual(result.agentId, "weekly-summary")
+        XCTAssertEqual(result.safeTestRunId, "run-2")
+    }
+
+    func testCreationFailureExplainsWhetherAnythingWasSavedAndCanRetry() {
+        var flow = AgentCreationFlow(request: "Send a weekly summary")
+        flow.receiveProposal(.fixture())
+        flow.beginSave(runSafeTest: false)
+        flow.fail(.init(
+            title: "Could not save this agent",
+            message: "The local server is offline.",
+            recovery: "Start the server, then try again.",
+            technicalDetails: "ECONNREFUSED",
+            didSave: false,
+            canRetry: true
+        ))
+
+        XCTAssertEqual(flow.phase, .failed)
+        XCTAssertFalse(flow.failure?.didSave ?? true)
+        XCTAssertTrue(flow.canRetry)
+
+        flow.retry()
+        XCTAssertEqual(flow.phase, .proposal)
+    }
+
+    func testDebuggerRequiresFixReviewBeforeApplying() {
+        let diagnosis = DiagnosticPresentation.fixture()
+        var flow = AgentDebuggerFlow()
+
+        flow.receiveDiagnosis(diagnosis)
+        XCTAssertEqual(flow.phase, .diagnosis)
+        XCTAssertFalse(flow.canApplyFix)
+
+        flow.reviewRecommendedFix()
+        XCTAssertEqual(flow.phase, .fixReview)
+        XCTAssertTrue(flow.canApplyFix)
+
+        flow.beginApply()
+        XCTAssertEqual(flow.phase, .applying)
+    }
+
+    func testDebuggerPreservesFailedRunWhileRetrying() {
+        var flow = AgentDebuggerFlow(failedRunId: "failed-1")
+        flow.receiveDiagnosis(.fixture())
+        flow.reviewRecommendedFix()
+        flow.beginApply()
+        flow.didApplyFix()
+        flow.beginRetry()
+        flow.didStartRetry(runId: "retry-2")
+
+        XCTAssertEqual(flow.phase, .retrying)
+        XCTAssertEqual(flow.failedRunId, "failed-1")
+        XCTAssertEqual(flow.retryRunId, "retry-2")
+
+        flow.resolve()
+        XCTAssertEqual(flow.phase, .resolved)
+    }
+
+    func testSecuritySummaryGroupsFindingsByImportanceAndUsesNonColorLabels() {
+        let findings = [
+            SecurityFindingPresentation.fixture(id: "medium", severity: .needsReview),
+            SecurityFindingPresentation.fixture(id: "critical", severity: .critical),
+            SecurityFindingPresentation.fixture(id: "high", severity: .high),
+        ]
+        let summary = SecurityScanPresentation(findings: findings, reviewedAt: nil, isStale: true)
+
+        XCTAssertEqual(summary.overallRisk, .critical)
+        XCTAssertEqual(summary.groupedFindings.map(\.severity), [.critical, .high, .needsReview])
+        XCTAssertEqual(summary.groupedFindings.first?.title, "Critical")
+        XCTAssertEqual(summary.summaryText, "Security check found 3 things to review.")
+    }
+
+    func testSecurityDashboardCountsAgentsByRiskAndReviewState() {
+        let dashboard = SecurityDashboardPresentation(agents: [
+            .fixture(id: "one", risk: .low, isStale: false),
+            .fixture(id: "two", risk: .high, isStale: true),
+            .fixture(id: "three", risk: .critical, isStale: false),
+        ])
+
+        XCTAssertEqual(dashboard.agentCount(for: .low), 1)
+        XCTAssertEqual(dashboard.agentCount(for: .high), 1)
+        XCTAssertEqual(dashboard.agentCount(for: .critical), 1)
+        XCTAssertEqual(dashboard.needsReviewCount, 1)
+    }
+
+    func testCriticalControlsHaveStableAccessibilityIdentifiers() {
+        XCTAssertEqual(ConsumerFlowAccessibility.creationRequest, "creation.request")
+        XCTAssertEqual(ConsumerFlowAccessibility.creationReview, "creation.review")
+        XCTAssertEqual(ConsumerFlowAccessibility.debuggerApplyFix, "debugger.applyFix")
+        XCTAssertEqual(ConsumerFlowAccessibility.securityScanAll, "security.scanAll")
+        XCTAssertEqual(ConsumerFlowAccessibility.securityFindingPrefix, "security.finding.")
+        XCTAssertEqual(ConsumerFlowAccessibility.securityNavigation, "security.navigation")
+        XCTAssertEqual(ConsumerFlowAccessibility.debuggerOpen, "debugger.open")
+    }
+
+    func testDemoFixturesAreDeterministicAndContainNoCredentials() {
+        XCTAssertEqual(ConsumerFlowDemoFixtures.proposal.name, "Friday GitHub summary")
+        XCTAssertEqual(ConsumerFlowDemoFixtures.dashboard.agents.count, 3)
+
+        let visibleText = [
+            ConsumerFlowDemoFixtures.proposal.instructions,
+            ConsumerFlowDemoFixtures.diagnosis.technicalDetails,
+            ConsumerFlowDemoFixtures.securityScan.findings.map(\.trigger).joined(),
+        ].joined()
+        XCTAssertFalse(visibleText.localizedCaseInsensitiveContains("token="))
+        XCTAssertFalse(visibleText.localizedCaseInsensitiveContains("api_key"))
+    }
+}
+
+private extension AgentProposalPresentation {
+    static func fixture(risk: ConsumerRiskLevel = .low) -> Self {
+        .init(
+            name: "Weekly summary",
+            explanation: "Reviews activity and prepares a short summary.",
+            schedule: "Every Friday at 5:00 p.m.",
+            permissions: ["Read GitHub activity", "Send a Slack message"],
+            fileAccess: [],
+            connections: [.init(name: "Slack", state: .needsSetup)],
+            instructions: "Review this week's activity and summarize it.",
+            risk: risk,
+            riskReason: "This agent sends information to Slack."
+        )
+    }
+}
+
+private extension DiagnosticPresentation {
+    static func fixture() -> Self {
+        .init(
+            title: "This agent could not save its report.",
+            explanation: "It can read the Reports folder, but cannot make changes there.",
+            evidence: ["The run tried to create weekly.md", "File editing is turned off"],
+            recommendedFix: .init(
+                title: "Allow edits in Documents/Reports",
+                impact: "This agent could create and update files only in this folder.",
+                risk: .needsReview,
+                changes: ["Turn on file editing for Documents/Reports"],
+                technicalDiff: "+ Write(~/Documents/Reports/**)"
+            ),
+            preventionTip: "Test the agent before turning on its schedule.",
+            technicalDetails: "Write denied"
+        )
+    }
+}
+
+private extension SecurityFindingPresentation {
+    static func fixture(id: String, severity: ConsumerRiskLevel) -> Self {
+        .init(
+            id: id,
+            severity: severity,
+            title: "Review file access",
+            whyItMatters: "The agent can access more files than it needs.",
+            potentialImpact: "A mistake could affect unrelated files.",
+            trigger: "Broad file access",
+            recommendation: "Choose a narrower folder.",
+            functionalityImpact: "The agent will only work in the selected folder.",
+            canFix: true
+        )
+    }
+}
+
+private extension SecurityAgentPresentation {
+    static func fixture(id: String, risk: ConsumerRiskLevel, isStale: Bool) -> Self {
+        .init(id: id, name: id.capitalized, risk: risk, findingCount: risk == .low ? 0 : 1, isStale: isStale)
+    }
+}

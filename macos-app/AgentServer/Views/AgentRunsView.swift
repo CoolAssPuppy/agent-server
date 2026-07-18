@@ -10,6 +10,7 @@ struct AgentRunsView: View {
     @State private var isLoading = true
     @State private var loadError: String?
     @State private var pollTimer: Timer?
+    @ObservedObject private var router = DrawerRouter.shared
 
     @Environment(\.nTheme) private var theme
 
@@ -135,6 +136,9 @@ struct AgentRunsView: View {
                         await fetchRuns()
                     }
                 },
+                onDebug: run.status == .failed ? {
+                    router.openDebugger(runId: selectedRunId)
+                } : nil,
                 decisions: monitor.pendingDecisions.filter { $0.taskRunId == selectedRunId }
             )
         } else {

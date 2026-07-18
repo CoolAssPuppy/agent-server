@@ -6,6 +6,8 @@ enum Drawer: Equatable {
     case detail(agentId: String)
     case settings
     case connections
+    case security(agentId: String?)
+    case debugger(runId: String)
 }
 
 // MARK: - Router
@@ -47,6 +49,14 @@ final class DrawerRouter: ObservableObject {
         open = .connections
     }
 
+    func openSecurity(agentId: String? = nil) {
+        open = .security(agentId: agentId)
+    }
+
+    func openDebugger(runId: String) {
+        open = .debugger(runId: runId)
+    }
+
     /// Sets the router to a specific drawer in one step. Used by AppDelegate
     /// when the popover routes into the main window.
     func routeTo(_ drawer: Drawer) {
@@ -72,6 +82,26 @@ final class DrawerRouter: ObservableObject {
 
     var isConnectionsOpen: Bool {
         open == .connections
+    }
+
+    var isSecurityOpen: Bool {
+        if case .security = open { return true }
+        return false
+    }
+
+    var isDebuggerOpen: Bool {
+        if case .debugger = open { return true }
+        return false
+    }
+
+    var securityAgentId: String? {
+        if case .security(let id) = open { return id }
+        return nil
+    }
+
+    var debugRunId: String? {
+        if case .debugger(let id) = open { return id }
+        return nil
     }
 
     var openAgentId: String? {

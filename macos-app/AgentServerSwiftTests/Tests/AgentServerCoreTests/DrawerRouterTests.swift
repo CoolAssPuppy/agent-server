@@ -51,4 +51,26 @@ final class DrawerRouterTests: XCTestCase {
         router.close()
         XCTAssertNil(router.open)
     }
+
+    func testSecurityDashboardAndAgentReviewUseOneDrawerRoute() {
+        let router = DrawerRouter()
+
+        router.openSecurity()
+        XCTAssertTrue(router.isSecurityOpen)
+        XCTAssertNil(router.securityAgentId)
+
+        router.openSecurity(agentId: "agent-1")
+        XCTAssertEqual(router.securityAgentId, "agent-1")
+        XCTAssertFalse(router.isDetailOpen)
+    }
+
+    func testFailedRunOpensDebuggerAndKeepsRunIdentifier() {
+        let router = DrawerRouter()
+
+        router.openDebugger(runId: "run-failed")
+
+        XCTAssertTrue(router.isDebuggerOpen)
+        XCTAssertEqual(router.debugRunId, "run-failed")
+        XCTAssertFalse(router.isSecurityOpen)
+    }
 }

@@ -34,13 +34,17 @@ struct MainWindow: View {
             settingsDrawerLayer
 
             connectionsDrawerLayer
+
+            securityDrawerLayer
+
+            debuggerDrawerLayer
         }
         .frame(minWidth: 1080, minHeight: 640)
         .nTheme(themeManager.themeConfig)
         .background(themeManager.themeConfig.tokens.background)
         .environment(\.colorScheme, isDark ? .dark : .light)
         .onAppear { commitPendingRouteIfAny() }
-        .onChange(of: router.pending) { _ in commitPendingRouteIfAny() }
+        .onChange(of: router.pending) { _, _ in commitPendingRouteIfAny() }
     }
 
     /// Consumes `DrawerRouter.shared.pending` (set by AppDelegate when the
@@ -53,7 +57,7 @@ struct MainWindow: View {
         switch pending {
         case .detail: duration = AgentDetailDrawer.slideDuration
         case .settings: duration = SettingsDrawer.slideDuration
-        case .connections: duration = SettingsDrawer.slideDuration
+        case .connections, .security, .debugger: duration = SettingsDrawer.slideDuration
         }
         DispatchQueue.main.async {
             withAnimation(.easeOut(duration: duration)) {
@@ -153,6 +157,36 @@ struct MainWindow: View {
         .animation(.easeOut(duration: SettingsDrawer.slideDuration), value: router.isConnectionsOpen)
     }
 
+    private var securityDrawerLayer: some View {
+        ZStack(alignment: .top) {
+            if router.isSecurityOpen {
+                SecurityCenterView(
+                    monitor: monitor,
+                    router: router,
+                    agentId: router.securityAgentId
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.easeOut(duration: SettingsDrawer.slideDuration), value: router.isSecurityOpen)
+    }
+
+    private var debuggerDrawerLayer: some View {
+        ZStack(alignment: .top) {
+            if let runId = router.debugRunId {
+                AgentDebuggerEntryShell(
+                    runId: runId,
+                    actions: nil,
+                    close: { closeDebugger(runId) },
+                    openAgentSettings: { openSettingsForRun(runId) },
+                    openRun: { _ in }
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.easeOut(duration: SettingsDrawer.slideDuration), value: router.isDebuggerOpen)
+    }
+
     // MARK: - Actions
 
     private func openAgentsFolder() {
@@ -164,5 +198,18 @@ struct MainWindow: View {
 
     private func newAgent() {
         openAgentsFolder()
+    }
+
+    private func openSettingsForRun(_ runId: String) {
+        guard let run = monitor.recentRuns.first(where: { $0.runId == runId }) else { return }
+        router.openDetail(agentId: run.agentId)
+    }
+
+    private func closeDebugger(_ runId: String) {
+        guard let run = monitor.recentRuns.first(where: { $0.runId == runId }) else {
+            router.close()
+            return
+        }
+        router.openDetail(agentId: run.agentId)
     }
 }

@@ -1,0 +1,77 @@
+import Foundation
+
+public struct AgentDebuggerFlow: Equatable, Sendable {
+    public enum Phase: Equatable, Sendable {
+        case idle
+        case diagnosing
+        case diagnosis
+        case fixReview
+        case applying
+        case readyToRetry
+        case retrying
+        case resolved
+        case failed
+    }
+
+    public private(set) var phase: Phase
+    public let failedRunId: String?
+    public private(set) var retryRunId: String?
+    public private(set) var diagnosis: DiagnosticPresentation?
+    public private(set) var failure: ConsumerFlowFailure?
+
+    public init(failedRunId: String? = nil) {
+        self.phase = .idle
+        self.failedRunId = failedRunId
+    }
+
+    public var canApplyFix: Bool {
+        phase == .fixReview && diagnosis?.recommendedFix != nil
+    }
+
+    public mutating func beginDiagnosis() {
+        phase = .diagnosing
+        failure = nil
+    }
+
+    public mutating func receiveDiagnosis(_ diagnosis: DiagnosticPresentation) {
+        self.diagnosis = diagnosis
+        phase = .diagnosis
+    }
+
+    public mutating func reviewRecommendedFix() {
+        guard diagnosis?.recommendedFix != nil else { return }
+        phase = .fixReview
+    }
+
+    public mutating func cancelFixReview() { phase = .diagnosis }
+
+    public mutating func beginApply() {
+        guard canApplyFix else { return }
+        phase = .applying
+    }
+
+    public mutating func didApplyFix() {
+        guard phase == .applying else { return }
+        phase = .readyToRetry
+    }
+
+    public mutating func beginRetry() {
+        guard phase == .readyToRetry || phase == .diagnosis else { return }
+        phase = .retrying
+    }
+
+    public mutating func didStartRetry(runId: String) {
+        guard phase == .retrying else { return }
+        retryRunId = runId
+    }
+
+    public mutating func resolve() {
+        guard phase == .retrying else { return }
+        phase = .resolved
+    }
+
+    public mutating func fail(_ failure: ConsumerFlowFailure) {
+        self.failure = failure
+        phase = .failed
+    }
+}

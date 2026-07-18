@@ -13,6 +13,7 @@ struct RunDetailView: View {
     let logs: [PanelLog]
     let onCancel: () -> Void
     var onDelete: (() -> Void)? = nil
+    var onDebug: (() -> Void)? = nil
     var decisions: [Decision] = []
 
     @Environment(\.nTheme) private var theme
@@ -94,6 +95,16 @@ struct RunDetailView: View {
             Spacer()
 
             CopyRunButton(run: run, logs: logs)
+
+            if run.status == .failed, let onDebug {
+                Button(action: onDebug) {
+                    Label("What went wrong?", systemImage: "stethoscope")
+                        .font(NTypography.bodySmall)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .accessibilityIdentifier(ConsumerFlowAccessibility.debuggerOpen)
+            }
 
             if run.status == .running {
                 Button(role: .destructive) {

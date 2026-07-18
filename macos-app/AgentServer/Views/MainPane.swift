@@ -194,6 +194,18 @@ struct MainPane: View {
             .buttonStyle(.plain)
             .help("Services your agents can use")
 
+            Button {
+                router.openSecurity()
+            } label: {
+                Label("Security check", systemImage: "checkmark.shield")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Review agent access and safety")
+            .accessibilityIdentifier(ConsumerFlowAccessibility.securityNavigation)
+
             Spacer()
 
             Button {

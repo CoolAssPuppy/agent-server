@@ -178,6 +178,20 @@ struct AgentDetailDrawer: View {
             Spacer()
 
             Button {
+                router.openSecurity(agentId: agentId)
+            } label: {
+                Image(systemName: "checkmark.shield")
+                    .font(NTypography.bodyMedium)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Run a security check")
+            .accessibilityLabel("Run a security check for this agent")
+            .accessibilityIdentifier(ConsumerFlowAccessibility.securityNavigation)
+
+            Button {
                 openSettings()
             } label: {
                 Image(systemName: "gearshape")

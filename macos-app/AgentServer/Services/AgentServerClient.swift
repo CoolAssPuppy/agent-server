@@ -183,6 +183,26 @@ actor AgentServerClient {
         try await get("/connections")
     }
 
+    func securityAnalysis(agentId: String) async throws -> SecurityAnalysisPayload {
+        try await securityRequest(.agent(agentId))
+    }
+
+    func scanSecurity() async throws -> SecurityScanPayload {
+        try await securityRequest(.scan)
+    }
+
+    func markSecurityReviewed(
+        agentId: String,
+        contentHash: String,
+        acknowledgedFindingIds: [String]
+    ) async throws -> SecurityReviewResponse {
+        let body = SecurityReviewRequestPayload(
+            contentHash: contentHash,
+            acknowledgedFindingIds: acknowledgedFindingIds
+        )
+        return try await securityRequest(.review(agentId), body: body)
+    }
+
     /// Re-probes the runtime and returns the fresh snapshot. Backs the
     /// "Refresh connections" action; costs an MCP connection, no tokens.
     func refreshConnections() async throws -> ConnectionSnapshot {
@@ -240,6 +260,38 @@ actor AgentServerClient {
         let (data, response) = try await session.data(for: request)
         try validateResponse(response)
         return try decoder.decode(T.self, from: data)
+    }
+
+    private func securityRequest<Response: Decodable>(
+        _ route: SecurityServerRoute
+    ) async throws -> Response {
+        try await securityRequest(route, bodyData: nil)
+    }
+
+    private func securityRequest<Response: Decodable, Body: Encodable>(
+        _ route: SecurityServerRoute,
+        body: Body
+    ) async throws -> Response {
+        try await securityRequest(route, bodyData: JSONEncoder().encode(body))
+    }
+
+    private func securityRequest<Response: Decodable>(
+        _ route: SecurityServerRoute,
+        bodyData: Data?
+    ) async throws -> Response {
+        guard let url = URL(string: route.path, relativeTo: baseURL)?.absoluteURL else {
+            throw ClientError.invalidResponse
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = route.method.rawValue
+        if let bodyData {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = bodyData
+        }
+        request = try authenticatedRequest(request)
+        let (data, response) = try await session.data(for: request)
+        try validateResponse(response)
+        return try decoder.decode(Response.self, from: data)
     }
 
     private func authenticatedRequest(_ request: URLRequest) throws -> URLRequest {
