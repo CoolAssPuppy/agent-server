@@ -334,6 +334,11 @@ Each commit includes its tests and keeps the repository buildable:
 19. `09d8ddc` Inherit shared UI test signing settings
 20. `36e6efa` Add Create Agent to main navigation
 21. `2f523fe` Consolidate macOS environment and run history state
+22. `c6d2a70` Complete Build Week verification and documentation
+23. `7214d0f` Anchor agent creation in the main window
+24. `ed08e9b` Keep sidebar interactive beside creation drawer
+25. `4222e80` Scope file and calendar access during creation
+26. `ec36800` Add calendar access recovery guidance
 
 ## Plan review questions
 
@@ -348,12 +353,12 @@ Each commit includes its tests and keeps the repository buildable:
 ## Review notes
 
 - Feature implementation and automated verification are complete on
-  `creation-experience` through `2f523fe`.
-- Final server verification passes 1,045 tests across 80 files, lint, strict
+  `creation-experience` through `ec36800`.
+- Final server verification passes 1,050 tests across 80 files, lint, strict
   TypeScript checking, and the production build.
 - Server coverage is 78.82% statements, 74.59% branches, 80.28% functions, and
   80.23% lines.
-- Swift verification passes 180 behavior tests. The full four-test signed
+- Swift verification passes 183 behavior tests. The full four-test signed
   macOS UI suite passed once in 34.8 seconds and covers the eight requested UI
   behaviors. A later redundant rerun was interrupted after another app stole
   focus, and UI testing stopped at the user's request.

@@ -81,7 +81,7 @@ The feature work adds server behavior coverage for shared schemas, environment a
 
 Swift behavior coverage includes proposal and debugger state changes, consumer risk and schedule presentation, security payloads, accessibility identifiers, drawer routing, transport recovery, and stale state protection. Four signed macOS UI tests cover the requested creation, missing-connection, safe-test, debugger, low-risk repair, embedded-secret, folder-narrowing, and high-risk review behaviors using deterministic launch scenarios.
 
-The final non-interactive run passed 1,045 server tests across 80 files and 180 Swift tests. Server coverage was 78.82% statements, 74.59% branches, 80.28% functions, and 80.23% lines. The full four-flow signed UI suite passed once in 34.8 seconds. A later redundant UI rerun was interrupted after another app stole focus, and UI testing then stopped at the user's request. See [FINAL_VERIFICATION.md](FINAL_VERIFICATION.md) for the full record.
+The final non-interactive run passed 1,050 server tests across 80 files and 183 Swift tests. Server coverage before the final scoped-access batch was 78.82% statements, 74.59% branches, 80.28% functions, and 80.23% lines. The full four-flow signed UI suite passed once in 34.8 seconds. A later redundant UI rerun was interrupted after another app stole focus, and UI testing then stopped at the user's request. See [FINAL_VERIFICATION.md](FINAL_VERIFICATION.md) for the full record.
 
 ## Demo
 
@@ -138,3 +138,8 @@ Use [BUILD_WEEK_DEMO.md](BUILD_WEEK_DEMO.md) and the redacted fixtures under `se
 19. `09d8ddc` Inherit shared UI test signing settings
 20. `36e6efa` Add Create Agent to main navigation
 21. `2f523fe` Consolidate macOS environment and run history state
+22. `c6d2a70` Complete Build Week verification and documentation
+23. `7214d0f` Anchor agent creation in the main window
+24. `ed08e9b` Keep sidebar interactive beside creation drawer
+25. `4222e80` Scope file and calendar access during creation
+26. `ec36800` Add calendar access recovery guidance

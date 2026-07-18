@@ -17,7 +17,7 @@ This report records automated verification for the `creation-experience` branch.
 
 - Baseline: `5b779736985e918874b80b390372be71645dc19a`
 - Branch: `creation-experience`
-- Verified feature head: `2f523fe`
+- Verified feature head: `ec36800`
 - Worktree clean before closeout documentation edits: Yes
 - Primary Codex session ID: `019f7458-705a-7fe2-8819-b2bf9f383298`
 
@@ -44,17 +44,22 @@ This report records automated verification for the `creation-experience` branch.
 19. `09d8ddc` Inherit shared UI test signing settings
 20. `36e6efa` Add Create Agent to main navigation
 21. `2f523fe` Consolidate macOS environment and run history state
+22. `c6d2a70` Complete Build Week verification and documentation
+23. `7214d0f` Anchor agent creation in the main window
+24. `ed08e9b` Keep sidebar interactive beside creation drawer
+25. `4222e80` Scope file and calendar access during creation
+26. `ec36800` Add calendar access recovery guidance
 
 ## Automated checks
 
 | Check | Result | Evidence |
 |---|---|---|
-| Server behavior tests | Passed | 1,045 tests across 80 files |
-| Server coverage | Passed | 78.82% statements, 74.59% branches, 80.28% functions, 80.23% lines |
+| Server behavior tests | Passed | 1,050 tests across 80 files |
+| Server coverage | Passed before final scoped-access batch | 78.82% statements, 74.59% branches, 80.28% functions, 80.23% lines |
 | Server lint | Passed | `pnpm lint` exited successfully |
 | TypeScript strict check | Passed | `pnpm type-check` exited successfully |
 | Server production build | Passed | `pnpm build` exited successfully |
-| Swift behavior tests | Passed | 180 tests |
+| Swift behavior tests | Passed | 183 tests |
 | Signed macOS UI tests | Passed once | All four tests completed in 34.8 seconds. A later redundant rerun was interrupted after another app stole focus and UI testing stopped at the user's request. |
 | macOS application build | Passed | `AgentServer` scheme built successfully during final verification |
 | Demo fixture parsing | Passed during documentation batch | `build-week-github-slack.md` parsed as `AgentConfig`; both JSON files parsed |
