@@ -10,7 +10,7 @@ Status: Native service integration and final release verification are complete.
 - [x] Add scoped Calendar and Reminders grants with exact resource and action review.
 - [x] Add read-only Contacts grants with exact group and field review.
 - [x] Keep Apple Music visibly unavailable until the signed app has the required MusicKit capability and a tested read-only runtime.
-- [x] Reuse file grants in Debugger patches and all grant models in proposal review, structured patch validation, Security Analyzer fixes, and preflight checks.
+- [x] Use every grant model in proposal review, structured validation, security analysis, and preflight checks. Use file grants for scoped Debugger fixes and Calendar or Reminder mutation grants for current Security Analyzer fixes.
 - [x] Add server and Swift behavior coverage first, then run full server tests, Swift tests, type-check, server build, and unsigned Xcode build without UI automation.
 - [x] Run a simplification review after every consequential commit, record the final verification here, and launch the verified build.
 
