@@ -266,12 +266,14 @@ private struct GuidanceQuestionPayload: Decodable, Equatable, Sendable {
     let question: String
     let control: String
     let serviceName: String?
+    let unavailableMessage: String?
     let required: Bool
     let choices: [Choice]?
 
     enum CodingKeys: String, CodingKey {
         case id, question, control, required, choices
         case serviceName = "service_name"
+        case unavailableMessage = "unavailable_message"
     }
 
     var presentation: CreationQuestion {
@@ -292,7 +294,7 @@ private struct GuidanceQuestionPayload: Decodable, Equatable, Sendable {
         case "permission": return .confirmation
         case "single_choice": return .choice(choices?.map(\.label) ?? [])
         case "service": return .service(name: serviceName, choices: choices?.map(\.label) ?? [])
-        case "unavailable": return .unavailable
+        case "unavailable": return .unavailable(message: unavailableMessage ?? "This capability is not available in this build.")
         default: return .text
         }
     }

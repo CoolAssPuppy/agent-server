@@ -46,7 +46,7 @@ public struct CreationQuestion: Identifiable, Equatable, Sendable {
         case choice([String])
         case service(name: String?, choices: [String])
         case confirmation
-        case unavailable
+        case unavailable(message: String)
     }
 
     public let id: String
@@ -57,6 +57,11 @@ public struct CreationQuestion: Identifiable, Equatable, Sendable {
 
     public var requiresConnectionSetup: Bool {
         if case .service(_, let choices) = kind { return choices.isEmpty }
+        return false
+    }
+
+    public var isUnavailable: Bool {
+        if case .unavailable = kind { return true }
         return false
     }
 

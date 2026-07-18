@@ -137,6 +137,11 @@ public struct GuidancePatchPreview: Decodable, Equatable, Sendable {
     public struct Change: Decodable, Equatable, Sendable {
         public let field: String
         public let summary: String
+
+        public init(field: String, summary: String) {
+            self.field = field
+            self.summary = summary
+        }
     }
 
     public let resultContentHash: String
@@ -145,6 +150,22 @@ public struct GuidancePatchPreview: Decodable, Equatable, Sendable {
     public let risk: String
     public let requiresConfirmation: Bool
     public let canApply: Bool
+
+    public init(
+        resultContentHash: String,
+        changes: [Change],
+        advancedChanges: GuidanceJSONValue,
+        risk: String,
+        requiresConfirmation: Bool,
+        canApply: Bool
+    ) {
+        self.resultContentHash = resultContentHash
+        self.changes = changes
+        self.advancedChanges = advancedChanges
+        self.risk = risk
+        self.requiresConfirmation = requiresConfirmation
+        self.canApply = canApply
+    }
 
     enum CodingKeys: String, CodingKey {
         case changes, risk

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { RiskSeveritySchema } from '../analysis/models.js';
 import { CalendarAccessSchema, FileAccessSchema, NativeServicesSchema } from '../agents/config.js';
+import { isUnsafeAutomatedFilePath } from '../analysis/patch.js';
 
 const RepairOperationSchema = z.discriminatedUnion('field', [
   z.object({ field: z.literal('schedule'), value: z.string().trim().min(1).max(120) }).strict(),
@@ -62,8 +63,29 @@ function rejectedReason(operation: RepairProposal['operations'][number]): string
   if (operation.field === 'permission_mode' && operation.value === 'bypassPermissions') {
     return 'Bypassing permission checks cannot be applied automatically.';
   }
-  if (operation.field === 'working_directory' && /^(?:\/|~|\/Users\/[^/]+)\/?$/.test(operation.value)) {
+  if (operation.field === 'working_directory' && isUnsafeAutomatedFilePath(operation.value)) {
     return 'Access to the entire home folder cannot be applied automatically.';
+  }
+  if (operation.field === 'file_access') {
+    if (operation.value.some((grant) => isUnsafeAutomatedFilePath(grant.path))) {
+      return 'Broad file access cannot be applied automatically.';
+    }
+    if (operation.value.some((grant) => grant.access === 'read_write')) {
+      return 'File editing requires explicit review.';
+    }
+  }
+  if (operation.field === 'calendar_access'
+    && operation.value.some((grant) => grant.access === 'read_write')) {
+    return 'Calendar changes require explicit review.';
+  }
+  if (operation.field === 'native_services') {
+    const resources = [
+      ...(operation.value.calendar?.resources ?? []),
+      ...(operation.value.reminders?.resources ?? []),
+    ];
+    if (resources.some((resource) => resource.actions.some((action) => action !== 'read'))) {
+      return 'Changes in Mac apps require explicit review.';
+    }
   }
   if (operation.field === 'tools' && grantsReviewOnlyTool(operation.value)) {
     return 'Command execution or file editing cannot be added automatically.';

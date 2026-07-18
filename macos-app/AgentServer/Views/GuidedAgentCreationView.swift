@@ -266,10 +266,10 @@ struct GuidedAgentCreationView: View {
                 Text("Yes").tag("Yes")
                 Text("No").tag("No")
             }
-        case .unavailable:
+        case .unavailable(let message):
             VStack(alignment: .leading, spacing: NSpacing.sm) {
                 Label("No access was added", systemImage: "exclamationmark.triangle")
-                Text("Agent Server needs a verified, signed MusicKit capability before it can safely offer Apple Music access.")
+                Text(message)
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
                 Button("Edit request") { flow.returnToRequest() }
@@ -320,7 +320,7 @@ struct GuidedAgentCreationView: View {
                 .accessibilityIdentifier(ConsumerFlowAccessibility.creationContinue)
         case .questions:
             if flow.nextQuestion?.requiresConnectionSetup != true,
-               flow.nextQuestion?.kind != .unavailable {
+               flow.nextQuestion?.isUnavailable != true {
                 Button("Continue", action: answerQuestion)
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)

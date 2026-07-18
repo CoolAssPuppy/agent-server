@@ -61,6 +61,14 @@ import SwiftUI
         agentName: "Friday GitHub summary",
         actions: AgentSecurityActions(
             scan: { .success(ConsumerFlowDemoFixtures.securityScan) },
+            reviewFix: { _ in .success(GuidancePatchPreview(
+                resultContentHash: "sha256:preview",
+                changes: [.init(field: "tools", summary: "Turn off command access")],
+                advancedChanges: .object(["tools": .array([.string("Read")])]),
+                risk: "low",
+                requiresConfirmation: false,
+                canApply: true
+            )) },
             applyFix: { _ in .success(ConsumerFlowDemoFixtures.securityScan) },
             ignore: { _, _ in .success(ConsumerFlowDemoFixtures.securityScan) },
             markReviewed: { .success(ConsumerFlowDemoFixtures.securityScan) }

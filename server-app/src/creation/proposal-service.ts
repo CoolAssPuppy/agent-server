@@ -218,11 +218,12 @@ function needsContactAccess(intent: string): boolean {
 }
 
 function unavailableCapabilityQuestion(request: ProposalRequest): ProposalFallbackQuestion | undefined {
-  if (!/\b(?:apple\s+music|music\s+(?:app|library|playlists?))\b/i.test(request.request)) return undefined;
+  if (!/\b(?:apple\s+music|mac(?:os)?\s+music(?:\s+app)?)\b/i.test(request.request)) return undefined;
   return {
     id: 'apple-music-unavailable',
     question: 'Apple Music access is not available in this build.',
     control: 'unavailable',
+    unavailable_message: 'Agent Server needs a verified, signed MusicKit capability before it can safely offer Apple Music access.',
     required: true,
   };
 }

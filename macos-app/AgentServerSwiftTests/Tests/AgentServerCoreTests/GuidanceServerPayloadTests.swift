@@ -27,14 +27,14 @@ final class GuidanceServerPayloadTests: XCTestCase {
     }
 
     func testUnavailableCapabilityCannotBeAnsweredOrContinued() throws {
-        let data = Data(#"{"status":"needs_information","questions":[{"id":"apple-music-unavailable","question":"Apple Music is not available in this build.","control":"unavailable","required":true}],"explanation":"No access was added."}"#.utf8)
+        let data = Data(#"{"status":"needs_information","questions":[{"id":"apple-music-unavailable","question":"Apple Music is not available in this build.","control":"unavailable","unavailable_message":"A verified MusicKit capability is required.","required":true}],"explanation":"No access was added."}"#.utf8)
 
         let response = try JSONDecoder().decode(GuidanceProposalResponse.self, from: data)
 
         guard case .needsInformation(let questions, _) = response else {
             return XCTFail("Expected an unavailable capability")
         }
-        XCTAssertEqual(questions.first?.kind, .unavailable)
+        XCTAssertEqual(questions.first?.kind, .unavailable(message: "A verified MusicKit capability is required."))
     }
 
     func testFileAccessQuestionAndAnswerKeepEachReviewedGrant() throws {

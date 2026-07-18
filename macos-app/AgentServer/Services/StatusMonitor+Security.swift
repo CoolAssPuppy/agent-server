@@ -101,10 +101,10 @@ extension StatusMonitor {
         }
     }
 
-    func applySecurityFix(
+    func reviewSecurityFix(
         agentId: String,
         findingId: String
-    ) async -> Result<SecurityScanPresentation, ConsumerFlowFailure> {
+    ) async -> Result<GuidancePatchPreview, ConsumerFlowFailure> {
         guard let finding = securityAnalyses[agentId]?.findings.first(where: { $0.id == findingId }),
               let proposedPatch = finding.patch else {
             return .failure(securityFailure(
@@ -116,9 +116,33 @@ extension StatusMonitor {
         do {
             let preview = try await client.previewGuidancePatch(proposedPatch)
             guard preview.canApply else { throw ClientError.invalidResponse }
-            let approvedPatch = preview.requiresConfirmation
-                ? proposedPatch.confirming(previewContentHash: preview.resultContentHash)
-                : proposedPatch
+            securityPatches["\(agentId):\(findingId)"] = (proposedPatch, preview)
+            return .success(preview)
+        } catch {
+            return .failure(securityFailure(
+                title: "Could not prepare this change",
+                error: error,
+                recovery: "The agent may have changed. Check it again, then review this fix."
+            ))
+        }
+    }
+
+    func applySecurityFix(
+        agentId: String,
+        findingId: String
+    ) async -> Result<SecurityScanPresentation, ConsumerFlowFailure> {
+        let key = "\(agentId):\(findingId)"
+        guard let context = securityPatches.removeValue(forKey: key) else {
+            return .failure(securityFailure(
+                title: "Review the change first",
+                error: ClientError.invalidResponse,
+                recovery: "Open the fix preview before applying it."
+            ))
+        }
+        do {
+            let approvedPatch = context.preview.requiresConfirmation
+                ? context.patch.confirming(previewContentHash: context.preview.resultContentHash)
+                : context.patch
             _ = try await client.applyGuidancePatch(approvedPatch)
             return await analyzeSecurity(agentId: agentId)
         } catch {

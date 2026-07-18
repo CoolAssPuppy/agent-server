@@ -195,6 +195,14 @@ private struct SecurityScenarioView: View {
             agentName: "Weekly report",
             actions: AgentSecurityActions(
                 scan: { .success(store.scan) },
+                reviewFix: { _ in .success(GuidancePatchPreview(
+                    resultContentHash: "sha256:preview",
+                    changes: [.init(field: "tools", summary: "Turn off command access")],
+                    advancedChanges: .object(["tools": .array([.string("Read")])]),
+                    risk: "low",
+                    requiresConfirmation: false,
+                    canApply: true
+                )) },
                 applyFix: { .success(store.apply(findingId: $0)) },
                 ignore: { findingId, _ in .success(store.apply(findingId: findingId)) },
                 markReviewed: { .success(store.scan) }

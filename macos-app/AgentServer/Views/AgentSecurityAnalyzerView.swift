@@ -3,9 +3,16 @@ import NerdsUI
 
 struct AgentSecurityActions {
     let scan: () async -> Result<SecurityScanPresentation, ConsumerFlowFailure>
+    let reviewFix: (String) async -> Result<GuidancePatchPreview, ConsumerFlowFailure>
     let applyFix: (String) async -> Result<SecurityScanPresentation, ConsumerFlowFailure>
     let ignore: (String, String?) async -> Result<SecurityScanPresentation, ConsumerFlowFailure>
     let markReviewed: () async -> Result<SecurityScanPresentation, ConsumerFlowFailure>
+}
+
+private struct ReviewedSecurityFix: Identifiable {
+    let finding: SecurityFindingPresentation
+    let preview: GuidancePatchPreview
+    var id: String { finding.id }
 }
 
 struct AgentSecurityAnalyzerView: View {
@@ -16,7 +23,7 @@ struct AgentSecurityAnalyzerView: View {
     @State private var scan: SecurityScanPresentation?
     @State private var failure: ConsumerFlowFailure?
     @State private var isLoading = false
-    @State private var findingToFix: SecurityFindingPresentation?
+    @State private var reviewedFix: ReviewedSecurityFix?
     @State private var findingToIgnore: SecurityFindingPresentation?
     @State private var ignoreReason = ""
 
@@ -31,19 +38,7 @@ struct AgentSecurityAnalyzerView: View {
         }
         .background(theme.tokens.background)
         .task { if scan == nil { await runScan() } }
-        .confirmationDialog(
-            "Apply this safer setting?",
-            isPresented: Binding(
-                get: { findingToFix != nil },
-                set: { if !$0 { findingToFix = nil } }
-            ),
-            presenting: findingToFix
-        ) { finding in
-            Button("Apply reviewed fix") { Task { await applyFix(finding) } }
-            Button("Cancel", role: .cancel) {}
-        } message: { finding in
-            Text("\(finding.recommendation) \(finding.functionalityImpact)")
-        }
+        .sheet(item: $reviewedFix, content: fixReviewSheet)
         .sheet(item: $findingToIgnore) { finding in
             ignoreSheet(finding)
         }
@@ -98,7 +93,7 @@ struct AgentSecurityAnalyzerView: View {
                         ForEach(group.findings) { finding in
                             SecurityFindingCard(
                                 finding: finding,
-                                reviewFix: finding.canFix ? { findingToFix = finding } : nil,
+                                reviewFix: finding.canFix ? { Task { await reviewFix(finding) } } : nil,
                                 ignore: { findingToIgnore = finding }
                             )
                         }
@@ -143,12 +138,48 @@ struct AgentSecurityAnalyzerView: View {
     }
 
     private func applyFix(_ finding: SecurityFindingPresentation) async {
+        reviewedFix = nil
         isLoading = true
         switch await actions.applyFix(finding.id) {
         case .success(let result): scan = result
         case .failure(let error): failure = error
         }
         isLoading = false
+    }
+
+    private func reviewFix(_ finding: SecurityFindingPresentation) async {
+        isLoading = true
+        switch await actions.reviewFix(finding.id) {
+        case .success(let preview): reviewedFix = ReviewedSecurityFix(finding: finding, preview: preview)
+        case .failure(let error): failure = error
+        }
+        isLoading = false
+    }
+
+    private func fixReviewSheet(_ review: ReviewedSecurityFix) -> some View {
+        VStack(alignment: .leading, spacing: NSpacing.lg) {
+            ConsumerFlowHeader(title: "Review changes", explanation: review.finding.recommendation)
+            ConsumerSection("What will change") {
+                ForEach(review.preview.changes, id: \.field) { change in
+                    Label(change.summary, systemImage: "checkmark.circle")
+                }
+            }
+            DisclosureGroup("Advanced configuration") {
+                Text(review.preview.advancedChanges.prettyPrinted)
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+            }
+            HStack {
+                Button("Cancel") { reviewedFix = nil }
+                    .keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("Apply reviewed fix") { Task { await applyFix(review.finding) } }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(NSpacing.xl)
+        .frame(width: 560)
     }
 
     private func ignore(_ finding: SecurityFindingPresentation) async {

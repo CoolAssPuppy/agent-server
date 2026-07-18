@@ -41,6 +41,23 @@ codex_sandbox: workspace-write
 Review notes with a local command.
 `;
 
+const nativeMutationContent = `---
+id: reader
+name: Reader
+tools: [Read, mcp__eventkit__create_event]
+permissions:
+  allow: [Read, mcp__eventkit__create_event]
+  deny: []
+native_services:
+  calendar:
+    resources:
+      - id: work
+        name: Work
+        actions: [create]
+---
+Add an event to the Work calendar.
+`;
+
 describe('security and patch API', () => {
   it('analyzes one agent and the full local collection', async () => {
     const fixture = createFixture();
@@ -125,6 +142,53 @@ describe('security and patch API', () => {
       changes: { tools: ['Read'], disallowed_tools: ['Bash'] },
     });
     await expect(ConfigurationPatchSchema.parseAsync(finding.patch)).resolves.toBeDefined();
+    reviewStore.close();
+  });
+
+  it('does not offer command removal when it would leave the runtime unrestricted', async () => {
+    const unsafeContent = commandContent.replace('tools: [Read, Bash]', 'tools: [Bash]');
+    const repository = new InMemoryAgentContentRepository({ reader: unsafeContent });
+    const reviewStore = new SqliteSecurityReviewStore({ path: ':memory:' });
+    const security = new SecurityAnalysisService({ reviewStore, homeDir: '/Users/example' });
+    const app = new Hono();
+    app.route('/', createAnalysisApi({
+      security,
+      patches: new StructuredPatchService(repository),
+      content: {
+        get: async (id) => ({ content: await repository.read(id), agent: parseAgentFile(await repository.read(id)) }),
+        list: async () => [],
+      },
+    }));
+
+    const body = await (await app.request('/security/agents/reader')).json();
+    const finding = body.findings.find((candidate: { rule_id: string }) => candidate.rule_id === 'permissions.commands');
+
+    expect(finding.patch).toBeUndefined();
+    reviewStore.close();
+  });
+
+  it('removes create-only native access without silently adding read access', async () => {
+    const repository = new InMemoryAgentContentRepository({ reader: nativeMutationContent });
+    const reviewStore = new SqliteSecurityReviewStore({ path: ':memory:' });
+    const security = new SecurityAnalysisService({ reviewStore, homeDir: '/Users/example' });
+    const app = new Hono();
+    app.route('/', createAnalysisApi({
+      security,
+      patches: new StructuredPatchService(repository),
+      content: {
+        get: async (id) => ({ content: await repository.read(id), agent: parseAgentFile(await repository.read(id)) }),
+        list: async () => [],
+      },
+    }));
+
+    const body = await (await app.request('/security/agents/reader')).json();
+    const finding = body.findings.find((candidate: { rule_id: string }) => candidate.rule_id === 'native.state_change');
+
+    expect(finding.patch.changes).toMatchObject({
+      tools: ['Read'],
+      permissions: { allow: ['Read'], deny: ['mcp__eventkit__create_event'] },
+      native_services: { calendar: { resources: [] } },
+    });
     reviewStore.close();
   });
 

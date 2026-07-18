@@ -1,4 +1,7 @@
 import { randomUUID } from 'crypto';
+import { realpathSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { resolve } from 'node:path';
 import { CronExpressionParser } from 'cron-parser';
 import { Document, Scalar, parseDocument } from 'yaml';
 import { z } from 'zod';
@@ -123,9 +126,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isBroadPath(path: string): boolean {
-  return path === '~' || path === '~/' || path === '/'
-    || /^\/Users\/[^/]+\/?$/.test(path);
+export function isUnsafeAutomatedFilePath(path: string): boolean {
+  const expanded = path === '~' ? homedir() : path.startsWith('~/') ? resolve(homedir(), path.slice(2)) : path;
+  const normalized = resolve(expanded);
+  let canonical = normalized;
+  try {
+    canonical = realpathSync(normalized);
+  } catch {
+    // A new path cannot be resolved yet. The normalized absolute path is still checked.
+  }
+  return canonical === '/' || canonical === '/Users'
+    || /^\/Users\/[^/]+\/?$/.test(canonical);
 }
 
 function classifyPatchRisk(
@@ -146,10 +157,10 @@ function classifyPatchRisk(
   if (changes.codex_sandbox === 'workspace-write' && current.codex_sandbox !== 'workspace-write') {
     reasons.push('Allows changes inside the working folder');
   }
-  if (changes.working_directory && isBroadPath(changes.working_directory)) {
+  if (changes.working_directory && isUnsafeAutomatedFilePath(changes.working_directory)) {
     throw new PatchPolicyError('Automated patches cannot grant broad file access');
   }
-  if (changes.file_access?.some((grant) => isBroadPath(grant.path))) {
+  if (changes.file_access?.some((grant) => isUnsafeAutomatedFilePath(grant.path))) {
     throw new PatchPolicyError('Automated patches cannot grant broad file access');
   }
   if (changes.file_access !== undefined) reasons.push('Changes file or folder access');

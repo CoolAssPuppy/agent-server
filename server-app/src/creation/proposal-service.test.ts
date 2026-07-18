@@ -437,6 +437,19 @@ describe('guided agent proposal creation', () => {
     });
   });
 
+  it('does not assume a generic music library means Apple Music', async () => {
+    const result = await createAgentProposal({
+      request: 'Catalog tracks in my music library.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      model: modelReturning(completeProposal()).model,
+    });
+
+    expect(result.status === 'needs_information'
+      ? result.questions.map((question) => question.id)
+      : []).not.toContain('apple-music-unavailable');
+  });
+
   it('re-asks when a Reminder answer is no longer available or allowed', async () => {
     const fake = modelReturning(completeProposal());
     const base = {

@@ -62,6 +62,7 @@ function publicPreview(preview: PatchPreview | PatchApplyResult): Record<string,
 }
 
 const COMMAND_TOOL = /^(?:Bash|bash|shell|terminal|command)(?:$|[_:*])/i;
+const NATIVE_MUTATION_TOOL = /^mcp__eventkit__(?:create|update|delete|complete)_/;
 
 function safeSecurityPatch(
   finding: Finding,
@@ -76,6 +77,9 @@ function safeSecurityPatch(
     reason: finding.recommendation.label,
   };
   if (finding.rule_id === 'permissions.commands') {
+    const remainingTools = agent.tools.filter((tool) => !COMMAND_TOOL.test(tool));
+    const remainingAllowed = agent.permissions?.allow.filter((tool) => !COMMAND_TOOL.test(tool));
+    if (remainingTools.length === 0 && !remainingAllowed?.length) return undefined;
     const removed = [...new Set([
       ...agent.tools.filter((tool) => COMMAND_TOOL.test(tool)),
       ...(agent.permissions?.allow ?? []).filter((tool) => COMMAND_TOOL.test(tool)),
@@ -83,11 +87,11 @@ function safeSecurityPatch(
     return ConfigurationPatchSchema.parse({
       ...base,
       changes: {
-        tools: agent.tools.filter((tool) => !COMMAND_TOOL.test(tool)),
+        ...(remainingTools.length > 0 ? { tools: remainingTools } : {}),
         disallowed_tools: [...new Set([...agent.disallowed_tools, ...removed])],
         ...(agent.permissions ? {
           permissions: {
-            allow: agent.permissions.allow.filter((tool) => !COMMAND_TOOL.test(tool)),
+            allow: remainingAllowed ?? [],
             deny: [...new Set([...agent.permissions.deny, ...removed])],
           },
         } : {}),
@@ -95,22 +99,36 @@ function safeSecurityPatch(
     });
   }
   if (finding.rule_id === 'native.state_change') {
+    const remainingTools = agent.tools.filter((tool) => !NATIVE_MUTATION_TOOL.test(tool));
+    const remainingAllowed = agent.permissions?.allow.filter((tool) => !NATIVE_MUTATION_TOOL.test(tool));
+    if (remainingTools.length === 0 && !remainingAllowed?.length) return undefined;
+    const removed = [...new Set([
+      ...agent.tools.filter((tool) => NATIVE_MUTATION_TOOL.test(tool)),
+      ...(agent.permissions?.allow ?? []).filter((tool) => NATIVE_MUTATION_TOOL.test(tool)),
+    ])];
+    const readOnlyResources = <T extends { actions: string[] }>(resources: T[]) => resources
+      .filter((resource) => resource.actions.includes('read'))
+      .map((resource) => ({ ...resource, actions: ['read'] as const }));
     const nativeServices = agent.native_services ? {
       ...agent.native_services,
       ...(agent.native_services.calendar ? {
-        calendar: { resources: agent.native_services.calendar.resources.map((resource) => ({
-          ...resource, actions: ['read'] as const,
-        })) },
+        calendar: { resources: readOnlyResources(agent.native_services.calendar.resources) },
       } : {}),
       ...(agent.native_services.reminders ? {
-        reminders: { resources: agent.native_services.reminders.resources.map((resource) => ({
-          ...resource, actions: ['read'] as const,
-        })) },
+        reminders: { resources: readOnlyResources(agent.native_services.reminders.resources) },
       } : {}),
     } : undefined;
     return ConfigurationPatchSchema.parse({
       ...base,
       changes: {
+        ...(remainingTools.length > 0 ? { tools: remainingTools } : {}),
+        disallowed_tools: [...new Set([...agent.disallowed_tools, ...removed])],
+        ...(agent.permissions ? {
+          permissions: {
+            allow: remainingAllowed ?? [],
+            deny: [...new Set([...agent.permissions.deny, ...removed])],
+          },
+        } : {}),
         ...(agent.calendar_access ? {
           calendar_access: agent.calendar_access.map((resource) => ({ ...resource, access: 'read_only' as const })),
         } : {}),

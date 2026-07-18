@@ -273,6 +273,11 @@ describe('structured configuration patches', () => {
       changes: { file_access: [{ path: '/Users/example', kind: 'folder', access: 'read_only' }] },
     });
     await expect(service.preview(broad)).rejects.toBeInstanceOf(PatchPolicyError);
+    const traversal = ConfigurationPatchSchema.parse({
+      ...safePatch(),
+      changes: { file_access: [{ path: '/Users/example/Documents/..', kind: 'folder', access: 'read_only' }] },
+    });
+    await expect(service.preview(traversal)).rejects.toBeInstanceOf(PatchPolicyError);
 
     const narrow = ConfigurationPatchSchema.parse({
       ...safePatch(),

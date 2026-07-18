@@ -56,6 +56,7 @@ final class StatusMonitor: ObservableObject {
     private var hasDoneInitialDecisionsPoll = false
     var securityAcknowledgements = SecurityAcknowledgementState()
     var debuggerPatches: [String: (patch: GuidanceConfigurationPatch, preview: GuidancePatchPreview)] = [:]
+    var securityPatches: [String: (patch: GuidanceConfigurationPatch, preview: GuidancePatchPreview)] = [:]
 
     func setServerProcess(_ manager: ServerProcessManager) {
         self.serverProcess = manager

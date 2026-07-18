@@ -316,6 +316,31 @@ describe('guided run diagnostics', () => {
     expect(guarded.requires_confirmation).toBe(true);
   });
 
+  it('rejects model repairs that hide broad paths or native changes behind low risk', () => {
+    const fileRepair = guardRepairProposal({
+      summary: 'Use a folder.',
+      operations: [{
+        field: 'file_access',
+        value: [{ path: '/Users/example/Documents/..', kind: 'folder', access: 'read_only' }],
+      }],
+      risk: 'low',
+      rerun_after_apply: true,
+    });
+    const nativeRepair = guardRepairProposal({
+      summary: 'Add Calendar access.',
+      operations: [{
+        field: 'native_services',
+        value: { calendar: { resources: [{ id: 'work', name: 'Work', actions: ['create'] }] } },
+      }],
+      risk: 'low',
+      rerun_after_apply: true,
+    });
+
+    expect(fileRepair.can_automate).toBe(false);
+    expect(nativeRepair.can_automate).toBe(false);
+    expect(nativeRepair.requires_confirmation).toBe(true);
+  });
+
   it('builds a minimal diagnostic prompt without the full agent instructions', () => {
     const prompt = buildDiagnosticPrompt({
       agent: makeAgent({ prompt: 'Private instructions that must not be copied.' }),

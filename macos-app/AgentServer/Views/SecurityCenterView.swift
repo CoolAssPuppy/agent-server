@@ -62,6 +62,7 @@ struct SecurityCenterView: View {
     private func agentActions(agentId: String) -> AgentSecurityActions {
         AgentSecurityActions(
             scan: { await monitor.analyzeSecurity(agentId: agentId) },
+            reviewFix: { await monitor.reviewSecurityFix(agentId: agentId, findingId: $0) },
             applyFix: { await monitor.applySecurityFix(agentId: agentId, findingId: $0) },
             ignore: { findingId, _ in
                 await monitor.acknowledgeSecurityFinding(agentId: agentId, findingId: findingId)
