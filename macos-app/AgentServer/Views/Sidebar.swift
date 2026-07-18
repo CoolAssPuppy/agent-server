@@ -290,8 +290,8 @@ private struct SidebarRowView: View {
         switch row.state {
         case .idle: return theme.tokens.mutedForeground.opacity(0.7)
         case .needsYou: return theme.tokens.primary
-        case .running: return Color.green
-        case .failed: return Color.red
+        case .running: return theme.tokens.success
+        case .failed: return theme.tokens.destructive
         }
     }
 

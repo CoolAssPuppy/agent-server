@@ -385,8 +385,8 @@ struct AgentDetailDrawer: View {
 
     private func statusColor(for run: Run) -> Color {
         switch run.status {
-        case .completed: return .green
-        case .failed: return .red
+        case .completed: return theme.tokens.success
+        case .failed: return theme.tokens.destructive
         case .running: return theme.tokens.primary
         case .skipped: return theme.tokens.mutedForeground
         }

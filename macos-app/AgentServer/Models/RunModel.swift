@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import NerdsUI
 
 struct Run: Codable, Identifiable {
     var id: String { runId }
@@ -105,12 +106,14 @@ enum RunStatus: String, Codable {
     case failed
     case skipped
 
-    var displayColor: Color {
+    /// Theme-token color for this status, so status colors track the active
+    /// theme instead of hardcoded system colors (the app is multi-theme).
+    func color(_ tokens: ColorTokens) -> Color {
         switch self {
-        case .running: .orange
-        case .completed: .green
-        case .failed: .red
-        case .skipped: .gray
+        case .running: return tokens.warning
+        case .completed: return tokens.success
+        case .failed: return tokens.destructive
+        case .skipped: return tokens.mutedForeground
         }
     }
 
