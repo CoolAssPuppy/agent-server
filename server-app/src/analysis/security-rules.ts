@@ -235,22 +235,29 @@ function analyzePermissions(agent: AgentConfig): Finding[] {
 
 function analyzePaths(agent: AgentConfig, homeDir: string): Finding[] {
   const canWrite = hasAnyPermittedTool(agent, WRITE_TOOLS) || hasAnyPermittedTool(agent, COMMAND_TOOLS);
+  const hasFileGrants = Boolean(agent.file_access?.length);
   const candidates = [
-    ...(agent.file_access?.length ? [] : [{ path: effectiveWorkingDirectory(agent, homeDir), canWrite }]),
-    ...(agent.watch ?? []).map((watch) => ({ path: watch.path, canWrite })),
+    { path: effectiveWorkingDirectory(agent, homeDir), canWrite: hasFileGrants ? false : canWrite, priority: 0 },
+    ...(agent.watch ?? []).map((watch) => ({ path: watch.path, canWrite, priority: 1 })),
     ...(agent.file_access ?? []).map((grant) => ({
       path: grant.path,
       canWrite: grant.access === 'read_write',
+      priority: 2,
     })),
   ];
-  const paths = new Map<string, { result: SensitivePathResult; canWrite: boolean }>();
+  const paths = new Map<string, { result: SensitivePathResult; canWrite: boolean; priority: number }>();
   for (const candidate of candidates) {
     const result = detectSensitivePath(candidate.path, homeDir);
     const existing = paths.get(result.normalizedPath);
-    paths.set(result.normalizedPath, {
-      result,
-      canWrite: candidate.canWrite || existing?.canWrite === true,
-    });
+    if (!existing || candidate.priority > existing.priority) {
+      paths.set(result.normalizedPath, { result, canWrite: candidate.canWrite, priority: candidate.priority });
+    } else if (candidate.priority === existing.priority) {
+      paths.set(result.normalizedPath, {
+        result,
+        canWrite: candidate.canWrite && existing.canWrite,
+        priority: candidate.priority,
+      });
+    }
   }
   return [...paths.values()].flatMap((entry, index) => {
     const { result } = entry;
@@ -363,8 +370,14 @@ function analyzeConnectionsAndAutomation(agent: AgentConfig): Finding[] {
   }
 
   const isAutomatic = Boolean(agent.schedule || agent.watch?.length);
+  const canChangeNativeState = [
+    ...(agent.native_services?.calendar?.resources ?? []),
+    ...(agent.native_services?.reminders?.resources ?? []),
+  ].some((resource) => resource.actions.some((action) => action !== 'read'))
+    || agent.calendar_access?.some((calendar) => calendar.access === 'read_write') === true;
   const canChangeState = hasAnyPermittedTool(agent, WRITE_TOOLS)
-    || hasAnyPermittedTool(agent, COMMAND_TOOLS);
+    || hasAnyPermittedTool(agent, COMMAND_TOOLS)
+    || canChangeNativeState;
   if (isAutomatic && canChangeState) {
     findings.push(finding(
       'trigger.automatic_state_change', 'high', 'This agent can make changes automatically',

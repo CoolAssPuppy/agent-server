@@ -88,7 +88,14 @@ function validateProposal(value: z.infer<typeof AgentProposalSchema>, ctx: z.Ref
     });
   }
   const canModifyCalendar = value.calendar_access.some((calendar) => calendar.access === 'read_write');
-  const powerfulLocalAccess = value.permissions.can_modify_files || value.permissions.can_run_commands || canModifyCalendar;
+  const canModifyNativeService = [
+    ...(value.native_services.calendar?.resources ?? []),
+    ...(value.native_services.reminders?.resources ?? []),
+  ].some((resource) => resource.actions.some((action) => action !== 'read'));
+  const powerfulLocalAccess = value.permissions.can_modify_files
+    || value.permissions.can_run_commands
+    || canModifyCalendar
+    || canModifyNativeService;
   if (powerfulLocalAccess && value.risk.level !== 'high' && value.risk.level !== 'critical') {
     ctx.addIssue({
       code: 'custom',
@@ -146,6 +153,12 @@ export const ProposalRequestSchema = z.object({
   timezone: z.string().trim().min(1).max(120),
   connectedServices: z.array(ConnectedServiceInputSchema).max(64),
   availableCalendars: z.array(z.object({
+    id: z.string().trim().min(1).max(512),
+    name: z.string().trim().min(1).max(160),
+    account: z.string().trim().min(1).max(160),
+    canModify: z.boolean(),
+  }).strict()).max(128).default([]),
+  availableReminderLists: z.array(z.object({
     id: z.string().trim().min(1).max(512),
     name: z.string().trim().min(1).max(160),
     account: z.string().trim().min(1).max(160),

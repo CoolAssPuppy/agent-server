@@ -3,6 +3,7 @@ import { parse as parseYaml } from 'yaml';
 import { InteractionConfigSchema, NotificationConfigSchema } from '../interaction/schema.js';
 import { ConversationConfigSchema } from '../conversation/schema.js';
 import { areApprovedMcpReferences, isApprovedProviderReference, mcpCredentialOwner } from './environment-policy.js';
+import { NativeServicesSchema } from './native-services.js';
 
 const TriggerRefSchema = z.object({
   agent: z.string().min(1),
@@ -197,6 +198,7 @@ export const AgentConfigSchema = z
     on_failure: z.array(TriggerRefSchema).optional(),
     watch: z.array(FileWatchSchema).max(32).optional(),
     calendar_access: z.array(CalendarAccessSchema).max(128).optional(),
+    native_services: NativeServicesSchema.optional(),
     executor: z.enum(['claude-code', 'codex']).optional(),
     model: z.string().trim().min(1).max(120).optional(),
     provider: ProviderConfigSchema.optional(),
@@ -210,6 +212,20 @@ export const AgentConfigSchema = z
   })
   .passthrough()
   .superRefine((agent, ctx) => {
+    if (agent.calendar_access && agent.native_services?.calendar) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['native_services', 'calendar'],
+        message: 'Use either legacy calendar access or native Calendar grants, not both',
+      });
+    }
+    if ((agent.native_services || agent.calendar_access) && agent.mcp_servers?.eventkit) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['mcp_servers', 'eventkit'],
+        message: 'Native service grants require the verified bundled EventKit helper',
+      });
+    }
     for (const [serverName, server] of Object.entries(agent.mcp_servers ?? {})) {
       const values = 'command' in server ? server.env : server.headers;
       const owner = mcpCredentialOwner(serverName, server);

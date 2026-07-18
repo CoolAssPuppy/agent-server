@@ -9,6 +9,9 @@ const FILE_WRITE_TOOLS = ['Write', 'Edit'] as const;
 const WEB_TOOLS = ['WebFetch', 'WebSearch'] as const;
 const CALENDAR_READ_TOOLS = ['mcp__eventkit__list_calendars', 'mcp__eventkit__list_events'] as const;
 const CALENDAR_WRITE_TOOLS = ['mcp__eventkit__create_event', 'mcp__eventkit__update_event'] as const;
+const REMINDER_READ_TOOLS = ['mcp__eventkit__list_reminder_lists', 'mcp__eventkit__list_reminders'] as const;
+const REMINDER_CREATE_TOOL = 'mcp__eventkit__create_reminder';
+const REMINDER_COMPLETE_TOOL = 'mcp__eventkit__complete_reminder';
 
 function serviceToolPattern(id: string): string | undefined {
   const normalized = mcpServerKey(id);
@@ -37,6 +40,12 @@ function explicitToolAllowlist(
   if (proposal.calendar_access.some((calendar) => calendar.access === 'read_write')) {
     CALENDAR_WRITE_TOOLS.forEach((tool) => allow.add(tool));
   }
+  const reminderActions = new Set(
+    proposal.native_services.reminders?.resources.flatMap((resource) => resource.actions) ?? [],
+  );
+  if (reminderActions.has('read')) REMINDER_READ_TOOLS.forEach((tool) => allow.add(tool));
+  if (reminderActions.has('create')) allow.add(REMINDER_CREATE_TOOL);
+  if (reminderActions.has('complete')) allow.add(REMINDER_COMPLETE_TOOL);
 
   const hasWebCapability = proposal.capabilities.some((capability) => (
     capability.required && ['browse-web', 'web', 'internet'].includes(capability.id.toLowerCase())
@@ -111,6 +120,7 @@ export function proposalToAgentConfig(
       name,
       access,
     })),
+    native_services: proposal.native_services,
     tools: allow,
     disallowed_tools: [],
     permissions: { allow, deny: [] },

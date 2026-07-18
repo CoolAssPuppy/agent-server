@@ -1,5 +1,8 @@
 # Lessons
 
+- A status response during an active implementation must not end the work loop.
+  Resume the next concrete task immediately, keep progress updates flowing, and
+  do not imply continued execution when no tool or agent is active.
 - When a task asks for local Apple or macOS development guidance, inspect the
   project owner's dotfiles skill links as well as the session skill catalog
   before finalizing the implementation plan.

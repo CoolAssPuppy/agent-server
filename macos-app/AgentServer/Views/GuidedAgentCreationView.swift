@@ -3,6 +3,36 @@ import UniformTypeIdentifiers
 import NerdsUI
 import AppKit
 
+private extension CreationQuestion.NativeResource {
+    var unavailableTitle: String {
+        switch self {
+        case .calendar: "Calendar access is not available yet."
+        case .reminders: "Reminder access is not available yet."
+        }
+    }
+
+    var recoveryMessage: String {
+        switch self {
+        case .calendar: "Allow Agent Server to view calendars in System Settings, then check again."
+        case .reminders: "Allow Agent Server to view reminders in System Settings, then check again."
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .calendar: "calendar.badge.exclamationmark"
+        case .reminders: "list.bullet.clipboard"
+        }
+    }
+
+    var privacySettingsURL: String {
+        switch self {
+        case .calendar: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars"
+        case .reminders: "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders"
+        }
+    }
+}
+
 enum CreationPreparation {
     case questions([CreationQuestion])
     case proposal(AgentProposalPresentation)
@@ -185,17 +215,17 @@ struct GuidedAgentCreationView: View {
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("Choose when this agent runs")
         case .choice(let choices):
-            if choices.isEmpty, question.id == "calendar-id" {
+            if let unavailableResource = question.unavailableNativeResource {
                 VStack(alignment: .leading, spacing: NSpacing.sm) {
                     Label(
-                        "Calendar access is not available yet.",
-                        systemImage: "calendar.badge.exclamationmark"
+                        unavailableResource.unavailableTitle,
+                        systemImage: unavailableResource.systemImage
                     )
-                    Text("Allow Agent Server to view calendars in System Settings, then check again.")
+                    Text(unavailableResource.recoveryMessage)
                         .font(NTypography.caption)
                         .foregroundStyle(theme.tokens.mutedForeground)
                     HStack {
-                        Button("Open System Settings", action: openCalendarPrivacySettings)
+                        Button("Open System Settings") { openPrivacySettings(for: unavailableResource) }
                         Button("Check again", action: startPreparation)
                             .buttonStyle(.borderedProminent)
                     }
@@ -305,8 +335,8 @@ struct GuidedAgentCreationView: View {
         prepare()
     }
 
-    private func openCalendarPrivacySettings() {
-        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars") else { return }
+    private func openPrivacySettings(for resource: CreationQuestion.NativeResource) {
+        guard let url = URL(string: resource.privacySettingsURL) else { return }
         NSWorkspace.shared.open(url)
     }
 

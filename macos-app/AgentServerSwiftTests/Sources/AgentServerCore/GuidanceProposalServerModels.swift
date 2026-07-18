@@ -93,6 +93,25 @@ public struct GuidanceCalendarResource: Encodable, Equatable, Sendable {
     }
 }
 
+public struct GuidanceReminderListResource: Encodable, Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let account: String
+    public let canModify: Bool
+
+    public init(id: String, name: String, account: String, canModify: Bool) {
+        self.id = id
+        self.name = name
+        self.account = account
+        self.canModify = canModify
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, account
+        case canModify = "can_modify"
+    }
+}
+
 public struct GuidanceServiceRegistryResponse: Decodable, Equatable, Sendable {
     public let connections: [GuidanceServiceConnection]
 
@@ -164,6 +183,7 @@ public struct GuidanceProposalRequest: Encodable, Equatable, Sendable {
     public let timezone: String
     public let connectedServices: [GuidanceConnectedService]
     public let availableCalendars: [GuidanceCalendarResource]
+    public let availableReminderLists: [GuidanceReminderListResource]
     public let answers: [GuidanceProposalAnswer]
 
     public init(
@@ -171,12 +191,14 @@ public struct GuidanceProposalRequest: Encodable, Equatable, Sendable {
         timezone: String,
         connectedServices: [GuidanceConnectedService],
         availableCalendars: [GuidanceCalendarResource] = [],
+        availableReminderLists: [GuidanceReminderListResource] = [],
         answers: [GuidanceProposalAnswer] = []
     ) {
         self.request = request
         self.timezone = timezone
         self.connectedServices = connectedServices
         self.availableCalendars = availableCalendars
+        self.availableReminderLists = availableReminderLists
         self.answers = answers
     }
 
@@ -184,6 +206,7 @@ public struct GuidanceProposalRequest: Encodable, Equatable, Sendable {
         case request, timezone, answers
         case connectedServices = "connected_services"
         case availableCalendars = "available_calendars"
+        case availableReminderLists = "available_reminder_lists"
     }
 }
 
@@ -301,6 +324,32 @@ private struct GuidanceProposalPayload: Decodable, Equatable, Sendable {
         }
     }
 
+    struct NativeServices: Decodable, Equatable, Sendable {
+        struct Service: Decodable, Equatable, Sendable {
+            struct Resource: Decodable, Equatable, Sendable {
+                let id: String
+                let name: String
+                let actions: [String]
+
+                var reminderPresentation: ReminderAccessPresentation {
+                    let labels = actions.compactMap { action in
+                        switch action {
+                        case "read": "View"
+                        case "create": "Add"
+                        case "complete": "Mark complete"
+                        default: nil
+                        }
+                    }
+                    return ReminderAccessPresentation(id: id, name: name, actions: labels)
+                }
+            }
+
+            let resources: [Resource]
+        }
+
+        let reminders: Service?
+    }
+
     struct Permissions: Decodable, Equatable, Sendable {
         let canModifyFiles: Bool
         let canRunCommands: Bool
@@ -333,6 +382,7 @@ private struct GuidanceProposalPayload: Decodable, Equatable, Sendable {
     let connections: [Requirement]
     let fileAccess: [FileAccess]
     let calendarAccess: [CalendarAccess]?
+    let nativeServices: NativeServices?
     let permissions: Permissions
     let risk: SecurityRiskPayload
     let markdownInstructions: String
@@ -341,6 +391,7 @@ private struct GuidanceProposalPayload: Decodable, Equatable, Sendable {
         case name, explanation, trigger, connections, permissions, risk
         case fileAccess = "file_access"
         case calendarAccess = "calendar_access"
+        case nativeServices = "native_services"
         case markdownInstructions = "markdown_instructions"
     }
 
@@ -355,6 +406,7 @@ private struct GuidanceProposalPayload: Decodable, Equatable, Sendable {
             permissions: permissionSummaries,
             fileAccess: fileAccess.map(\.presentation),
             calendarAccess: (calendarAccess ?? []).map(\.presentation),
+            reminderAccess: nativeServices?.reminders?.resources.map(\.reminderPresentation) ?? [],
             connections: connections.map(\.presentation),
             instructions: markdownInstructions,
             risk: risk.consumerLevel,

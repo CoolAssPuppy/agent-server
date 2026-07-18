@@ -32,6 +32,11 @@ public enum CreationAnswerValue: Equatable, Sendable {
 }
 
 public struct CreationQuestion: Identifiable, Equatable, Sendable {
+    public enum NativeResource: Equatable, Sendable {
+        case calendar
+        case reminders
+    }
+
     public enum Kind: Equatable, Sendable {
         case text
         case folder
@@ -51,6 +56,15 @@ public struct CreationQuestion: Identifiable, Equatable, Sendable {
     public var requiresConnectionSetup: Bool {
         if case .service(_, let choices) = kind { return choices.isEmpty }
         return false
+    }
+
+    public var unavailableNativeResource: NativeResource? {
+        guard case .choice(let choices) = kind, choices.isEmpty else { return nil }
+        switch id {
+        case "calendar-id": return .calendar
+        case "reminder-list-id": return .reminders
+        default: return nil
+        }
     }
 
     public init(id: String, prompt: String, kind: Kind, isRequired: Bool, choiceValues: [String] = []) {

@@ -38,6 +38,12 @@ const ProposalApiRequestSchema = z.object({
     account: z.string().trim().min(1).max(160),
     can_modify: z.boolean(),
   }).strict()).max(128).default([]),
+  available_reminder_lists: z.array(z.object({
+    id: z.string().trim().min(1).max(512),
+    name: z.string().trim().min(1).max(160),
+    account: z.string().trim().min(1).max(160),
+    can_modify: z.boolean(),
+  }).strict()).max(128).default([]),
   answers: z.array(ProposalAnswerSchema).max(12).default([]),
 }).strict();
 
@@ -168,6 +174,12 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
           account: calendar.account,
           canModify: calendar.can_modify,
         })),
+        availableReminderLists: request.available_reminder_lists.map((list) => ({
+          id: list.id,
+          name: list.name,
+          account: list.account,
+          canModify: list.can_modify,
+        })),
         answers: request.answers,
       };
       const result = await createAgentProposal({
@@ -213,6 +225,12 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
           name: calendar.name,
           account: calendar.account,
           canModify: calendar.can_modify,
+        })),
+        availableReminderLists: request.available_reminder_lists.map((list) => ({
+          id: list.id,
+          name: list.name,
+          account: list.account,
+          canModify: list.can_modify,
         })),
         answers: request.answers,
       };

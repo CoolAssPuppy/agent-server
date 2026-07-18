@@ -2,6 +2,28 @@ import XCTest
 @testable import AgentServerCore
 
 final class ConsumerProductFlowTests: XCTestCase {
+    func testEmptyCalendarQuestionExplainsHowToRestoreAccess() {
+        let question = CreationQuestion(
+            id: "calendar-id",
+            prompt: "Which calendar may this agent use?",
+            kind: .choice([]),
+            isRequired: true
+        )
+
+        XCTAssertEqual(question.unavailableNativeResource, .calendar)
+    }
+
+    func testEmptyReminderQuestionExplainsHowToRestoreAccess() {
+        let question = CreationQuestion(
+            id: "reminder-list-id",
+            prompt: "Which reminder list may this agent use?",
+            kind: .choice([]),
+            isRequired: true
+        )
+
+        XCTAssertEqual(question.unavailableNativeResource, .reminders)
+    }
+
     func testCreationAsksOnlyUnansweredRequiredQuestions() {
         let questions = [
             CreationQuestion(id: "folder", prompt: "Which folder should it review?", kind: .folder, isRequired: true),

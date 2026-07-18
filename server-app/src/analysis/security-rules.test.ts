@@ -158,6 +158,22 @@ describe('deterministic security analysis', () => {
     expect(result.findings.filter((finding) => finding.rule_id === 'path.sensitive')).toHaveLength(1);
   });
 
+  it('still analyzes a distinct working folder when file grants exist', () => {
+    const result = analyzeAgentSecurity({
+      agent: makeAgent({
+        tools: ['Read'],
+        working_directory: '~/.ssh',
+        file_access: [{ path: '~/Documents/Book', kind: 'folder', access: 'read_only' }],
+      }),
+      rawContent: 'Review the manuscript.',
+      homeDir: '/Users/tester',
+    });
+
+    expect(result.findings).toContainEqual(expect.objectContaining({
+      rule_id: 'path.sensitive', title: expect.stringContaining('SSH'),
+    }));
+  });
+
   it('marks automatic write-capable watchers as high risk', () => {
     const result = analyzeAgentSecurity({
       agent: makeAgent({
@@ -206,6 +222,24 @@ describe('deterministic security analysis', () => {
       'connection.shell_helper',
       'trigger.automatic_state_change',
     ]));
+  });
+
+  it('flags scheduled native service changes', () => {
+    const result = analyzeAgentSecurity({
+      agent: makeAgent({
+        permissions: { allow: ['mcp__eventkit__list_reminders', 'mcp__eventkit__complete_reminder'], deny: [] },
+        native_services: {
+          reminders: {
+            resources: [{ id: 'personal', name: 'Personal', actions: ['read', 'complete'] }],
+          },
+        },
+      }),
+      rawContent: 'Mark matching reminders complete every morning.',
+      homeDir: '/Users/tester',
+    });
+
+    expect(result.risk.level).toBe('high');
+    expect(result.findings.map((item) => item.rule_id)).toContain('trigger.automatic_state_change');
   });
 
   it('produces a stable SHA-256 content hash', () => {

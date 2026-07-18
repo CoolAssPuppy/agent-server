@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { sanitizeText } from '../server/security-utils.js';
 import { FileAccessSchema } from '../agents/config.js';
+import { NativeServicesSchema } from '../agents/native-services.js';
 
 export const RiskSeveritySchema = z.enum(['low', 'needs_review', 'high', 'critical']);
 export type RiskSeverity = z.infer<typeof RiskSeveritySchema>;
@@ -98,6 +99,7 @@ export const AgentProposalSchema = z.object({
   connections: z.array(RequirementSchema).max(64),
   file_access: z.array(FileAccessProposalSchema).max(32),
   calendar_access: z.array(CalendarAccessProposalSchema).max(128).default([]),
+  native_services: NativeServicesSchema.default({}),
   permissions: z.object({
     can_modify_files: z.boolean(),
     can_run_commands: z.boolean(),

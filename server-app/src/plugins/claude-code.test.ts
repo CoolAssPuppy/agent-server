@@ -974,7 +974,7 @@ describe('buildMcpServers eventkit auto-injection', () => {
 
     expect(servers?.eventkit).toMatchObject({
       env: {
-        AGENT_SERVER_CALENDAR_SCOPE: '[{"id":"work-id","access":"read_only"}]',
+        AGENT_SERVER_NATIVE_SERVICE_GRANTS: '{"version":1,"services":{"calendar":{"resources":[{"id":"work-id","name":"Work","actions":["read"]}]}}}',
       },
     });
   });

@@ -86,7 +86,54 @@ function applyConfirmedFileAccess(
       ? { runtime: { executor: 'claude-code' as const, model: null, reason: 'Enforces access to the selected files and folders.' } }
       : {}),
   } : proposal;
-  const parsed = CreationProposalSchema.safeParse(candidate);
+  const parsed = AgentProposalSchema.safeParse(candidate);
+  return parsed.success ? parsed.data : undefined;
+}
+
+function confirmedReminderAccess(request: ProposalRequest) {
+  const selectedId = request.answers.find((answer) => answer.question_id === 'reminder-list-id')?.value;
+  const selectedActions = request.answers.find((answer) => answer.question_id === 'reminder-actions')?.value;
+  if (typeof selectedId !== 'string' || typeof selectedActions !== 'string') return undefined;
+  const resource = request.availableReminderLists.find((candidate) => candidate.id === selectedId);
+  if (!resource) return undefined;
+  const actions = {
+    read_only: ['read'],
+    read_create: ['read', 'create'],
+    read_complete: ['read', 'complete'],
+    read_create_complete: ['read', 'create', 'complete'],
+  }[selectedActions];
+  if (!actions || (!resource.canModify && actions.length > 1)) return undefined;
+  return {
+    reminders: {
+      resources: [{ id: resource.id, name: resource.name, actions }],
+    },
+  };
+}
+
+function confirmedCalendarAccess(request: ProposalRequest) {
+  const selectedId = request.answers.find((answer) => answer.question_id === 'calendar-id')?.value;
+  const selectedAccess = request.answers.find((answer) => answer.question_id === 'calendar-access')?.value;
+  if (typeof selectedId !== 'string' || typeof selectedAccess !== 'string') return undefined;
+  const resource = request.availableCalendars.find((candidate) => candidate.id === selectedId);
+  if (!resource || !['read_only', 'read_write'].includes(selectedAccess)) return undefined;
+  if (!resource.canModify && selectedAccess === 'read_write') return undefined;
+  return [{
+    id: resource.id,
+    name: resource.name,
+    access: selectedAccess as 'read_only' | 'read_write',
+    reason: selectedAccess === 'read_write'
+      ? 'Adds and changes events only in the selected calendar.'
+      : 'Views events only in the selected calendar.',
+  }];
+}
+
+function applyConfirmedNativeAccess(proposal: CreationProposal, request: ProposalRequest): CreationProposal | undefined {
+  const candidate = {
+    ...proposal,
+    calendar_access: confirmedCalendarAccess(request) ?? [],
+    native_services: confirmedReminderAccess(request) ?? {},
+  };
+  const parsed = AgentProposalSchema.safeParse(candidate);
   return parsed.success ? parsed.data : undefined;
 }
 
@@ -95,6 +142,10 @@ function applyAuthoritativeConnections(
   request: ProposalRequest,
 ): CreationProposal | undefined {
   const available = new Map(servicesRelevantToRequest(request).map((service) => [service.id, service]));
+  const selectedIds = explicitlySelectedServiceIds(request);
+  const proposalIds = proposal.connections.map((connection) => connection.id);
+  if (new Set(proposalIds).size !== proposalIds.length
+    || [...selectedIds].some((id) => !proposalIds.includes(id))) return undefined;
   const connections = proposal.connections.map((connection) => {
     const service = available.get(connection.id);
     if (!service) return undefined;
@@ -102,6 +153,7 @@ function applyAuthoritativeConnections(
       ...connection,
       name: service.name,
       status: 'connected' as const,
+      required: selectedIds.has(connection.id) ? true : connection.required,
     };
   });
   if (connections.some((connection) => connection === undefined)) return undefined;
@@ -110,13 +162,15 @@ function applyAuthoritativeConnections(
 
 const RISK_ORDER = { low: 0, needs_review: 1, high: 2, critical: 3 } as const;
 
-function applyDeterministicRisk(proposal: CreationProposal): CreationProposal {
+function applyDeterministicRisk(proposal: CreationProposal): CreationProposal | undefined {
   const agent = proposalToAgentConfig(proposal, deriveProposalAgentId(proposal.name));
   const rawContent = renderReviewedAgentFile(agent);
   const deterministic = analyzeAgentSecurity({ agent, rawContent, homeDir: homedir() }).risk;
-  return RISK_ORDER[deterministic.level] > RISK_ORDER[proposal.risk.level]
+  const candidate = RISK_ORDER[deterministic.level] > RISK_ORDER[proposal.risk.level]
     ? { ...proposal, risk: deterministic }
     : proposal;
+  const parsed = CreationProposalSchema.safeParse(candidate);
+  return parsed.success ? parsed.data : undefined;
 }
 
 function needsFileAccess(intent: string): boolean {
@@ -201,11 +255,8 @@ function unansweredConnectionQuestion(request: ProposalRequest): ProposalFallbac
 
 export function servicesRelevantToRequest(request: ProposalRequest): ProposalRequest['connectedServices'] {
   const intent = request.request.toLowerCase();
-  const selectedIds = new Set(request.answers.flatMap((answer) => (
-    answer.question_id.startsWith('connection-') && typeof answer.value === 'string'
-      ? [answer.value]
-      : []
-  )));
+  const selectedIds = explicitlySelectedServiceIds(request);
+
   const groups = new Map<string, number>();
   for (const service of request.connectedServices) {
     const group = ('service_id' in service ? service.service_id : undefined) ?? service.id;
@@ -225,9 +276,55 @@ export function servicesRelevantToRequest(request: ProposalRequest): ProposalReq
   });
 }
 
+function explicitlySelectedServiceIds(request: ProposalRequest): Set<string> {
+  return new Set(request.answers.flatMap((answer) => (
+    answer.question_id.startsWith('connection-') && typeof answer.value === 'string'
+      ? [answer.value]
+      : []
+  )));
+}
+
 function unansweredScopeQuestion(request: ProposalRequest): ProposalFallbackQuestion | undefined {
   const intent = request.request.toLowerCase();
   const answers = new Set(request.answers.map((answer) => answer.question_id));
+  if (/\b(reminders?|to-?dos?|tasks?)\b/.test(intent)) {
+    const selectedId = request.answers.find((answer) => answer.question_id === 'reminder-list-id')?.value;
+    const selected = request.availableReminderLists.find((list) => list.id === selectedId);
+    if (!answers.has('reminder-list-id') || !selected) {
+      return {
+        id: 'reminder-list-id',
+        question: 'Which reminder list may this agent use?',
+        control: 'single_choice',
+        required: true,
+        choices: request.availableReminderLists.map((list) => ({
+          label: `${list.name} (${list.account})`,
+          value: list.id,
+        })),
+      };
+    }
+    const selectedActions = request.answers.find((answer) => answer.question_id === 'reminder-actions')?.value;
+    const allowedActions = selected.canModify
+      ? new Set(['read_only', 'read_create', 'read_complete', 'read_create_complete'])
+      : new Set(['read_only']);
+    if (!answers.has('reminder-actions')
+      || typeof selectedActions !== 'string'
+      || !allowedActions.has(selectedActions)) {
+      return {
+        id: 'reminder-actions',
+        question: 'What may this agent do with reminders in this list?',
+        control: 'single_choice',
+        required: true,
+        choices: [
+          { label: 'View reminders only', value: 'read_only' },
+          ...(selected?.canModify ? [
+            { label: 'View and add reminders', value: 'read_create' },
+            { label: 'View and mark reminders complete', value: 'read_complete' },
+            { label: 'View, add, and mark complete', value: 'read_create_complete' },
+          ] : []),
+        ],
+      };
+    }
+  }
   if (needsFileAccess(intent)) {
     if (!answers.has('file-access')) {
       return {
@@ -239,7 +336,9 @@ function unansweredScopeQuestion(request: ProposalRequest): ProposalFallbackQues
     }
   }
   if (/\b(calendar|calendars|events|appointments)\b/.test(intent)) {
-    if (!answers.has('calendar-id')) {
+    const selectedId = request.answers.find((answer) => answer.question_id === 'calendar-id')?.value;
+    const selected = request.availableCalendars.find((calendar) => calendar.id === selectedId);
+    if (!answers.has('calendar-id') || !selected) {
       return {
         id: 'calendar-id',
         question: 'Which calendar may this agent use?',
@@ -251,9 +350,11 @@ function unansweredScopeQuestion(request: ProposalRequest): ProposalFallbackQues
         })),
       };
     }
-    if (!answers.has('calendar-access')) {
-      const selectedId = request.answers.find((answer) => answer.question_id === 'calendar-id')?.value;
-      const selected = request.availableCalendars.find((calendar) => calendar.id === selectedId);
+    const selectedAccess = request.answers.find((answer) => answer.question_id === 'calendar-access')?.value;
+    const allowedAccess = selected.canModify ? new Set(['read_only', 'read_write']) : new Set(['read_only']);
+    if (!answers.has('calendar-access')
+      || typeof selectedAccess !== 'string'
+      || !allowedAccess.has(selectedAccess)) {
       return {
         id: 'calendar-access',
         question: 'May this agent only view events, or may it add and change them?',
@@ -278,6 +379,7 @@ export async function createAgentProposal(input: CreateProposalInput): Promise<P
     timezone: input.timezone,
     connectedServices: input.connectedServices,
     availableCalendars: input.availableCalendars,
+    availableReminderLists: input.availableReminderLists,
     answers: input.answers,
   });
   const scopeQuestion = unansweredConnectionQuestion(request) ?? unansweredScopeQuestion(request);
@@ -303,17 +405,18 @@ export async function createAgentProposal(input: CreateProposalInput): Promise<P
       const value = await input.model.generate(prompt, outputSchema, { requestKey: 'agent-proposal' });
       const parsedProposal = parseModelValue(value);
       const withFiles = parsedProposal ? applyConfirmedFileAccess(parsedProposal, request) : undefined;
-      if (withFiles && (withFiles.missing_information.length > 0
-        || withFiles.questions.some((question) => question.required))) {
+      const withNativeAccess = withFiles ? applyConfirmedNativeAccess(withFiles, request) : undefined;
+      if (withNativeAccess && (withNativeAccess.missing_information.length > 0
+        || withNativeAccess.questions.some((question) => question.required))) {
         return {
           status: 'needs_information',
-          questions: withFiles.questions,
-          explanation: withFiles.explanation,
+          questions: withNativeAccess.questions,
+          explanation: withNativeAccess.explanation,
           usedFallback: false,
           modelStatus: 'completed',
         };
       }
-      const withConnections = withFiles ? applyAuthoritativeConnections(withFiles, request) : undefined;
+      const withConnections = withNativeAccess ? applyAuthoritativeConnections(withNativeAccess, request) : undefined;
       const proposal = withConnections ? applyDeterministicRisk(withConnections) : undefined;
       if (proposal) {
         return { status: 'proposal', proposal, usedFallback: false };

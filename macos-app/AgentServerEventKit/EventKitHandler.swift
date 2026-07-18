@@ -3,6 +3,9 @@ import Foundation
 
 final class EventKitHandler: MCPHandler {
     private let store = EKEventStore()
+    private let grantPolicy = NativeServiceGrantPolicy(
+        environmentValue: ProcessInfo.processInfo.environment["AGENT_SERVER_NATIVE_SERVICE_GRANTS"]
+    )
     private let calendarScope: [String: String]? = {
         guard let raw = ProcessInfo.processInfo.environment["AGENT_SERVER_CALENDAR_SCOPE"],
               let data = raw.data(using: .utf8),
@@ -111,6 +114,7 @@ final class EventKitHandler: MCPHandler {
 
         var listRemindersProps: [String: Any] = [:]
         listRemindersProps["list"] = ["type": "string", "description": "Optional reminder list title"]
+        listRemindersProps["listId"] = ["type": "string", "description": "Selected reminder list identifier"]
         listRemindersProps["completed"] = ["type": "boolean", "description": "Optional filter: true for completed, false for incomplete, omit for all"]
         var listRemindersSchema: [String: Any] = [:]
         listRemindersSchema["type"] = "object"
@@ -125,6 +129,7 @@ final class EventKitHandler: MCPHandler {
         createReminderProps["title"] = stringProp
         createReminderProps["dueDate"] = ["type": "string", "description": "Optional ISO 8601 due date/time"]
         createReminderProps["list"] = ["type": "string", "description": "Optional reminder list title. Defaults to the default list."]
+        createReminderProps["listId"] = ["type": "string", "description": "Selected writable reminder list identifier"]
         createReminderProps["notes"] = stringProp
         var createReminderSchema: [String: Any] = [:]
         createReminderSchema["type"] = "object"
@@ -148,10 +153,13 @@ final class EventKitHandler: MCPHandler {
             inputSchema: completeReminderSchema
         ))
 
-        return result
+        return result.filter { grantPolicy.permitsTool($0.name) }
     }
 
     func call(name: String, arguments: [String: Any]) throws -> String {
+        guard grantPolicy.permitsTool(name) else {
+            throw MCPError.methodNotFound(name)
+        }
         switch name {
         case "list_calendars": return try listCalendars()
         case "list_events": return try listEvents(args: arguments)
@@ -238,7 +246,8 @@ final class EventKitHandler: MCPHandler {
                 "id": calendar.calendarIdentifier,
                 "title": calendar.title,
                 "source": calendar.source?.title ?? "",
-                "allowsModification": calendar.allowsContentModifications
+                "allowsModification": canUseCalendar(calendar, action: "create")
+                    || canUseCalendar(calendar, action: "update")
             ]
         }
 
@@ -255,7 +264,7 @@ final class EventKitHandler: MCPHandler {
             throw MCPError.invalidParams("end must be an ISO 8601 date/time string")
         }
 
-        var calendars: [EKCalendar]? = allowedEventCalendars()
+        var calendars: [EKCalendar]? = allowedEventCalendars(action: "read")
         if let id = args["calendarId"] as? String, !id.isEmpty {
             calendars = calendars?.filter { $0.calendarIdentifier == id }
             if calendars?.isEmpty == true {
@@ -307,7 +316,8 @@ final class EventKitHandler: MCPHandler {
         event.notes = args["notes"] as? String
         event.isAllDay = (args["isAllDay"] as? Bool) ?? false
 
-        let writableCalendars = allowedEventCalendars().filter(canModifyCalendar)
+        let writableCalendars = allowedEventCalendars(action: "create")
+            .filter(\.allowsContentModifications)
         if let calendarId = args["calendarId"] as? String, !calendarId.isEmpty {
             guard let calendar = writableCalendars.first(where: { $0.calendarIdentifier == calendarId }) else {
                 throw MCPError.invalidParams("That calendar cannot be changed by this agent")
@@ -318,7 +328,7 @@ final class EventKitHandler: MCPHandler {
                 throw MCPError.invalidParams("Calendar not found: \(calendarTitle)")
             }
             event.calendar = calendar
-        } else if calendarScope != nil {
+        } else if grantPolicy.mode == .scoped || calendarScope != nil {
             guard writableCalendars.count == 1, let calendar = writableCalendars.first else {
                 throw MCPError.invalidParams("Choose one calendar this agent may change")
             }
@@ -353,7 +363,7 @@ final class EventKitHandler: MCPHandler {
         guard let event = store.event(withIdentifier: id) else {
             throw MCPError.toolFailed("Event not found: \(id)")
         }
-        guard canModifyCalendar(event.calendar) else {
+        guard canUseCalendar(event.calendar, action: "update") else {
             throw MCPError.toolFailed("This agent can only view that calendar")
         }
 
@@ -387,7 +397,7 @@ final class EventKitHandler: MCPHandler {
         guard let event = store.event(withIdentifier: id) else {
             throw MCPError.toolFailed("Event not found: \(id)")
         }
-        if calendarScope != nil {
+        if grantPolicy.mode == .scoped || calendarScope != nil {
             throw MCPError.toolFailed("Deleting calendar events was not approved for this agent")
         }
 
@@ -405,7 +415,7 @@ final class EventKitHandler: MCPHandler {
     private func listReminderLists() throws -> String {
         try ensureReminderAccess()
 
-        let lists = store.calendars(for: .reminder).map { calendar -> [String: Any] in
+        let lists = allowedReminderLists(action: "read").map { calendar -> [String: Any] in
             [
                 "id": calendar.calendarIdentifier,
                 "title": calendar.title,
@@ -419,9 +429,17 @@ final class EventKitHandler: MCPHandler {
     private func listReminders(args: [String: Any]) throws -> String {
         try ensureReminderAccess()
 
-        var calendars: [EKCalendar]?
-        if let title = args["list"] as? String, !title.isEmpty {
-            calendars = store.calendars(for: .reminder).filter { $0.title == title }
+        var calendars: [EKCalendar]? = allowedReminderLists(action: "read")
+        if let id = args["listId"] as? String, !id.isEmpty {
+            calendars = calendars?.filter { $0.calendarIdentifier == id }
+            if calendars?.isEmpty == true {
+                throw MCPError.invalidParams("That reminder list is not available to this agent")
+            }
+        } else if let title = args["list"] as? String, !title.isEmpty {
+            guard grantPolicy.mode == .legacy else {
+                throw MCPError.invalidParams("Choose a reminder list by its identifier")
+            }
+            calendars = calendars?.filter { $0.title == title }
             if calendars?.isEmpty == true {
                 throw MCPError.invalidParams("Reminder list not found: \(title)")
             }
@@ -474,9 +492,23 @@ final class EventKitHandler: MCPHandler {
         reminder.title = title
         reminder.notes = args["notes"] as? String
 
-        if let listTitle = args["list"] as? String, !listTitle.isEmpty {
-            guard let list = store.calendars(for: .reminder).first(where: { $0.title == listTitle }) else {
+        let writableLists = allowedReminderLists(action: "create").filter(\.allowsContentModifications)
+        if let listId = args["listId"] as? String, !listId.isEmpty {
+            guard let list = writableLists.first(where: { $0.calendarIdentifier == listId }) else {
+                throw MCPError.invalidParams("That reminder list cannot be changed by this agent")
+            }
+            reminder.calendar = list
+        } else if let listTitle = args["list"] as? String, !listTitle.isEmpty {
+            guard grantPolicy.mode == .legacy else {
+                throw MCPError.invalidParams("Choose a reminder list by its identifier")
+            }
+            guard let list = writableLists.first(where: { $0.title == listTitle }) else {
                 throw MCPError.invalidParams("Reminder list not found: \(listTitle)")
+            }
+            reminder.calendar = list
+        } else if grantPolicy.mode == .scoped {
+            guard writableLists.count == 1, let list = writableLists.first else {
+                throw MCPError.invalidParams("Choose one reminder list this agent may change")
             }
             reminder.calendar = list
         } else {
@@ -515,6 +547,9 @@ final class EventKitHandler: MCPHandler {
         guard let item = store.calendarItem(withIdentifier: id) as? EKReminder else {
             throw MCPError.toolFailed("Reminder not found: \(id)")
         }
+        guard canUseReminderList(item.calendar, action: "complete") else {
+            throw MCPError.toolFailed("Reminder not found: \(id)")
+        }
 
         item.isCompleted = true
 
@@ -529,16 +564,37 @@ final class EventKitHandler: MCPHandler {
 
     // MARK: - Helpers
 
-    private func allowedEventCalendars() -> [EKCalendar] {
+    private func allowedEventCalendars(action: String = "read") -> [EKCalendar] {
         let calendars = store.calendars(for: .event)
+        if grantPolicy.mode == .scoped {
+            let allowed = Set(grantPolicy.availableResourceIds(service: .calendar, action: action))
+            return calendars.filter { allowed.contains($0.calendarIdentifier) }
+        }
         guard let calendarScope else { return calendars }
         return calendars.filter { calendarScope[$0.calendarIdentifier] != nil }
     }
 
-    private func canModifyCalendar(_ calendar: EKCalendar) -> Bool {
+    private func canUseCalendar(_ calendar: EKCalendar, action: String) -> Bool {
+        if grantPolicy.mode == .scoped {
+            return grantPolicy.allows(service: .calendar, resourceId: calendar.calendarIdentifier, action: action)
+                && calendar.allowsContentModifications
+        }
         guard let calendarScope else { return calendar.allowsContentModifications }
         return calendarScope[calendar.calendarIdentifier] == "read_write"
             && calendar.allowsContentModifications
+    }
+
+    private func allowedReminderLists(action: String) -> [EKCalendar] {
+        let lists = store.calendars(for: .reminder)
+        guard grantPolicy.mode == .scoped else { return lists }
+        let allowed = Set(grantPolicy.availableResourceIds(service: .reminders, action: action))
+        return lists.filter { allowed.contains($0.calendarIdentifier) }
+    }
+
+    private func canUseReminderList(_ list: EKCalendar, action: String) -> Bool {
+        guard grantPolicy.mode == .scoped else { return list.allowsContentModifications }
+        return grantPolicy.allows(service: .reminders, resourceId: list.calendarIdentifier, action: action)
+            && list.allowsContentModifications
     }
 
     private func parseDate(_ value: Any?) -> Date? {

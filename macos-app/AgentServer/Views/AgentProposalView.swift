@@ -23,9 +23,27 @@ struct AgentProposalView: View {
             if !proposal.connections.isEmpty { connections }
             if !proposal.fileAccess.isEmpty { files }
             if !proposal.calendarAccess.isEmpty { calendars }
+            if !proposal.reminderAccess.isEmpty { reminders }
             permissions
             safety
             instructions
+        }
+    }
+
+    private var reminders: some View {
+        ConsumerSection("Reminder lists this agent can access") {
+            VStack(spacing: NSpacing.xs) {
+                ForEach(proposal.reminderAccess, id: \.id) { access in
+                    HStack {
+                        Image(systemName: "list.bullet.clipboard")
+                        Text(access.name)
+                        Spacer()
+                        Text(access.actions.joined(separator: ", "))
+                            .font(NTypography.badge)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+            }
         }
     }
 

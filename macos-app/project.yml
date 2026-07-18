@@ -165,6 +165,7 @@ targets:
     platform: macOS
     sources:
       - AgentServerEventKit
+      - path: AgentServerSwiftTests/Sources/AgentServerCore/NativeServiceGrantPolicy.swift
     settings:
       base:
         PRODUCT_NAME: agent-server-eventkit

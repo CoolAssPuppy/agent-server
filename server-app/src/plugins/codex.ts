@@ -7,6 +7,7 @@ import type { ExecutionResult, ToolCallTrace } from '../execution/executor.js';
 import { truncate } from '../execution/executor.js';
 import type { Reporter } from '../execution/runner.js';
 import { parseInteractionBlock } from '../interaction/parser.js';
+import { nativeServiceGrantEnvironment } from '../agents/native-services.js';
 
 type ExecuteCodexExtra = {
   abortController?: AbortController;
@@ -112,11 +113,11 @@ function getCodexConfig(agent: AgentConfig): Record<string, Record<string, Codex
   );
   const eventKitBin = process.env.AGENT_SERVER_EVENTKIT_BIN;
   if (eventKitBin && !servers.eventkit) {
-    const scope = agent.calendar_access?.map(({ id, access }) => ({ id, access }));
+    const grants = nativeServiceGrantEnvironment(agent);
     servers.eventkit = {
       command: eventKitBin,
-      ...(scope && scope.length > 0
-        ? { env: { AGENT_SERVER_CALENDAR_SCOPE: JSON.stringify(scope) } }
+      ...(grants !== undefined
+        ? { env: { AGENT_SERVER_NATIVE_SERVICE_GRANTS: grants } }
         : {}),
       enabled: true,
       required: true,

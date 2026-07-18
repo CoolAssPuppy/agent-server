@@ -263,6 +263,84 @@ describe('guided agent proposal creation', () => {
     });
     expect(fake.calls()).toBe(0);
   });
+
+  it('asks which Reminder list and which exact changes it may make', async () => {
+    const proposal = completeProposal();
+    proposal.connections = [];
+    proposal.notification_destination = null;
+    proposal.permissions.can_use_connected_apps = true;
+    proposal.permissions.can_send_messages = false;
+    const fake = modelReturning(proposal);
+    const base = {
+      request: 'Review my reminders every morning.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      availableReminderLists: [
+        { id: 'personal-id', name: 'Personal', account: 'iCloud', canModify: true },
+        { id: 'shared-id', name: 'Shared', account: 'iCloud', canModify: false },
+      ],
+      model: fake.model,
+    };
+
+    const list = await createAgentProposal({ ...base, answers: [] });
+    const actions = await createAgentProposal({
+      ...base, answers: [{ question_id: 'reminder-list-id', value: 'personal-id' }],
+    });
+    const ready = await createAgentProposal({
+      ...base,
+      answers: [
+        { question_id: 'reminder-list-id', value: 'personal-id' },
+        { question_id: 'reminder-actions', value: 'read_create_complete' },
+      ],
+    });
+
+    expect(list).toMatchObject({
+      status: 'needs_information',
+      questions: [{ id: 'reminder-list-id', choices: [{ value: 'personal-id' }, { value: 'shared-id' }] }],
+    });
+    expect(actions).toMatchObject({
+      status: 'needs_information', questions: [{ id: 'reminder-actions' }],
+    });
+    expect(ready).toMatchObject({
+      status: 'proposal',
+      proposal: { native_services: { reminders: { resources: [{
+        id: 'personal-id', name: 'Personal', actions: ['read', 'create', 'complete'],
+      }] } } },
+    });
+  });
+
+  it('re-asks when a Reminder answer is no longer available or allowed', async () => {
+    const fake = modelReturning(completeProposal());
+    const base = {
+      request: 'Review my reminders every morning.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      availableReminderLists: [
+        { id: 'personal-id', name: 'Personal', account: 'iCloud', canModify: false },
+      ],
+      model: fake.model,
+    };
+
+    const missingList = await createAgentProposal({
+      ...base,
+      answers: [{ question_id: 'reminder-list-id', value: 'removed-id' }],
+    });
+    const forbiddenAction = await createAgentProposal({
+      ...base,
+      answers: [
+        { question_id: 'reminder-list-id', value: 'personal-id' },
+        { question_id: 'reminder-actions', value: 'read_create' },
+      ],
+    });
+
+    expect(missingList).toMatchObject({
+      status: 'needs_information', questions: [{ id: 'reminder-list-id' }],
+    });
+    expect(forbiddenAction).toMatchObject({
+      status: 'needs_information', questions: [{ id: 'reminder-actions' }],
+    });
+    expect(fake.calls()).toBe(0);
+  });
   it('returns required model questions before issuing a proposal', async () => {
     const fake = modelReturning(validProposal());
 
@@ -320,15 +398,49 @@ describe('guided agent proposal creation', () => {
     expect(config.permissions?.allow).not.toContain('mcp__eventkit__delete_event');
   });
 
-  it('rejects contradictory privilege and trigger claims before use', async () => {
-    const unsafe = validProposal();
+  it('replaces model-owned Calendar access with the reviewed selection', async () => {
+    const proposal = completeProposal();
+    proposal.calendar_access = [{
+      id: 'invented-id', name: 'Every calendar', access: 'read_write', reason: 'Model suggestion.',
+    }];
+    proposal.connections = [];
+    proposal.notification_destination = null;
+    proposal.permissions.can_use_connected_apps = true;
+    proposal.permissions.can_send_messages = false;
+    proposal.permissions.requires_network = false;
+    proposal.risk.level = 'high';
+
+    const result = await createAgentProposal({
+      request: 'Review my calendar every morning.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      availableCalendars: [{ id: 'work-id', name: 'Work', account: 'iCloud', canModify: true }],
+      answers: [
+        { question_id: 'calendar-id', value: 'work-id' },
+        { question_id: 'calendar-access', value: 'read_only' },
+      ],
+      model: modelReturning(proposal).model,
+    });
+
+    expect(result).toMatchObject({
+      status: 'proposal',
+      proposal: {
+        calendar_access: [{ id: 'work-id', name: 'Work', access: 'read_only' }],
+      },
+    });
+  });
+
+  it('replaces contradictory model file permissions with the reviewed grant', async () => {
+    const unsafe = completeProposal();
     unsafe.permissions = {
       can_modify_files: false,
       can_run_commands: false,
-      requires_network: true,
-      can_use_connected_apps: true,
-      can_send_messages: true,
+      requires_network: false,
+      can_use_connected_apps: false,
+      can_send_messages: false,
     };
+    unsafe.connections = [];
+    unsafe.notification_destination = null;
     unsafe.file_access = [{
       path: '~/Documents',
       access: 'read_write',
@@ -347,8 +459,11 @@ describe('guided agent proposal creation', () => {
       model: fake.model,
     });
 
-    expect(result.status).toBe('needs_information');
-    expect(fake.calls()).toBe(2);
+    expect(result).toMatchObject({
+      status: 'proposal',
+      proposal: { permissions: { can_modify_files: true } },
+    });
+    expect(fake.calls()).toBe(1);
   });
 
   it('rejects command execution combined with exact file scopes', () => {
@@ -750,6 +865,37 @@ describe('guided agent proposal creation', () => {
     });
 
     expect(servicesRelevantToRequest(request)).toEqual([]);
+  });
+
+  it('keeps an explicitly selected connection required and rejects duplicates', async () => {
+    const selected = completeProposal();
+    selected.connections = [{
+      id: 'notion-personal', name: 'Wrong', required: false, status: 'optional', reason: 'Stores the note.',
+    }];
+    selected.notification_destination = null;
+    selected.permissions.can_send_messages = false;
+    const duplicated = structuredClone(selected);
+    duplicated.connections.push(structuredClone(duplicated.connections[0]));
+    const service = {
+      id: 'notion-personal', service_id: 'notion', name: 'Personal Notion', source: 'configured_api' as const,
+      actions: ['read', 'write'] as const, actions_known: true,
+    };
+
+    const accepted = await createAgentProposal({
+      request: 'Store a note in Notion.', timezone: 'Europe/Lisbon', connectedServices: [service],
+      answers: [{ question_id: 'connection-notion', value: 'notion-personal' }],
+      model: modelReturning(selected).model,
+    });
+    const rejected = await createAgentProposal({
+      request: 'Store a note in Notion.', timezone: 'Europe/Lisbon', connectedServices: [service],
+      answers: [{ question_id: 'connection-notion', value: 'notion-personal' }],
+      model: modelReturning(duplicated, duplicated).model,
+    });
+
+    expect(accepted).toMatchObject({
+      status: 'proposal', proposal: { connections: [{ id: 'notion-personal', required: true }] },
+    });
+    expect(rejected).toMatchObject({ status: 'needs_information', usedFallback: true });
   });
 
   it('raises the proposal risk for read-only access to sensitive files', async () => {

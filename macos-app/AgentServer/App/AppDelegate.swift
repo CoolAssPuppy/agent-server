@@ -11,7 +11,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     let monitor = StatusMonitor()
     private let serverProcess = ServerProcessManager()
     private let notificationManager = NotificationManager()
-    private let eventKitPermissionManager = EventKitPermissionManager()
     private let updaterManager = UpdaterManager.shared
     private let themeManager = ThemeManager.shared
     private var cancellables = Set<AnyCancellable>()
@@ -37,7 +36,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         subscribeToUpdates()
 
         notificationManager.requestAuthorization()
-        eventKitPermissionManager.requestAccessIfNeeded()
         monitor.setServerProcess(serverProcess)
         monitor.setNotificationManager(notificationManager)
 

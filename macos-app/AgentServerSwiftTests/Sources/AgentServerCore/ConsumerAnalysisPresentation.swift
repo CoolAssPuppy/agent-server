@@ -77,6 +77,18 @@ public struct CalendarAccessPresentation: Equatable, Sendable {
     }
 }
 
+public struct ReminderAccessPresentation: Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let actions: [String]
+
+    public init(id: String, name: String, actions: [String]) {
+        self.id = id
+        self.name = name
+        self.actions = actions
+    }
+}
+
 public struct AgentProposalPresentation: Equatable, Sendable {
     public let reviewId: String?
     public let name: String
@@ -85,6 +97,7 @@ public struct AgentProposalPresentation: Equatable, Sendable {
     public let permissions: [String]
     public let fileAccess: [FileAccessPresentation]
     public let calendarAccess: [CalendarAccessPresentation]
+    public let reminderAccess: [ReminderAccessPresentation]
     public let connections: [ConnectionPresentation]
     public let instructions: String
     public let risk: ConsumerRiskLevel
@@ -98,6 +111,7 @@ public struct AgentProposalPresentation: Equatable, Sendable {
         permissions: [String],
         fileAccess: [FileAccessPresentation],
         calendarAccess: [CalendarAccessPresentation] = [],
+        reminderAccess: [ReminderAccessPresentation] = [],
         connections: [ConnectionPresentation],
         instructions: String,
         risk: ConsumerRiskLevel,
@@ -110,6 +124,7 @@ public struct AgentProposalPresentation: Equatable, Sendable {
         self.permissions = permissions
         self.fileAccess = fileAccess
         self.calendarAccess = calendarAccess
+        self.reminderAccess = reminderAccess
         self.connections = connections
         self.instructions = instructions
         self.risk = risk
