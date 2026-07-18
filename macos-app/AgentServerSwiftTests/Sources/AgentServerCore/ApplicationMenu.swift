@@ -1,8 +1,10 @@
 import AppKit
 
 public enum ApplicationMenuPolicy {
-    public static func needsInstallation(submenuTitles: [String]) -> Bool {
-        !submenuTitles.contains("Edit")
+    private static let requiredEditActions = Set(["cut:", "copy:", "paste:", "selectAll:"])
+
+    public static func needsEditMenuInstallation(actionNames: [String]) -> Bool {
+        !requiredEditActions.isSubset(of: Set(actionNames))
     }
 }
 

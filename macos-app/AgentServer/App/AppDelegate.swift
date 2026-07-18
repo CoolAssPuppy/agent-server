@@ -82,10 +82,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
 private extension AppDelegate {
     func installMainMenuIfNeeded() {
-        let submenuTitles = NSApp.mainMenu?.items.compactMap { $0.submenu?.title } ?? []
-        if ApplicationMenuPolicy.needsInstallation(submenuTitles: submenuTitles) {
+        guard let mainMenu = NSApp.mainMenu else {
             setupMainMenu()
+            return
         }
+        if !mainMenu.items.contains(where: { $0.submenu?.title == "File" }) {
+            mainMenu.insertItem(makeFileMenuItem(), at: min(1, mainMenu.items.count))
+        }
+        let editItem = mainMenu.items.first(where: { $0.submenu?.title == "Edit" })
+        let actionNames = editItem?.submenu?.items.compactMap { $0.action.map(NSStringFromSelector) } ?? []
+        guard ApplicationMenuPolicy.needsEditMenuInstallation(actionNames: actionNames) else { return }
+        if let editItem {
+            editItem.submenu = StandardEditMenu.make()
+        } else {
+            let item = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
+            item.submenu = StandardEditMenu.make()
+            let fileIndex = mainMenu.items.firstIndex(where: { $0.submenu?.title == "File" }) ?? 0
+            mainMenu.insertItem(item, at: min(fileIndex + 1, mainMenu.items.count))
+        }
+    }
+
+    func makeFileMenuItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "File", action: nil, keyEquivalent: "")
+        let menu = NSMenu(title: "File")
+        let newAgent = NSMenuItem(title: "New Agent", action: #selector(showNewAgent), keyEquivalent: "n")
+        newAgent.target = self
+        menu.addItem(newAgent)
+        item.submenu = menu
+        return item
     }
 
     func setupMainMenu() {
@@ -156,13 +180,7 @@ private extension AppDelegate {
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
 
-        let fileMenuItem = NSMenuItem(title: "File", action: nil, keyEquivalent: "")
-        let fileMenu = NSMenu(title: "File")
-        let newAgent = NSMenuItem(title: "New Agent", action: #selector(showNewAgent), keyEquivalent: "n")
-        newAgent.target = self
-        fileMenu.addItem(newAgent)
-        fileMenuItem.submenu = fileMenu
-        mainMenu.addItem(fileMenuItem)
+        mainMenu.addItem(makeFileMenuItem())
 
         // Edit menu — standard text editing shortcuts
         let editMenuItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")

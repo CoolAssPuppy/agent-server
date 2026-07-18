@@ -4,12 +4,11 @@ import XCTest
 
 @MainActor
 final class ApplicationMenuTests: XCTestCase {
-    func testRepairsAMenuThatSwiftUIReplacedWithoutEditCommands() {
-        XCTAssertTrue(ApplicationMenuPolicy.needsInstallation(submenuTitles: [
-            "Apple", "Agent Server", "View", "Window", "Help",
-        ]))
-        XCTAssertFalse(ApplicationMenuPolicy.needsInstallation(submenuTitles: [
-            "Agent Server", "File", "Edit", "Window",
+    func testRepairsMissingOrIncompleteEditCommands() {
+        XCTAssertTrue(ApplicationMenuPolicy.needsEditMenuInstallation(actionNames: []))
+        XCTAssertTrue(ApplicationMenuPolicy.needsEditMenuInstallation(actionNames: ["copy:", "paste:"]))
+        XCTAssertFalse(ApplicationMenuPolicy.needsEditMenuInstallation(actionNames: [
+            "undo:", "cut:", "copy:", "paste:", "selectAll:",
         ]))
     }
 
