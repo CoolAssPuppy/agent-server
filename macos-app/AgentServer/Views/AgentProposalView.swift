@@ -22,9 +22,27 @@ struct AgentProposalView: View {
             }
             if !proposal.connections.isEmpty { connections }
             if !proposal.fileAccess.isEmpty { files }
+            if !proposal.calendarAccess.isEmpty { calendars }
             permissions
             safety
             instructions
+        }
+    }
+
+    private var calendars: some View {
+        ConsumerSection("Calendars this agent can access") {
+            VStack(spacing: NSpacing.xs) {
+                ForEach(proposal.calendarAccess, id: \.id) { access in
+                    HStack {
+                        Image(systemName: "calendar")
+                        Text(access.name)
+                        Spacer()
+                        Text(access.canEdit ? "Can add and change events" : "View only")
+                            .font(NTypography.badge)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+            }
         }
     }
 

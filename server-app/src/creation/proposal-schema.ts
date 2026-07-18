@@ -18,6 +18,15 @@ function validateProposal(value: z.infer<typeof AgentProposalSchema>, ctx: z.Ref
       message: 'File editing permission requires a narrow writable path',
     });
   }
+  const requiresCalendar = value.capabilities.some((capability) => (
+    capability.required && capability.id.toLowerCase() === 'calendar'
+  ));
+  if (requiresCalendar && value.calendar_access.length === 0) {
+    ctx.addIssue({ code: 'custom', path: ['calendar_access'], message: 'Calendar access requires one selected calendar' });
+  }
+  if (new Set(value.calendar_access.map((calendar) => calendar.id)).size !== value.calendar_access.length) {
+    ctx.addIssue({ code: 'custom', path: ['calendar_access'], message: 'A calendar can only be selected once' });
+  }
   if (value.trigger.type === 'schedule' && !value.trigger.schedule) {
     ctx.addIssue({ code: 'custom', path: ['trigger', 'schedule'], message: 'A schedule is required' });
   }
@@ -63,7 +72,8 @@ function validateProposal(value: z.infer<typeof AgentProposalSchema>, ctx: z.Ref
       message: 'Sending messages requires a destination',
     });
   }
-  const powerfulLocalAccess = value.permissions.can_modify_files || value.permissions.can_run_commands;
+  const canModifyCalendar = value.calendar_access.some((calendar) => calendar.access === 'read_write');
+  const powerfulLocalAccess = value.permissions.can_modify_files || value.permissions.can_run_commands || canModifyCalendar;
   if (powerfulLocalAccess && value.risk.level !== 'high' && value.risk.level !== 'critical') {
     ctx.addIssue({
       code: 'custom',
@@ -100,6 +110,12 @@ export const ProposalRequestSchema = z.object({
   request: z.string().trim().min(1).max(8_000),
   timezone: z.string().trim().min(1).max(120),
   connectedServices: z.array(z.string().trim().min(1).max(120)).max(64),
+  availableCalendars: z.array(z.object({
+    id: z.string().trim().min(1).max(512),
+    name: z.string().trim().min(1).max(160),
+    account: z.string().trim().min(1).max(160),
+    canModify: z.boolean(),
+  }).strict()).max(128).default([]),
   answers: z.array(ProposalAnswerSchema).max(12).default([]),
 }).strict();
 export type ProposalRequest = z.infer<typeof ProposalRequestSchema>;
@@ -109,5 +125,9 @@ export const ProposalFallbackQuestionSchema = z.object({
   question: z.string().trim().min(1).max(500),
   control: z.enum(['text', 'single_choice', 'schedule', 'path', 'permission', 'service']),
   required: z.boolean(),
+  choices: z.array(z.object({
+    label: z.string().trim().min(1).max(160),
+    value: z.string().trim().min(1).max(300),
+  }).strict()).max(128).optional(),
 }).strict();
 export type ProposalFallbackQuestion = z.infer<typeof ProposalFallbackQuestionSchema>;

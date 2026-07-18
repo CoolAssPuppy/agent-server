@@ -176,6 +176,7 @@ extension StatusMonitor {
             request: request,
             timezone: TimeZone.current.identifier,
             connectedServices: connectedServices,
+            availableCalendars: EventKitPermissionManager.availableCalendars(),
             answers: answerPayloads
         )
     }

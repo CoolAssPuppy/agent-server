@@ -15,6 +15,12 @@ const FileWatchSchema = z.object({
   glob: z.string().optional(),
 });
 
+const CalendarAccessSchema = z.object({
+  id: z.string().trim().min(1).max(512),
+  name: z.string().trim().min(1).max(160),
+  access: z.enum(['read_only', 'read_write']),
+});
+
 export type FileWatch = z.infer<typeof FileWatchSchema>;
 
 export const PermissionsSchema = z.object({
@@ -181,6 +187,7 @@ export const AgentConfigSchema = z
     on_complete: z.array(TriggerRefSchema).optional(),
     on_failure: z.array(TriggerRefSchema).optional(),
     watch: z.array(FileWatchSchema).max(32).optional(),
+    calendar_access: z.array(CalendarAccessSchema).max(128).optional(),
     executor: z.enum(['claude-code', 'codex']).optional(),
     model: z.string().trim().min(1).max(120).optional(),
     provider: ProviderConfigSchema.optional(),

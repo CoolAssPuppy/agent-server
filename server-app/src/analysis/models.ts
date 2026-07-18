@@ -68,6 +68,13 @@ const FileAccessProposalSchema = z.object({
   reason: z.string().trim().min(1).max(500),
 }).strict();
 
+const CalendarAccessProposalSchema = z.object({
+  id: z.string().trim().min(1).max(512),
+  name: z.string().trim().min(1).max(160),
+  access: z.enum(['read_only', 'read_write']),
+  reason: z.string().trim().min(1).max(500),
+}).strict();
+
 const ProposalQuestionSchema = z.object({
   id: z.string().trim().min(1).max(120),
   question: z.string().trim().min(1).max(500),
@@ -90,6 +97,7 @@ export const AgentProposalSchema = z.object({
   capabilities: z.array(RequirementSchema).max(64),
   connections: z.array(RequirementSchema).max(64),
   file_access: z.array(FileAccessProposalSchema).max(32),
+  calendar_access: z.array(CalendarAccessProposalSchema).max(128).default([]),
   permissions: z.object({
     can_modify_files: z.boolean(),
     can_run_commands: z.boolean(),

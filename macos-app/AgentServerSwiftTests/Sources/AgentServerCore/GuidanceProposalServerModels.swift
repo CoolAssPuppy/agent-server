@@ -72,22 +72,50 @@ public struct GuidanceProposalAnswer: Encodable, Equatable, Sendable {
     }
 }
 
+public struct GuidanceCalendarResource: Encodable, Equatable, Sendable {
+    public let id: String
+    public let name: String
+    public let account: String
+    public let canModify: Bool
+
+    public init(id: String, name: String, account: String, canModify: Bool) {
+        self.id = id
+        self.name = name
+        self.account = account
+        self.canModify = canModify
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, account
+        case canModify = "can_modify"
+    }
+}
+
 public struct GuidanceProposalRequest: Encodable, Equatable, Sendable {
     public let request: String
     public let timezone: String
     public let connectedServices: [String]
+    public let availableCalendars: [GuidanceCalendarResource]
     public let answers: [GuidanceProposalAnswer]
 
-    public init(request: String, timezone: String, connectedServices: [String], answers: [GuidanceProposalAnswer] = []) {
+    public init(
+        request: String,
+        timezone: String,
+        connectedServices: [String],
+        availableCalendars: [GuidanceCalendarResource] = [],
+        answers: [GuidanceProposalAnswer] = []
+    ) {
         self.request = request
         self.timezone = timezone
         self.connectedServices = connectedServices
+        self.availableCalendars = availableCalendars
         self.answers = answers
     }
 
     enum CodingKeys: String, CodingKey {
         case request, timezone, answers
         case connectedServices = "connected_services"
+        case availableCalendars = "available_calendars"
     }
 }
 
@@ -123,13 +151,24 @@ public enum GuidanceProposalResponse: Decodable, Equatable, Sendable {
 }
 
 private struct GuidanceQuestionPayload: Decodable, Equatable, Sendable {
+    struct Choice: Decodable, Equatable, Sendable {
+        let label: String
+        let value: String
+    }
     let id: String
     let question: String
     let control: String
     let required: Bool
+    let choices: [Choice]?
 
     var presentation: CreationQuestion {
-        CreationQuestion(id: id, prompt: question, kind: kind, isRequired: required)
+        CreationQuestion(
+            id: id,
+            prompt: question,
+            kind: kind,
+            isRequired: required,
+            choiceValues: choices?.map(\.value) ?? []
+        )
     }
 
     private var kind: CreationQuestion.Kind {
@@ -137,6 +176,7 @@ private struct GuidanceQuestionPayload: Decodable, Equatable, Sendable {
         case "path": return .folder
         case "schedule": return .schedule
         case "permission": return .confirmation
+        case "single_choice", "service": return .choice(choices?.map(\.label) ?? [])
         default: return .text
         }
     }
@@ -175,6 +215,16 @@ private struct GuidanceProposalPayload: Decodable, Equatable, Sendable {
         }
     }
 
+    struct CalendarAccess: Decodable, Equatable, Sendable {
+        let id: String
+        let name: String
+        let access: String
+
+        var presentation: CalendarAccessPresentation {
+            CalendarAccessPresentation(id: id, name: name, canEdit: access == "read_write")
+        }
+    }
+
     struct Permissions: Decodable, Equatable, Sendable {
         let canModifyFiles: Bool
         let canRunCommands: Bool
@@ -206,6 +256,7 @@ private struct GuidanceProposalPayload: Decodable, Equatable, Sendable {
     let trigger: Trigger
     let connections: [Requirement]
     let fileAccess: [FileAccess]
+    let calendarAccess: [CalendarAccess]?
     let permissions: Permissions
     let risk: SecurityRiskPayload
     let markdownInstructions: String
@@ -213,6 +264,7 @@ private struct GuidanceProposalPayload: Decodable, Equatable, Sendable {
     enum CodingKeys: String, CodingKey {
         case name, explanation, trigger, connections, permissions, risk
         case fileAccess = "file_access"
+        case calendarAccess = "calendar_access"
         case markdownInstructions = "markdown_instructions"
     }
 
@@ -226,6 +278,7 @@ private struct GuidanceProposalPayload: Decodable, Equatable, Sendable {
             schedule: trigger.humanDescription,
             permissions: permissionSummaries,
             fileAccess: fileAccess.map(\.presentation),
+            calendarAccess: (calendarAccess ?? []).map(\.presentation),
             connections: connections.map(\.presentation),
             instructions: markdownInstructions,
             risk: risk.consumerLevel,

@@ -144,7 +144,9 @@ struct GuidedAgentCreationView: View {
         case .choice(let choices):
             Picker("Choose one", selection: $answer) {
                 Text("Choose…").tag("")
-                ForEach(choices, id: \.self) { Text($0).tag($0) }
+                ForEach(Array(choices.enumerated()), id: \.offset) { index, label in
+                    Text(label).tag(index < question.choiceValues.count ? question.choiceValues[index] : label)
+                }
             }
         case .confirmation:
             Picker("Choose one", selection: $answer) {

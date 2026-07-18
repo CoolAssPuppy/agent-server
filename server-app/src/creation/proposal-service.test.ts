@@ -74,6 +74,79 @@ function modelReturning(...responses: unknown[]): { model: ProposalModel; calls:
 }
 
 describe('guided agent proposal creation', () => {
+  it('asks for an exact folder and whether changes are allowed before using the model', async () => {
+    const fake = modelReturning(completeProposal());
+
+    const location = await createAgentProposal({
+      request: 'Summarize files in a folder.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      answers: [],
+      model: fake.model,
+    });
+    const access = await createAgentProposal({
+      request: 'Summarize files in a folder.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      answers: [{ question_id: 'file-location', value: '~/Documents/Research' }],
+      model: fake.model,
+    });
+
+    expect(location).toMatchObject({
+      status: 'needs_information',
+      questions: [{ id: 'file-location', control: 'path' }],
+    });
+    expect(access).toMatchObject({
+      status: 'needs_information',
+      questions: [{ id: 'file-access', control: 'single_choice' }],
+    });
+    expect(fake.calls()).toBe(0);
+  });
+
+  it('asks which available calendar and whether it may change events', async () => {
+    const fake = modelReturning(completeProposal());
+    const base = {
+      request: 'Summarize my calendar.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      availableCalendars: [
+        { id: 'work-id', name: 'Work', account: 'iCloud', canModify: true },
+        { id: 'holidays-id', name: 'Holidays', account: 'Subscribed', canModify: false },
+      ],
+      model: fake.model,
+    };
+
+    const calendar = await createAgentProposal({ ...base, answers: [] });
+    const access = await createAgentProposal({
+      ...base,
+      answers: [{ question_id: 'calendar-id', value: 'work-id' }],
+    });
+
+    expect(calendar).toMatchObject({
+      status: 'needs_information',
+      questions: [{
+        id: 'calendar-id',
+        control: 'single_choice',
+        choices: [
+          { label: 'Work (iCloud)', value: 'work-id' },
+          { label: 'Holidays (Subscribed)', value: 'holidays-id' },
+        ],
+      }],
+    });
+    expect(access).toMatchObject({
+      status: 'needs_information',
+      questions: [{ id: 'calendar-access', control: 'single_choice' }],
+    });
+    const readOnlyAccess = await createAgentProposal({
+      ...base,
+      answers: [{ question_id: 'calendar-id', value: 'holidays-id' }],
+    });
+    expect(readOnlyAccess).toMatchObject({
+      status: 'needs_information',
+      questions: [{ choices: [{ label: 'View only', value: 'read_only' }] }],
+    });
+    expect(fake.calls()).toBe(0);
+  });
   it('returns required model questions before issuing a proposal', async () => {
     const fake = modelReturning(validProposal());
 
@@ -105,6 +178,32 @@ describe('guided agent proposal creation', () => {
     expect(result.proposal.questions).toEqual([]);
   });
 
+  it('limits a view-only calendar proposal to reading the selected calendar', () => {
+    const proposal = completeProposal();
+    proposal.capabilities = [{
+      id: 'calendar', name: 'Calendar', required: true, status: 'connected', reason: 'Reads upcoming events.',
+    }];
+    proposal.calendar_access = [{
+      id: 'work-id', name: 'Work', access: 'read_only', reason: 'Reads work events.',
+    }];
+    proposal.permissions = {
+      can_modify_files: false,
+      can_run_commands: false,
+      requires_network: false,
+      can_use_connected_apps: true,
+      can_send_messages: false,
+    };
+    proposal.notification_destination = null;
+
+    const parsed = CreationProposalSchema.parse(proposal);
+    const config = proposalToAgentConfig(parsed, 'calendar-summary');
+
+    expect(config.calendar_access).toEqual([{ id: 'work-id', name: 'Work', access: 'read_only' }]);
+    expect(config.permissions?.allow).toContain('mcp__eventkit__list_events');
+    expect(config.permissions?.allow).not.toContain('mcp__eventkit__create_event');
+    expect(config.permissions?.allow).not.toContain('mcp__eventkit__delete_event');
+  });
+
   it('rejects contradictory privilege and trigger claims before use', async () => {
     const unsafe = validProposal();
     unsafe.permissions = {
@@ -126,6 +225,10 @@ describe('guided agent proposal creation', () => {
       request: 'Save reports in Documents.',
       timezone: 'Europe/Lisbon',
       connectedServices: [],
+      answers: [
+        { question_id: 'file-location', value: '~/Documents' },
+        { question_id: 'file-access', value: 'read_write' },
+      ],
       model: fake.model,
     });
 
@@ -140,6 +243,10 @@ describe('guided agent proposal creation', () => {
       request: 'Read files from a folder and prepare a summary.',
       timezone: 'Europe/Lisbon',
       connectedServices: [],
+      answers: [
+        { question_id: 'file-location', value: '~/Documents/Research' },
+        { question_id: 'file-access', value: 'read_only' },
+      ],
       model: fake.model,
     });
 
@@ -162,6 +269,22 @@ describe('guided agent proposal creation', () => {
     expect(prompt).toContain('[REDACTED]');
     expect(prompt).toContain('Never add write access');
     expect(prompt).toContain('Return only a value matching the supplied JSON schema');
+  });
+
+  it('includes only the selected calendar in the model prompt', () => {
+    const prompt = buildAgentProposalPrompt({
+      request: 'Summarize my calendar.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      answers: [{ question_id: 'calendar-id', value: 'work-id' }],
+      availableCalendars: [
+        { id: 'work-id', name: 'Work', account: 'iCloud', canModify: true },
+        { id: 'personal-id', name: 'Personal', account: 'iCloud', canModify: true },
+      ],
+    });
+
+    expect(prompt).toContain('Work (work-id)');
+    expect(prompt).not.toContain('Personal');
   });
 
   it('does not accept questions that are absent from missing information', async () => {

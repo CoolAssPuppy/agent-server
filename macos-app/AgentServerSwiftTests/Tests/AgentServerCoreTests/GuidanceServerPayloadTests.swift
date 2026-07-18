@@ -2,6 +2,18 @@ import XCTest
 @testable import AgentServerCore
 
 final class GuidanceServerPayloadTests: XCTestCase {
+    func testCalendarQuestionKeepsNativeChoices() throws {
+        let data = Data(#"{"status":"needs_information","questions":[{"id":"calendar-id","question":"Which calendar?","control":"single_choice","required":true,"choices":[{"label":"Work (iCloud)","value":"work-id"}]}],"explanation":"Choose one calendar."}"#.utf8)
+
+        let response = try JSONDecoder().decode(GuidanceProposalResponse.self, from: data)
+
+        guard case .needsInformation(let questions, _) = response else {
+            return XCTFail("Expected a question")
+        }
+        XCTAssertEqual(questions.first?.kind, .choice(["Work (iCloud)"]))
+        XCTAssertEqual(questions.first?.choiceValues, ["work-id"])
+    }
+
     func testProposalResponseRetainsReviewIdAndMapsConsumerState() throws {
         let response = try JSONDecoder().decode(GuidanceProposalResponse.self, from: Data(Self.proposalJSON.utf8))
         guard case .proposal(let review) = response else { return XCTFail("Expected proposal") }
@@ -12,6 +24,8 @@ final class GuidanceServerPayloadTests: XCTestCase {
         XCTAssertTrue(review.presentation.connections.first?.isRequired == true)
         XCTAssertEqual(review.presentation.connections.first?.reason, "Sends the summary")
         XCTAssertEqual(review.presentation.fileAccess.first?.canEdit, false)
+        XCTAssertEqual(review.presentation.calendarAccess.first?.name, "Work")
+        XCTAssertEqual(review.presentation.calendarAccess.first?.canEdit, false)
         XCTAssertTrue(review.presentation.permissions.contains("Use the internet"))
     }
 
@@ -28,13 +42,19 @@ final class GuidanceServerPayloadTests: XCTestCase {
             request: "Summarize GitHub",
             timezone: "Europe/Lisbon",
             connectedServices: ["github"],
+            availableCalendars: [
+                GuidanceCalendarResource(id: "work-id", name: "Work", account: "iCloud", canModify: true)
+            ],
             answers: [GuidanceProposalAnswer(questionId: "send", value: .boolean(true))]
         )
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(request)) as? [String: Any])
         let answers = try XCTUnwrap(object["answers"] as? [[String: Any]])
 
-        XCTAssertEqual(Set(object.keys), Set(["request", "timezone", "connected_services", "answers"]))
+        XCTAssertEqual(Set(object.keys), Set(["request", "timezone", "connected_services", "available_calendars", "answers"]))
         XCTAssertEqual(object["connected_services"] as? [String], ["github"])
+        let calendars = try XCTUnwrap(object["available_calendars"] as? [[String: Any]])
+        XCTAssertEqual(calendars.first?["id"] as? String, "work-id")
+        XCTAssertEqual(calendars.first?["can_modify"] as? Bool, true)
         XCTAssertEqual(answers.first?["question_id"] as? String, "send")
         XCTAssertEqual(answers.first?["value"] as? Bool, true)
     }
@@ -81,6 +101,7 @@ final class GuidanceServerPayloadTests: XCTestCase {
       "trigger":{"type":"schedule","schedule":"0 17 * * 5","human_description":"Every Friday at 5:00 p.m."},"timezone":"Europe/Lisbon",
       "capabilities":[],"connections":[{"id":"slack","name":"Slack","required":true,"status":"needs_setup","reason":"Sends the summary"}],
       "file_access":[{"path":"~/Documents/Reports","access":"read_only","is_suggestion":false,"reason":"Reads reports"}],
+      "calendar_access":[{"id":"work-id","name":"Work","access":"read_only","reason":"Reads work events"}],
       "permissions":{"can_modify_files":false,"can_run_commands":false,"requires_network":true,"can_use_connected_apps":true,"can_send_messages":true},
       "notification_destination":{"kind":"slack","label":"Slack","configured":false},"runtime":null,
       "risk":{"level":"needs_review","reasons":["External messaging"],"finding_count":1},"missing_information":[],"questions":[],"markdown_instructions":"# Friday summary"

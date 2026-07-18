@@ -22,6 +22,12 @@ const ProposalApiRequestSchema = z.object({
   request: z.string().trim().min(1).max(8_000),
   timezone: z.string().trim().min(1).max(120),
   connected_services: z.array(z.string().trim().min(1).max(120)).max(64),
+  available_calendars: z.array(z.object({
+    id: z.string().trim().min(1).max(512),
+    name: z.string().trim().min(1).max(160),
+    account: z.string().trim().min(1).max(160),
+    can_modify: z.boolean(),
+  }).strict()).max(128).default([]),
   answers: z.array(ProposalAnswerSchema).max(12).default([]),
 }).strict();
 
@@ -113,6 +119,12 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
         request: request.request,
         timezone: request.timezone,
         connectedServices: request.connected_services,
+        availableCalendars: request.available_calendars.map((calendar) => ({
+          id: calendar.id,
+          name: calendar.name,
+          account: calendar.account,
+          canModify: calendar.can_modify,
+        })),
         answers: request.answers,
         model: dependencies.model,
       });
@@ -138,6 +150,12 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
         request: buildSimilarAgentRequest(source, request.request),
         timezone: request.timezone,
         connectedServices: request.connected_services,
+        availableCalendars: request.available_calendars.map((calendar) => ({
+          id: calendar.id,
+          name: calendar.name,
+          account: calendar.account,
+          canModify: calendar.can_modify,
+        })),
         answers: request.answers,
         model: dependencies.model,
       });

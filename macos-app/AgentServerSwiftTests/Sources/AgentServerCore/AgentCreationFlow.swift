@@ -13,12 +13,14 @@ public struct CreationQuestion: Identifiable, Equatable, Sendable {
     public let prompt: String
     public let kind: Kind
     public let isRequired: Bool
+    public let choiceValues: [String]
 
-    public init(id: String, prompt: String, kind: Kind, isRequired: Bool) {
+    public init(id: String, prompt: String, kind: Kind, isRequired: Bool, choiceValues: [String] = []) {
         self.id = id
         self.prompt = prompt
         self.kind = kind
         self.isRequired = isRequired
+        self.choiceValues = choiceValues
     }
 }
 

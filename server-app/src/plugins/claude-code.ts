@@ -656,10 +656,14 @@ export function buildMcpServers(agent: AgentConfig): Options['mcpServers'] {
 
   const eventKitBin = process.env.AGENT_SERVER_EVENTKIT_BIN;
   if (eventKitBin && !servers.eventkit) {
+    const scope = agent.calendar_access?.map(({ id, access }) => ({ id, access }));
     servers.eventkit = {
       type: 'stdio',
       command: eventKitBin,
       args: [],
+      ...(scope && scope.length > 0
+        ? { env: { AGENT_SERVER_CALENDAR_SCOPE: JSON.stringify(scope) } }
+        : {}),
     };
   }
 

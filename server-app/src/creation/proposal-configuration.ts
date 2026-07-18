@@ -5,6 +5,8 @@ import type { CreationProposal } from './proposal-schema.js';
 const FILE_READ_TOOLS = ['Read', 'Glob', 'Grep'] as const;
 const FILE_WRITE_TOOLS = ['Write', 'Edit'] as const;
 const WEB_TOOLS = ['WebFetch', 'WebSearch'] as const;
+const CALENDAR_READ_TOOLS = ['mcp__eventkit__list_calendars', 'mcp__eventkit__list_events'] as const;
+const CALENDAR_WRITE_TOOLS = ['mcp__eventkit__create_event', 'mcp__eventkit__update_event'] as const;
 
 function serviceToolPattern(id: string): string | undefined {
   const normalized = mcpServerKey(id);
@@ -16,6 +18,10 @@ function explicitToolAllowlist(proposal: CreationProposal): string[] {
   if (proposal.file_access.length > 0) FILE_READ_TOOLS.forEach((tool) => allow.add(tool));
   if (proposal.permissions.can_modify_files) FILE_WRITE_TOOLS.forEach((tool) => allow.add(tool));
   if (proposal.permissions.can_run_commands) allow.add('Bash');
+  if (proposal.calendar_access.length > 0) CALENDAR_READ_TOOLS.forEach((tool) => allow.add(tool));
+  if (proposal.calendar_access.some((calendar) => calendar.access === 'read_write')) {
+    CALENDAR_WRITE_TOOLS.forEach((tool) => allow.add(tool));
+  }
 
   const hasWebCapability = proposal.capabilities.some((capability) => (
     capability.required && ['browse-web', 'web', 'internet'].includes(capability.id.toLowerCase())
@@ -52,6 +58,11 @@ export function proposalToAgentConfig(proposal: CreationProposal, id: string): A
     timezone: proposal.timezone,
     working_directory: primaryPath ?? proposal.trigger.watched_path,
     watch,
+    calendar_access: proposal.calendar_access.map(({ id: calendarId, name, access }) => ({
+      id: calendarId,
+      name,
+      access,
+    })),
     tools: allow,
     disallowed_tools: [],
     permissions: { allow, deny: [] },

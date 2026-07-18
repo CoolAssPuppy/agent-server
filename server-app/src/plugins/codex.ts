@@ -102,11 +102,24 @@ function getProviderOptions(agent: AgentConfig): { baseUrl?: string; apiKey?: st
 }
 
 function getCodexConfig(agent: AgentConfig): Record<string, Record<string, CodexMcpServer>> | undefined {
-  if (!agent.mcp_servers || Object.keys(agent.mcp_servers).length === 0) return undefined;
+  const servers = Object.fromEntries(
+    Object.entries(agent.mcp_servers ?? {}).map(([name, config]) => [name, normalizeMcpServer(name, config)]),
+  );
+  const eventKitBin = process.env.AGENT_SERVER_EVENTKIT_BIN;
+  if (eventKitBin && !servers.eventkit) {
+    const scope = agent.calendar_access?.map(({ id, access }) => ({ id, access }));
+    servers.eventkit = {
+      command: eventKitBin,
+      ...(scope && scope.length > 0
+        ? { env: { AGENT_SERVER_CALENDAR_SCOPE: JSON.stringify(scope) } }
+        : {}),
+      enabled: true,
+      required: true,
+    };
+  }
+  if (Object.keys(servers).length === 0) return undefined;
   return {
-    mcp_servers: Object.fromEntries(
-      Object.entries(agent.mcp_servers).map(([name, config]) => [name, normalizeMcpServer(name, config)]),
-    ),
+    mcp_servers: servers,
   };
 }
 

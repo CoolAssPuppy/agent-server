@@ -3,6 +3,17 @@ import Foundation
 
 final class EventKitHandler: MCPHandler {
     private let store = EKEventStore()
+    private let calendarScope: [String: String]? = {
+        guard let raw = ProcessInfo.processInfo.environment["AGENT_SERVER_CALENDAR_SCOPE"],
+              let data = raw.data(using: .utf8),
+              let values = try? JSONSerialization.jsonObject(with: data) as? [[String: String]] else {
+            return nil
+        }
+        return Dictionary(uniqueKeysWithValues: values.compactMap { value in
+            guard let id = value["id"], let access = value["access"] else { return nil }
+            return (id, access)
+        })
+    }()
     private let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime]
@@ -29,6 +40,7 @@ final class EventKitHandler: MCPHandler {
         listEventsProps["start"] = ["type": "string", "description": "ISO 8601 start date/time"]
         listEventsProps["end"] = ["type": "string", "description": "ISO 8601 end date/time"]
         listEventsProps["calendar"] = ["type": "string", "description": "Optional calendar title to filter by"]
+        listEventsProps["calendarId"] = ["type": "string", "description": "Selected calendar identifier"]
         var listEventsSchema: [String: Any] = [:]
         listEventsSchema["type"] = "object"
         listEventsSchema["properties"] = listEventsProps
@@ -44,6 +56,7 @@ final class EventKitHandler: MCPHandler {
         createEventProps["start"] = ["type": "string", "description": "ISO 8601 start date/time"]
         createEventProps["end"] = ["type": "string", "description": "ISO 8601 end date/time"]
         createEventProps["calendar"] = ["type": "string", "description": "Optional calendar title. Defaults to the default calendar."]
+        createEventProps["calendarId"] = ["type": "string", "description": "Selected writable calendar identifier"]
         createEventProps["location"] = stringProp
         createEventProps["notes"] = stringProp
         createEventProps["isAllDay"] = boolProp
@@ -220,7 +233,7 @@ final class EventKitHandler: MCPHandler {
     private func listCalendars() throws -> String {
         try ensureEventAccess()
 
-        let calendars = store.calendars(for: .event).map { calendar -> [String: Any] in
+        let calendars = allowedEventCalendars().map { calendar -> [String: Any] in
             [
                 "id": calendar.calendarIdentifier,
                 "title": calendar.title,
@@ -242,9 +255,15 @@ final class EventKitHandler: MCPHandler {
             throw MCPError.invalidParams("end must be an ISO 8601 date/time string")
         }
 
-        var calendars: [EKCalendar]?
+        var calendars: [EKCalendar]? = allowedEventCalendars()
+        if let id = args["calendarId"] as? String, !id.isEmpty {
+            calendars = calendars?.filter { $0.calendarIdentifier == id }
+            if calendars?.isEmpty == true {
+                throw MCPError.invalidParams("That calendar is not available to this agent")
+            }
+        }
         if let title = args["calendar"] as? String, !title.isEmpty {
-            calendars = store.calendars(for: .event).filter { $0.title == title }
+            calendars = calendars?.filter { $0.title == title }
             if calendars?.isEmpty == true {
                 throw MCPError.invalidParams("Calendar not found: \(title)")
             }
@@ -288,9 +307,20 @@ final class EventKitHandler: MCPHandler {
         event.notes = args["notes"] as? String
         event.isAllDay = (args["isAllDay"] as? Bool) ?? false
 
-        if let calendarTitle = args["calendar"] as? String, !calendarTitle.isEmpty {
-            guard let calendar = store.calendars(for: .event).first(where: { $0.title == calendarTitle }) else {
+        let writableCalendars = allowedEventCalendars().filter(canModifyCalendar)
+        if let calendarId = args["calendarId"] as? String, !calendarId.isEmpty {
+            guard let calendar = writableCalendars.first(where: { $0.calendarIdentifier == calendarId }) else {
+                throw MCPError.invalidParams("That calendar cannot be changed by this agent")
+            }
+            event.calendar = calendar
+        } else if let calendarTitle = args["calendar"] as? String, !calendarTitle.isEmpty {
+            guard let calendar = writableCalendars.first(where: { $0.title == calendarTitle }) else {
                 throw MCPError.invalidParams("Calendar not found: \(calendarTitle)")
+            }
+            event.calendar = calendar
+        } else if calendarScope != nil {
+            guard writableCalendars.count == 1, let calendar = writableCalendars.first else {
+                throw MCPError.invalidParams("Choose one calendar this agent may change")
             }
             event.calendar = calendar
         } else {
@@ -323,6 +353,9 @@ final class EventKitHandler: MCPHandler {
         guard let event = store.event(withIdentifier: id) else {
             throw MCPError.toolFailed("Event not found: \(id)")
         }
+        guard canModifyCalendar(event.calendar) else {
+            throw MCPError.toolFailed("This agent can only view that calendar")
+        }
 
         if let title = args["title"] as? String { event.title = title }
         if let location = args["location"] as? String { event.location = location }
@@ -353,6 +386,9 @@ final class EventKitHandler: MCPHandler {
         }
         guard let event = store.event(withIdentifier: id) else {
             throw MCPError.toolFailed("Event not found: \(id)")
+        }
+        if calendarScope != nil {
+            throw MCPError.toolFailed("Deleting calendar events was not approved for this agent")
         }
 
         do {
@@ -492,6 +528,18 @@ final class EventKitHandler: MCPHandler {
     }
 
     // MARK: - Helpers
+
+    private func allowedEventCalendars() -> [EKCalendar] {
+        let calendars = store.calendars(for: .event)
+        guard let calendarScope else { return calendars }
+        return calendars.filter { calendarScope[$0.calendarIdentifier] != nil }
+    }
+
+    private func canModifyCalendar(_ calendar: EKCalendar) -> Bool {
+        guard let calendarScope else { return calendar.allowsContentModifications }
+        return calendarScope[calendar.calendarIdentifier] == "read_write"
+            && calendar.allowsContentModifications
+    }
 
     private func parseDate(_ value: Any?) -> Date? {
         guard let str = value as? String, !str.isEmpty else { return nil }

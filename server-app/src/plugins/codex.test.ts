@@ -28,6 +28,30 @@ async function* streamEvents(events: ThreadEvent[]): AsyncGenerator<ThreadEvent>
 }
 
 describe('executeCodexAgent', () => {
+  it('injects the bundled calendar helper with reviewed scope', async () => {
+    const original = process.env.AGENT_SERVER_EVENTKIT_BIN;
+    process.env.AGENT_SERVER_EVENTKIT_BIN = '/path/to/helper';
+    const { executeCodexAgent } = await import('./codex.js');
+    runStreamed.mockResolvedValue({ events: streamEvents([]) });
+
+    await executeCodexAgent(makeAgent({
+      calendar_access: [{ id: 'work-id', name: 'Work', access: 'read_only' }],
+    }), createMockReporter());
+
+    expect(codexConstructor).toHaveBeenLastCalledWith(expect.objectContaining({
+      config: {
+        mcp_servers: {
+          eventkit: expect.objectContaining({
+            command: '/path/to/helper',
+            env: { AGENT_SERVER_CALENDAR_SCOPE: '[{"id":"work-id","access":"read_only"}]' },
+          }),
+        },
+      },
+    }));
+    if (original === undefined) delete process.env.AGENT_SERVER_EVENTKIT_BIN;
+    else process.env.AGENT_SERVER_EVENTKIT_BIN = original;
+  });
+
   it('runs a streamed Codex thread with the agent settings', async () => {
     const { executeCodexAgent } = await import('./codex.js');
     runStreamed.mockResolvedValue({ events: streamEvents([

@@ -922,6 +922,21 @@ describe('buildMcpServers eventkit auto-injection', () => {
     });
   });
 
+  it('passes reviewed calendar scope to the bundled helper', async () => {
+    const { buildMcpServers } = await import('./claude-code.js');
+    process.env.AGENT_SERVER_EVENTKIT_BIN = '/path/to/helper';
+
+    const servers = buildMcpServers(createAgentConfig({
+      calendar_access: [{ id: 'work-id', name: 'Work', access: 'read_only' }],
+    }));
+
+    expect(servers?.eventkit).toMatchObject({
+      env: {
+        AGENT_SERVER_CALENDAR_SCOPE: '[{"id":"work-id","access":"read_only"}]',
+      },
+    });
+  });
+
   it('does not inject eventkit when env var is unset', async () => {
     const { buildMcpServers } = await import('./claude-code.js');
 

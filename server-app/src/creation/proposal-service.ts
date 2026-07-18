@@ -89,14 +89,78 @@ function fallback(request: ProposalRequest, modelStatus: 'unavailable' | 'invali
   };
 }
 
+function unansweredScopeQuestion(request: ProposalRequest): ProposalFallbackQuestion | undefined {
+  const intent = request.request.toLowerCase();
+  const answers = new Set(request.answers.map((answer) => answer.question_id));
+  if (/\b(files?|folders?|documents?|directory)\b/.test(intent)) {
+    if (!answers.has('file-location')) {
+      return { id: 'file-location', question: 'Which folder may this agent use?', control: 'path', required: true };
+    }
+    if (!answers.has('file-access')) {
+      return {
+        id: 'file-access',
+        question: 'May this agent only view files, or may it make changes?',
+        control: 'single_choice',
+        required: true,
+        choices: [
+          { label: 'View only', value: 'read_only' },
+          { label: 'Make changes', value: 'read_write' },
+        ],
+      };
+    }
+  }
+  if (/\b(calendar|calendars|events|appointments)\b/.test(intent)) {
+    if (!answers.has('calendar-id')) {
+      return {
+        id: 'calendar-id',
+        question: 'Which calendar may this agent use?',
+        control: 'single_choice',
+        required: true,
+        choices: request.availableCalendars.map((calendar) => ({
+          label: `${calendar.name} (${calendar.account})`,
+          value: calendar.id,
+        })),
+      };
+    }
+    if (!answers.has('calendar-access')) {
+      const selectedId = request.answers.find((answer) => answer.question_id === 'calendar-id')?.value;
+      const selected = request.availableCalendars.find((calendar) => calendar.id === selectedId);
+      return {
+        id: 'calendar-access',
+        question: 'May this agent only view events, or may it add and change them?',
+        control: 'single_choice',
+        required: true,
+        choices: [
+          { label: 'View only', value: 'read_only' },
+          ...(selected?.canModify
+            ? [{ label: 'Add and change events', value: 'read_write' }]
+            : []),
+        ],
+      };
+    }
+  }
+  return undefined;
+}
+
 /** Generate and validate a proposal. Invalid model output is never applied. */
 export async function createAgentProposal(input: CreateProposalInput): Promise<ProposalServiceResult> {
   const request = ProposalRequestSchema.parse({
     request: input.request,
     timezone: input.timezone,
     connectedServices: input.connectedServices,
+    availableCalendars: input.availableCalendars,
     answers: input.answers,
   });
+  const scopeQuestion = unansweredScopeQuestion(request);
+  if (scopeQuestion) {
+    return {
+      status: 'needs_information',
+      questions: [scopeQuestion],
+      explanation: 'Choose the exact access this agent needs before reviewing it.',
+      usedFallback: true,
+      modelStatus: 'unavailable',
+    };
+  }
   if (!input.model) return fallback(request, 'unavailable');
 
   const prompt = buildAgentProposalPrompt(request);
