@@ -28,7 +28,8 @@ targets:
     type: application
     platform: macOS
     scheme:
-      testTargets: []
+      testTargets:
+        - AgentServerUITests
       gatherCoverageData: false
     sources:
       - path: AgentServer
@@ -172,3 +173,18 @@ targets:
         CREATE_INFOPLIST_SECTION_IN_BINARY: YES
         SKIP_INSTALL: YES
         ENABLE_HARDENED_RUNTIME: true
+
+  AgentServerUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - AgentServerUITests
+    dependencies:
+      - target: AgentServer
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.strategicnerds.agent-server.ui-tests
+        TEST_TARGET_NAME: AgentServer
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 955GSY56UT

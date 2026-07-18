@@ -18,6 +18,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var eventMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+#if DEBUG
+        if let scenario = UITestScenario.current {
+            mainWindow = UITestScenarioWindow.makeWindow(for: scenario)
+            return
+        }
+#endif
+
         // Agent Server is a menubar-only app. The main window (MainWindow +
         // drawers) is created imperatively when the user clicks the settings
         // gear or an agent row in the popover — see openMainWindow(route:).
@@ -388,7 +395,7 @@ extension AppDelegate {
     }
 
     @objc func showNewAgent() {
-        openMainWindow(route: .creation)
+        openMainWindow(route: .creation())
     }
 
     @objc func cleanupStaleRuns() {
