@@ -174,6 +174,27 @@ describe('heuristicRoute', () => {
     expect(heuristicRoute('do the thing', agents).type).toBe('none');
   });
 
+  it('routes on a shared word ("French quiz" -> the French/Portuguese agent)', () => {
+    const agents = [
+      makeAgent({ id: 'daily-focus', name: 'Daily Focus List' }),
+      makeAgent({ id: 'daily-portuguese-and-french', name: 'Daily Portuguese and French' }),
+      makeAgent({ id: 'cmo-coaching', name: 'CMO Coaching Report' }),
+    ];
+    const result = heuristicRoute('I want to do the French quiz', agents);
+    expect(result.type).toBe('route');
+    expect(result.type === 'route' && result.agent.id).toBe('daily-portuguese-and-french');
+  });
+
+  it('stays ambiguous when a word matches two agents equally', () => {
+    const agents = [
+      makeAgent({ id: 'weekly-goals-report', name: 'Weekly Goals Report' }),
+      makeAgent({ id: 'weekly-status-report', name: 'Weekly Status Report' }),
+      makeAgent({ id: 'daily-focus', name: 'Daily Focus List' }),
+    ];
+    // "weekly report" hits both weekly agents equally -> no guess.
+    expect(heuristicRoute('weekly report', agents).type).toBe('none');
+  });
+
   it('ignores disabled agents when auto-selecting the only one', () => {
     const agents = [
       makeAgent({ id: 'on' }),
