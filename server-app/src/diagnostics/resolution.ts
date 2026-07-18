@@ -2,6 +2,8 @@ import type { AgentConfig } from '../agents/config.js';
 import type { DiagnosticResult } from '../analysis/models.js';
 import { ConfigurationPatchSchema, type ConfigurationPatch } from '../analysis/patch.js';
 import { computeAgentContentHash } from '../analysis/security-rules.js';
+import { homedir } from 'node:os';
+import { isAbsolute, relative, resolve } from 'node:path';
 
 export type DiagnosticResolution =
   | {
@@ -15,6 +17,25 @@ export type DiagnosticResolution =
   | { type: 'choose_path'; action_id: string; label: string }
   | { type: 'retry'; retry_endpoint: string; confirmation_required: boolean }
   | { type: 'manual'; action_id: string; label: string; limitation?: string };
+
+function expandedPath(path: string, workingDirectory: string): string {
+  if (path === '~') return homedir();
+  if (path.startsWith('~/')) return resolve(homedir(), path.slice(2));
+  return isAbsolute(path) ? resolve(path) : resolve(workingDirectory, path);
+}
+
+function reviewedWritableGrant(agent: AgentConfig, writtenPath: string) {
+  const cwd = agent.working_directory ?? homedir();
+  const target = expandedPath(writtenPath, cwd);
+  return agent.file_access
+    ?.filter((grant) => {
+      const root = expandedPath(grant.path, cwd);
+      if (grant.kind === 'file') return root === target;
+      const child = relative(root, target);
+      return child === '' || (!child.startsWith('..') && !isAbsolute(child));
+    })
+    .sort((left, right) => right.path.length - left.path.length)[0];
+}
 
 function debuggerPatch(
   diagnosis: DiagnosticResult,
@@ -30,11 +51,17 @@ function debuggerPatch(
     reason: diagnosis.suggested_fix.label,
   };
   if (diagnosis.suggested_fix.id === 'review-write-access') {
+    const writtenPath = diagnosis.evidence.find((item) => item.code === 'write-attempt')?.detail;
+    const reviewedGrant = writtenPath ? reviewedWritableGrant(agent, writtenPath) : undefined;
+    if (!reviewedGrant || !agent.file_access) return undefined;
     const added = ['Write', 'Edit'];
     const allow = [...new Set([...(agent.permissions?.allow ?? agent.tools), ...added])];
     return ConfigurationPatchSchema.parse({
       ...base,
       changes: {
+        file_access: agent.file_access.map((grant) => (
+          grant === reviewedGrant ? { ...grant, access: 'read_write' as const } : grant
+        )),
         tools: [...new Set([...agent.tools, ...added])],
         disallowed_tools: agent.disallowed_tools.filter((tool) => !added.includes(tool)),
         permissions: {
@@ -67,6 +94,14 @@ export function buildDiagnosticResolution(
     };
   }
   const action = diagnosis.suggested_fix;
+  if (action.id === 'review-write-access') {
+    return {
+      type: 'manual',
+      action_id: action.id,
+      label: action.label,
+      limitation: 'Choose the exact file or folder before allowing changes.',
+    };
+  }
   if (action.kind === 'connect') return { type: 'connect', action_id: action.id, label: action.label };
   if (action.kind === 'choose_path') return { type: 'choose_path', action_id: action.id, label: action.label };
   if (action.kind === 'retry') {
