@@ -55,7 +55,7 @@ The consumer-facing file-access control should present one clear action. The nat
 - Contacts is read-only, does not return stable contact IDs, limits returned fields, and disables linked-contact unification so an approved account cannot pull details from another account.
 - Contacts combined with network, messaging, or any non-EventKit MCP output is classified as high risk.
 - Apple Music remains a documented unavailable capability until MusicKit signing and a read-only runtime are verified.
-- Verification: 1,136 server tests across 83 files, 206 Swift tests, TypeScript type-check and build, plus unsigned app and helper builds. UI automation was not run during the final pass.
+- Verification: 1,136 server tests across 83 files, 207 Swift tests, TypeScript type-check and build, plus unsigned app and helper builds. UI automation was not run during the final pass.
 
 ## Consumer correction batch
 

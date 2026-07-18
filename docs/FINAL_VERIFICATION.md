@@ -17,7 +17,7 @@ This report records automated verification for the `creation-experience` branch.
 
 - Baseline: `5b779736985e918874b80b390372be71645dc19a`
 - Branch: `creation-experience`
-- Verified feature head: `462b710`
+- Verified feature head: `2934f88`
 - Worktree clean before closeout documentation edits: Yes
 - Primary Codex session ID: `019f7458-705a-7fe2-8819-b2bf9f383298`
 
@@ -75,7 +75,7 @@ See [FEATURE_COMMITS.md](FEATURE_COMMITS.md) for the complete chronological list
 | Server lint | Passed | `pnpm lint` exited successfully |
 | TypeScript strict check | Passed | `pnpm type-check` exited successfully |
 | Server production build | Passed | `pnpm build` exited successfully |
-| Swift behavior tests | Passed | 206 tests |
+| Swift behavior tests | Passed | 207 tests |
 | Signed macOS UI tests | Passed once | All four tests completed in 34.8 seconds. A later redundant rerun was interrupted after another app stole focus and UI testing stopped at the user's request. |
 | macOS application build | Passed | `AgentServer` scheme built successfully during final verification |
 | Native service helper build | Passed | `AgentServerEventKit` scheme built with scoped Calendar, Reminders, and Contacts support |

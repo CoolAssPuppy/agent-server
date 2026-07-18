@@ -1,6 +1,6 @@
 # Feature commits
 
-This is the complete chronological commit list after baseline `5b779736985e918874b80b390372be71645dc19a` through verified implementation head `462b710`.
+This is the complete chronological commit list after baseline `5b779736985e918874b80b390372be71645dc19a` through verified implementation head `2934f88`.
 
 1. `65d033a` Harden local execution and add analysis foundation
 2. `919c6fe` Simplify local security and reliability policies
@@ -77,3 +77,7 @@ This is the complete chronological commit list after baseline `5b779736985e91887
 73. `7182b66` Correct final verification claims
 74. `2be73cb` Date recorded coverage evidence accurately
 75. `462b710` Allow folder-only access selection
+76. `5421a5f` Record folder picker verification
+77. `32e80ec` Complete chronological feature history
+78. `f165d34` Unify file and folder selection
+79. `2934f88` Give local proposals time to finish
