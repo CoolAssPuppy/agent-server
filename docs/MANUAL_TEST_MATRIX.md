@@ -93,8 +93,9 @@ Build the server and app from the `creation-experience` branch. Use demo agents 
 
 Current automated evidence: 1,136 server tests across 83 files, 204 Swift tests,
 and the non-interactive lint, type-check, production build, and macOS build gates
-pass. Server coverage is 78.82% statements, 74.59% branches, 80.28% functions,
-and 80.23% lines. The full four-test signed UI suite passed once in 34.8 seconds.
+pass. The last recorded coverage before the final scoped-access batch was 78.82%
+statements, 74.59% branches, 80.28% functions, and 80.23% lines. The full
+four-test signed UI suite passed once in 34.8 seconds.
 A later redundant rerun was interrupted after another application stole focus.
 UI automation was then stopped at the user's request. Repeat it only in an
 isolated macOS session where it will not disrupt active work.
