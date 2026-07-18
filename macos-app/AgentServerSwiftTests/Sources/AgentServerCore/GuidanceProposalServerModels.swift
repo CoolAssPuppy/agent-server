@@ -112,19 +112,22 @@ public struct GuidanceConnectedService: Encodable, Equatable, Sendable {
             return Self(id: service.id, name: "\(service.name) (\(sourceName(for: service.id)))")
         }
         let sourcedCounts = Dictionary(grouping: sourced, by: { $0.name.lowercased() }).mapValues(\.count)
-        var ordinals: [String: Int] = [:]
-        return sourced.map { service in
+        let qualified = sourced.map { service in
             let key = service.name.lowercased()
             guard sourcedCounts[key, default: 0] > 1 else { return service }
-            ordinals[key, default: 0] += 1
             let baseName = service.name.replacingOccurrences(
                 of: #" \([^)]*\)$"#,
                 with: "",
                 options: .regularExpression
             )
-            let qualifier = stableQualifier(for: service.id)
-                ?? "Connection \(ordinals[key, default: 1])"
+            let qualifier = stableQualifier(for: service.id) ?? "Connection"
             return Self(id: service.id, name: "\(baseName) (\(qualifier))")
+        }
+        let qualifiedCounts = Dictionary(grouping: qualified, by: { $0.name.lowercased() }).mapValues(\.count)
+        return qualified.map { service in
+            guard qualifiedCounts[service.name.lowercased(), default: 0] > 1 else { return service }
+            let baseName = service.name.dropLast()
+            return Self(id: service.id, name: "\(baseName), \(stableCode(for: service.id)))")
         }
     }
 
@@ -154,6 +157,13 @@ public struct GuidanceConnectedService: Encodable, Equatable, Sendable {
             .filter { !ignored.contains($0.lowercased()) }
         guard !parts.isEmpty else { return nil }
         return parts.map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " ")
+    }
+
+    private static func stableCode(for identifier: String) -> String {
+        let hash = identifier.utf8.reduce(UInt32(2_166_136_261)) { partial, byte in
+            (partial ^ UInt32(byte)) &* 16_777_619
+        }
+        return String(format: "%04X", hash & 0xFFFF)
     }
 
     private static func sourceName(for identifier: String) -> String {

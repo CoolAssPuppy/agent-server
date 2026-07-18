@@ -106,6 +106,18 @@ final class GuidanceServerPayloadTests: XCTestCase {
             GuidanceConnectedService(id: "notion-beta", name: "Notion"),
         ])
         XCTAssertEqual(duplicateLocalServices.map(\.name), ["Notion (Alpha)", "Notion (Beta)"])
+
+        let colliding = [
+            GuidanceConnectedService(id: "plugin:workspace-alpha:notion", name: "Notion"),
+            GuidanceConnectedService(id: "plugin:alpha-workspace:notion", name: "Notion"),
+        ]
+        let forward = GuidanceConnectedService.disambiguating(colliding)
+        let reversed = GuidanceConnectedService.disambiguating(colliding.reversed())
+        XCTAssertEqual(Set(forward.map(\.name)).count, 2)
+        XCTAssertEqual(
+            Dictionary(uniqueKeysWithValues: forward.map { ($0.id, $0.name) }),
+            Dictionary(uniqueKeysWithValues: reversed.map { ($0.id, $0.name) })
+        )
     }
 
     func testDiagnosisMapsRecommendationWithoutInventingApplicablePatch() throws {
