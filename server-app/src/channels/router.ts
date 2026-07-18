@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { AgentConfig } from '../agents/config.js';
+import { toErrorMessage } from '../util/errors.js';
 
 export type RouteResult =
   | { type: 'route'; agent: AgentConfig; context: string }
@@ -176,7 +177,7 @@ export async function routeMessage(
   try {
     return await runLlmRoute(createDefaultCreateMessage(opts.apiKey), message, agents);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = toErrorMessage(err);
     console.warn(`[router] LLM routing failed, falling back to heuristic: ${msg}`);
     return heuristicRoute(message, agents);
   }

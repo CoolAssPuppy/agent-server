@@ -8,6 +8,7 @@ import { formatTelegramNotification } from './telegram-formatter.js';
 import { sanitizeText } from '../server/security-utils.js';
 import { TelegramDecisionBot } from './telegram-decision-bot.js';
 import type { Decision } from './telegram-decision.js';
+import { toErrorMessage } from '../util/errors.js';
 
 type TelegramApi = {
   sendMessage: (chatId: number, text: string, options?: Record<string, unknown>) => Promise<{ message_id: number }>;
@@ -103,7 +104,7 @@ export class TelegramChannel implements Channel {
     this.chatId = options.chatId;
     this.bot = options.bot;
     this.onPollingError = options.onPollingError ?? ((error) => {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = toErrorMessage(error);
       console.error(`[telegram] Long polling stopped: ${message}`);
     });
   }

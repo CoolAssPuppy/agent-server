@@ -7,6 +7,7 @@ import type { NotificationData } from '../interaction/notification.js';
 import type { Channel, ChannelReply, ReplyCallback } from './channel.js';
 import { formatSlackNotification } from './slack-formatter.js';
 import { sanitizeText } from '../server/security-utils.js';
+import { toErrorMessage } from '../util/errors.js';
 
 /**
  * Thin seam over the Slack Web API so the channel logic is testable without a
@@ -113,7 +114,7 @@ export class SlackChannel implements Channel {
     this.channelId = options.channelId;
     this.socket = options.socket;
     this.onSocketError = options.onSocketError ?? ((error) => {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = toErrorMessage(error);
       console.error(`[slack] Socket Mode error: ${message}`);
     });
   }

@@ -43,6 +43,7 @@ import { randomUUID } from 'crypto';
 import { ProgressBroadcaster, type ProgressEvent } from './websocket.js';
 import { sanitizeProgressEvent, sanitizeText } from './security-utils.js';
 import { parseDuration } from '../agents/duration.js';
+import { toErrorMessage } from '../util/errors.js';
 
 export type ServerInstance = {
   stop: () => Promise<void> | void;
@@ -225,7 +226,7 @@ function createRunStore(runDbPath: string): RunStoreLike {
   try {
     return new SqliteRunStore({ path: runDbPath });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = toErrorMessage(err);
     console.warn(
       `[runs] Failed to open run database at ${runDbPath}; falling back to in-memory history: ${message}`,
     );
@@ -538,7 +539,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
         emitRunFailure(result.error ?? 'Unknown error', result.code);
       }
     }).catch((err) => {
-      const errorMsg = err instanceof Error ? err.message : String(err);
+      const errorMsg = toErrorMessage(err);
       emitRunFailure(errorMsg);
     }).finally(() => {
       // Cleanup bookkeeping on every terminal path — success, failure, throw.
@@ -781,7 +782,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
             if (stored.status === 'completed') return { runId, status: 'completed' };
             return { runId, status: 'failed', error: stored.error };
           } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
+            const message = toErrorMessage(err);
             return { status: 'failed', error: message };
           }
         },
@@ -908,7 +909,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
         },
       });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = toErrorMessage(err);
       console.error(`[${sink.channelName}] Message routing failed: ${msg}`);
       void sink.notifyText(`Error: ${msg}`);
     }

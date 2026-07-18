@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { toErrorMessage } from '../util/errors.js';
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'fs';
 import { dirname } from 'path';
 import {
@@ -51,11 +52,6 @@ export type AgentFilePokeEvent = {
   type: 'agent_file_poke';
   reason: 'sync_requested';
 };
-
-export type AgentServerEvent =
-  | RunTriggerEvent
-  | DecisionResolvedEvent
-  | AgentFilePokeEvent;
 
 export interface SseEvents {
   on(event: 'run_trigger', listener: (e: RunTriggerEvent) => void): this;
@@ -608,7 +604,7 @@ export class RealtimeClient {
 }
 
 function message(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
+  return toErrorMessage(err);
 }
 
 /**

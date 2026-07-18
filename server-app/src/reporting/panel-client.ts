@@ -1,3 +1,4 @@
+import { toErrorMessage } from '../util/errors.js';
 type PanelClientConfig = {
   panelUrl: string;
   panelApiKey: string;
@@ -50,7 +51,7 @@ export class PanelClient {
       const result = await response.json() as { cleaned?: number };
       return result.cleaned ?? 0;
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = toErrorMessage(err);
       console.error(`[panel-client] Failed to clean up orphaned runs: ${message}`);
       return 0;
     }

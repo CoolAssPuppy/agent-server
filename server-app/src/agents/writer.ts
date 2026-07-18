@@ -1,4 +1,5 @@
 import { readdir, readFile, writeFile, rename, mkdir } from 'fs/promises';
+import { toErrorMessage } from '../util/errors.js';
 import { join, extname } from 'path';
 import { z } from 'zod';
 import { Document, Scalar, parseDocument } from 'yaml';
@@ -373,7 +374,7 @@ export function createAgentWriter(
       try {
         updated = parseAgentFile(newContent);
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = toErrorMessage(err);
         throw new AgentWriteError(`Patch produced an invalid agent file: ${message}`, 'invalid');
       }
       if (updated.id !== id) {
@@ -417,7 +418,7 @@ export function createAgentWriter(
       try {
         config = parseAgentFile(content);
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = toErrorMessage(err);
         throw new AgentWriteError(`Generated agent file is invalid: ${message}`, 'invalid');
       }
 

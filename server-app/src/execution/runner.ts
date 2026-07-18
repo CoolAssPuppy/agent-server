@@ -5,6 +5,7 @@ import { acquireLock, releaseLock } from './lockfile.js';
 import { sanitizePromptSuffix } from '../server/security-utils.js';
 import { assessPromptInjectionRisk, wrapUntrustedUserContext } from './prompt-injection.js';
 import type { DecisionContext } from './decision-handler.js';
+import { toErrorMessage } from '../util/errors.js';
 
 export const RUN_TIMEOUT_CODE = 'run_timeout';
 
@@ -89,7 +90,7 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
       // Best-effort notification; never fail the parent just because the
       // notification couldn't be delivered. Log so we don't silently drop the
       // reason a run "vanished" when debugging lock contention.
-      const message = err instanceof Error ? err.message : String(err);
+      const message = toErrorMessage(err);
       console.warn(
         `[runner] Failed to emit lock_contention notification for agent=${agent.id} name=${agent.name}: ${message}`,
       );

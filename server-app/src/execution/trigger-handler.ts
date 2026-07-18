@@ -3,6 +3,7 @@ import type { AgentConfig } from '../agents/config.js';
 import { discoverAgents } from '../agents/discovery.js';
 import type { RunResult } from './runner.js';
 import type { RunTriggerEvent } from '../reporting/realtime-client.js';
+import { toErrorMessage } from '../util/errors.js';
 
 export type TriggerKind = 'manual';
 
@@ -66,7 +67,7 @@ export class TriggerHandler {
     this.listener = (event) => {
       if (this.stopped) return;
       const task = this.handleEvent(event).catch((err) => {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = toErrorMessage(err);
         console.error(`[trigger-handler] Unhandled error: ${message}`);
       });
       this.inFlight.add(task);
@@ -116,7 +117,7 @@ export class TriggerHandler {
       });
       await this.postComplete(triggerId, resultToTerminal(result));
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = toErrorMessage(err);
       console.error(`[trigger-handler] invokeRun threw: ${message}`);
       await this.postComplete(triggerId, { status: 'failed', error_message: message });
     }
@@ -127,7 +128,7 @@ export class TriggerHandler {
       const agents = await discoverAgents(this.options.agentsDir);
       return agents.find((a) => a.id === slug);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = toErrorMessage(err);
       console.error(`[trigger-handler] Failed to discover agents: ${message}`);
       return undefined;
     }
@@ -166,7 +167,7 @@ export class TriggerHandler {
         console.error(`[trigger-handler] POST ${path} -> ${response.status}`);
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = toErrorMessage(err);
       console.error(`[trigger-handler] POST ${path} failed: ${message}`);
     }
   }

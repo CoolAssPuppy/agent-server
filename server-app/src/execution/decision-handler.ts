@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import { mkdirSync, appendFileSync } from 'fs';
 import { dirname } from 'path';
 import type { DecisionInput } from '../interaction/schema.js';
+import { toErrorMessage } from '../util/errors.js';
 
 /**
  * Resolution payload shape shipped by the Panel over SSE when a decision is resolved.
@@ -156,35 +157,6 @@ export async function postDecision(options: PostDecisionOptions): Promise<string
   return body.decision_id;
 }
 
-type FailRunOptions = {
-  runId: string;
-  errorMessage: string;
-  panelUrl: string;
-  panelApiKey: string;
-  fetch?: typeof globalThis.fetch;
-};
-
-/**
- * POSTs a failed state for a run, used when a decision times out.
- */
-export async function postRunFailed(options: FailRunOptions): Promise<void> {
-  const fetchFn = options.fetch ?? globalThis.fetch;
-  const url = `${options.panelUrl}/api/runs/${options.runId}/status`;
-  try {
-    await fetchFn(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${options.panelApiKey}`,
-      },
-      body: JSON.stringify({ state: 'failed', error_message: options.errorMessage }),
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`[decision-handler] postRunFailed failed: ${message}`);
-  }
-}
-
 type PersistOptions = {
   runId: string;
   conversationDir: string;
@@ -206,7 +178,7 @@ export function persistConversationEntry(options: PersistOptions): void {
       'utf-8',
     );
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = toErrorMessage(err);
     console.error(`[decision-handler] Failed to persist conversation: ${message}`);
   }
 }
@@ -267,7 +239,7 @@ export async function runDecisionCycle(
 
     return { status: 'resolved', resumptionText };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = toErrorMessage(err);
     if (message === 'Decision timed out') {
       // Do not POST failed state here. The caller (plugin) throws and the
       // runner reports the failure via reporter.fail(), which uses the unified
