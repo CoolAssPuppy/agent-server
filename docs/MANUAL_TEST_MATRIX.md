@@ -30,6 +30,10 @@ Build the server and app from the `creation-experience` branch. Use demo agents 
 | Select a folder | A native folder picker opens. The proposal shows a readable path and read-only or editable state. |
 | Request file edits | The proposal shows the specific writable folder and a high-risk review. No write access is added without approval. |
 | Request command execution | The proposal explains the need and risk. Cancel leaves the prior proposal unchanged. |
+| Request Calendar access | Permission is requested only after Allow access. The proposal shows the selected account, calendar, and whether events can change. |
+| Request Reminders access | The proposal shows the selected account, list, and separate view, add, and complete actions. |
+| Request Contacts access | The proposal shows the selected group or account and only the approved names, email, phone, or birthday fields. No write action is offered. |
+| Request Apple Music access | The app clearly reports that Apple Music is unavailable in the current signed build and does not generate a false permission grant. |
 | Model returns malformed output | One bounded retry occurs, then a friendly fallback error appears. Nothing is saved. |
 | Duplicate name | Saving explains that the name is already used and lets the user edit it. |
 | Create something similar | The copied proposal retains high-level intent but excludes secrets and run history. Changes are shown before save. |

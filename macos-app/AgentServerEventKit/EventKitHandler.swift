@@ -637,9 +637,14 @@ final class EventKitHandler: MCPHandler {
         } else {
             predicate = CNContact.predicateForContactsInGroup(withIdentifier: groupId)
         }
-        let contacts: [CNContact]
+        var contacts: [CNContact] = []
         do {
-            contacts = try contactStore.unifiedContacts(matching: predicate, keysToFetch: keys)
+            let request = CNContactFetchRequest(keysToFetch: keys)
+            request.predicate = predicate
+            request.unifyResults = false
+            try contactStore.enumerateContacts(with: request) { contact, _ in
+                contacts.append(contact)
+            }
         } catch {
             throw MCPError.toolFailed("Failed to read the selected contact group: \(error.localizedDescription)")
         }

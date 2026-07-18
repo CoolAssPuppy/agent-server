@@ -26,6 +26,10 @@ The verified baseline had 862 server tests across 60 files and 126 Swift tests. 
 - Security analysis before save
 - Safe first test linked to existing runs
 - A path for creating a related agent without copying secrets or history
+- Exact named service identities, so Personal Notion and Work Notion cannot be confused
+- Multiple files and folders with independent view-only or change access
+- Exact Calendar, Reminder list, and Contacts scopes with on-demand macOS permission prompts
+- Read-only Contacts field selection for names, email addresses, phone numbers, and birthdays
 
 ### Agent Debugger
 
@@ -81,7 +85,7 @@ The feature work adds server behavior coverage for shared schemas, environment a
 
 Swift behavior coverage includes proposal and debugger state changes, consumer risk and schedule presentation, security payloads, accessibility identifiers, drawer routing, transport recovery, and stale state protection. Four signed macOS UI tests cover the requested creation, missing-connection, safe-test, debugger, low-risk repair, embedded-secret, folder-narrowing, and high-risk review behaviors using deterministic launch scenarios.
 
-The final non-interactive run passed 1,050 server tests across 80 files and 183 Swift tests. Server coverage before the final scoped-access batch was 78.82% statements, 74.59% branches, 80.28% functions, and 80.23% lines. The full four-flow signed UI suite passed once in 34.8 seconds. A later redundant UI rerun was interrupted after another app stole focus, and UI testing then stopped at the user's request. See [FINAL_VERIFICATION.md](FINAL_VERIFICATION.md) for the full record.
+The latest non-interactive run passed 1,123 server tests across 82 files and 202 Swift tests. TypeScript checking, the server build, and unsigned builds of the app and native helper passed. The full four-flow signed UI suite passed once earlier in the feature cycle. Later UI automation stopped at the user's request because it took keyboard focus. See [FINAL_VERIFICATION.md](FINAL_VERIFICATION.md) for the full record.
 
 ## Demo
 
@@ -101,6 +105,8 @@ Use [BUILD_WEEK_DEMO.md](BUILD_WEEK_DEMO.md) and the redacted fixtures under `se
 
 - Model-assisted steps require an available structured-output runtime.
 - Some connection authorization remains service-specific.
+- Apple Music remains unavailable until the signed app has a tested MusicKit capability. The creation flow does not claim Apple Music access in the meantime.
+- Contacts access is read-only. Users can choose a narrow group or deliberately review an entire account scope. Individual-contact selection is not yet provided.
 - Failed-run notifications do not yet open the Debugger directly. Failed run detail, agent detail, and context actions provide debugger entry points.
 - Static connection secrets remain in the existing owner-only local environment file. A Keychain migration needs a matching server token bridge.
 - Static analysis cannot guarantee that an approved agent will behave safely.
@@ -143,3 +149,13 @@ Use [BUILD_WEEK_DEMO.md](BUILD_WEEK_DEMO.md) and the redacted fixtures under `se
 24. `ed08e9b` Keep sidebar interactive beside creation drawer
 25. `4222e80` Scope file and calendar access during creation
 26. `ec36800` Add calendar access recovery guidance
+27. `31d49d6` Add unified local service registry
+28. `a00a9e5` Use exact service identities during creation
+29. `17e4b3e` Resolve reviewed services into runtime bindings
+30. `d7f6497` Add scoped multi-file access to creation
+31. `a27a928` Harden scoped creation permissions
+32. `6146f74` Canonicalize creation review data
+33. `8752eb0` Add scoped Calendar and Reminder access
+34. `3c0d89e` Simplify native access review flow
+35. `f464e56` Add scoped read-only Contacts access
+36. `4ad6581` Harden Contacts scope and review

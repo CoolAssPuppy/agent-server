@@ -213,7 +213,8 @@ function needsCalendarAccess(intent: string): boolean {
 
 function needsContactAccess(intent: string): boolean {
   return /\b(?:my|selected|mac(?:os)?|apple) contacts\b/.test(intent)
-    || /\bcontacts app\b|\baddress book\b|\bcontact groups?\b/.test(intent);
+    || /\bcontacts app\b|\baddress book\b|\bcontact groups?\b/.test(intent)
+    || /\b(?:from|in|use|using|search|read|review)\s+(?:my\s+)?contacts\b/.test(intent);
 }
 
 function fallbackQuestions(request: ProposalRequest): ProposalFallbackQuestion[] {

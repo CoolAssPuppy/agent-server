@@ -18,6 +18,8 @@ The proposal shows:
 
 Generated proposals use narrow access by default. File changes, command execution, internet access, and external messages must be visible in the proposal. Missing required connections remain setup steps instead of becoming raw runtime errors.
 
+Files and folders are reviewed one at a time, each with its own view-only or change access. Calendar and Reminders access names the exact account and resource, then separates viewing from adding, updating, or completing items. Contacts access is read-only and limits the helper to a selected group or reviewed account plus chosen detail types. macOS permission prompts appear only after the user chooses **Allow access**.
+
 Every proposal is validated as structured data. The app converts an approved proposal into the existing Markdown plus YAML frontmatter format. Users can inspect the generated Markdown under **Advanced details**.
 
 **Save and run a safe test** saves the agent and starts a restricted first run. The run appears in the existing run history and can be stopped. A failure can open directly in Agent Debugger.
@@ -92,6 +94,8 @@ Advanced sections may show configuration fields, redacted logs, exact patches, r
 - Deterministic checks can warn about likely risk but cannot prove an agent is safe.
 - Existing agents with unusual custom fields may need manual review before an automated patch.
 - Some service connection flows still depend on each service's current authentication method.
+- Apple Music is not offered until the signed app has a tested MusicKit capability and read-only runtime.
+- Contacts supports group or account scope but not individual-contact selection.
 - Undo is bounded and may be unavailable after the file changes again.
 
 ## Future improvements

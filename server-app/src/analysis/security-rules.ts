@@ -359,7 +359,10 @@ function analyzeConnectionsAndAutomation(agent: AgentConfig): Finding[] {
   }
   const hasExternalOutput = hasEffectiveNetworkAccess(agent)
     || Boolean(agent.notification)
-    || Boolean(agent.interaction);
+    || Boolean(agent.interaction)
+    || [...(agent.permissions?.allow ?? agent.tools ?? [])].some((tool) => (
+      tool.startsWith('mcp__') && !tool.startsWith('mcp__eventkit__')
+    ));
   if (hasContactAccess && hasExternalOutput) {
     findings.push(finding(
       'native.contacts_external_access', 'high', 'Contact details could be sent outside Contacts',

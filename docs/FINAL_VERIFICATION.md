@@ -17,7 +17,7 @@ This report records automated verification for the `creation-experience` branch.
 
 - Baseline: `5b779736985e918874b80b390372be71645dc19a`
 - Branch: `creation-experience`
-- Verified feature head: `ec36800`
+- Verified feature head: `4ad6581`
 - Worktree clean before closeout documentation edits: Yes
 - Primary Codex session ID: `019f7458-705a-7fe2-8819-b2bf9f383298`
 
@@ -49,19 +49,30 @@ This report records automated verification for the `creation-experience` branch.
 24. `ed08e9b` Keep sidebar interactive beside creation drawer
 25. `4222e80` Scope file and calendar access during creation
 26. `ec36800` Add calendar access recovery guidance
+27. `31d49d6` Add unified local service registry
+28. `a00a9e5` Use exact service identities during creation
+29. `17e4b3e` Resolve reviewed services into runtime bindings
+30. `d7f6497` Add scoped multi-file access to creation
+31. `a27a928` Harden scoped creation permissions
+32. `6146f74` Canonicalize creation review data
+33. `8752eb0` Add scoped Calendar and Reminder access
+34. `3c0d89e` Simplify native access review flow
+35. `f464e56` Add scoped read-only Contacts access
+36. `4ad6581` Harden Contacts scope and review
 
 ## Automated checks
 
 | Check | Result | Evidence |
 |---|---|---|
-| Server behavior tests | Passed | 1,050 tests across 80 files |
+| Server behavior tests | Passed | 1,123 tests across 82 files |
 | Server coverage | Passed before final scoped-access batch | 78.82% statements, 74.59% branches, 80.28% functions, 80.23% lines |
 | Server lint | Passed | `pnpm lint` exited successfully |
 | TypeScript strict check | Passed | `pnpm type-check` exited successfully |
 | Server production build | Passed | `pnpm build` exited successfully |
-| Swift behavior tests | Passed | 183 tests |
+| Swift behavior tests | Passed | 202 tests |
 | Signed macOS UI tests | Passed once | All four tests completed in 34.8 seconds. A later redundant rerun was interrupted after another app stole focus and UI testing stopped at the user's request. |
 | macOS application build | Passed | `AgentServer` scheme built successfully during final verification |
+| Native service helper build | Passed | `AgentServerEventKit` scheme built with scoped Calendar, Reminders, and Contacts support |
 | Demo fixture parsing | Passed during documentation batch | `build-week-github-slack.md` parsed as `AgentConfig`; both JSON files parsed |
 | Diff whitespace check | Passed | `git diff --check` |
 
@@ -129,6 +140,8 @@ The UI results below come from the complete signed four-test run. They were not 
 - Literal fake credentials never appear in logs or returned evidence: Passed in redaction and security-rule tests
 - Critical risk blocks preflight until resolved: Passed in server behavior tests
 - Automated patch policy rejects unrestricted access and arbitrary commands: Passed in server behavior tests
+- Native Calendar and Reminder grants enforce exact resource IDs and approved actions in the helper: Passed in server and Swift policy tests
+- Contacts grants enforce an approved group or account and return only approved fields: Passed in server, Swift policy, and helper build checks
 - Review state becomes stale after content change: Passed in server behavior tests
 - Demo fixtures contain no credentials or personal paths: Passed during documentation batch
 
@@ -142,6 +155,8 @@ The cleanup work also extracted the server run lifecycle, split macOS guidance a
 
 - Model-assisted steps require an available structured-output runtime.
 - Some connection authorization remains service-specific.
+- Apple Music is unavailable until a signed MusicKit capability and read-only runtime have been verified.
+- Contacts is read-only and supports group or reviewed account scope, not individual-contact selection.
 - Failed-run notifications do not yet open the Debugger directly. Failed run detail, agent detail, and context actions provide debugger entry points.
 - Static connection secrets remain in the existing owner-only local environment file. A Keychain migration needs a matching server token bridge.
 - Static analysis cannot guarantee that an approved agent will behave safely.

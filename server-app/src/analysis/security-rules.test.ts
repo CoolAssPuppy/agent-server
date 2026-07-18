@@ -290,7 +290,6 @@ describe('deterministic security analysis', () => {
             resources: [{ id: 'family', name: 'Family', actions: ['read'], fields: ['name', 'email'] }],
           },
         },
-        notification: { channel: 'slack', on_complete: true, on_failure: true },
       }),
       rawContent: 'Send the selected contact summary to Slack.',
       homeDir: '/Users/tester',

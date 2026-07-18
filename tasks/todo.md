@@ -11,7 +11,7 @@ Status: Native service integration and final release verification are in progres
 - [x] Add read-only Contacts grants with exact group and field review.
 - [ ] Keep Apple Music visibly unavailable until the signed app has the required MusicKit capability and a tested read-only runtime.
 - [ ] Reuse the grant models in proposal review, safe tests, debugger patches, and security preflight checks.
-- [ ] Add server and Swift behavior coverage first, then run full server tests, Swift tests, type-check, server build, and unsigned Xcode build without UI automation.
+- [x] Add server and Swift behavior coverage first, then run full server tests, Swift tests, type-check, server build, and unsigned Xcode build without UI automation.
 - [ ] Run a simplification review after every consequential commit, record the final verification here, and launch the verified build.
 
 ### Services and file grants review
@@ -32,6 +32,14 @@ Status: Native service integration and final release verification are in progres
 - Existing agent-defined MCP configurations remain compatible and can be offered as reusable local connections when their configuration is safe to copy.
 - File and native-service permissions are least-privilege grants. No global write permission is inferred from one writable resource.
 - Calendar and Reminders continue through EventKit. Contacts and Apple Music must use native framework or approved local-helper boundaries, not shell automation hidden from the user.
+
+### Native service verification
+
+- Calendar and Reminders use exact resource IDs and reviewed actions in the native helper.
+- Contacts is read-only, does not return stable contact IDs, limits returned fields, and disables linked-contact unification so an approved account cannot pull details from another account.
+- Contacts combined with network, messaging, or any non-EventKit MCP output is classified as high risk.
+- Apple Music remains a documented unavailable capability until MusicKit signing and a read-only runtime are verified.
+- Verification: 1,123 server tests across 82 files, 202 Swift tests, TypeScript type-check and build, plus unsigned app and helper builds. UI automation was not run.
 
 ## Consumer correction batch
 

@@ -409,6 +409,20 @@ describe('guided agent proposal creation', () => {
     });
   });
 
+  it('recognizes plain contacts used as a data source', async () => {
+    const result = await createAgentProposal({
+      request: 'Search contacts for email addresses.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      availableContactGroups: [{ id: 'family', name: 'Family', account: 'iCloud' }],
+      model: modelReturning(completeProposal()).model,
+    });
+
+    expect(result).toMatchObject({
+      status: 'needs_information', questions: [{ id: 'contact-group-id' }],
+    });
+  });
+
   it('re-asks when a Reminder answer is no longer available or allowed', async () => {
     const fake = modelReturning(completeProposal());
     const base = {
