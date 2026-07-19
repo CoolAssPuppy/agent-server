@@ -9,6 +9,8 @@ public struct SecurityPanelNavigationState: Equatable, Sendable {
         selectedAgentId == nil ? 1 : 2
     }
 
+    public var analysisIdentity: String? { selectedAgentId }
+
     public mutating func selectAgent(_ agentId: String) {
         selectedAgentId = agentId
     }

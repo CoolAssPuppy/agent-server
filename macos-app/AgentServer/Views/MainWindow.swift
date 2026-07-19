@@ -109,10 +109,14 @@ struct MainWindow: View {
                                 }
                                 return await monitor.prepareGuidedAgent(request: request, answers: answers)
                             },
-                            save: monitor.saveGuidedAgent
+                            save: monitor.saveGuidedAgent,
+                            safeTestState: monitor.safeTestState,
+                            stopSafeTest: monitor.cancelRun
                         ),
                         onCancel: router.close,
                         onCreated: openCreatedAgent,
+                        onOpenRun: openRun,
+                        onTestFailed: { router.openDebugger(runId: $0) },
                         copy: sourceAgentId == nil ? .newAgent : .similarAgent,
                         setUpConnections: presentConnectionSetup
                     )

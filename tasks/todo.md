@@ -40,9 +40,9 @@ Status: Native service integration and final release verification are complete.
 
 ## Full macOS experience audit
 
-- [ ] Inventory every primary screen, drawer, sheet, empty state, error state, and multi-step flow.
-- [ ] Audit first impression, task clarity, navigation, visual hierarchy, terminology, repetition, control density, keyboard use, VoiceOver, and reduced motion.
-- [ ] Define a three-level disclosure model: immediate decision, useful context, and technical details.
+- [x] Inventory every primary screen, drawer, sheet, empty state, error state, and multi-step flow.
+- [x] Audit first impression, task clarity, navigation, visual hierarchy, terminology, repetition, control density, keyboard use, VoiceOver, and reduced motion.
+- [x] Define a three-level disclosure model: immediate decision, useful context, and technical details.
 - [ ] Simplify creation, connections, agent details, run history, debugger, security, and settings without removing advanced control.
 - [ ] Add behavior tests before each consequential correction and reuse shared components and copy models.
 - [ ] Verify all Swift behavior tests and an unsigned macOS build without UI automation.

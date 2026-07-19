@@ -44,12 +44,28 @@ enum CreationPreparation {
 struct GuidedAgentCreationActions {
     let prepare: (String, [String: CreationAnswerValue]) async -> Result<CreationPreparation, ConsumerFlowFailure>
     let save: (AgentProposalPresentation, Bool) async -> Result<SavedAgentPresentation, ConsumerFlowFailure>
+    let safeTestState: (String) async -> Result<SafeTestRunState, ConsumerFlowFailure>
+    let stopSafeTest: (String) -> Void
+
+    init(
+        prepare: @escaping (String, [String: CreationAnswerValue]) async -> Result<CreationPreparation, ConsumerFlowFailure>,
+        save: @escaping (AgentProposalPresentation, Bool) async -> Result<SavedAgentPresentation, ConsumerFlowFailure>,
+        safeTestState: @escaping (String) async -> Result<SafeTestRunState, ConsumerFlowFailure> = { _ in .success(.completed) },
+        stopSafeTest: @escaping (String) -> Void = { _ in }
+    ) {
+        self.prepare = prepare
+        self.save = save
+        self.safeTestState = safeTestState
+        self.stopSafeTest = stopSafeTest
+    }
 }
 
 struct GuidedAgentCreationView: View {
     let actions: GuidedAgentCreationActions
     let onCancel: () -> Void
     let onCreated: (SavedAgentPresentation) -> Void
+    var onOpenRun: (String) -> Void = { _ in }
+    var onTestFailed: (String) -> Void = { _ in }
     var copy: GuidedAgentCreationCopy = .newAgent
     var setUpConnections: ((@escaping () -> Void) -> Void)? = nil
 
@@ -62,6 +78,7 @@ struct GuidedAgentCreationView: View {
     @State private var flow = AgentCreationFlow(request: "")
     @State private var pendingHighRiskSave: Bool?
     @State private var unsupportedServiceTracker = UnsupportedServiceTelemetryTracker()
+    @State private var safeTestTask: Task<Void, Never>?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -91,6 +108,7 @@ struct GuidedAgentCreationView: View {
         } message: { _ in
             Text(flow.proposal?.riskReason ?? "Review this agent's access before saving.")
         }
+        .onDisappear { safeTestTask?.cancel() }
     }
 
     @ViewBuilder
@@ -110,7 +128,7 @@ struct GuidedAgentCreationView: View {
         case .saving:
             ConsumerProgressView(title: "Saving your agent", message: "Your reviewed settings are being saved locally.")
         case .testing:
-            ConsumerProgressView(title: "Running a safe test", message: "You can stop the run from its run details.")
+            ConsumerProgressView(title: "Running a safe test", message: "Watching this run until it finishes.")
         case .complete:
             completionStep
         case .failed:
@@ -425,10 +443,16 @@ struct GuidedAgentCreationView: View {
 
     private var completionStep: some View {
         ConsumerSection("Agent saved") {
-            Label("Your agent is ready.", systemImage: "checkmark.circle")
+            Label(completionMessage, systemImage: "checkmark.circle")
                 .font(NTypography.headlineSmall)
                 .foregroundStyle(theme.tokens.success)
         }
+    }
+
+    private var completionMessage: String {
+        flow.safeTestState == .stopped
+            ? "Your agent is saved. The safe test was stopped."
+            : "Your agent is ready."
     }
 
     private var footer: some View {
@@ -475,6 +499,18 @@ struct GuidedAgentCreationView: View {
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
                 .accessibilityIdentifier(ConsumerFlowAccessibility.creationSaveAndTest)
+        case .testing:
+            if let runId = flow.safeTestRunId {
+                Button("Open run") { onOpenRun(runId) }
+                Button("Stop test") { stopSafeTest(runId) }
+                    .buttonStyle(.borderedProminent)
+            }
+        case .failed:
+            if let runId = flow.failedSafeTestRunId {
+                Button("Open Agent Debugger") { onTestFailed(runId) }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+            }
         case .complete:
             Button("Done", action: onCancel)
                 .buttonStyle(.borderedProminent)
@@ -561,12 +597,48 @@ struct GuidedAgentCreationView: View {
         Task {
             switch await actions.save(proposal, runSafeTest) {
             case .success(let result):
-                flow.didSave()
-                if runSafeTest { flow.completeTest() }
-                onCreated(result)
+                flow.didSave(result)
+                if let runId = result.safeTestRunId {
+                    observeSafeTest(runId: runId, result: result)
+                } else {
+                    onCreated(result)
+                }
             case .failure(let failure): flow.fail(failure)
             }
         }
+    }
+
+    private func observeSafeTest(runId: String, result: SavedAgentPresentation) {
+        safeTestTask?.cancel()
+        safeTestTask = Task {
+            while !Task.isCancelled, flow.phase == .testing {
+                switch await actions.safeTestState(runId) {
+                case .success(let state):
+                    flow.updateSafeTest(state)
+                    switch state {
+                    case .completed:
+                        onCreated(result)
+                        return
+                    case .failed:
+                        onTestFailed(runId)
+                        return
+                    case .running:
+                        try? await Task.sleep(for: .seconds(1))
+                    case .stopped:
+                        return
+                    }
+                case .failure(let failure):
+                    flow.fail(failure)
+                    return
+                }
+            }
+        }
+    }
+
+    private func stopSafeTest(_ runId: String) {
+        actions.stopSafeTest(runId)
+        safeTestTask?.cancel()
+        flow.updateSafeTest(.stopped)
     }
 
     private func requestSave(runSafeTest: Bool) {

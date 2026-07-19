@@ -49,6 +49,7 @@ struct SecurityCenterView: View {
             if let agentId = navigation.selectedAgentId {
                 Divider().opacity(0.35)
                 agentPanel(agentId: agentId)
+                    .id(navigation.analysisIdentity)
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }

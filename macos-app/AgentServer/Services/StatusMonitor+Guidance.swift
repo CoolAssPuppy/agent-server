@@ -135,6 +135,29 @@ extension StatusMonitor {
         }
     }
 
+    func safeTestState(runId: String) async -> Result<SafeTestRunState, ConsumerFlowFailure> {
+        do {
+            let run = try await client.run(id: runId)
+            switch run.status {
+            case .running:
+                return .success(.running)
+            case .completed:
+                return .success(.completed)
+            case .failed, .skipped:
+                return .success(.failed(run.error ?? "The run did not complete."))
+            }
+        } catch {
+            return .failure(ConsumerFlowFailure(
+                title: "Could not check the safe test",
+                message: "Your agent is saved, but the current test status is unavailable.",
+                recovery: "Open the run to check it directly, or try again.",
+                technicalDetails: error.localizedDescription,
+                didSave: true,
+                canRetry: true
+            ))
+        }
+    }
+
     private func runSafeTestForSavedAgent(
         _ agentId: String
     ) async -> Result<SavedAgentPresentation, ConsumerFlowFailure> {

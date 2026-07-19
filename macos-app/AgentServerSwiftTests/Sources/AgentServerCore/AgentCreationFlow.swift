@@ -143,6 +143,13 @@ public struct SavedAgentPresentation: Equatable, Sendable {
     }
 }
 
+public enum SafeTestRunState: Equatable, Sendable {
+    case running
+    case completed
+    case failed(String)
+    case stopped
+}
+
 public struct AgentCreationFlow: Equatable, Sendable {
     public enum Phase: Equatable, Sendable {
         case request
@@ -163,6 +170,8 @@ public struct AgentCreationFlow: Equatable, Sendable {
     public private(set) var failure: ConsumerFlowFailure?
     public private(set) var shouldRunSafeTest: Bool
     public private(set) var hasSaved: Bool
+    public private(set) var savedAgent: SavedAgentPresentation?
+    public private(set) var safeTestState: SafeTestRunState?
 
     public init(request: String) {
         self.phase = .request
@@ -171,6 +180,13 @@ public struct AgentCreationFlow: Equatable, Sendable {
         self.answers = [:]
         self.shouldRunSafeTest = false
         self.hasSaved = false
+    }
+
+    public var safeTestRunId: String? { savedAgent?.safeTestRunId }
+
+    public var failedSafeTestRunId: String? {
+        guard case .failed? = safeTestState else { return nil }
+        return safeTestRunId
     }
 
     public var nextQuestion: CreationQuestion? {
@@ -262,12 +278,35 @@ public struct AgentCreationFlow: Equatable, Sendable {
         phase = .saving
     }
 
-    public mutating func didSave() {
+    public mutating func didSave(_ result: SavedAgentPresentation) {
+        savedAgent = result
         hasSaved = true
         phase = shouldRunSafeTest ? .testing : .complete
     }
 
-    public mutating func completeTest() { phase = .complete }
+    public mutating func updateSafeTest(_ state: SafeTestRunState) {
+        guard phase == .testing, safeTestRunId != nil else { return }
+        switch state {
+        case .running:
+            safeTestState = .running
+        case .completed:
+            safeTestState = .completed
+            phase = .complete
+        case .failed(let details):
+            safeTestState = state
+            fail(.init(
+                title: "The safe test found a problem",
+                message: "Your agent was saved, but its first test did not finish successfully.",
+                recovery: "Open Agent Debugger to see what happened and review a safe fix.",
+                technicalDetails: details,
+                didSave: true,
+                canRetry: false
+            ))
+        case .stopped:
+            safeTestState = .stopped
+            phase = .complete
+        }
+    }
 
     public mutating func fail(_ failure: ConsumerFlowFailure) {
         self.failure = failure

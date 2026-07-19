@@ -291,12 +291,44 @@ final class ConsumerProductFlowTests: XCTestCase {
         flow.receiveProposal(.fixture())
         flow.beginSave(runSafeTest: true)
 
-        flow.didSave()
+        flow.didSave(SavedAgentPresentation(agentId: "weekly-summary", safeTestRunId: "run-2"))
         XCTAssertEqual(flow.phase, .testing)
         XCTAssertTrue(flow.hasSaved)
+        XCTAssertEqual(flow.safeTestRunId, "run-2")
 
-        flow.completeTest()
+        flow.updateSafeTest(.running)
+        XCTAssertEqual(flow.phase, .testing)
+
+        flow.updateSafeTest(.completed)
         XCTAssertEqual(flow.phase, .complete)
+    }
+
+    func testFailedSafeTestKeepsTheSavedAgentAndOffersDebuggerRouting() {
+        var flow = AgentCreationFlow(request: "Send a weekly summary")
+        flow.receiveProposal(.fixture())
+        flow.beginSave(runSafeTest: true)
+        flow.didSave(SavedAgentPresentation(agentId: "weekly-summary", safeTestRunId: "run-2"))
+
+        flow.updateSafeTest(.failed("Slack is not connected"))
+
+        XCTAssertEqual(flow.phase, .failed)
+        XCTAssertTrue(flow.hasSaved)
+        XCTAssertEqual(flow.failedSafeTestRunId, "run-2")
+        XCTAssertEqual(flow.failure?.title, "The safe test found a problem")
+        XCTAssertTrue(flow.failure?.didSave == true)
+    }
+
+    func testStoppedSafeTestKeepsTheAgentWithoutClaimingTheTestPassed() {
+        var flow = AgentCreationFlow(request: "Send a weekly summary")
+        flow.receiveProposal(.fixture())
+        flow.beginSave(runSafeTest: true)
+        flow.didSave(SavedAgentPresentation(agentId: "weekly-summary", safeTestRunId: "run-2"))
+
+        flow.updateSafeTest(.stopped)
+
+        XCTAssertEqual(flow.phase, .complete)
+        XCTAssertEqual(flow.safeTestState, .stopped)
+        XCTAssertNil(flow.failedSafeTestRunId)
     }
 
     func testSavedAgentResultKeepsTheSafeTestRunVisible() {

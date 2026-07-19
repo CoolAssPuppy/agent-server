@@ -33,6 +33,17 @@ final class SecurityPanelNavigationTests: XCTestCase {
         XCTAssertEqual(navigation.visiblePanelCount, 2)
     }
 
+    func testChangingAgentsChangesTheAnalysisIdentity() {
+        var navigation = SecurityPanelNavigationState(selectedAgentId: "agent-a")
+
+        let firstIdentity = navigation.analysisIdentity
+        navigation.selectAgent("agent-b")
+
+        XCTAssertEqual(firstIdentity, "agent-a")
+        XCTAssertEqual(navigation.analysisIdentity, "agent-b")
+        XCTAssertNotEqual(firstIdentity, navigation.analysisIdentity)
+    }
+
     func testSteppingBackClosesDetailsBeforeTheDrawer() {
         var navigation = SecurityPanelNavigationState(selectedAgentId: "weekly-summary")
 
