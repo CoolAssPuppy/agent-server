@@ -250,15 +250,28 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(flow.phase, .questions)
     }
 
-    func testCreationCanReturnFromProposalWithoutSavingStaleSettings() {
+    func testEditingAProposalPreservesReviewedAnswersWhileDiscardingTheStaleProposal() {
+        let question = CreationQuestion(
+            id: "tone",
+            prompt: "What tone should it use?",
+            kind: .choice(["Short", "Detailed"]),
+            isRequired: true
+        )
         var flow = AgentCreationFlow(request: "Create a weekly summary")
+        flow.receiveQuestions([question])
+        flow.answer(questionId: question.id, value: "Short")
         flow.receiveProposal(.fixture(reviewId: "review-1"))
 
         flow.returnToRequest()
 
         XCTAssertEqual(flow.phase, .request)
         XCTAssertNil(flow.proposal)
-        XCTAssertTrue(flow.answers.isEmpty)
+        XCTAssertEqual(flow.answers[question.id], .string("Short"))
+        XCTAssertEqual(flow.questions, [question])
+
+        flow.reviseRequest("Create a shorter weekly summary")
+        XCTAssertEqual(flow.request, "Create a shorter weekly summary")
+        XCTAssertEqual(flow.answers[question.id], .string("Short"))
     }
 
     func testCreationKeepsMultipleFileGrantsWithIndependentAccess() {

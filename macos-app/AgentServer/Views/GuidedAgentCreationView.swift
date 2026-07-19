@@ -536,7 +536,7 @@ struct GuidedAgentCreationView: View {
                 properties: ["service_ids": newIDs, "service_count": newIDs.count]
             )
         }
-        flow = AgentCreationFlow(request: request)
+        flow.reviseRequest(request)
         flow.beginProposalRequest()
         prepare()
     }

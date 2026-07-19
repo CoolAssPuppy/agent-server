@@ -163,7 +163,7 @@ public struct AgentCreationFlow: Equatable, Sendable {
     }
 
     public private(set) var phase: Phase
-    public let request: String
+    public private(set) var request: String
     public private(set) var questions: [CreationQuestion]
     public private(set) var answers: [String: CreationAnswerValue]
     public private(set) var proposal: AgentProposalPresentation?
@@ -264,11 +264,15 @@ public struct AgentCreationFlow: Equatable, Sendable {
 
     public mutating func returnToRequest() {
         guard phase == .proposal || phase == .questions else { return }
-        questions = []
-        answers = [:]
         proposal = nil
         failure = nil
         phase = .request
+    }
+
+    public mutating func reviseRequest(_ request: String) {
+        self.request = request
+        proposal = nil
+        failure = nil
     }
 
     public mutating func beginSave(runSafeTest: Bool) {
