@@ -6,7 +6,6 @@ public enum SettingsSection: String, CaseIterable, Equatable, Sendable {
     case updates
     case agentPanel
     case environment
-    case telemetry
 }
 
 public enum SettingsPresentation {
@@ -21,7 +20,6 @@ public enum SettingsPresentation {
     public static let advancedSections: [SettingsSection] = [
         .agentPanel,
         .environment,
-        .telemetry,
     ]
 
     /// Two cards stay readable once each can retain about 300 points of width.

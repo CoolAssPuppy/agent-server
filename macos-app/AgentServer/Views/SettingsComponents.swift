@@ -142,7 +142,7 @@ struct SettingsAdvancedDisclosure: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Advanced")
                         .font(NTypography.labelMedium)
-                    Text("Agent Panel, environment values, and telemetry")
+                    Text("Agent Panel and environment values")
                         .font(NTypography.captionSmall)
                         .foregroundStyle(theme.tokens.mutedForeground)
                 }

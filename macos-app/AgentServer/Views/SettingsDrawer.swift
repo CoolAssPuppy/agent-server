@@ -123,7 +123,6 @@ struct SettingsDrawer: View {
         case .updates: updatesCard
         case .agentPanel: agentPanelCard
         case .environment: environmentCard
-        case .telemetry: telemetryCard
         }
     }
 
@@ -263,6 +262,22 @@ struct SettingsDrawer: View {
                     .controlSize(.small)
                 }
             }
+
+            Divider()
+                .padding(.vertical, NSpacing.xs)
+
+            VStack(alignment: .leading, spacing: NSpacing.xxs) {
+                Text("Progress reporting")
+                    .font(NTypography.labelMedium)
+                    .foregroundStyle(theme.tokens.foreground)
+
+                Text("Choose how run progress is sent to Agent Panel.")
+                    .font(NTypography.captionSmall)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            telemetryControls
         }
     }
 
@@ -293,47 +308,46 @@ struct SettingsDrawer: View {
     /// as the four `AGENT_SERVER_TELEMETRY_PROGRESS_*` keys. Server reads
     /// these on launch, so changes take effect after the next server restart.
     /// Per-agent overrides in agent YAML always win over these values.
-    private var telemetryCard: some View {
-        SettingsCard(title: "Telemetry") {
-            SettingsValueRow(label: "Progress mode") {
-                Picker("", selection: $telemetryMode) {
-                    Text("Live").tag(TelemetryMode.live)
-                    Text("Batched").tag(TelemetryMode.batched)
-                }
-                .labelsHidden()
-                .pickerStyle(.segmented)
-                .frame(width: 140)
-                .onChange(of: telemetryMode) { _, _ in persistTelemetry() }
+    @ViewBuilder
+    private var telemetryControls: some View {
+        SettingsValueRow(label: "Progress mode") {
+            Picker("", selection: $telemetryMode) {
+                Text("Live").tag(TelemetryMode.live)
+                Text("Batched").tag(TelemetryMode.batched)
             }
-
-            SettingsValueRow(label: "Sample interval (s)") {
-                Stepper(value: $telemetrySampleSeconds, in: 1...600) {
-                    Text("\(telemetrySampleSeconds)")
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(theme.tokens.foreground)
-                }
-                .controlSize(.mini)
-                .onChange(of: telemetrySampleSeconds) { _, _ in persistTelemetry() }
-            }
-
-            SettingsValueRow(label: "Max progress entries") {
-                Stepper(value: $telemetryMaxEntries, in: 1...500) {
-                    Text("\(telemetryMaxEntries)")
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(theme.tokens.foreground)
-                }
-                .controlSize(.mini)
-                .onChange(of: telemetryMaxEntries) { _, _ in persistTelemetry() }
-            }
-
-            SettingsToggleRow(label: "Include progress metadata", isOn: $telemetryIncludeMetadata)
-                .onChange(of: telemetryIncludeMetadata) { _, _ in persistTelemetry() }
-
-            Text("Per-agent telemetry blocks override these values. Restart the server to apply changes.")
-                .font(NTypography.captionSmall)
-                .foregroundStyle(theme.tokens.mutedForeground)
-                .fixedSize(horizontal: false, vertical: true)
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .frame(width: 140)
+            .onChange(of: telemetryMode) { _, _ in persistTelemetry() }
         }
+
+        SettingsValueRow(label: "Sample interval (s)") {
+            Stepper(value: $telemetrySampleSeconds, in: 1...600) {
+                Text("\(telemetrySampleSeconds)")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(theme.tokens.foreground)
+            }
+            .controlSize(.mini)
+            .onChange(of: telemetrySampleSeconds) { _, _ in persistTelemetry() }
+        }
+
+        SettingsValueRow(label: "Max progress entries") {
+            Stepper(value: $telemetryMaxEntries, in: 1...500) {
+                Text("\(telemetryMaxEntries)")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(theme.tokens.foreground)
+            }
+            .controlSize(.mini)
+            .onChange(of: telemetryMaxEntries) { _, _ in persistTelemetry() }
+        }
+
+        SettingsToggleRow(label: "Include progress metadata", isOn: $telemetryIncludeMetadata)
+            .onChange(of: telemetryIncludeMetadata) { _, _ in persistTelemetry() }
+
+        Text("Per-agent settings override these values. Restart the server to apply changes.")
+            .font(NTypography.captionSmall)
+            .foregroundStyle(theme.tokens.mutedForeground)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var updatesCard: some View {

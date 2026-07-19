@@ -9,7 +9,7 @@ final class SettingsPreferenceTests: XCTestCase {
         )
         XCTAssertEqual(
             SettingsPresentation.advancedSections,
-            [.agentPanel, .environment, .telemetry]
+            [.agentPanel, .environment]
         )
     }
 
