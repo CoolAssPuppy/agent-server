@@ -13,6 +13,7 @@ struct Run: Codable, Identifiable {
     let completedAt: Date?
     let summary: String?
     let error: String?
+    let code: String?
     let turnCount: Int
     let toolsUsed: [String]
     let filesRead: [String]
@@ -40,6 +41,7 @@ struct Run: Codable, Identifiable {
         completedAt = try c.decodeIfPresent(Date.self, forKey: .completedAt)
         summary = try c.decodeIfPresent(String.self, forKey: .summary)
         error = try c.decodeIfPresent(String.self, forKey: .error)
+        code = try c.decodeIfPresent(String.self, forKey: .code)
         turnCount = try c.decodeIfPresent(Int.self, forKey: .turnCount) ?? 0
         toolsUsed = try c.decodeIfPresent([String].self, forKey: .toolsUsed) ?? []
         filesRead = try c.decodeIfPresent([String].self, forKey: .filesRead) ?? []
@@ -60,6 +62,7 @@ struct Run: Codable, Identifiable {
     init(
         runId: String, agentId: String, agentName: String, status: RunStatus,
         startedAt: Date, completedAt: Date?, summary: String?, error: String?,
+        code: String? = nil,
         turnCount: Int, toolsUsed: [String], filesRead: [String], filesWritten: [String],
         commandsRun: [String], progressMessages: [String],
         accomplishments: [String] = [], observations: [String] = [],
@@ -68,7 +71,7 @@ struct Run: Codable, Identifiable {
     ) {
         self.runId = runId; self.agentId = agentId; self.agentName = agentName
         self.status = status; self.startedAt = startedAt; self.completedAt = completedAt
-        self.summary = summary; self.error = error; self.turnCount = turnCount
+        self.summary = summary; self.error = error; self.code = code; self.turnCount = turnCount
         self.toolsUsed = toolsUsed; self.filesRead = filesRead; self.filesWritten = filesWritten
         self.commandsRun = commandsRun; self.progressMessages = progressMessages
         self.accomplishments = accomplishments; self.observations = observations

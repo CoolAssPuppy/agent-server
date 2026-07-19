@@ -278,6 +278,7 @@ struct AgentRunsView: View {
             completedAt: local.completedAt ?? panel.completedAt,
             summary: local.summary ?? panel.summary,
             error: local.error ?? panel.error,
+            code: local.code ?? panel.code,
             turnCount: local.turnCount > 0 ? local.turnCount : panel.turnCount,
             toolsUsed: local.toolsUsed.isEmpty ? panel.toolsUsed : local.toolsUsed,
             filesRead: local.filesRead.isEmpty ? panel.filesRead : local.filesRead,

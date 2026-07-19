@@ -57,4 +57,31 @@ final class RunAccessibilityPresentationTests: XCTestCase {
 
         XCTAssertEqual(presentation.label, "Error, Could not connect to Notion")
     }
+
+    func testLockContentionSkipIsExplainedAsANeutralNotice() {
+        let presentation = RunNoticePresentation(
+            status: "skipped",
+            code: "lock_contention",
+            technicalMessage: "This run was skipped because Test Agent is already running."
+        )
+
+        XCTAssertEqual(presentation.kind, .information)
+        XCTAssertEqual(presentation.title, "Run not started")
+        XCTAssertEqual(
+            presentation.message,
+            "This agent was already running, so this extra attempt was skipped."
+        )
+    }
+
+    func testFailedRunKeepsItsErrorMessageAndWarningTreatment() {
+        let presentation = RunNoticePresentation(
+            status: "failed",
+            code: "runtime_error",
+            technicalMessage: "Codex exited with status 1."
+        )
+
+        XCTAssertEqual(presentation.kind, .error)
+        XCTAssertEqual(presentation.title, "Run failed")
+        XCTAssertEqual(presentation.message, "Codex exited with status 1.")
+    }
 }

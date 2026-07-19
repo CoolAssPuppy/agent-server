@@ -38,4 +38,64 @@ final class RunSelectionCoordinatorTests: XCTestCase {
         XCTAssertFalse(coordinator.accepts(firstRequest))
         XCTAssertTrue(coordinator.accepts(secondRequest))
     }
+
+    func testLockContentionRetryCannotHideAnEarlierCompletedRun() {
+        let completed = RunOutcomeCandidate(
+            id: "original",
+            startedAt: Date(timeIntervalSince1970: 100),
+            status: "completed",
+            code: nil
+        )
+        let skippedRetry = RunOutcomeCandidate(
+            id: "retry",
+            startedAt: Date(timeIntervalSince1970: 110),
+            status: "skipped",
+            code: "lock_contention"
+        )
+
+        XCTAssertEqual(
+            RunOutcomeSelection.latestMeaningfulRun(in: [skippedRetry, completed])?.id,
+            "original"
+        )
+    }
+
+    func testSecurityReviewSkipRemainsAVisibleAgentOutcome() {
+        let completed = RunOutcomeCandidate(
+            id: "completed",
+            startedAt: Date(timeIntervalSince1970: 100),
+            status: "completed",
+            code: nil
+        )
+        let blocked = RunOutcomeCandidate(
+            id: "blocked",
+            startedAt: Date(timeIntervalSince1970: 110),
+            status: "skipped",
+            code: "security_review_required"
+        )
+
+        XCTAssertEqual(
+            RunOutcomeSelection.latestMeaningfulRun(in: [completed, blocked])?.id,
+            "blocked"
+        )
+    }
+
+    func testRunningRunsAreNotAgentOutcomes() {
+        let running = RunOutcomeCandidate(
+            id: "running",
+            startedAt: Date(timeIntervalSince1970: 110),
+            status: "running",
+            code: nil
+        )
+        let failed = RunOutcomeCandidate(
+            id: "failed",
+            startedAt: Date(timeIntervalSince1970: 100),
+            status: "failed",
+            code: nil
+        )
+
+        XCTAssertEqual(
+            RunOutcomeSelection.latestMeaningfulRun(in: [running, failed])?.id,
+            "failed"
+        )
+    }
 }

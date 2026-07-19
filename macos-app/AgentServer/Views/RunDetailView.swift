@@ -36,7 +36,14 @@ struct RunDetailView: View {
             }
 
             if let error = run.error {
-                errorBanner(error)
+                runNoticeBanner(
+                    RunNoticePresentation(
+                        status: run.status.rawValue,
+                        code: run.code,
+                        technicalMessage: error
+                    ),
+                    technicalDetails: error
+                )
                 Divider()
             }
 
@@ -205,19 +212,31 @@ struct RunDetailView: View {
         .background(.green.opacity(0.04))
     }
 
-    private func errorBanner(_ error: String) -> some View {
-        HStack(spacing: NSpacing.md) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.red)
-            Text(error)
-                .font(.system(.subheadline, design: .monospaced))
-                .foregroundStyle(.red)
-                .textSelection(.enabled)
+    private func runNoticeBanner(
+        _ presentation: RunNoticePresentation,
+        technicalDetails: String
+    ) -> some View {
+        let isError = presentation.kind == .error
+        let color: Color = isError ? .red : theme.tokens.mutedForeground
+
+        return HStack(spacing: NSpacing.md) {
+            Image(systemName: isError ? "exclamationmark.triangle.fill" : "info.circle.fill")
+                .foregroundStyle(color)
+            VStack(alignment: .leading, spacing: NSpacing.xxxs) {
+                Text(presentation.title)
+                    .font(NTypography.labelMedium)
+                    .foregroundStyle(color)
+                Text(presentation.message)
+                    .font(isError ? .system(.subheadline, design: .monospaced) : NTypography.bodySmall)
+                    .foregroundStyle(color)
+                    .textSelection(.enabled)
+            }
             Spacer()
-            CopyTextButton(text: error, label: "Copy")
+            CopyTextButton(text: technicalDetails, label: "Copy")
         }
         .padding(NSpacing.md)
-        .background(.red.opacity(0.08))
+        .background(isError ? Color.red.opacity(0.08) : theme.tokens.muted.opacity(0.5))
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: - Content: tabs

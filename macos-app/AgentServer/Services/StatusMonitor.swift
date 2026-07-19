@@ -299,16 +299,25 @@ final class StatusMonitor: ObservableObject {
                 self.reportedAgentIds = agentIds
                 self.hasDoneInitialPoll = true
 
-                // Latest TERMINAL run per agent (for sidebar failed/succeeded
-                // indicator). Running runs are excluded so the icon reflects
-                // the previous outcome, not the in-flight attempt.
+                // Show the latest attempt that produced an agent outcome.
+                // A lock-contention retry never started, so it must not replace
+                // the original run when that run later completes.
                 var latest: [String: Run] = [:]
-                for run in fetchedRuns where !run.isActive {
-                    if let existing = latest[run.agentId] {
-                        if run.startedAt > existing.startedAt { latest[run.agentId] = run }
-                    } else {
-                        latest[run.agentId] = run
+                let runsByAgent = Dictionary(grouping: fetchedRuns, by: \.agentId)
+                for (agentId, agentRuns) in runsByAgent {
+                    let candidates = agentRuns.map {
+                        RunOutcomeCandidate(
+                            id: $0.runId,
+                            startedAt: $0.startedAt,
+                            status: $0.status.rawValue,
+                            code: $0.code
+                        )
                     }
+                    guard let outcome = RunOutcomeSelection.latestMeaningfulRun(in: candidates),
+                          let run = agentRuns.first(where: { $0.runId == outcome.id }) else {
+                        continue
+                    }
+                    latest[agentId] = run
                 }
             self.liveLastRunByAgent = latest
             if !self.isDemoMode { self.lastRunByAgent = latest }

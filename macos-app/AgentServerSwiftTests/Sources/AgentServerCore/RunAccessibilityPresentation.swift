@@ -50,3 +50,26 @@ struct TimelineRowAccessibilityPresentation: Equatable, Sendable {
         label = parts.joined(separator: ", ")
     }
 }
+
+enum RunNoticeKind: Equatable, Sendable {
+    case information
+    case error
+}
+
+struct RunNoticePresentation: Equatable, Sendable {
+    let kind: RunNoticeKind
+    let title: String
+    let message: String
+
+    init(status: String, code: String?, technicalMessage: String) {
+        if status == "skipped", code == "lock_contention" {
+            kind = .information
+            title = "Run not started"
+            message = "This agent was already running, so this extra attempt was skipped."
+        } else {
+            kind = .error
+            title = "Run failed"
+            message = technicalMessage
+        }
+    }
+}
