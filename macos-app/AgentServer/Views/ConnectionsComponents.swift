@@ -1,6 +1,50 @@
 import SwiftUI
 import NerdsUI
 
+struct SavedConnectionRow: View {
+    let presentation: ConnectionProfilePresentation
+
+    @Environment(\.nTheme) private var theme
+
+    var body: some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: NSpacing.xs) {
+                Text(presentation.location)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .textSelection(.enabled)
+                Text(presentation.credentialSummary)
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            }
+            .padding(.top, NSpacing.sm)
+        } label: {
+            HStack(spacing: NSpacing.md) {
+                Image(systemName: "point.3.connected.trianglepath.dotted")
+                    .frame(width: 24)
+                    .foregroundStyle(theme.tokens.foreground)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(presentation.name)
+                        .font(NTypography.bodyMedium)
+                        .foregroundStyle(theme.tokens.foreground)
+                    Text(presentation.connectionMethod)
+                        .font(NTypography.caption)
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                }
+                Spacer()
+                Label(
+                    presentation.status == .ready ? "Ready" : "Needs credentials",
+                    systemImage: presentation.status == .ready ? "checkmark.circle.fill" : "exclamationmark.circle"
+                )
+                .font(NTypography.caption)
+                .foregroundStyle(presentation.status == .ready ? theme.tokens.success : theme.tokens.warning)
+            }
+        }
+        .padding(.horizontal, NSpacing.md)
+        .padding(.vertical, NSpacing.md)
+    }
+}
+
 struct CredentialConnectionRow: View {
     let row: ConnectionCredentialRow
     let catalogEntry: CapabilityCatalogEntry?

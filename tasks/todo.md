@@ -38,6 +38,16 @@ Status: Native service integration and final release verification are complete.
 - Configured operations come from transport discovery or versioned adapter declarations. Unknown operations remain unavailable until reviewed.
 - The Connections drawer serves technical knowledge workers with guided defaults plus expandable environment, transport, endpoint, command, inventory, and exact grant details.
 
+## Full macOS experience audit
+
+- [ ] Inventory every primary screen, drawer, sheet, empty state, error state, and multi-step flow.
+- [ ] Audit first impression, task clarity, navigation, visual hierarchy, terminology, repetition, control density, keyboard use, VoiceOver, and reduced motion.
+- [ ] Define a three-level disclosure model: immediate decision, useful context, and technical details.
+- [ ] Simplify creation, connections, agent details, run history, debugger, security, and settings without removing advanced control.
+- [ ] Add behavior tests before each consequential correction and reuse shared components and copy models.
+- [ ] Verify all Swift behavior tests and an unsigned macOS build without UI automation.
+- [ ] Document findings, implemented corrections, deferred items, and rationale.
+
 ## Utility navigation and drawer consistency
 
 - [x] Put Security check, Connections, and Settings in one bottom-right icon cluster in that order.

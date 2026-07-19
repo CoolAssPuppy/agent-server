@@ -13,10 +13,12 @@ struct ConnectionsView: View {
     @Environment(\.nTheme) private var theme
     @State private var catalog: [CapabilityCatalogEntry] = []
     @State private var registeredServices: [GuidanceServiceConnection] = []
+    @State private var savedProfiles: [ConnectionProfile] = []
     @State private var snapshot: ConnectionSnapshot = .empty
     @State private var loaded = false
     @State private var refreshing = false
     @State private var connectTarget: CatalogConnectTarget?
+    @State private var isAddingConnection = false
     @State private var telegramConnected = false
     @State private var slackMessagingConnected = false
 
@@ -88,10 +90,11 @@ struct ConnectionsView: View {
             title: "Connections",
             closeLabel: "Close connections",
             onClose: close,
-            headerActions: { refreshButton }
+            headerActions: { headerActions }
         ) {
             ScrollView {
                 VStack(alignment: .leading, spacing: NSpacing.xl) {
+                    savedConnectionsSection
                     availableSection
                     servicesSection
                     messagingSection
@@ -109,6 +112,7 @@ struct ConnectionsView: View {
             loaded = true
             catalog = await monitor.capabilityCatalog()
             registeredServices = await monitor.serviceConnections()
+            savedProfiles = await monitor.connectionProfiles()
             snapshot = await monitor.connections()
             telegramConnected = Self.isConnected(Self.telegramTokenKey)
             slackMessagingConnected = Self.isConnected(Self.slackBotTokenKey)
@@ -131,6 +135,15 @@ struct ConnectionsView: View {
                     && Self.isConnected(Self.slackAppTokenKey)
                 Task { catalog = await monitor.capabilityCatalog() }
                 Task { registeredServices = await monitor.serviceConnections() }
+            }
+        }
+        .sheet(isPresented: $isAddingConnection) {
+            GenericConnectionSetupSheet(monitor: monitor) { profile in
+                savedProfiles.append(profile)
+                isAddingConnection = false
+                Task { registeredServices = await monitor.serviceConnections() }
+            } onCancel: {
+                isAddingConnection = false
             }
         }
     }
@@ -165,6 +178,74 @@ struct ConnectionsView: View {
         .disabled(refreshing)
         .help("Check for connections again")
         .accessibilityLabel("Refresh connections")
+    }
+
+    private var headerActions: some View {
+        HStack(spacing: NSpacing.xs) {
+            Button {
+                isAddingConnection = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 28, height: 28)
+                    .background(Circle().fill(theme.tokens.muted))
+                    .overlay(Circle().stroke(theme.tokens.border, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .help("Add connection")
+            .accessibilityLabel("Add connection")
+            .accessibilityIdentifier("connections.add")
+            refreshButton
+        }
+    }
+
+    private var savedConnectionsSection: some View {
+        VStack(alignment: .leading, spacing: NSpacing.sm) {
+            Text("YOUR CONNECTIONS")
+                .font(NTypography.labelSmall)
+                .tracking(0.8)
+                .foregroundStyle(theme.tokens.mutedForeground)
+            Text("Reusable accounts and tools you configured for Agent Server.")
+                .font(NTypography.caption)
+                .foregroundStyle(theme.tokens.mutedForeground)
+
+            if savedProfiles.isEmpty {
+                Button {
+                    isAddingConnection = true
+                } label: {
+                    Label("Add your first connection", systemImage: "plus.circle")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(NSpacing.lg)
+                }
+                .buttonStyle(.plain)
+                .background(theme.tokens.background)
+                .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border, lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(savedProfiles.enumerated()), id: \.element.id) { index, profile in
+                        if index > 0 { Divider().opacity(0.25) }
+                        SavedConnectionRow(
+                            presentation: ConnectionProfilePresentation(
+                                profile: profile,
+                                configuredEnvironmentVariables: configuredEnvironmentVariables
+                            )
+                        )
+                    }
+                }
+                .background(theme.tokens.background)
+                .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border, lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
+            }
+        }
+    }
+
+    private var configuredEnvironmentVariables: Set<String> {
+        let url = AgentServerWorkspaceStore.current().environmentFile
+        let pairs = (try? EnvFileStore.load(from: url)) ?? []
+        return Set(pairs.compactMap { pair in
+            pair.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : pair.key
+        })
     }
 
     // MARK: - Available through Claude (live)

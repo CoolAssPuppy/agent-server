@@ -80,6 +80,21 @@ extension StatusMonitor {
         (try? await client.services().connections) ?? []
     }
 
+    func connectionProfiles() async -> [ConnectionProfile] {
+        (try? await client.connectionProfiles()) ?? []
+    }
+
+    func createConnectionProfile(
+        _ request: ConnectionProfileCreateRequest
+    ) async -> Result<ConnectionProfile, Error> {
+        guard !isDemoMode else { return .failure(DemoModeWriteError()) }
+        do {
+            return .success(try await client.createConnectionProfile(request))
+        } catch {
+            return .failure(error)
+        }
+    }
+
     func connections() async -> ConnectionSnapshot {
         (try? await client.connections()) ?? .empty
     }

@@ -194,6 +194,29 @@ actor AgentServerClient {
         try await get("/services")
     }
 
+    /// User-named reusable connections saved independently from any agent.
+    /// Profiles contain credential references, never credential values.
+    func connectionProfiles() async throws -> [ConnectionProfile] {
+        let response: ConnectionProfileListResponse = try await get("/connection-profiles")
+        return response.connections
+    }
+
+    /// Saves a reusable connection profile. Secret values are persisted locally
+    /// before this call and are deliberately absent from the request model.
+    func createConnectionProfile(
+        _ requestBody: ConnectionProfileCreateRequest
+    ) async throws -> ConnectionProfile {
+        var request = URLRequest(url: baseURL.appendingPathComponent("/connection-profiles"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(requestBody)
+        request = try authenticatedRequest(request)
+
+        let (data, response) = try await session.data(for: request)
+        try validateWriteResponse(data: data, response: response)
+        return try decoder.decode(ConnectionProfile.self, from: data)
+    }
+
     /// Re-probes the runtime and returns the fresh snapshot. Backs the
     /// "Refresh connections" action; costs an MCP connection, no tokens.
     func refreshConnections() async throws -> ConnectionSnapshot {
