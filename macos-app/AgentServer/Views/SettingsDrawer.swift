@@ -263,21 +263,7 @@ struct SettingsDrawer: View {
                 }
             }
 
-            Divider()
-                .padding(.vertical, NSpacing.xs)
-
-            VStack(alignment: .leading, spacing: NSpacing.xxs) {
-                Text("Progress reporting")
-                    .font(NTypography.labelMedium)
-                    .foregroundStyle(theme.tokens.foreground)
-
-                Text("Choose how run progress is sent to Agent Panel.")
-                    .font(NTypography.captionSmall)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            telemetryControls
+            panelProgressSettings
         }
     }
 
@@ -304,14 +290,28 @@ struct SettingsDrawer: View {
         }
     }
 
-    /// Panel telemetry batching controls. Persists into the selected workspace `.env`.
+    /// Agent Panel progress delivery controls. Persists into the selected workspace `.env`.
     /// as the four `AGENT_SERVER_TELEMETRY_PROGRESS_*` keys. Server reads
     /// these on launch, so changes take effect after the next server restart.
     /// Per-agent overrides in agent YAML always win over these values.
     @ViewBuilder
-    private var telemetryControls: some View {
+    private var panelProgressSettings: some View {
+        Divider()
+            .padding(.vertical, NSpacing.xs)
+
+        VStack(alignment: .leading, spacing: NSpacing.xxs) {
+            Text("Progress reporting")
+                .font(NTypography.labelMedium)
+                .foregroundStyle(theme.tokens.foreground)
+
+            Text("Choose how run progress is sent to Agent Panel.")
+                .font(NTypography.captionSmall)
+                .foregroundStyle(theme.tokens.mutedForeground)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+
         SettingsValueRow(label: "Progress mode") {
-            Picker("", selection: $telemetryMode) {
+            Picker("Progress mode", selection: $telemetryMode) {
                 Text("Live").tag(TelemetryMode.live)
                 Text("Batched").tag(TelemetryMode.batched)
             }
