@@ -1,8 +1,57 @@
 import { describe, expect, it } from 'vitest';
 import { makeAgent } from '../test-factories.js';
+import type { ConnectionProfile } from '../connections/profile.js';
 import { buildServiceRegistry } from './registry.js';
 
 describe('consumer service registry', () => {
+  it('registers a saved profile by opaque ID while keeping its label presentation-only', () => {
+    const profile: ConnectionProfile = {
+      schema_version: 1,
+      id: '018f47a2-9a13-7d61-bf4f-f9a5d8f67c21',
+      label: 'My strange but valid name',
+      adapter: { id: 'mcp.custom', version: 1 },
+      runtime_name: 'connection_018f47a29a137d61bf4ff9a5d8f67c21',
+      credentials: [{
+        id: '018f47a2-d541-7fb1-ae66-bb2c92b90de1',
+        label: 'Token',
+        environment_variable: 'EXISTING_TOKEN',
+        secret: true,
+      }],
+      transport: {
+        kind: 'mcp_http',
+        url: 'https://service.example/mcp',
+        headers: [{
+          name: 'Authorization',
+          credential_id: '018f47a2-d541-7fb1-ae66-bb2c92b90de1',
+          prefix: 'Bearer ',
+        }],
+      },
+      created_at: '2026-07-19T18:00:00.000Z',
+      updated_at: '2026-07-19T18:00:00.000Z',
+    };
+
+    const registry = buildServiceRegistry({
+      agents: [],
+      environment: { EXISTING_TOKEN: 'configured-secret' },
+      discovered: [],
+      profiles: [profile],
+    });
+
+    expect(registry.connections).toContainEqual(expect.objectContaining({
+      id: profile.id,
+      name: profile.label,
+      status: 'connected',
+      required_env: ['EXISTING_TOKEN'],
+    }));
+    expect(registry.bindings.get(profile.id)).toEqual({
+      serverName: profile.runtime_name,
+      config: {
+        type: 'http',
+        url: 'https://service.example/mcp',
+        headers: { Authorization: 'Bearer ${EXISTING_TOKEN}' },
+      },
+    });
+  });
   it('distinguishes an account connector from a personal API-key connection', () => {
     const personal = makeAgent({
       id: 'personal-notes',

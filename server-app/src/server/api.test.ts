@@ -154,6 +154,7 @@ describe('API routes', () => {
         getAgents: async () => [],
         store,
         triggerRun,
+        getEnv: () => ({}),
         connectionProfiles: {
           list: vi.fn(async () => [connection]),
           create: vi.fn(),
@@ -165,6 +166,12 @@ describe('API routes', () => {
 
       expect(response.status).toBe(200);
       expect(await response.json()).toEqual({ connections: [connection] });
+
+      const services = await authenticatedRequest(app, '/services').then((result) => result.json());
+      expect(services.connections).toContainEqual(expect.objectContaining({
+        id: connection.id,
+        name: connection.label,
+      }));
     });
 
     it('creates a profile from credential references without accepting values', async () => {

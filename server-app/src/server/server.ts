@@ -534,6 +534,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     return runPreflightGate.run(agent, triggerOptions, { source, confirmedContentHash });
   }
   const getAgents = (): Promise<AgentConfig[]> => discoverAgents(config.agentsDir);
+  const connectionProfileStore = new ConnectionProfileStore(join(config.agentsDir, '..', 'connections.json'));
   const guidanceApi = createGuidanceApi({
     model: guidanceModel,
     writer: agentWriter,
@@ -546,6 +547,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       agents: await getAgents(),
       environment: loadEnvFile(join(config.agentsDir, '..'), process.env),
       discovered: connectionCache.servers(),
+      profiles: await connectionProfileStore.list(),
     }),
   });
 
@@ -574,7 +576,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       get: () => connectionCache.get(),
       refresh: () => connectionCache.refresh(),
     },
-    connectionProfiles: new ConnectionProfileStore(join(config.agentsDir, '..', 'connections.json')),
+    connectionProfiles: connectionProfileStore,
     apiKey,
     startedAt,
     host: config.host,

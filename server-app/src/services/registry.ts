@@ -7,6 +7,8 @@ import {
   type CapabilityDefinition,
   type DiscoveredConnection,
 } from '../agents/capabilities.js';
+import type { ConnectionProfile } from '../connections/profile.js';
+import { resolveConnectionProfile } from '../connections/profile-resolver.js';
 
 type EnvironmentSource = Record<string, string | undefined>;
 export type ServiceRuntimeBinding = { serverName: string; config?: McpServerConfig };
@@ -43,6 +45,7 @@ type RegistryInput = {
   environment: EnvironmentSource;
   discovered: DiscoveredConnection[];
   nativeServices?: NativeServiceAvailability[];
+  profiles?: ConnectionProfile[];
 };
 
 const ENV_REFERENCE = /\$\{([A-Z][A-Z0-9_]*)}/g;
@@ -274,7 +277,30 @@ function accountConnections(discovered: DiscoveredConnection[]): ServiceConnecti
   });
 }
 
+function savedProfileConnections(
+  profiles: ConnectionProfile[],
+  environment: EnvironmentSource,
+): { connections: ServiceConnection[]; runtime: Map<string, ServiceRuntimeBinding> } {
+  const runtime = new Map<string, ServiceRuntimeBinding>();
+  const connections = profiles.map((profile): ServiceConnection => {
+    const required = profile.credentials.map(({ environment_variable: name }) => name);
+    runtime.set(profile.id, resolveConnectionProfile(profile));
+    return {
+      id: profile.id,
+      service_id: profile.adapter.id,
+      name: profile.label,
+      source: required.length > 0 ? 'configured_api' : 'mcp',
+      status: required.every((name) => Boolean(environment[name]?.trim())) ? 'connected' : 'needs_setup',
+      actions: [],
+      actions_known: false,
+      required_env: required,
+    };
+  });
+  return { connections, runtime };
+}
+
 export function buildServiceRegistry(input: RegistryInput): ServiceRegistry {
+  const saved = savedProfileConnections(input.profiles ?? [], input.environment);
   const configured = configuredAgentConnections(input.agents, input.environment);
   const catalog = configuredCatalogConnections(input.environment, new Set(configured.connections.map(({ id }) => id)));
   const accounts = accountConnections(input.discovered);
@@ -293,7 +319,7 @@ export function buildServiceRegistry(input: RegistryInput): ServiceRegistry {
     required_env: [],
   }));
   return {
-    connections: [...configured.connections, ...catalog.connections, ...accounts, ...native],
-    bindings: new Map([...configured.runtime, ...catalog.runtime, ...accountBindings]),
+    connections: [...saved.connections, ...configured.connections, ...catalog.connections, ...accounts, ...native],
+    bindings: new Map([...saved.runtime, ...configured.runtime, ...catalog.runtime, ...accountBindings]),
   };
 }

@@ -345,6 +345,7 @@ export function createApi(deps: ApiDependencies): Hono {
       agents: await deps.getAgents(),
       environment: getEnv(),
       discovered: getConnections(),
+      profiles: await deps.connectionProfiles?.list() ?? [],
     });
     return c.json({ connections: registry.connections });
   });
