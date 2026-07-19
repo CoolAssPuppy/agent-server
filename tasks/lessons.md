@@ -50,3 +50,11 @@
 - Async detail requests must carry the identity of the selected object and request generation. Reject late logs or hydration data after the selection changes.
 - Safety is a primary agent state, not an icon-only utility. Show connection readiness, stale review state, scan failure, and risk in one visible row with a direct recovery action.
 - A fixed-height drawer still needs one outer scroll surface. Keep common settings in a stable reading order, adapt only the column count, and place infrastructure controls behind one clearly described disclosure.
+
+## Do not equate an operation timeout with server reachability
+
+- A local server can remain healthy after a client stops waiting for a long preflight or trigger request.
+- Use an operation-appropriate timeout for routes that may perform model-backed safety work.
+- Classify request timeouts as an uncertain operation result, then reconcile authoritative run state before offering Retry.
+- Every skipped run must retain and present a reason, especially lock contention caused by a duplicate action.
+- Never pass secret-bearing MCP configuration in child-process arguments. Use the runtime SDK's supported control stream, and hold the user prompt until connection setup succeeds.

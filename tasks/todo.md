@@ -1,5 +1,21 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Trigger timeout regression
+
+- [x] Add failing coverage for a trigger that outlives the ordinary five-second request timeout.
+- [x] Stop reporting request timeouts as server-offline failures.
+- [x] Reconcile authoritative runs after an uncertain trigger result before offering Retry.
+- [x] Preserve and show the reason when a duplicate invocation is skipped.
+- [x] Keep MCP connection credentials out of Claude child-process arguments.
+- [x] Run complete server and macOS verification, commit coherent batches, simplify, and relaunch.
+
+### Trigger timeout regression review
+
+- Manual triggers use a 75-second request budget for model-backed safety checks. A timeout is presented as an uncertain operation with a non-destructive Check status action, never as proof that the server is offline.
+- Run reconciliation finds a matching run started after the request. A rejected duplicate records `lock_contention`, explains that the agent was already running, and cannot hide the original run's completed outcome.
+- Claude MCP configuration is sent through the SDK control stream before the user prompt is released. Connection credentials are not placed in child-process arguments.
+- Verification: 1,212 server tests across 90 files, 322 Swift behavior tests, TypeScript type-check, ESLint, server build, and the unsigned macOS build passed. UI automation was not run.
+
 Status: Native service integration and final release verification are complete.
 
 ## Connection account model correction
