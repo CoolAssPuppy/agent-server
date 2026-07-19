@@ -47,7 +47,7 @@ struct SecurityScanProgressView: View {
 
     private var progressExplanation: String {
         if let current = state.currentAgent {
-            return "Analyzing \(current.name) now. Each agent is checked separately on this Mac."
+            return "Analyzing \(current.name) now."
         }
         return "The check finished the remaining agents. Review the error below, then try again."
     }
@@ -84,9 +84,9 @@ struct SecurityScanProgressView: View {
                 .foregroundStyle(theme.tokens.mutedForeground)
         case .analyzing:
             ProgressView().controlSize(.small)
-        case .complete:
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(theme.tokens.success)
+        case .checked(let risk):
+            Image(systemName: statusSymbol(for: risk))
+                .foregroundStyle(statusColor(status))
         case .failed:
             Image(systemName: "exclamationmark.circle.fill")
                 .foregroundStyle(theme.tokens.destructive)
@@ -94,19 +94,24 @@ struct SecurityScanProgressView: View {
     }
 
     private func statusLabel(_ status: SecurityScanAgentStatus) -> String {
-        switch status {
-        case .pending: "Waiting"
-        case .analyzing: "Checking"
-        case .complete: "Checked"
-        case .failed: "Could not check"
-        }
+        status.displayLabel
     }
 
     private func statusColor(_ status: SecurityScanAgentStatus) -> Color {
         switch status {
         case .failed: theme.tokens.destructive
-        case .complete: theme.tokens.success
+        case .checked(.low): theme.tokens.success
+        case .checked(.needsReview): theme.tokens.warning
+        case .checked(.high), .checked(.critical): theme.tokens.destructive
         case .pending, .analyzing: theme.tokens.mutedForeground
+        }
+    }
+
+    private func statusSymbol(for risk: ConsumerRiskLevel) -> String {
+        switch risk {
+        case .low: "checkmark.circle.fill"
+        case .needsReview: "exclamationmark.triangle.fill"
+        case .high, .critical: "exclamationmark.octagon.fill"
         }
     }
 }

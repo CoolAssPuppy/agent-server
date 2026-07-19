@@ -8,8 +8,17 @@ public enum SecurityBackgroundScanPhase: Equatable, Sendable {
 public enum SecurityScanAgentStatus: Equatable, Sendable {
     case pending
     case analyzing
-    case complete
+    case checked(ConsumerRiskLevel)
     case failed
+
+    public var displayLabel: String {
+        switch self {
+        case .pending: return "Waiting"
+        case .analyzing: return "Checking"
+        case .checked(let risk): return risk.title
+        case .failed: return "Could not check"
+        }
+    }
 }
 
 public struct SecurityScanAgent: Identifiable, Equatable, Sendable {
@@ -61,11 +70,17 @@ public struct SecurityBackgroundScanState: Equatable, Sendable {
     }
 
     public var completedCount: Int {
-        agents.count { $0.status == .complete }
+        agents.count {
+            if case .checked = $0.status { return true }
+            return false
+        }
     }
 
     public var processedCount: Int {
-        agents.count { $0.status == .complete || $0.status == .failed }
+        agents.count {
+            if case .checked = $0.status { return true }
+            return $0.status == .failed
+        }
     }
 
     public var notification: SecurityScanNotification {
@@ -88,10 +103,10 @@ public struct SecurityBackgroundScanState: Equatable, Sendable {
         }
     }
 
-    public func completingCurrentAgent() -> Self {
+    public func completingCurrentAgent(risk: ConsumerRiskLevel) -> Self {
         guard let currentIndex = agents.firstIndex(where: { $0.status == .analyzing }) else { return self }
         var updated = agents
-        updated[currentIndex] = updated[currentIndex].withStatus(.complete)
+        updated[currentIndex] = updated[currentIndex].withStatus(.checked(risk))
         let nextIndex = updated.index(after: currentIndex)
         if updated.indices.contains(nextIndex) {
             updated[nextIndex] = updated[nextIndex].withStatus(.analyzing)

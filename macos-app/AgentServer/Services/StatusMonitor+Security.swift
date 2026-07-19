@@ -251,8 +251,11 @@ extension StatusMonitor {
         for agent in scanAgents {
             guard !Task.isCancelled else { break }
             do {
-                securityAnalyses[agent.id] = try await client.securityAnalysis(agentId: agent.id)
-                securityScanState = securityScanState.completingCurrentAgent()
+                let analysis = try await client.securityAnalysis(agentId: agent.id)
+                securityAnalyses[agent.id] = analysis
+                securityScanState = securityScanState.completingCurrentAgent(
+                    risk: analysis.risk.consumerLevel
+                )
             } catch {
                 let failure = securityFailure(
                     title: "Could not check \(agent.name)",

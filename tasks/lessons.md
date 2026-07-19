@@ -38,3 +38,4 @@
 - Treat the documented `~/.agent-server/.env` path as a product contract. Do not introduce a second environment file for one UI flow without explicit approval, migration behavior, and end-to-end reader and writer tests.
 - A model repeating answered questions is a normalization case, not a reason to discard an otherwise valid proposal. Remove only questions proven answered and preserve validated proposal content.
 - Every model-backed server route must have a bounded server timeout shorter than its macOS client timeout. Keep deterministic results when semantic analysis times out.
+- A completion icon must not imply a safety verdict. Security progress rows must show the resulting risk level as soon as each analysis finishes.

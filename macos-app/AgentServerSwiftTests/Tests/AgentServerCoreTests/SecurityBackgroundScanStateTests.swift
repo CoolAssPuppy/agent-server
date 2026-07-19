@@ -9,7 +9,7 @@ final class SecurityBackgroundScanStateTests: XCTestCase {
         ]
 
         let started = SecurityBackgroundScanState.scanning(agents: agents)
-        let advanced = started.completingCurrentAgent()
+        let advanced = started.completingCurrentAgent(risk: .low)
 
         XCTAssertEqual(started.phase, .scanning)
         XCTAssertEqual(started.currentAgent?.id, "alpha")
@@ -18,7 +18,7 @@ final class SecurityBackgroundScanStateTests: XCTestCase {
         XCTAssertEqual(advanced.completedCount, 1)
         XCTAssertEqual(
             advanced.agents.map(\.status),
-            [.complete, .analyzing]
+            [.checked(.low), .analyzing]
         )
     }
 
@@ -27,12 +27,22 @@ final class SecurityBackgroundScanStateTests: XCTestCase {
             agents: [SecurityScanAgent(id: "alpha", name: "Alpha")]
         )
 
-        let completed = started.completingCurrentAgent()
+        let completed = started.completingCurrentAgent(risk: .low)
 
         XCTAssertEqual(completed.phase, .complete)
         XCTAssertEqual(completed.completedCount, 1)
         XCTAssertNil(completed.currentAgent)
         XCTAssertEqual(completed.notification, .none)
+    }
+
+    func testCompletedAgentCarriesItsActualRiskAndPlainLanguageLabel() {
+        let completed = SecurityBackgroundScanState.scanning(
+            agents: [SecurityScanAgent(id: "alpha", name: "Alpha")]
+        )
+        .completingCurrentAgent(risk: .high)
+
+        XCTAssertEqual(completed.agents.map(\.status), [.checked(.high)])
+        XCTAssertEqual(completed.agents.first?.status.displayLabel, "High risk")
     }
 
     func testFailureProducesAnAccessibleErrorNotification() {
@@ -55,7 +65,7 @@ final class SecurityBackgroundScanStateTests: XCTestCase {
         ])
 
         let continued = started.recordingCurrentFailure(message: "Alpha could not be checked.")
-        let finished = continued.completingCurrentAgent()
+        let finished = continued.completingCurrentAgent(risk: .low)
 
         XCTAssertEqual(continued.phase, .scanning)
         XCTAssertEqual(continued.currentAgent?.id, "beta")
@@ -74,8 +84,8 @@ final class SecurityBackgroundScanStateTests: XCTestCase {
 
         let finished = started
             .recordingCurrentFailure(message: "Alpha could not be checked.")
-            .completingCurrentAgent()
-            .completingCurrentAgent()
+            .completingCurrentAgent(risk: .needsReview)
+            .completingCurrentAgent(risk: .critical)
 
         XCTAssertEqual(finished.phase, .failed)
         XCTAssertEqual(finished.failureMessage, "Alpha could not be checked.")
@@ -85,7 +95,7 @@ final class SecurityBackgroundScanStateTests: XCTestCase {
         let completed = SecurityBackgroundScanState.scanning(
             agents: [SecurityScanAgent(id: "alpha", name: "Alpha")]
         )
-        .completingCurrentAgent()
+        .completingCurrentAgent(risk: .high)
         .reportingAttention(count: 1)
 
         XCTAssertEqual(completed.notification, .attention(count: 1))

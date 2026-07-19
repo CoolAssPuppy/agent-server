@@ -838,3 +838,17 @@ Review:
 - macOS security analysis and scan requests allow 15 seconds; review writes keep the ordinary five-second limit.
 - Local API version 4 forces the app to replace older server processes that do not have these reliability contracts.
 - Verification: 1,147 server tests, 235 Swift tests, TypeScript type-check and build, and the unsigned macOS build passed. UI automation was not run.
+
+## Security progress meaning correction
+
+- [x] Remove the superfluous local-check explanation.
+- [x] Show each analyzed agent's actual risk instead of a generic green completion check.
+- [x] Keep progress, error, and accessibility states accurate without relying on color alone.
+- [x] Add behavior tests first and build.
+
+### Security progress meaning review
+
+- A finished row now stores and displays Low risk, Needs review, High risk, or Critical from that agent's actual analysis.
+- Green is reserved for Low risk. Needs review uses a warning symbol and label; High risk and Critical use destructive symbols and labels.
+- “Each agent is checked separately on this Mac” was removed. The current row now says only which agent is being analyzed.
+- Verification: 236 Swift behavior tests and the unsigned macOS build passed. UI automation was not run.
