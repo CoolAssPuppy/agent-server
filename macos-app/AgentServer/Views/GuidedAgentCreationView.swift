@@ -434,8 +434,7 @@ struct GuidedAgentCreationView: View {
         VStack(alignment: .leading, spacing: NSpacing.lg) {
             ConsumerFlowHeader(title: "Review your agent", explanation: "Check what it will do and what it can access before saving.")
             AgentProposalView(
-                proposal: proposal,
-                onSetUpConnections: setUpConnections == nil ? nil : requestConnectionSetup
+                proposal: proposal
             )
                 .accessibilityIdentifier(ConsumerFlowAccessibility.creationReview)
         }
@@ -493,12 +492,20 @@ struct GuidedAgentCreationView: View {
             }
         case .proposal:
             Button("Edit details") { flow.returnToRequest() }
-            Button("Save agent") { requestSave(runSafeTest: false) }
-                .accessibilityIdentifier(ConsumerFlowAccessibility.creationSave)
-            Button("Save and run a safe test") { requestSave(runSafeTest: true) }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .accessibilityIdentifier(ConsumerFlowAccessibility.creationSaveAndTest)
+            if let proposal = flow.proposal, !proposal.readiness.canSave {
+                Button(proposal.readiness.primaryActionTitle, action: requestConnectionSetup)
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(setUpConnections == nil)
+                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationConnectionSetup)
+            } else {
+                Button("Save agent") { requestSave(runSafeTest: false) }
+                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationSave)
+                Button("Save and run a safe test") { requestSave(runSafeTest: true) }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationSaveAndTest)
+            }
         case .testing:
             if let runId = flow.safeTestRunId {
                 Button("Open run") { onOpenRun(runId) }

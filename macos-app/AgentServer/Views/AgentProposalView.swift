@@ -3,7 +3,6 @@ import NerdsUI
 
 struct AgentProposalView: View {
     let proposal: AgentProposalPresentation
-    var onSetUpConnections: (() -> Void)? = nil
 
     @Environment(\.nTheme) private var theme
     @State private var showsInstructions = false
@@ -101,13 +100,6 @@ struct AgentProposalView: View {
                         Text(connection.state.title)
                             .font(NTypography.badge)
                             .foregroundStyle(connection.state == .connected ? theme.tokens.success : theme.tokens.warning)
-                        if connection.isRequired,
-                           connection.state == .needsSetup,
-                           let onSetUpConnections {
-                            Button("Set up", action: onSetUpConnections)
-                                .accessibilityLabel("Set up \(connection.name)")
-                                .accessibilityIdentifier(ConsumerFlowAccessibility.creationConnectionSetup)
-                        }
                     }
                     if !connection.reason.isEmpty {
                         Text(connection.reason)

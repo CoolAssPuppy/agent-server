@@ -349,6 +349,26 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(result.safeTestRunId, "run-2")
     }
 
+    func testRequiredMissingConnectionsMustBeSetUpBeforeSaving() {
+        let proposal = AgentProposalPresentation.fixture(connections: [
+            .init(name: "Personal Notion", state: .needsSetup, isRequired: true),
+            .init(name: "Slack", state: .optional, isRequired: false),
+        ])
+
+        XCTAssertFalse(proposal.readiness.canSave)
+        XCTAssertEqual(proposal.readiness.requiredSetupNames, ["Personal Notion"])
+        XCTAssertEqual(proposal.readiness.primaryActionTitle, "Set up Personal Notion")
+    }
+
+    func testOptionalMissingConnectionsDoNotBlockSaving() {
+        let proposal = AgentProposalPresentation.fixture(connections: [
+            .init(name: "Slack", state: .optional, isRequired: false),
+        ])
+
+        XCTAssertTrue(proposal.readiness.canSave)
+        XCTAssertEqual(proposal.readiness.requiredSetupNames, [])
+    }
+
     func testCreationFailureExplainsWhetherAnythingWasSavedAndCanRetry() {
         var flow = AgentCreationFlow(request: "Send a weekly summary")
         flow.receiveProposal(.fixture())
@@ -509,7 +529,11 @@ final class ConsumerProductFlowTests: XCTestCase {
 }
 
 private extension AgentProposalPresentation {
-    static func fixture(risk: ConsumerRiskLevel = .low, reviewId: String? = nil) -> Self {
+    static func fixture(
+        risk: ConsumerRiskLevel = .low,
+        reviewId: String? = nil,
+        connections: [ConnectionPresentation] = [.init(name: "Slack", state: .needsSetup)]
+    ) -> Self {
         .init(
             reviewId: reviewId,
             name: "Weekly summary",
@@ -517,7 +541,7 @@ private extension AgentProposalPresentation {
             schedule: "Every Friday at 5:00 p.m.",
             permissions: ["Read GitHub activity", "Send a Slack message"],
             fileAccess: [],
-            connections: [.init(name: "Slack", state: .needsSetup)],
+            connections: connections,
             instructions: "Review this week's activity and summarize it.",
             risk: risk,
             riskReason: "This agent sends information to Slack."

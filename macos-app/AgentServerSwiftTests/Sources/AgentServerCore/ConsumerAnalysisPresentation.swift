@@ -122,6 +122,10 @@ public struct AgentProposalPresentation: Equatable, Sendable {
     public let risk: ConsumerRiskLevel
     public let riskReason: String
 
+    public var readiness: AgentProposalReadiness {
+        AgentProposalReadiness(connections: connections)
+    }
+
     public init(
         reviewId: String? = nil,
         name: String,
@@ -150,6 +154,24 @@ public struct AgentProposalPresentation: Equatable, Sendable {
         self.instructions = instructions
         self.risk = risk
         self.riskReason = riskReason
+    }
+}
+
+public struct AgentProposalReadiness: Equatable, Sendable {
+    public let requiredSetupNames: [String]
+
+    public init(connections: [ConnectionPresentation]) {
+        requiredSetupNames = connections
+            .filter { $0.isRequired && $0.state != .connected }
+            .map(\.name)
+    }
+
+    public var canSave: Bool { requiredSetupNames.isEmpty }
+
+    public var primaryActionTitle: String {
+        requiredSetupNames.count == 1
+            ? "Set up \(requiredSetupNames[0])"
+            : "Set up required connections"
     }
 }
 
