@@ -84,4 +84,28 @@ final class RunAccessibilityPresentationTests: XCTestCase {
         XCTAssertEqual(presentation.title, "Run failed")
         XCTAssertEqual(presentation.message, "Codex exited with status 1.")
     }
+
+    func testUnconfirmedOutputUsesTruthfulConsumerCopyForEveryContractFailure() {
+        let technicalMessages = [
+            "output_contract_unmet: expected a Notion page creation tool call",
+            "output_contract_unmet: the selected write tool failed",
+            "output_contract_unmet: output was sent to the wrong destination"
+        ]
+
+        for technicalMessage in technicalMessages {
+            let presentation = RunNoticePresentation(
+                status: "failed",
+                code: "output_contract_unmet",
+                technicalMessage: technicalMessage
+            )
+
+            XCTAssertEqual(presentation.kind, .error)
+            XCTAssertEqual(presentation.title, "Required output was not confirmed")
+            XCTAssertEqual(
+                presentation.message,
+                "The agent stopped without confirming the output it promised. Review what happened before trying again."
+            )
+            XCTAssertNotEqual(presentation.message, technicalMessage)
+        }
+    }
 }

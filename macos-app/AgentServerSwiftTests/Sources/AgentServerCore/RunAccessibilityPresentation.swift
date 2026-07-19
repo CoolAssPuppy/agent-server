@@ -62,7 +62,11 @@ struct RunNoticePresentation: Equatable, Sendable {
     let message: String
 
     init(status: String, code: String?, technicalMessage: String) {
-        if status == "skipped", code == "lock_contention" {
+        if code == "output_contract_unmet" {
+            kind = .error
+            title = "Required output was not confirmed"
+            message = "The agent stopped without confirming the output it promised. Review what happened before trying again."
+        } else if status == "skipped", code == "lock_contention" {
             kind = .information
             title = "Run not started"
             message = "This agent was already running, so this extra attempt was skipped."
