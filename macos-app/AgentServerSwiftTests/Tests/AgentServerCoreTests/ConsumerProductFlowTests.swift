@@ -399,8 +399,23 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(flow.failedRunId, "failed-1")
         XCTAssertEqual(flow.retryRunId, "retry-2")
 
-        flow.resolve()
+        flow.updateRetry(runId: "retry-2", state: .completed)
         XCTAssertEqual(flow.phase, .resolved)
+    }
+
+    func testDebuggerIgnoresUnrelatedRunUpdatesAndExplainsRetryFailure() {
+        var flow = AgentDebuggerFlow(failedRunId: "failed-1")
+        flow.receiveDiagnosis(.fixture())
+        flow.beginRetry()
+        flow.didStartRetry(runId: "retry-2")
+
+        flow.updateRetry(runId: "other-run", state: .completed)
+        XCTAssertEqual(flow.phase, .retrying)
+
+        flow.updateRetry(runId: "retry-2", state: .failed("Still missing access"))
+        XCTAssertEqual(flow.phase, .failed)
+        XCTAssertEqual(flow.failure?.title, "The retry still needs attention")
+        XCTAssertEqual(flow.retryRunId, "retry-2")
     }
 
     func testDebuggerDoesNotOfferUnvalidatedModelRecommendationAsApplicable() {

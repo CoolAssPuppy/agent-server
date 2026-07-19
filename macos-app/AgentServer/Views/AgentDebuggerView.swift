@@ -7,6 +7,21 @@ struct AgentDebuggerActions {
     let applyFix: ((ConfigurationFixPresentation) async -> Result<Void, ConsumerFlowFailure>)?
     let retry: () async -> Result<String, ConsumerFlowFailure>
     let stopRun: (String) -> Void
+    let runState: (String) async -> Result<SafeTestRunState, ConsumerFlowFailure>
+
+    init(
+        diagnose: @escaping () async -> Result<DiagnosticPresentation, ConsumerFlowFailure>,
+        applyFix: ((ConfigurationFixPresentation) async -> Result<Void, ConsumerFlowFailure>)?,
+        retry: @escaping () async -> Result<String, ConsumerFlowFailure>,
+        stopRun: @escaping (String) -> Void,
+        runState: @escaping (String) async -> Result<SafeTestRunState, ConsumerFlowFailure> = { _ in .success(.completed) }
+    ) {
+        self.diagnose = diagnose
+        self.applyFix = applyFix
+        self.retry = retry
+        self.stopRun = stopRun
+        self.runState = runState
+    }
 }
 
 struct AgentDebuggerView: View {
@@ -18,6 +33,7 @@ struct AgentDebuggerView: View {
     @Environment(\.nTheme) private var theme
     @State private var flow: AgentDebuggerFlow
     @State private var showsTechnicalDetails = false
+    @State private var retryTask: Task<Void, Never>?
 
     init(
         failedRunId: String,
@@ -49,6 +65,7 @@ struct AgentDebuggerView: View {
             guard flow.phase == .idle else { return }
             await diagnose()
         }
+        .onDisappear { retryTask?.cancel() }
     }
 
     @ViewBuilder
@@ -70,7 +87,12 @@ struct AgentDebuggerView: View {
             resolved
         case .failed:
             if let failure = flow.failure {
-                ConsumerFlowFailureView(failure: failure, retry: failure.canRetry ? { Task { await diagnose() } } : nil)
+                VStack(alignment: .leading, spacing: NSpacing.md) {
+                    ConsumerFlowFailureView(failure: failure, retry: failure.canRetry ? { Task { await diagnose() } } : nil)
+                    if let runId = flow.retryRunId {
+                        Button("Open retry run") { openRun(runId) }
+                    }
+                }
             }
         }
     }
@@ -168,7 +190,7 @@ struct AgentDebuggerView: View {
             ConsumerProgressView(title: "Trying again", message: "The original failed run is preserved in run history.")
             if let runId = flow.retryRunId {
                 HStack {
-                    Button("Stop run") { actions.stopRun(runId) }
+                    Button("Stop run") { stopRetry(runId) }
                     Button("Open run") { openRun(runId) }
                 }
             }
@@ -229,7 +251,31 @@ struct AgentDebuggerView: View {
         switch await actions.retry() {
         case .success(let runId):
             flow.didStartRetry(runId: runId)
+            observeRetry(runId)
         case .failure(let failure): flow.fail(failure)
         }
+    }
+
+    private func observeRetry(_ runId: String) {
+        retryTask?.cancel()
+        retryTask = Task {
+            while !Task.isCancelled, flow.phase == .retrying {
+                switch await actions.runState(runId) {
+                case .success(let state):
+                    flow.updateRetry(runId: runId, state: state)
+                    if state != .running { return }
+                    try? await Task.sleep(for: .seconds(1))
+                case .failure(let failure):
+                    flow.fail(failure)
+                    return
+                }
+            }
+        }
+    }
+
+    private func stopRetry(_ runId: String) {
+        actions.stopRun(runId)
+        retryTask?.cancel()
+        flow.updateRetry(runId: runId, state: .stopped)
     }
 }

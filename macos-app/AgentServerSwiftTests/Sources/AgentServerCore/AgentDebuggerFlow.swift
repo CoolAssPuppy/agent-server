@@ -70,6 +70,27 @@ public struct AgentDebuggerFlow: Equatable, Sendable {
         phase = .resolved
     }
 
+    public mutating func updateRetry(runId: String, state: SafeTestRunState) {
+        guard phase == .retrying, runId == retryRunId else { return }
+        switch state {
+        case .running:
+            break
+        case .completed:
+            resolve()
+        case .failed(let details):
+            fail(.init(
+                title: "The retry still needs attention",
+                message: "The new run did not finish successfully. The original failed run is still preserved.",
+                recovery: "Open the new run, or diagnose the problem again.",
+                technicalDetails: details,
+                didSave: false,
+                canRetry: true
+            ))
+        case .stopped:
+            phase = .readyToRetry
+        }
+    }
+
     public mutating func fail(_ failure: ConsumerFlowFailure) {
         self.failure = failure
         phase = .failed

@@ -228,7 +228,8 @@ struct MainWindow: View {
                         diagnose: { await monitor.diagnoseRun(id: runId) },
                         applyFix: { _ in await monitor.applyDebuggerFix(runId: runId) },
                         retry: { await monitor.retryRun(id: runId) },
-                        stopRun: monitor.cancelRun
+                        stopRun: monitor.cancelRun,
+                        runState: monitor.safeTestState
                     ),
                     close: { closeDebugger(runId) },
                     openAgentSettings: { openSettingsForRun(runId) },
