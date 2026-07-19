@@ -122,6 +122,40 @@ function request(app: ReturnType<typeof createApi>, path: string, init: RequestI
 }
 
 describe('consumer guidance API', () => {
+  it('returns all mentioned authoritative connection choices in one response', async () => {
+    const registry: ServiceRegistry = {
+      connections: [
+        {
+          id: 'notion-personal', service_id: 'notion', name: 'Personal Notion', source: 'configured_api',
+          status: 'connected', actions: ['read', 'write'], actions_known: true,
+        },
+        {
+          id: 'linear-work', service_id: 'linear', name: 'Work Linear', source: 'account',
+          status: 'connected', actions: ['read', 'write'], actions_known: true,
+        },
+      ],
+      bindings: new Map(),
+    };
+    const { app } = createFixture({ getServiceRegistry: async () => registry });
+
+    const response = await request(app, '/guidance/agent-proposals', {
+      method: 'POST',
+      body: JSON.stringify({
+        request: 'Save the note in Notion and create an issue in Linear.',
+        timezone: 'Europe/Lisbon',
+        connected_services: [{ id: 'hostile', name: 'Client supplied' }],
+      }),
+    });
+
+    expect(await response.json()).toMatchObject({
+      status: 'needs_information',
+      questions: [
+        { id: 'connection-notion', choices: [{ value: 'notion-personal' }] },
+        { id: 'connection-linear', choices: [{ value: 'linear-work' }] },
+      ],
+    });
+  });
+
   it('inherits local API authentication', async () => {
     const { app } = createFixture();
     const response = await app.request('/guidance/agent-proposals', {
@@ -141,6 +175,7 @@ describe('consumer guidance API', () => {
         request: 'Every Friday, summarize GitHub activity in Slack.',
         timezone: 'Europe/Lisbon',
         connected_services: ['github'],
+        answers: [{ question_id: 'connection-slack', value: 'slack' }],
       }),
     });
     const body = await response.json();
@@ -198,6 +233,7 @@ describe('consumer guidance API', () => {
           actions: ['delete'],
           actions_known: true,
         }],
+        answers: [{ question_id: 'connection-notion', value: 'mcp:notion-personal:abc123' }],
       }),
     });
 
@@ -227,7 +263,10 @@ describe('consumer guidance API', () => {
       }),
     });
     expect(stale.status).toBe(200);
-    expect(await stale.json()).toMatchObject({ status: 'proposal' });
+    expect(await stale.json()).toMatchObject({
+      status: 'needs_information',
+      questions: [{ id: 'connection-notion' }],
+    });
   });
 
   it('reports service discovery failures as retryable server errors', async () => {
@@ -327,6 +366,7 @@ describe('consumer guidance API', () => {
           actions: ['read', 'write'],
           actions_known: true,
         }],
+        answers: [{ question_id: 'connection-notion', value: 'mcp:notion-personal:abc123' }],
       }),
     }).then((response) => response.json());
     expect(generated.status, JSON.stringify(generated)).toBe('proposal');
@@ -364,7 +404,7 @@ describe('consumer guidance API', () => {
     const body = await response.json();
 
     expect(body.status).toBe('needs_information');
-    expect(body.usedFallback).toBe(false);
+    expect(body.usedFallback).toBe(true);
     expect(body.questions[0].control).toBe('service');
     expect(body).not.toHaveProperty('proposal_id');
   });
@@ -419,7 +459,12 @@ describe('consumer guidance API', () => {
     const { app, writer } = createFixture({ security });
     const generated = await request(app, '/guidance/agent-proposals', {
       method: 'POST',
-      body: JSON.stringify({ request: 'Summarize GitHub in Slack.', timezone: 'Europe/Lisbon', connected_services: [] }),
+      body: JSON.stringify({
+        request: 'Summarize GitHub in Slack.',
+        timezone: 'Europe/Lisbon',
+        connected_services: [],
+        answers: [{ question_id: 'connection-slack', value: 'slack' }],
+      }),
     }).then((response) => response.json());
 
     const response = await request(app, `/guidance/agent-proposals/${generated.proposal_id}/save`, {
@@ -459,7 +504,12 @@ describe('consumer guidance API', () => {
     const fixture = createFixture({ writer });
     const generated = await request(fixture.app, '/guidance/agent-proposals', {
       method: 'POST',
-      body: JSON.stringify({ request: 'Summarize GitHub in Slack.', timezone: 'Europe/Lisbon', connected_services: [] }),
+      body: JSON.stringify({
+        request: 'Summarize GitHub in Slack.',
+        timezone: 'Europe/Lisbon',
+        connected_services: [],
+        answers: [{ question_id: 'connection-slack', value: 'slack' }],
+      }),
     }).then((response) => response.json());
     const response = await request(fixture.app, `/guidance/agent-proposals/${generated.proposal_id}/save`, {
       method: 'POST',

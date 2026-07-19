@@ -177,6 +177,23 @@ public struct AgentCreationFlow: Equatable, Sendable {
         questions.first { $0.isRequired && answers[$0.id] == nil }
     }
 
+    public var pendingConnectionQuestions: [CreationQuestion] {
+        connectionQuestions.filter { $0.isRequired && answers[$0.id] == nil }
+    }
+
+    public var connectionQuestions: [CreationQuestion] {
+        questions.filter {
+            if case .service = $0.kind { return true }
+            return false
+        }
+    }
+
+    public var areConnectionQuestionsAnswered: Bool {
+        !connectionQuestions.isEmpty && connectionQuestions.allSatisfy { question in
+            !question.requiresConnectionSetup && answers[question.id] != nil
+        }
+    }
+
     public var canRequestProposal: Bool {
         !request.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && nextQuestion == nil
     }
@@ -185,7 +202,11 @@ public struct AgentCreationFlow: Equatable, Sendable {
 
     public mutating func receiveQuestions(_ questions: [CreationQuestion]) {
         for question in questions {
-            if case .string? = answers[question.id] {
+            if case .string(let existing)? = answers[question.id] {
+                if case .service = question.kind,
+                   question.choiceValues.contains(existing) {
+                    continue
+                }
                 answers.removeValue(forKey: question.id)
             }
             if question.id == "calendar-id" { answers.removeValue(forKey: "calendar-access") }

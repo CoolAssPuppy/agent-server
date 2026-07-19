@@ -20,6 +20,7 @@
 		142B004902E78A73CD4D174B /* package.json in Resources */ = {isa = PBXBuildFile; fileRef = 34998C870C76F29FD6B67745 /* package.json */; };
 		173E55A9502E299FAE71C651 /* AgentPromptEditorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4809143EC5D2EAB2A2978E1C /* AgentPromptEditorModel.swift */; };
 		18DBB572B045AD41B966D76A /* SecurityFindingCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE79D9B93066560186CAA3DB /* SecurityFindingCard.swift */; };
+		1DBC1C46C81550A61E7B5075 /* CreationSetupPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99C4B66D0F6450D066011214 /* CreationSetupPresentation.swift */; };
 		1E5DAD909924982752591F2E /* MarkdownEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B514CCB37C240E8BC2D16DAE /* MarkdownEditor.swift */; };
 		1FC99E63F164FA6DF9287E79 /* RunHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF167864F821C8B9892C0849 /* RunHelpers.swift */; };
 		23394ED16161D7DA0D4AB3CA /* PostHog in Frameworks */ = {isa = PBXBuildFile; productRef = A85344D20A89302F52B98142 /* PostHog */; };
@@ -208,6 +209,7 @@
 		98817ADC119A4121E0A3B079 /* dist */ = {isa = PBXFileReference; lastKnownFileType = folder; name = dist; path = "../server-app/dist"; sourceTree = SOURCE_ROOT; };
 		99286B9B2EE90BE821F68FBA /* StatusMonitor+Security.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StatusMonitor+Security.swift"; sourceTree = "<group>"; };
 		9978ED2ADE2B6DA7E9F2E403 /* MainWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindow.swift; sourceTree = "<group>"; };
+		99C4B66D0F6450D066011214 /* CreationSetupPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreationSetupPresentation.swift; sourceTree = "<group>"; };
 		9B13E51E6E5B8B223735BD6B /* AgentServerTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentServerTheme.swift; sourceTree = "<group>"; };
 		A1C244E8EFAB9899352ECD2C /* UpdaterManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterManager.swift; sourceTree = "<group>"; };
 		A520B1763B663153CBBA3F1B /* RunDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailView.swift; sourceTree = "<group>"; };
@@ -446,6 +448,7 @@
 				42AE2865DBF8536678D90CBE /* ConsumerAnalysisPresentation.swift */,
 				565C0CAB2653E2152AF0893D /* ConsumerFlowAccessibility.swift */,
 				026219A0FADDF868D39086CA /* ConsumerFlowDemoFixtures.swift */,
+				99C4B66D0F6450D066011214 /* CreationSetupPresentation.swift */,
 				0136765C94481AB61536D483 /* CronEnglishFormatter.swift */,
 				D885EDB8362181BEA390FCF9 /* CronNextFire.swift */,
 				B9E3A0BC90A75E1C817A3238 /* Decision.swift */,
@@ -714,6 +717,7 @@
 				A4400FF1A0694B426A1DFF18 /* ConsumerFlowComponents.swift in Sources */,
 				0AAC871185073BB41D7800CC /* ConsumerFlowDemoFixtures.swift in Sources */,
 				EAD009E0540FC761BB889F44 /* ConsumerFlowPreviews.swift in Sources */,
+				1DBC1C46C81550A61E7B5075 /* CreationSetupPresentation.swift in Sources */,
 				F17110F056DA38776543B8F6 /* CronEnglishFormatter.swift in Sources */,
 				C57F8443BD1AD312F39219D2 /* CronNextFire.swift in Sources */,
 				59831E5595B33F9E1EF1F7D3 /* Decision.swift in Sources */,

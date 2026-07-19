@@ -376,42 +376,53 @@ function fallback(request: ProposalRequest, modelStatus: 'unavailable' | 'invali
   };
 }
 
-function unansweredConnectionQuestion(request: ProposalRequest): ProposalFallbackQuestion | undefined {
-  if (!/\bnotion\b/i.test(request.request)) return undefined;
-  const connections = request.connectedServices.filter((service) => (
-    /\bnotion\b/i.test(service.id) || /\bnotion\b/i.test(service.name)
-  ));
-  const connectionAnswer = request.answers.find((answer) => (
-    answer.question_id === 'connection-notion' && typeof answer.value === 'string'
-  ));
-  if (connections.some((connection) => connection.id === connectionAnswer?.value)) return undefined;
-  const requestedScope = /\bpersonal\s+notion\b/i.test(request.request)
-    ? 'personal'
-    : /\bwork\s+notion\b/i.test(request.request) ? 'work' : undefined;
-  const onlyConnectionMatchesRequest = requestedScope === undefined
-    || connections.some((connection) => (
-      connection.id.toLowerCase().split(/[^a-z0-9]+/).includes(requestedScope)
-      || connection.name.toLowerCase().split(/[^a-z0-9]+/).includes(requestedScope)
+const CONNECTION_SERVICES = [
+  { id: 'notion', name: 'Notion', aliases: ['notion'] },
+  { id: 'slack', name: 'Slack', aliases: ['slack'] },
+  { id: 'linear', name: 'Linear', aliases: ['linear'] },
+  { id: 'gmail', name: 'Gmail', aliases: ['gmail', 'google mail'] },
+] as const;
+
+function mentionIndex(intent: string, aliases: readonly string[]): number | undefined {
+  const indexes = aliases.flatMap((alias) => {
+    const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = new RegExp(`\\b${escaped}\\b`, 'i').exec(intent);
+    return match ? [match.index] : [];
+  });
+  return indexes.length > 0 ? Math.min(...indexes) : undefined;
+}
+
+function unansweredConnectionQuestions(request: ProposalRequest): ProposalFallbackQuestion[] {
+  const mentioned = CONNECTION_SERVICES
+    .flatMap((service) => {
+      const index = mentionIndex(request.request, service.aliases);
+      return index === undefined ? [] : [{ service, index }];
+    })
+    .sort((left, right) => left.index - right.index);
+
+  return mentioned.flatMap(({ service }) => {
+    const questionId = `connection-${service.id}`;
+    const connections = request.connectedServices.filter((connection) => {
+      const serviceId = 'service_id' in connection ? connection.service_id : undefined;
+      if (serviceId === service.id) return true;
+      const legacy = `${connection.id} ${connection.name}`.toLowerCase();
+      return service.aliases.some((alias) => new RegExp(`\\b${alias}\\b`, 'i').test(legacy));
+    });
+    const answer = request.answers.find((candidate) => (
+      candidate.question_id === questionId && typeof candidate.value === 'string'
     ));
-  if (connections.length === 1 && connectionAnswer === undefined && onlyConnectionMatchesRequest) return undefined;
-  if (connections.length === 0) {
-    return {
-      id: 'connection-notion',
-      question: 'Set up Notion before choosing what this agent can access.',
-      control: 'service',
-      service_name: 'Notion',
+    if (connections.some((connection) => connection.id === answer?.value)) return [];
+    return [{
+      id: questionId,
+      question: connections.length === 0
+        ? `Set up ${service.name} before choosing what this agent can access.`
+        : `Which ${service.name} connection should this agent use?`,
+      control: 'service' as const,
+      service_name: service.name,
       required: true,
-      choices: [],
-    };
-  }
-  return {
-    id: 'connection-notion',
-    question: 'Which Notion connection should this agent use?',
-    control: 'service',
-    service_name: 'Notion',
-    required: true,
-    choices: connections.map((connection) => ({ label: connection.name, value: connection.id })),
-  };
+      choices: connections.map((connection) => ({ label: connection.name, value: connection.id })),
+    }];
+  });
 }
 
 export function servicesRelevantToRequest(request: ProposalRequest): ProposalRequest['connectedServices'] {
@@ -579,13 +590,17 @@ export async function createAgentProposal(input: CreateProposalInput): Promise<P
     availableContactGroups: input.availableContactGroups,
     answers: input.answers,
   });
-  const scopeQuestion = unavailableCapabilityQuestion(request)
-    ?? unansweredConnectionQuestion(request)
-    ?? unansweredScopeQuestion(request);
-  if (scopeQuestion) {
+  const unavailableQuestion = unavailableCapabilityQuestion(request);
+  const connectionQuestions = unansweredConnectionQuestions(request);
+  const questions = unavailableQuestion
+    ? [unavailableQuestion]
+    : connectionQuestions.length > 0
+      ? connectionQuestions
+      : [unansweredScopeQuestion(request)].filter((question) => question !== undefined);
+  if (questions.length > 0) {
     return {
       status: 'needs_information',
-      questions: [scopeQuestion],
+      questions,
       explanation: 'Choose the exact access this agent needs before reviewing it.',
       usedFallback: true,
       modelStatus: 'unavailable',

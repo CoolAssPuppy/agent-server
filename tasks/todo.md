@@ -61,6 +61,25 @@ Status: Native service integration and final release verification are complete.
 - Cancel now sits directly left of the primary creation action.
 - Verification: 1,142 server tests, 226 Swift tests, TypeScript type-check and build, and the unsigned app build passed. UI automation was not run.
 
+## Consolidated creation setup
+
+- [x] Return every unanswered supported service mentioned in the request as one deterministic question group.
+- [x] Present one connection card per mentioned service, with no unrelated service cards and no “Your answer” wrapper.
+- [x] Use the connection-step title “Let's setup the connections you need for your agent” and the approved explanatory copy.
+- [x] Replace the file-access answer box with one native macOS selection surface and the approved permission explanation.
+- [x] Keep file access optional when the request does not refer to local files or folders.
+- [x] Record privacy-safe unsupported service demand in PostHog without prompt text, paths, credentials, or surrounding context.
+- [x] Add server and Swift behavior tests first and build without UI automation.
+
+### Consolidated creation setup review
+
+- The creation service returns one ordered card for each mentioned supported service. Notion, Slack, Linear, and Gmail never appear unless the request names them.
+- Each service card selects an exact configured connection and keeps a valid choice when connection readiness refreshes.
+- Local file access appears only when the requested job needs local files or folders. A scheduled Slack heartbeat proceeds without asking for disk access.
+- File and folder choices use one native macOS panel. Every selected item has its own View only or Can make changes control, with View only as the default.
+- Unsupported-service telemetry contains only fixed service identifiers and a count. It excludes request text, file paths, connection names, and credentials.
+- Verification: 1,145 server tests, 231 Swift tests, TypeScript type-check and build, and the unsigned app build passed. UI automation was not run.
+
 ### Environment path review
 
 - The app and server now read the documented `~/.agent-server/.env` file only.

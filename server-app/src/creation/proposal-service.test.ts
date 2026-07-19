@@ -75,6 +75,58 @@ function modelReturning(...responses: unknown[]): { model: ProposalModel; calls:
 }
 
 describe('guided agent proposal creation', () => {
+  it('returns every mentioned connection together without inventing file access', async () => {
+    const result = await createAgentProposal({
+      request: 'Save a note in Notion, then create a Linear issue.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [
+        {
+          id: 'notion-personal', service_id: 'notion', name: 'Personal Notion', source: 'configured_api',
+          actions: ['read', 'write'], actions_known: true,
+        },
+        {
+          id: 'linear-work', service_id: 'linear', name: 'Work Linear', source: 'account',
+          actions: ['read', 'write'], actions_known: true,
+        },
+      ],
+      answers: [],
+      model: modelReturning(completeProposal()).model,
+    });
+
+    expect(result).toMatchObject({
+      status: 'needs_information',
+      questions: [
+        { id: 'connection-notion', service_name: 'Notion', choices: [{ value: 'notion-personal' }] },
+        { id: 'connection-linear', service_name: 'Linear', choices: [{ value: 'linear-work' }] },
+      ],
+    });
+    if (result.status === 'needs_information') {
+      expect(result.questions.some((question) => question.id === 'file-access')).toBe(false);
+    }
+  });
+
+  it('does not require file access for a scheduled Slack heartbeat', async () => {
+    const service = {
+      id: 'slack-personal', service_id: 'slack', name: 'Personal Slack', source: 'account' as const,
+      actions: ['read', 'send'] as const, actions_known: true,
+    };
+    const initial = await createAgentProposal({
+      request: 'Every morning, send me a witty saying in Slack.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [service],
+      answers: [],
+      model: modelReturning(completeProposal()).model,
+    });
+
+    expect(initial).toMatchObject({
+      status: 'needs_information',
+      questions: [{ id: 'connection-slack', choices: [{ value: 'slack-personal' }] }],
+    });
+    if (initial.status === 'needs_information') {
+      expect(initial.questions.some((question) => question.id === 'file-access')).toBe(false);
+    }
+  });
+
   it('chooses an existing required service before asking for file access', async () => {
     const fake = modelReturning(completeProposal());
     const request = 'Every morning, review a Word manuscript and store the results in Personal Notion.';
@@ -482,7 +534,7 @@ describe('guided agent proposal creation', () => {
     });
     expect(fake.calls()).toBe(0);
   });
-  it('returns required model questions before issuing a proposal', async () => {
+  it('returns deterministic connection questions before calling the model', async () => {
     const fake = modelReturning(validProposal());
 
     const result = await createAgentProposal({
@@ -495,8 +547,8 @@ describe('guided agent proposal creation', () => {
     expect(result.status).toBe('needs_information');
     if (result.status !== 'needs_information') throw new Error('Expected questions');
     expect(result.questions[0]?.question).toContain('Slack');
-    expect(result.usedFallback).toBe(false);
-    expect(fake.calls()).toBe(1);
+    expect(result.usedFallback).toBe(true);
+    expect(fake.calls()).toBe(0);
   });
 
   it('accepts a complete least-privilege structured proposal', async () => {
@@ -504,6 +556,7 @@ describe('guided agent proposal creation', () => {
       request: 'Every Friday, summarize my GitHub activity in Slack.',
       timezone: 'Europe/Lisbon',
       connectedServices: ['github', 'slack'],
+      answers: [{ question_id: 'connection-slack', value: 'slack' }],
       model: modelReturning(completeProposal()).model,
     });
 
@@ -1101,6 +1154,7 @@ describe('guided agent proposal creation', () => {
         id: 'notion-personal', service_id: 'notion', name: 'Personal Notion', source: 'configured_api',
         actions: ['read', 'write'], actions_known: true,
       }],
+      answers: [{ question_id: 'connection-notion', value: 'notion-personal' }],
       model: fake.model,
     });
 

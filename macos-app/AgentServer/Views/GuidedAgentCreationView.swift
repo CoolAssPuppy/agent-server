@@ -61,6 +61,7 @@ struct GuidedAgentCreationView: View {
     @State private var pickerError: String?
     @State private var flow = AgentCreationFlow(request: "")
     @State private var pendingHighRiskSave: Bool?
+    @State private var unsupportedServiceTracker = UnsupportedServiceTelemetryTracker()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -143,10 +144,29 @@ struct GuidedAgentCreationView: View {
 
     @ViewBuilder
     private var questionStep: some View {
-        if let question = flow.nextQuestion {
-            ConsumerFlowHeader(title: question.prompt, explanation: "This detail is needed before the agent can be saved.")
-            ConsumerSection("Your answer") {
-                questionControl(question)
+        if !flow.connectionQuestions.isEmpty {
+            connectionSetupStep
+        } else if let question = flow.nextQuestion {
+            ConsumerFlowHeader(
+                title: question.prompt,
+                explanation: question.kind == .fileAccess
+                    ? CreationFileAccessStepCopy.explanation
+                    : "This detail is needed before the agent can be saved."
+            )
+            questionControl(question)
+        }
+    }
+
+    private var connectionSetupStep: some View {
+        VStack(alignment: .leading, spacing: NSpacing.lg) {
+            ConsumerFlowHeader(
+                title: CreationConnectionStepCopy.title,
+                explanation: CreationConnectionStepCopy.explanation
+            )
+            ForEach(flow.connectionQuestions) { question in
+                if case .service(let serviceName, let choices) = question.kind {
+                    serviceChoice(question, serviceName: serviceName, choices: choices)
+                }
             }
         }
     }
@@ -170,42 +190,7 @@ struct GuidedAgentCreationView: View {
                 pickerFailure
             }
         case .fileAccess:
-            VStack(alignment: .leading, spacing: NSpacing.sm) {
-                ForEach(fileGrants) { grant in
-                    HStack(spacing: NSpacing.sm) {
-                        Image(systemName: grant.kind == .folder ? "folder" : "doc")
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(URL(fileURLWithPath: grant.path).lastPathComponent)
-                            Text(grant.path)
-                                .font(NTypography.caption)
-                                .foregroundStyle(theme.tokens.mutedForeground)
-                                .lineLimit(1)
-                        }
-                        Spacer()
-                        Picker("Access for \(grant.path)", selection: accessBinding(for: grant)) {
-                            Text("View only").tag(CreationFileGrant.Access.readOnly)
-                            Text("Can make changes").tag(CreationFileGrant.Access.readWrite)
-                        }
-                        .labelsHidden()
-                        Button("Remove \(grant.path)", systemImage: "minus.circle") {
-                            fileGrants.removeAll { $0.id == grant.id }
-                        }
-                        .labelStyle(.iconOnly)
-                    }
-                    .padding(NSpacing.sm)
-                    .background(theme.tokens.card)
-                    .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
-                }
-                Button(fileGrants.isEmpty ? "Choose files or folders" : "Add file or folder") {
-                    presentResourcePicker(.filesAndFolders)
-                }
-                .accessibilityIdentifier(ConsumerFlowAccessibility.creationFolderPicker)
-                Text("Set access for each item. View only is the safer default.")
-                    .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                pickerFailure
-            }
+            fileAccessPicker
         case .schedule:
             ScheduleField(draft: $scheduleAnswer)
                 .accessibilityElement(children: .contain)
@@ -281,18 +266,109 @@ struct GuidedAgentCreationView: View {
                 } else {
                     ForEach(Array(choices.enumerated()), id: \.offset) { index, label in
                         let value = index < question.choiceValues.count ? question.choiceValues[index] : label
-                        serviceChoiceRow(label: label, value: value)
+                        serviceChoiceRow(questionId: question.id, label: label, value: value)
                     }
                 }
             }
         }
+        .padding(NSpacing.lg)
+        .background(theme.tokens.card)
+        .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border))
+        .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
     }
 
-    private func serviceChoiceRow(label: String, value: String) -> some View {
-        Button { answer = value } label: {
+    private var fileAccessPicker: some View {
+        VStack(alignment: .leading, spacing: NSpacing.xs) {
+            VStack(spacing: 0) {
+                if fileGrants.isEmpty {
+                    VStack(spacing: NSpacing.sm) {
+                        Image(systemName: "folder.badge.plus")
+                            .font(.system(size: 30, weight: .light))
+                            .foregroundStyle(theme.tokens.mutedForeground)
+                            .accessibilityHidden(true)
+                        Text("No files or folders selected")
+                            .font(NTypography.bodyMedium)
+                            .foregroundStyle(theme.tokens.foreground)
+                        Text("Nothing on this Mac is available to the agent until you choose it here.")
+                            .font(NTypography.caption)
+                            .foregroundStyle(theme.tokens.mutedForeground)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, NSpacing.xxl)
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(Array(fileGrants.enumerated()), id: \.element.id) { index, grant in
+                            if index > 0 { Divider().opacity(0.4) }
+                            fileGrantRow(grant)
+                        }
+                    }
+                }
+
+                Divider().opacity(0.4)
+                HStack {
+                    Button {
+                        presentResourcePicker(.filesAndFolders)
+                    } label: {
+                        Label(
+                            fileGrants.isEmpty ? "Choose files or folders…" : "Add files or folders…",
+                            systemImage: "plus"
+                        )
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationFolderPicker)
+                    Spacer()
+                    Text("View only is the safer default.")
+                        .font(NTypography.captionSmall)
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                }
+                .padding(NSpacing.md)
+            }
+            .background(theme.tokens.card)
+            .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border))
+            .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
+            pickerFailure
+        }
+    }
+
+    private func fileGrantRow(_ grant: CreationFileGrant) -> some View {
+        HStack(spacing: NSpacing.md) {
+            Image(systemName: grant.kind == .folder ? "folder" : "doc")
+                .frame(width: 20)
+                .foregroundStyle(theme.tokens.mutedForeground)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(URL(fileURLWithPath: grant.path).lastPathComponent)
+                    .font(NTypography.bodyMedium)
+                Text(grant.path)
+                    .font(NTypography.captionSmall)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            Spacer()
+            Picker("Access for \(grant.path)", selection: accessBinding(for: grant)) {
+                Text("View only").tag(CreationFileGrant.Access.readOnly)
+                Text("Can make changes").tag(CreationFileGrant.Access.readWrite)
+            }
+            .labelsHidden()
+            .frame(width: 155)
+            Button("Remove \(grant.path)", systemImage: "minus.circle") {
+                fileGrants.removeAll { $0.id == grant.id }
+            }
+            .labelStyle(.iconOnly)
+            .buttonStyle(.plain)
+        }
+        .padding(NSpacing.md)
+    }
+
+    private func serviceChoiceRow(questionId: String, label: String, value: String) -> some View {
+        let isSelected = flow.answers[questionId] == .string(value)
+        return Button { flow.answer(questionId: questionId, value: value) } label: {
             HStack(spacing: NSpacing.sm) {
-                Image(systemName: answer == value ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(answer == value ? theme.tokens.primary : theme.tokens.mutedForeground)
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? theme.tokens.primary : theme.tokens.mutedForeground)
                 Text(label)
                     .font(NTypography.bodyMedium)
                     .foregroundStyle(theme.tokens.foreground)
@@ -302,16 +378,16 @@ struct GuidedAgentCreationView: View {
                     .foregroundStyle(theme.tokens.mutedForeground)
             }
             .padding(NSpacing.md)
-            .background(answer == value ? theme.tokens.primary.opacity(0.08) : theme.tokens.card)
+            .background(isSelected ? theme.tokens.primary.opacity(0.08) : theme.tokens.background)
             .overlay {
                 RoundedRectangle(cornerRadius: NRadius.sm)
-                    .stroke(answer == value ? theme.tokens.primary.opacity(0.4) : theme.tokens.border)
+                    .stroke(isSelected ? theme.tokens.primary.opacity(0.4) : theme.tokens.border)
             }
             .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityAddTraits(answer == value ? .isSelected : [])
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     @ViewBuilder
@@ -378,7 +454,13 @@ struct GuidedAgentCreationView: View {
                 .disabled(request.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .accessibilityIdentifier(ConsumerFlowAccessibility.creationContinue)
         case .questions:
-            if flow.nextQuestion?.requiresConnectionSetup != true,
+            if !flow.connectionQuestions.isEmpty {
+                Button("Continue", action: submitConnectionSetup)
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!flow.areConnectionQuestionsAnswered)
+                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationContinue)
+            } else if flow.nextQuestion?.requiresConnectionSetup != true,
                flow.nextQuestion?.isUnavailable != true {
                 Button("Continue", action: answerQuestion)
                     .buttonStyle(.borderedProminent)
@@ -403,7 +485,21 @@ struct GuidedAgentCreationView: View {
     }
 
     private func startPreparation() {
+        let unsupportedIDs = UnsupportedCreationServiceClassifier.serviceIDs(in: request)
+        let newIDs = unsupportedServiceTracker.newServiceIDs(from: unsupportedIDs)
+        if !newIDs.isEmpty {
+            Telemetry.capture(
+                "agent_creation_unsupported_services_mentioned",
+                properties: ["service_ids": newIDs, "service_count": newIDs.count]
+            )
+        }
         flow = AgentCreationFlow(request: request)
+        flow.beginProposalRequest()
+        prepare()
+    }
+
+    private func submitConnectionSetup() {
+        guard flow.areConnectionQuestionsAnswered, flow.canRequestProposal else { return }
         flow.beginProposalRequest()
         prepare()
     }

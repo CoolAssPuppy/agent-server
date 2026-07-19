@@ -2,6 +2,86 @@ import XCTest
 @testable import AgentServerCore
 
 final class ConsumerProductFlowTests: XCTestCase {
+    func testConnectionSetupGroupsEveryMentionedService() {
+        var flow = AgentCreationFlow(request: "Save to Notion and create a Linear issue")
+        flow.receiveQuestions([
+            CreationQuestion(
+                id: "connection-notion",
+                prompt: "Which Notion connection?",
+                kind: .service(name: "Notion", choices: ["Personal Notion"]),
+                isRequired: true,
+                choiceValues: ["notion-personal"]
+            ),
+            CreationQuestion(
+                id: "connection-linear",
+                prompt: "Which Linear connection?",
+                kind: .service(name: "Linear", choices: ["Work Linear"]),
+                isRequired: true,
+                choiceValues: ["linear-work"]
+            ),
+        ])
+
+        XCTAssertEqual(flow.pendingConnectionQuestions.map(\.id), ["connection-notion", "connection-linear"])
+        flow.answer(questionId: "connection-notion", value: "notion-personal")
+        XCTAssertEqual(flow.pendingConnectionQuestions.map(\.id), ["connection-linear"])
+        flow.answer(questionId: "connection-linear", value: "linear-work")
+        XCTAssertTrue(flow.pendingConnectionQuestions.isEmpty)
+        XCTAssertTrue(flow.canRequestProposal)
+    }
+
+    func testConnectionRefreshPreservesValidSelectionsAndClearsRemovedAccounts() {
+        let notion = CreationQuestion(
+            id: "connection-notion",
+            prompt: "Which Notion connection?",
+            kind: .service(name: "Notion", choices: ["Personal Notion"]),
+            isRequired: true,
+            choiceValues: ["notion-personal"]
+        )
+        var flow = AgentCreationFlow(request: "Use Notion")
+        flow.receiveQuestions([notion])
+        flow.answer(questionId: notion.id, value: "notion-personal")
+
+        flow.receiveQuestions([notion])
+        XCTAssertEqual(flow.answers[notion.id], .string("notion-personal"))
+
+        flow.receiveQuestions([
+            CreationQuestion(
+                id: notion.id,
+                prompt: notion.prompt,
+                kind: .service(name: "Notion", choices: ["Work Notion"]),
+                isRequired: true,
+                choiceValues: ["notion-work"]
+            ),
+        ])
+        XCTAssertNil(flow.answers[notion.id])
+    }
+
+    func testCreationSetupCopyUsesConsumerLanguage() {
+        XCTAssertEqual(CreationConnectionStepCopy.title, "Let's setup the connections you need for your agent")
+        XCTAssertEqual(
+            CreationConnectionStepCopy.explanation,
+            "This helps your agent get and send data to the right place"
+        )
+        XCTAssertEqual(
+            CreationFileAccessStepCopy.explanation,
+            "You have to explicitly grant your agent access to your machine."
+        )
+    }
+
+    func testUnsupportedServiceTelemetryIsNormalizedAndEmittedOnce() {
+        let ids = UnsupportedCreationServiceClassifier.serviceIDs(
+            in: "Copy an Airtable record to Jira, then update AIRTABLE."
+        )
+        var tracker = UnsupportedServiceTelemetryTracker()
+
+        XCTAssertEqual(ids, ["airtable", "jira"])
+        XCTAssertEqual(tracker.newServiceIDs(from: ids), ["airtable", "jira"])
+        XCTAssertTrue(tracker.newServiceIDs(from: ids).isEmpty)
+        XCTAssertTrue(
+            UnsupportedCreationServiceClassifier.serviceIDs(in: "Write a book about a trellis").isEmpty
+        )
+    }
+
     func testFolderPickerAcceptsOnlyOneDirectory() {
         let picker = CreationResourcePickerMode.folder
 

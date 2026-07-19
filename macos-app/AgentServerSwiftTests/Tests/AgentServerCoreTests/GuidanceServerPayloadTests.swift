@@ -2,6 +2,18 @@ import XCTest
 @testable import AgentServerCore
 
 final class GuidanceServerPayloadTests: XCTestCase {
+    func testDecodesMultipleConnectionQuestionsForOneSetupStep() throws {
+        let data = Data(#"{"status":"needs_information","questions":[{"id":"connection-notion","question":"Which Notion?","control":"service","service_name":"Notion","required":true,"choices":[{"label":"Personal Notion","value":"notion-personal"}]},{"id":"connection-linear","question":"Which Linear?","control":"service","service_name":"Linear","required":true,"choices":[{"label":"Work Linear","value":"linear-work"}]}],"explanation":"Connect services."}"#.utf8)
+
+        let response = try JSONDecoder().decode(GuidanceProposalResponse.self, from: data)
+
+        guard case .needsInformation(let questions, _) = response else {
+            return XCTFail("Expected connection questions")
+        }
+        XCTAssertEqual(questions.map(\.id), ["connection-notion", "connection-linear"])
+        XCTAssertEqual(questions.map(\.choiceValues), [["notion-personal"], ["linear-work"]])
+    }
+
     func testCalendarQuestionKeepsNativeChoices() throws {
         let data = Data(#"{"status":"needs_information","questions":[{"id":"calendar-id","question":"Which calendar?","control":"single_choice","required":true,"choices":[{"label":"Work (iCloud)","value":"work-id"}]}],"explanation":"Choose one calendar."}"#.utf8)
 
