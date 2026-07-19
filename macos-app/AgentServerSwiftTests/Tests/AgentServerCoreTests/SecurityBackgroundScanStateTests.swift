@@ -75,6 +75,20 @@ final class SecurityBackgroundScanStateTests: XCTestCase {
         XCTAssertEqual(finished.notification, .error)
     }
 
+    func testEachFailedAgentRetainsItsOwnFailureDetail() {
+        let started = SecurityBackgroundScanState.scanning(agents: [
+            SecurityScanAgent(id: "alpha", name: "Alpha"),
+            SecurityScanAgent(id: "beta", name: "Beta")
+        ])
+
+        let finished = started
+            .recordingCurrentFailure(message: "Alpha timed out.")
+            .recordingCurrentFailure(message: "Beta is unavailable.")
+
+        XCTAssertEqual(finished.agents[0].failureMessage, "Alpha timed out.")
+        XCTAssertEqual(finished.agents[1].failureMessage, "Beta is unavailable.")
+    }
+
     func testFailureDetailsSurviveLaterSuccessfulAgents() {
         let started = SecurityBackgroundScanState.scanning(agents: [
             SecurityScanAgent(id: "alpha", name: "Alpha"),
@@ -111,5 +125,58 @@ final class SecurityBackgroundScanStateTests: XCTestCase {
         ])
 
         XCTAssertEqual(dashboard.notificationAttentionCount, 2)
+    }
+
+    func testCompletedDashboardPreservesCheckedFailedAndPendingAgents() {
+        let scanState = SecurityBackgroundScanState.scanning(agents: [
+            SecurityScanAgent(id: "checked", name: "Checked"),
+            SecurityScanAgent(id: "failed", name: "Failed"),
+            SecurityScanAgent(id: "pending", name: "Pending")
+        ])
+        .completingCurrentAgent(risk: .high)
+        .recordingCurrentFailure(message: "The local server stopped responding.")
+
+        let dashboard = SecurityDashboardPresentation(
+            scanAgents: scanState.agents,
+            checkedAgents: [
+                SecurityAgentPresentation(
+                    id: "checked",
+                    name: "Checked",
+                    risk: .high,
+                    findingCount: 2,
+                    isStale: false
+                )
+            ]
+        )
+
+        XCTAssertEqual(dashboard.agents.map(\.id), ["checked", "failed", "pending"])
+        XCTAssertEqual(dashboard.checkedCount, 1)
+        XCTAssertEqual(dashboard.failedCount, 1)
+        XCTAssertEqual(dashboard.pendingCount, 1)
+        XCTAssertEqual(dashboard.agentCount(for: .high), 1)
+        XCTAssertEqual(dashboard.notificationAttentionCount, 1)
+        XCTAssertEqual(
+            dashboard.agents[1].result,
+            .failed(message: "The local server stopped responding.")
+        )
+        XCTAssertEqual(dashboard.agents[2].result, .pending)
+    }
+
+    func testUncheckedAgentsDoNotInflateRiskOrReviewCounts() {
+        let dashboard = SecurityDashboardPresentation(agents: [
+            SecurityAgentPresentation(
+                id: "checked",
+                name: "Checked",
+                risk: .low,
+                findingCount: 0,
+                isStale: false
+            ),
+            SecurityAgentPresentation(id: "failed", name: "Failed", result: .failed(message: nil)),
+            SecurityAgentPresentation(id: "pending", name: "Pending", result: .pending)
+        ])
+
+        XCTAssertEqual(dashboard.agentCount(for: .low), 1)
+        XCTAssertEqual(dashboard.needsReviewCount, 0)
+        XCTAssertEqual(dashboard.notificationAttentionCount, 0)
     }
 }

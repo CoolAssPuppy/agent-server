@@ -314,19 +314,42 @@ public struct SecurityScanPresentation: Equatable, Sendable {
     }
 }
 
+public enum SecurityAgentResult: Equatable, Sendable {
+    case checked(risk: ConsumerRiskLevel, findingCount: Int, isStale: Bool)
+    case failed(message: String?)
+    case pending
+}
+
 public struct SecurityAgentPresentation: Identifiable, Equatable, Sendable {
     public let id: String
     public let name: String
-    public let risk: ConsumerRiskLevel
-    public let findingCount: Int
-    public let isStale: Bool
+    public let result: SecurityAgentResult
 
     public init(id: String, name: String, risk: ConsumerRiskLevel, findingCount: Int, isStale: Bool) {
         self.id = id
         self.name = name
-        self.risk = risk
-        self.findingCount = findingCount
-        self.isStale = isStale
+        self.result = .checked(risk: risk, findingCount: findingCount, isStale: isStale)
+    }
+
+    public init(id: String, name: String, result: SecurityAgentResult) {
+        self.id = id
+        self.name = name
+        self.result = result
+    }
+
+    public var risk: ConsumerRiskLevel? {
+        guard case .checked(let risk, _, _) = result else { return nil }
+        return risk
+    }
+
+    public var findingCount: Int {
+        guard case .checked(_, let findingCount, _) = result else { return 0 }
+        return findingCount
+    }
+
+    public var isStale: Bool {
+        guard case .checked(_, _, let isStale) = result else { return false }
+        return isStale
     }
 }
 
@@ -339,8 +362,50 @@ public struct SecurityDashboardPresentation: Equatable, Sendable {
         self.reportedNeedsReviewCount = reportedNeedsReviewCount
     }
 
+    public init(
+        scanAgents: [SecurityScanAgent],
+        checkedAgents: [SecurityAgentPresentation],
+        reportedNeedsReviewCount: Int? = nil
+    ) {
+        let checkedById = Dictionary(uniqueKeysWithValues: checkedAgents.map { ($0.id, $0) })
+        self.agents = scanAgents.map { agent in
+            switch agent.status {
+            case .checked:
+                return checkedById[agent.id]
+                    ?? SecurityAgentPresentation(id: agent.id, name: agent.name, result: .pending)
+            case .failed:
+                return SecurityAgentPresentation(
+                    id: agent.id,
+                    name: agent.name,
+                    result: .failed(message: agent.failureMessage)
+                )
+            case .pending, .analyzing:
+                return SecurityAgentPresentation(id: agent.id, name: agent.name, result: .pending)
+            }
+        }
+        self.reportedNeedsReviewCount = reportedNeedsReviewCount
+    }
+
     public func agentCount(for risk: ConsumerRiskLevel) -> Int {
         agents.count { $0.risk == risk }
+    }
+
+    public var checkedCount: Int {
+        agents.count {
+            if case .checked = $0.result { return true }
+            return false
+        }
+    }
+
+    public var failedCount: Int {
+        agents.count {
+            if case .failed = $0.result { return true }
+            return false
+        }
+    }
+
+    public var pendingCount: Int {
+        agents.count { $0.result == .pending }
     }
 
     public var needsReviewCount: Int {

@@ -281,7 +281,7 @@ extension StatusMonitor {
     private func makeSecurityDashboard(
         for scanAgents: [SecurityScanAgent]
     ) -> SecurityDashboardPresentation {
-        SecurityDashboardPresentation(agents: scanAgents.compactMap { agent in
+        let checkedAgents = scanAgents.compactMap { agent -> SecurityAgentPresentation? in
             guard let analysis = securityAnalyses[agent.id] else { return nil }
             return SecurityAgentPresentation(
                 id: agent.id,
@@ -290,7 +290,11 @@ extension StatusMonitor {
                 findingCount: analysis.findings.count,
                 isStale: analysis.reviewState?.isStale ?? analysis.isStale
             )
-        })
+        }
+        return SecurityDashboardPresentation(
+            scanAgents: securityScanState.agents,
+            checkedAgents: checkedAgents
+        )
     }
 
     private func securityPresentation(

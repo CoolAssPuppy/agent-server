@@ -25,15 +25,25 @@ public struct SecurityScanAgent: Identifiable, Equatable, Sendable {
     public let id: String
     public let name: String
     public let status: SecurityScanAgentStatus
+    public let failureMessage: String?
 
-    public init(id: String, name: String, status: SecurityScanAgentStatus = .pending) {
+    public init(
+        id: String,
+        name: String,
+        status: SecurityScanAgentStatus = .pending,
+        failureMessage: String? = nil
+    ) {
         self.id = id
         self.name = name
         self.status = status
+        self.failureMessage = failureMessage
     }
 
-    fileprivate func withStatus(_ status: SecurityScanAgentStatus) -> Self {
-        Self(id: id, name: name, status: status)
+    fileprivate func withStatus(
+        _ status: SecurityScanAgentStatus,
+        failureMessage: String? = nil
+    ) -> Self {
+        Self(id: id, name: name, status: status, failureMessage: failureMessage)
     }
 }
 
@@ -129,7 +139,7 @@ public struct SecurityBackgroundScanState: Equatable, Sendable {
     public func recordingCurrentFailure(message: String) -> Self {
         guard let currentIndex = agents.firstIndex(where: { $0.status == .analyzing }) else { return self }
         var updated = agents
-        updated[currentIndex] = updated[currentIndex].withStatus(.failed)
+        updated[currentIndex] = updated[currentIndex].withStatus(.failed, failureMessage: message)
         let nextIndex = updated.index(after: currentIndex)
         if updated.indices.contains(nextIndex) {
             updated[nextIndex] = updated[nextIndex].withStatus(.analyzing)
@@ -151,7 +161,7 @@ public struct SecurityBackgroundScanState: Equatable, Sendable {
     public func failing(message: String) -> Self {
         var updated = agents
         if let currentIndex = updated.firstIndex(where: { $0.status == .analyzing }) {
-            updated[currentIndex] = updated[currentIndex].withStatus(.failed)
+            updated[currentIndex] = updated[currentIndex].withStatus(.failed, failureMessage: message)
         }
         return Self(phase: .failed, agents: updated, failureMessage: message, attentionCount: attentionCount)
     }

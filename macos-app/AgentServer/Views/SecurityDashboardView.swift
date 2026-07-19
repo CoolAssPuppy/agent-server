@@ -156,25 +156,7 @@ struct SecurityDashboardView: View {
                             .foregroundStyle(theme.tokens.mutedForeground)
                     } else {
                         ForEach(filteredAgents(dashboard)) { agent in
-                            Button { openAgent(agent.id) } label: {
-                                HStack(spacing: NSpacing.md) {
-                                    Image(systemName: agent.isStale ? "clock.badge.exclamationmark" : "checkmark.shield")
-                                        .frame(width: 24)
-                                    VStack(alignment: .leading, spacing: NSpacing.xxxs) {
-                                        Text(agent.name)
-                                            .font(NTypography.bodyMedium)
-                                        Text(agent.isStale ? "Changed since its last review" : findingLabel(agent.findingCount))
-                                            .font(NTypography.caption)
-                                            .foregroundStyle(theme.tokens.mutedForeground)
-                                    }
-                                    Spacer()
-                                    ConsumerRiskLabel(risk: agent.risk)
-                                    Image(systemName: "chevron.right")
-                                        .foregroundStyle(theme.tokens.mutedForeground)
-                                }
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
+                            dashboardAgentRow(agent)
                             .padding(.vertical, NSpacing.xxs)
                             .background(
                                 agent.id == selectedAgentId
@@ -211,7 +193,81 @@ struct SecurityDashboardView: View {
                     Label("\(dashboard.needsReviewCount) changed since the last review", systemImage: "clock.badge.exclamationmark")
                         .font(NTypography.bodyMedium)
                 }
+                HStack(spacing: NSpacing.lg) {
+                    Label("\(dashboard.checkedCount) checked", systemImage: "checkmark.circle")
+                    if dashboard.failedCount > 0 {
+                        Label("\(dashboard.failedCount) could not be checked", systemImage: "exclamationmark.octagon")
+                            .foregroundStyle(theme.tokens.destructive)
+                    }
+                    if dashboard.pendingCount > 0 {
+                        Label("\(dashboard.pendingCount) waiting to be checked", systemImage: "clock")
+                            .foregroundStyle(theme.tokens.mutedForeground)
+                    }
+                }
+                .font(NTypography.caption)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func dashboardAgentRow(_ agent: SecurityAgentPresentation) -> some View {
+        switch agent.result {
+        case .checked(let risk, let findingCount, let isStale):
+            Button { openAgent(agent.id) } label: {
+                HStack(spacing: NSpacing.md) {
+                    Image(systemName: isStale ? "clock.badge.exclamationmark" : "checkmark.shield")
+                        .frame(width: 24)
+                    VStack(alignment: .leading, spacing: NSpacing.xxxs) {
+                        Text(agent.name)
+                            .font(NTypography.bodyMedium)
+                        Text(isStale ? "Changed since its last review" : findingLabel(findingCount))
+                            .font(NTypography.caption)
+                            .foregroundStyle(theme.tokens.mutedForeground)
+                    }
+                    Spacer()
+                    ConsumerRiskLabel(risk: risk)
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        case .failed(let message):
+            HStack(spacing: NSpacing.md) {
+                Image(systemName: "exclamationmark.octagon.fill")
+                    .foregroundStyle(theme.tokens.destructive)
+                    .frame(width: 24)
+                VStack(alignment: .leading, spacing: NSpacing.xxxs) {
+                    Text(agent.name)
+                        .font(NTypography.bodyMedium)
+                    Text(message ?? "The security check did not finish.")
+                        .font(NTypography.caption)
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                }
+                Spacer()
+                Text("Could not check")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.destructive)
+            }
+            .accessibilityElement(children: .combine)
+        case .pending:
+            HStack(spacing: NSpacing.md) {
+                Image(systemName: "clock")
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .frame(width: 24)
+                VStack(alignment: .leading, spacing: NSpacing.xxxs) {
+                    Text(agent.name)
+                        .font(NTypography.bodyMedium)
+                    Text("This agent was not checked.")
+                        .font(NTypography.caption)
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                }
+                Spacer()
+                Text("Waiting")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            }
+            .accessibilityElement(children: .combine)
         }
     }
 
