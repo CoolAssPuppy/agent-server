@@ -3,6 +3,7 @@ import Foundation
 @MainActor
 extension StatusMonitor {
     func startBackgroundSecurityScan() {
+        guard !isDemoMode else { return }
         let scanAgents = securityScanAgents()
         let signature = securityScanTrigger
         guard securityScanTask == nil,
@@ -31,6 +32,16 @@ extension StatusMonitor {
     }
 
     func scanAllSecurity() async -> Result<SecurityDashboardPresentation, ConsumerFlowFailure> {
+        if isDemoMode {
+            return .failure(ConsumerFlowFailure(
+                title: "Security checks are paused in Demo Mode",
+                message: "Disable Demo Mode to check your real agents.",
+                recovery: "No agent or server data was changed.",
+                technicalDetails: "Demo Mode uses local screenshot fixtures.",
+                didSave: false,
+                canRetry: false
+            ))
+        }
         if let securityScanTask { return await securityScanTask.value }
         let scanAgents = securityScanAgents()
         lastBackgroundSecuritySignature = securityScanTrigger
@@ -40,6 +51,16 @@ extension StatusMonitor {
     }
 
     func analyzeSecurity(agentId: String) async -> Result<SecurityScanPresentation, ConsumerFlowFailure> {
+        if isDemoMode {
+            return .failure(ConsumerFlowFailure(
+                title: "Security checks are paused in Demo Mode",
+                message: "Disable Demo Mode to check this agent.",
+                recovery: "No agent or server data was changed.",
+                technicalDetails: "Demo Mode uses local screenshot fixtures.",
+                didSave: false,
+                canRetry: false
+            ))
+        }
         do {
             let analysis = try await client.securityAnalysis(agentId: agentId)
             securityAnalyses[agentId] = analysis

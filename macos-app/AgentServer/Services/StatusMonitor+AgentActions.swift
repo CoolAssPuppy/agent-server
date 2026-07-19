@@ -10,6 +10,7 @@ extension StatusMonitor {
 
     @discardableResult
     func updateAgent(id: String, patch: [String: Any]) async -> AgentWriteOutcome {
+        guard !isDemoMode else { return .failure("Demo Mode does not change your agents.") }
         do {
             let updated = try await client.updateAgent(id: id, patch: patch)
             replaceAgent(updated)
@@ -21,6 +22,7 @@ extension StatusMonitor {
 
     @discardableResult
     func setCapability(agentId: String, capabilityId: String, enabled: Bool) async -> AgentWriteOutcome {
+        guard !isDemoMode else { return .failure("Demo Mode does not change your agents.") }
         do {
             let updated = try await client.setCapability(
                 agentId: agentId,
@@ -41,6 +43,7 @@ extension StatusMonitor {
         schedule: String?,
         capabilities: [(id: String, enabled: Bool)]
     ) async -> Result<Agent, Error> {
+        guard !isDemoMode else { return .failure(DemoModeWriteError()) }
         do {
             let created = try await client.createAgent(
                 name: name,
@@ -58,6 +61,7 @@ extension StatusMonitor {
 
     @discardableResult
     func deleteAgent(id: String) async -> AgentWriteOutcome {
+        guard !isDemoMode else { return .failure("Demo Mode does not change your agents.") }
         do {
             try await client.deleteAgent(id: id)
             agents.removeAll { $0.id == id }
@@ -81,6 +85,7 @@ extension StatusMonitor {
     }
 
     func saveConnectionKeys(_ values: [String: String]) throws {
+        guard !isDemoMode else { throw DemoModeWriteError() }
         let url = AgentServerWorkspaceStore.current().environmentFile
         var pairs = try EnvFileStore.load(from: url)
         for (key, value) in values {
@@ -95,6 +100,7 @@ extension StatusMonitor {
     }
 
     func cleanupStaleRuns() {
+        guard !isDemoMode else { return }
         Task {
             do {
                 let result = try await client.cleanupStaleRuns()
@@ -110,6 +116,7 @@ extension StatusMonitor {
     }
 
     func cancelRun(id: String) {
+        guard !isDemoMode else { return }
         Task {
             do {
                 try await client.cancelRun(id: id)
@@ -131,4 +138,8 @@ extension StatusMonitor {
         }
         return .failure(error.localizedDescription)
     }
+}
+
+private struct DemoModeWriteError: LocalizedError {
+    var errorDescription: String? { "Demo Mode does not change your agents." }
 }

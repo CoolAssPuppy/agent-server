@@ -131,7 +131,9 @@ struct AgentRunsView: View {
                 },
                 onDelete: {
                     Task {
-                        try? await localClient.deleteRun(id: selectedRunId)
+                        if !monitor.isDemoMode {
+                            try? await localClient.deleteRun(id: selectedRunId)
+                        }
                         self.selectedRunId = nil
                         await fetchRuns()
                     }
@@ -153,6 +155,13 @@ struct AgentRunsView: View {
     // MARK: - Data fetching
 
     private func fetchRuns() async {
+        if let demoRuns = monitor.demoRuns(for: agentId) {
+            runs = demoRuns
+            isLoading = false
+            loadError = nil
+            if selectedRunId == nil { selectedRunId = demoRuns.first?.runId }
+            return
+        }
         do {
             let fetched: [Run]
             if let panelRuns = try await fetchFromPanel() {
@@ -221,6 +230,7 @@ struct AgentRunsView: View {
     }
 
     private func hydrateSelectedRunFromPanel(_ runId: String?) async {
+        guard !monitor.isDemoMode else { return }
         guard let runId, let panelClient else { return }
         guard let localRun = runs.first(where: { $0.runId == runId }) else { return }
         do {
@@ -267,6 +277,10 @@ struct AgentRunsView: View {
     }
 
     private func fetchLogsForRun(_ runId: String?) async {
+        guard !monitor.isDemoMode else {
+            selectedRunLogs = []
+            return
+        }
         guard let runId, let panelClient else {
             selectedRunLogs = []
             return

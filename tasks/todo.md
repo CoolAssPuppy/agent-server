@@ -808,3 +808,17 @@ never land in agent files; agent files only hold `${VAR}` references and URLs.
 - Bundling vs user install: version skew between the user's CLI and our expected
   stream format. Pin a minimum and detect.
 ```
+# Hidden screenshot demo mode
+
+- [x] Add behavior tests for local persistence, menu copy, and deterministic fake agents and runs.
+- [x] Add a context menu to the General settings heading that enables or disables demo mode.
+- [x] Present fake agents and run history without writing agent files or replacing the live server snapshot.
+- [x] Verify the Swift package and unsigned macOS app build without UI automation.
+
+Review:
+
+- Demo Mode is a UserDefaults-backed, local presentation choice revealed only by right-clicking the General heading.
+- Six fixed fake agents and eight fixed fake runs cover active, successful, and failed states without credentials or absolute user paths.
+- The monitor keeps polling its live snapshot while demo fixtures are shown, then restores that snapshot when Demo Mode is disabled.
+- Agent writes, run actions, connection key writes, and security requests are suppressed for demo fixtures.
+- Verification: 235 Swift behavior tests passed and the unsigned macOS Debug build succeeded. No UI automation was run.

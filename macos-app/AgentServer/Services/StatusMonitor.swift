@@ -5,6 +5,7 @@ import Foundation
 final class StatusMonitor: ObservableObject {
     @Published var agents: [Agent] = []
     @Published var activeRuns: [Run] = []
+    @Published private(set) var isDemoMode: Bool
     /// Full run list returned from the daemon, newest first. Used by the
     /// MainPane's Feed + Artifacts cards (which care about ALL recent runs,
     /// not just the ones currently running).
@@ -62,6 +63,76 @@ final class StatusMonitor: ObservableObject {
     var securityPatches: [String: (patch: GuidanceConfigurationPatch, preview: GuidancePatchPreview)] = [:]
     var securityScanTask: Task<Result<SecurityDashboardPresentation, ConsumerFlowFailure>, Never>?
     var lastBackgroundSecuritySignature: [String] = []
+
+    private let demoModePreference: DemoModePreference
+    private var liveAgents: [Agent] = []
+    private var liveActiveRuns: [Run] = []
+    private var liveRecentRuns: [Run] = []
+    private var liveLastRunByAgent: [String: Run] = [:]
+    private var liveServerReachable = false
+
+    init(demoModePreference: DemoModePreference = DemoModePreference()) {
+        self.demoModePreference = demoModePreference
+        isDemoMode = demoModePreference.isEnabled
+        if isDemoMode {
+            presentDemoSnapshot()
+        }
+    }
+
+    var demoModeState: DemoModeState {
+        DemoModeState(isEnabled: isDemoMode)
+    }
+
+    func toggleDemoMode() {
+        setDemoModeEnabled(!isDemoMode)
+    }
+
+    func demoRuns(for agentId: String) -> [Run]? {
+        guard isDemoMode else { return nil }
+        return recentRuns.filter { $0.agentId == agentId }
+    }
+
+    private func setDemoModeEnabled(_ isEnabled: Bool) {
+        demoModePreference.setEnabled(isEnabled)
+        isDemoMode = isEnabled
+        if isEnabled {
+            presentDemoSnapshot()
+        } else {
+            presentLiveSnapshot()
+        }
+    }
+
+    private func presentDemoSnapshot() {
+        let startOfToday = Calendar.current.startOfDay(for: Date())
+        let fixtures = DemoModeFixtures.make(
+            referenceDate: startOfToday.addingTimeInterval(12 * 3_600)
+        )
+        agents = fixtures.presentedAgents
+        recentRuns = fixtures.presentedRuns.sorted { $0.startedAt > $1.startedAt }
+        activeRuns = recentRuns.filter(\.isActive)
+        lastRunByAgent = latestTerminalRuns(from: recentRuns)
+        isServerReachable = true
+        localAPISetupError = nil
+    }
+
+    private func presentLiveSnapshot() {
+        agents = liveAgents
+        activeRuns = liveActiveRuns
+        recentRuns = liveRecentRuns
+        lastRunByAgent = liveLastRunByAgent
+        isServerReachable = liveServerReachable
+    }
+
+    private func latestTerminalRuns(from runs: [Run]) -> [String: Run] {
+        var latest: [String: Run] = [:]
+        for run in runs where !run.isActive {
+            if let existing = latest[run.agentId], existing.startedAt >= run.startedAt {
+                continue
+            }
+            latest[run.agentId] = run
+        }
+        return latest
+    }
 
     func setServerProcess(_ manager: ServerProcessManager) {
         self.serverProcess = manager
@@ -163,14 +234,16 @@ final class StatusMonitor: ObservableObject {
     private func performPoll() async {
         do {
             let health = try await client.health()
-            isServerReachable = true
+            liveServerReachable = true
+            if !isDemoMode { isServerReachable = true }
             consecutiveFailures = 0
 
             let fetchedAgents = try await client.agents()
             localAPISetupError = nil
             let fetchedRuns = try await client.runs()
 
-            self.agents = fetchedAgents
+            self.liveAgents = fetchedAgents
+            if !self.isDemoMode { self.agents = fetchedAgents }
 
                 let currentActiveRuns = fetchedRuns.filter { $0.isActive }
 
@@ -193,8 +266,12 @@ final class StatusMonitor: ObservableObject {
                     }
                 }
                 self.previousActiveRunIds = newActiveIds
-                self.activeRuns = currentActiveRuns
-                self.recentRuns = fetchedRuns.sorted { $0.startedAt > $1.startedAt }
+                self.liveActiveRuns = currentActiveRuns
+                self.liveRecentRuns = fetchedRuns.sorted { $0.startedAt > $1.startedAt }
+                if !self.isDemoMode {
+                    self.activeRuns = currentActiveRuns
+                    self.recentRuns = self.liveRecentRuns
+                }
 
                 for run in fetchedRuns where !run.isActive {
                     guard self.reportedTerminalRuns.insert(run.runId) else { continue }
@@ -233,7 +310,8 @@ final class StatusMonitor: ObservableObject {
                         latest[run.agentId] = run
                     }
                 }
-            self.lastRunByAgent = latest
+            self.liveLastRunByAgent = latest
+            if !self.isDemoMode { self.lastRunByAgent = latest }
         } catch {
             guard !Task.isCancelled else { return }
             handlePollFailure(error)
@@ -251,6 +329,9 @@ final class StatusMonitor: ObservableObject {
 
         switch failureKind {
         case .reachability:
+            liveServerReachable = false
+            liveActiveRuns = []
+            guard !isDemoMode else { return }
             localAPISetupError = nil
             isServerReachable = false
             activeRuns = []
@@ -259,10 +340,14 @@ final class StatusMonitor: ObservableObject {
                 autoRestartServer()
             }
         case .authenticationSetup:
+            liveServerReachable = true
+            guard !isDemoMode else { return }
             isServerReachable = true
             consecutiveFailures = 0
             localAPISetupError = Self.localAPISetupMessage
         case .responseSchema, .serverResponse:
+            liveServerReachable = true
+            guard !isDemoMode else { return }
             // The daemon answered. Restarting it cannot repair an incompatible
             // response shape or a valid HTTP error, and can create a loop that
             // hides the real problem from the user.
@@ -299,6 +384,7 @@ final class StatusMonitor: ObservableObject {
     }
 
     func triggerRun(agentId: String) {
+        guard !isDemoMode else { return }
         Task {
             do {
                 let _ = try await client.triggerRun(agentId: agentId)

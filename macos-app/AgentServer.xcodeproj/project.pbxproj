@@ -27,6 +27,7 @@
 		24C3E239750CE16796D6085C /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACF4DF2407A9787F480AEEE7 /* NotificationManager.swift */; };
 		2782A750DB42F7DB36908C45 /* AgentDetailDrawer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 241EB59407AD998C9A023722 /* AgentDetailDrawer.swift */; };
 		286D0BA5C8914421646E03D9 /* MCPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FDC36BB13528F7FD3BE8F2C /* MCPServer.swift */; };
+		29D4485448C4F74872E199F4 /* DemoMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE7410D6F6B48563664B0DDF /* DemoMode.swift */; };
 		2CDA922300E92E5825F5EEB1 /* PanelClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FE442CAD3D55ADB3B5F89D7 /* PanelClient.swift */; };
 		2E7E4BD18DE37418D0472DBF /* UITestScenarioWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73C44228DBD88C29AA85C3AB /* UITestScenarioWindow.swift */; };
 		335C9C3ED26B1D305D2C02EE /* agent-server-failure.aiff in Resources */ = {isa = PBXBuildFile; fileRef = CA248DACCE7F0D7F58939FBF /* agent-server-failure.aiff */; };
@@ -80,6 +81,7 @@
 		A4400FF1A0694B426A1DFF18 /* ConsumerFlowComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E2C4E1EAA344668143F8889 /* ConsumerFlowComponents.swift */; };
 		A965DC2A98A88151EDC11360 /* RunDetailGutter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F23C1CA4CDE204047AD9448D /* RunDetailGutter.swift */; };
 		ADEA864A419BCB76C61FD5DB /* SidebarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 325C74DAF7BB5F1C25B3A733 /* SidebarViewModel.swift */; };
+		B0D0068D36188E18903DD594 /* DemoModePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E81165B52DED43ED77F7D0 /* DemoModePresentation.swift */; };
 		B21F725CDF123FDED4325916 /* SecurityServerModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00F566E57973BAC7955CF89 /* SecurityServerModels.swift */; };
 		B5453300A1BD30D48C23D05C /* AgentRunsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 643CBD2E294E942C10398144 /* AgentRunsView.swift */; };
 		B843D0CF6ED1949F08B87FBE /* AgentSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DAF4A42E82017D2EA925043 /* AgentSettingsView.swift */; };
@@ -147,6 +149,7 @@
 		1166D983A336A4F217C9282E /* PanelRun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelRun.swift; sourceTree = "<group>"; };
 		1359015CD6B7782FF2A70E69 /* EventKitPermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitPermissionManager.swift; sourceTree = "<group>"; };
 		1437F6871A840E2C1186B116 /* AgentDebuggerEntryShell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentDebuggerEntryShell.swift; sourceTree = "<group>"; };
+		14E81165B52DED43ED77F7D0 /* DemoModePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoModePresentation.swift; sourceTree = "<group>"; };
 		157F358524BFC2F586756006 /* AgentSecurityAnalyzerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSecurityAnalyzerView.swift; sourceTree = "<group>"; };
 		1A9B17FFF708C7E5834EAB27 /* DrawerRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawerRouter.swift; sourceTree = "<group>"; };
 		1B4F3553798E2486F4AB0B2F /* GuidedAgentCreationCopy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedAgentCreationCopy.swift; sourceTree = "<group>"; };
@@ -215,6 +218,7 @@
 		A520B1763B663153CBBA3F1B /* RunDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailView.swift; sourceTree = "<group>"; };
 		A8F58F7D3CBAE78227893670 /* LocalServerEndpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalServerEndpoint.swift; sourceTree = "<group>"; };
 		ACF4DF2407A9787F480AEEE7 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
+		AE7410D6F6B48563664B0DDF /* DemoMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoMode.swift; sourceTree = "<group>"; };
 		B00F566E57973BAC7955CF89 /* SecurityServerModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityServerModels.swift; sourceTree = "<group>"; };
 		B21BEF5E401D5885B7088847 /* MainPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainPane.swift; sourceTree = "<group>"; };
 		B240FF61BB85B6D6668CC375 /* AgentServerClient+Guidance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentServerClient+Guidance.swift"; sourceTree = "<group>"; };
@@ -330,6 +334,7 @@
 				76D1FBFD51A44407DC395C7F /* AgentServerClient.swift */,
 				B240FF61BB85B6D6668CC375 /* AgentServerClient+Guidance.swift */,
 				DCE3C4B67936078814AFEBF3 /* AgentServerClient+Security.swift */,
+				14E81165B52DED43ED77F7D0 /* DemoModePresentation.swift */,
 				1359015CD6B7782FF2A70E69 /* EventKitPermissionManager.swift */,
 				BBF1B4A941CE9F9CD5925E4E /* LaunchAtLoginManager.swift */,
 				ACF4DF2407A9787F480AEEE7 /* NotificationManager.swift */,
@@ -452,6 +457,7 @@
 				0136765C94481AB61536D483 /* CronEnglishFormatter.swift */,
 				D885EDB8362181BEA390FCF9 /* CronNextFire.swift */,
 				B9E3A0BC90A75E1C817A3238 /* Decision.swift */,
+				AE7410D6F6B48563664B0DDF /* DemoMode.swift */,
 				B9BC93C3FF41E699B85E8B5A /* DrawerDragDismissal.swift */,
 				1A9B17FFF708C7E5834EAB27 /* DrawerRouter.swift */,
 				2F352A0CB69BD6E6AEF7E49F /* EnvFileStore.swift */,
@@ -721,6 +727,8 @@
 				F17110F056DA38776543B8F6 /* CronEnglishFormatter.swift in Sources */,
 				C57F8443BD1AD312F39219D2 /* CronNextFire.swift in Sources */,
 				59831E5595B33F9E1EF1F7D3 /* Decision.swift in Sources */,
+				29D4485448C4F74872E199F4 /* DemoMode.swift in Sources */,
+				B0D0068D36188E18903DD594 /* DemoModePresentation.swift in Sources */,
 				7B15DE5C3DAF31547879B22E /* DrawerDragDismissal.swift in Sources */,
 				35FDE3BEDFC10D02FAD60D3F /* DrawerRouter.swift in Sources */,
 				09F56CA1A2EA7A5D37A82130 /* EnvFileStore.swift in Sources */,

@@ -132,7 +132,11 @@ struct SettingsDrawer: View {
     // MARK: - Cards
 
     private var generalCard: some View {
-        SettingsCard(title: "General") {
+        SettingsCard(
+            title: "General",
+            titleContextActionLabel: monitor.demoModeState.contextMenuTitle,
+            onTitleContextAction: monitor.toggleDemoMode
+        ) {
             settingsToggle("Launch at login", isOn: $launchAtLogin)
                 .onChange(of: launchAtLogin) { _, newValue in
                     LaunchAtLoginManager.shared.isEnabled = newValue
@@ -945,9 +949,23 @@ struct SettingsDrawer: View {
 
 private struct SettingsCard<Content: View>: View {
     let title: String
+    let titleContextActionLabel: String?
+    let onTitleContextAction: (() -> Void)?
     @ViewBuilder let content: () -> Content
 
     @Environment(\.nTheme) private var theme
+
+    init(
+        title: String,
+        titleContextActionLabel: String? = nil,
+        onTitleContextAction: (() -> Void)? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.title = title
+        self.titleContextActionLabel = titleContextActionLabel
+        self.onTitleContextAction = onTitleContextAction
+        self.content = content
+    }
 
     var body: some View {
         // No trailing Spacer: cards size to their content. Without this,
@@ -958,6 +976,11 @@ private struct SettingsCard<Content: View>: View {
                 .font(.system(size: 11, weight: .semibold))
                 .tracking(0.6)
                 .foregroundStyle(theme.tokens.mutedForeground)
+                .contextMenu {
+                    if let titleContextActionLabel, let onTitleContextAction {
+                        Button(titleContextActionLabel, action: onTitleContextAction)
+                    }
+                }
             VStack(alignment: .leading, spacing: NSpacing.xxs) {
                 content()
             }
