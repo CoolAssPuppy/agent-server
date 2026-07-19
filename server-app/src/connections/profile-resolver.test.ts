@@ -42,11 +42,14 @@ describe('resolveConnectionProfile', () => {
   });
 
   it('materializes remote credential headers with their reviewed prefix', () => {
-    const input = profile('Remote');
-    input.transport = {
-      kind: 'mcp_http',
-      url: 'https://service.example/mcp',
-      headers: [{ name: 'Authorization', credential_id: input.credentials[0].id, prefix: 'Bearer ' }],
+    const base = profile('Remote');
+    const input: ConnectionProfile = {
+      ...base,
+      transport: {
+        kind: 'mcp_http',
+        url: 'https://service.example/mcp',
+        headers: [{ name: 'Authorization', credential_id: base.credentials[0].id, prefix: 'Bearer ' }],
+      },
     };
 
     expect(resolveConnectionProfile(input).config).toEqual({
