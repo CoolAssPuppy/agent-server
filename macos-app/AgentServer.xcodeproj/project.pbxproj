@@ -49,6 +49,7 @@
 		59592B3D24D39DD5E4D21714 /* NerdsUI in Frameworks */ = {isa = PBXBuildFile; productRef = 2A1CF52BEE1D8E2E8804D3C5 /* NerdsUI */; };
 		59831E5595B33F9E1EF1F7D3 /* Decision.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E3A0BC90A75E1C817A3238 /* Decision.swift */; };
 		5A24411C1973C987BD646A0F /* ConnectionSetupDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D75937711DE0428A515A31C /* ConnectionSetupDraft.swift */; };
+		5D68D2E47D002BBFA235C8A4 /* AgentCapabilityDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AF8E48F44917CC287EC5C56 /* AgentCapabilityDraft.swift */; };
 		5E2D43B8D9860050C5944FCA /* RunDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A520B1763B663153CBBA3F1B /* RunDetailView.swift */; };
 		62F3CC9CC829C56A7CA6DE44 /* AgentTriggerPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B3AACD6067B9CE79B84D94B /* AgentTriggerPresentation.swift */; };
 		666BECD19A8137F064869C82 /* LaunchAtLoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBF1B4A941CE9F9CD5925E4E /* LaunchAtLoginManager.swift */; };
@@ -162,6 +163,7 @@
 		14E81165B52DED43ED77F7D0 /* DemoModePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoModePresentation.swift; sourceTree = "<group>"; };
 		157F358524BFC2F586756006 /* AgentSecurityAnalyzerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSecurityAnalyzerView.swift; sourceTree = "<group>"; };
 		1A9B17FFF708C7E5834EAB27 /* DrawerRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawerRouter.swift; sourceTree = "<group>"; };
+		1AF8E48F44917CC287EC5C56 /* AgentCapabilityDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentCapabilityDraft.swift; sourceTree = "<group>"; };
 		1B4F3553798E2486F4AB0B2F /* GuidedAgentCreationCopy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedAgentCreationCopy.swift; sourceTree = "<group>"; };
 		1D75937711DE0428A515A31C /* ConnectionSetupDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionSetupDraft.swift; sourceTree = "<group>"; };
 		241EB59407AD998C9A023722 /* AgentDetailDrawer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentDetailDrawer.swift; sourceTree = "<group>"; };
@@ -455,6 +457,7 @@
 		F6B39A2CC067BCD5335D3A5D /* AgentServerCore */ = {
 			isa = PBXGroup;
 			children = (
+				1AF8E48F44917CC287EC5C56 /* AgentCapabilityDraft.swift */,
 				792B13A5DFC5DB882DA0608A /* AgentCreationFlow.swift */,
 				C15E607F9D1A278E69D84D77 /* AgentDebuggerFlow.swift */,
 				F1BCFCE737011048F3DAC1E5 /* AgentEnabledFileEditor.swift */,
@@ -712,6 +715,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E47054251F4B7B9B6C84E2BF /* AboutView.swift in Sources */,
+				5D68D2E47D002BBFA235C8A4 /* AgentCapabilityDraft.swift in Sources */,
 				83868502556254BD90C98E38 /* AgentCreationFlow.swift in Sources */,
 				C38C07E7F348955FDE9558C2 /* AgentDebuggerEntryShell.swift in Sources */,
 				D45C8A3250E66903A17B9F01 /* AgentDebuggerFlow.swift in Sources */,

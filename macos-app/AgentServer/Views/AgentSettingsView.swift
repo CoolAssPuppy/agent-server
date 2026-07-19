@@ -27,7 +27,7 @@ struct AgentSettingsSheet: View {
 
     @State private var saving = false
     @State private var errorMessage: String?
-    @State private var pendingCapabilityIds: Set<String> = []
+    @State private var capabilityDraft = AgentCapabilityDraft(initialValues: [:])
     @State private var connectTarget: ConnectTarget?
     @State private var showAdvanced = false
     @State private var confirmingDelete = false
@@ -60,9 +60,11 @@ struct AgentSettingsSheet: View {
         .sheet(item: $connectTarget) { target in
             ConnectCapabilitySheet(
                 monitor: monitor,
-                agentId: agentId,
                 target: target,
-                onDone: { connectTarget = nil }
+                onDone: { didConnect in
+                    if didConnect { capabilityDraft.set(target.capability.id, enabled: true) }
+                    connectTarget = nil
+                }
             )
         }
     }
@@ -77,6 +79,9 @@ struct AgentSettingsSheet: View {
         enabled = agent.enabled
         scheduleDraft = ScheduleDraft(cron: agent.schedule)
         modelDraft = ModelDraft(agent: agent)
+        capabilityDraft = AgentCapabilityDraft(
+            initialValues: Dictionary(uniqueKeysWithValues: (agent.capabilities ?? []).map { ($0.id, $0.enabled) })
+        )
     }
 
     // MARK: - Header / footer
@@ -190,7 +195,7 @@ struct AgentSettingsSheet: View {
     private var capabilitiesSection: some View {
         VStack(alignment: .leading, spacing: NSpacing.sm) {
             sectionTitle("What this agent can do")
-            Text("Changes apply immediately and are saved into the agent's file.")
+            Text("Review your choices, then choose Save to update the agent.")
                 .font(NTypography.caption)
                 .foregroundStyle(theme.tokens.mutedForeground)
 
@@ -207,7 +212,7 @@ struct AgentSettingsSheet: View {
                         if index > 0 { Divider().opacity(0.3) }
                         CapabilityRow(
                             capability: capability,
-                            isBusy: pendingCapabilityIds.contains(capability.id),
+                            isEnabled: capabilityDraft.isEnabled(capability.id, fallback: capability.enabled),
                             onToggle: { newValue in
                                 toggleCapability(capability, to: newValue)
                             }
@@ -232,23 +237,8 @@ struct AgentSettingsSheet: View {
             return
         }
 
-        pendingCapabilityIds.insert(capability.id)
-        Task {
-            let outcome = await monitor.setCapability(
-                agentId: agentId,
-                capabilityId: capability.id,
-                enabled: newValue
-            )
-            pendingCapabilityIds.remove(capability.id)
-            switch outcome {
-            case .success:
-                errorMessage = nil
-            case .missingEnv(let keys):
-                connectTarget = ConnectTarget(capability: capability, missingKeys: keys)
-            case .failure(let message):
-                errorMessage = message
-            }
-        }
+        capabilityDraft.set(capability.id, enabled: newValue)
+        errorMessage = nil
     }
 
     // MARK: - Advanced
@@ -394,6 +384,10 @@ struct AgentSettingsSheet: View {
         }
 
         addModelChanges(to: &patch, for: agent)
+        let capabilityChanges = capabilityDraft.changes
+        if !capabilityChanges.isEmpty {
+            patch["capabilities"] = capabilityChanges.map { ["id": $0.id, "enabled": $0.enabled] }
+        }
 
         return patch
     }
@@ -447,7 +441,7 @@ struct AgentSettingsSheet: View {
 
 struct CapabilityRow: View {
     let capability: AgentCapability
-    let isBusy: Bool
+    let isEnabled: Bool
     let onToggle: (Bool) -> Void
 
     @Environment(\.nTheme) private var theme
@@ -457,7 +451,7 @@ struct CapabilityRow: View {
             CapabilityIconView(
                 capability: capability,
                 size: 18,
-                tint: capability.enabled ? theme.tokens.foreground : theme.tokens.mutedForeground.opacity(0.6)
+                tint: isEnabled ? theme.tokens.foreground : theme.tokens.mutedForeground.opacity(0.6)
             )
             .frame(width: 24)
 
@@ -484,7 +478,7 @@ struct CapabilityRow: View {
                 // capability is already working (often through the agent's own
                 // ${VAR}, which the catalog's expected key name won't match), so
                 // "needs to be connected" would be wrong and confusing.
-                if needsConnection && !capability.enabled {
+                if needsConnection && !isEnabled {
                     Text("Needs to be connected first")
                         .font(NTypography.captionSmall)
                         .foregroundStyle(theme.tokens.primary)
@@ -500,20 +494,20 @@ struct CapabilityRow: View {
 
             Spacer()
 
-            if isBusy {
-                ProgressView().controlSize(.small)
-            } else if needsConnection && !capability.enabled {
+            if needsConnection && !isEnabled {
                 Button("Connect…") { onToggle(true) }
                     .buttonStyle(.borderless)
                     .font(NTypography.caption)
             } else {
                 Toggle("", isOn: Binding(
-                    get: { capability.enabled },
+                    get: { isEnabled },
                     set: { onToggle($0) }
                 ))
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .labelsHidden()
+                .accessibilityLabel("Allow \(capability.label)")
+                .accessibilityValue(isEnabled ? "On" : "Off")
             }
         }
         .padding(.horizontal, NSpacing.md)
@@ -538,9 +532,8 @@ struct ConnectTarget: Identifiable {
 /// files — those keep ${VAR} references.
 struct ConnectCapabilitySheet: View {
     @ObservedObject var monitor: StatusMonitor
-    let agentId: String
     let target: ConnectTarget
-    let onDone: () -> Void
+    let onDone: (Bool) -> Void
 
     @Environment(\.nTheme) private var theme
     @State private var values: [String: String] = [:]
@@ -585,7 +578,7 @@ struct ConnectCapabilitySheet: View {
 
             HStack {
                 Spacer()
-                Button("Cancel") { onDone() }
+                Button("Cancel") { onDone(false) }
                     .keyboardShortcut(.cancelAction)
                 Button {
                     connect()
@@ -634,20 +627,8 @@ struct ConnectCapabilitySheet: View {
                 return
             }
 
-            let outcome = await monitor.setCapability(
-                agentId: agentId,
-                capabilityId: target.capability.id,
-                enabled: true
-            )
             busy = false
-            switch outcome {
-            case .success:
-                onDone()
-            case .missingEnv(let keys):
-                errorMessage = "Still missing: \(keys.joined(separator: ", "))"
-            case .failure(let message):
-                errorMessage = message
-            }
+            onDone(true)
         }
     }
 }
