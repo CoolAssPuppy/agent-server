@@ -7,27 +7,54 @@ struct AgentProposalView: View {
     @Environment(\.nTheme) private var theme
     @State private var showsInstructions = false
     @State private var showsAdvanced = false
+    @State private var showsAccessDetails = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: NSpacing.md) {
-            ConsumerSection("What this agent will do") {
-                Text(proposal.explanation)
-                    .font(NTypography.bodyLarge)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            ConsumerSection("When it will run") {
-                Label(proposal.schedule, systemImage: "calendar.badge.clock")
-                    .font(NTypography.bodyMedium)
-            }
+            summary
             if !proposal.connections.isEmpty { connections }
-            if !proposal.fileAccess.isEmpty { files }
-            if !proposal.calendarAccess.isEmpty { calendars }
-            if !proposal.reminderAccess.isEmpty { reminders }
-            if !proposal.contactAccess.isEmpty { contacts }
-            permissions
-            safety
+            accessDetails
             instructions
         }
+    }
+
+    private var summary: some View {
+        ConsumerSection(proposal.summary.name) {
+            Text(proposal.summary.outcome)
+                .font(NTypography.bodyLarge)
+                .fixedSize(horizontal: false, vertical: true)
+            Label(proposal.summary.schedule, systemImage: "calendar.badge.clock")
+                .font(NTypography.bodyMedium)
+            if !proposal.summary.requiredSetupNames.isEmpty {
+                Label(
+                    "Setup needed: \(proposal.summary.requiredSetupNames.joined(separator: ", "))",
+                    systemImage: "exclamationmark.circle"
+                )
+                .font(NTypography.bodyMedium)
+                .foregroundStyle(theme.tokens.warning)
+            }
+            HStack(alignment: .top, spacing: NSpacing.sm) {
+                ConsumerRiskLabel(risk: proposal.summary.risk)
+                Text(proposal.summary.riskReason)
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var accessDetails: some View {
+        DisclosureGroup("Access details", isExpanded: $showsAccessDetails) {
+            VStack(alignment: .leading, spacing: NSpacing.md) {
+                if !proposal.fileAccess.isEmpty { files }
+                if !proposal.calendarAccess.isEmpty { calendars }
+                if !proposal.reminderAccess.isEmpty { reminders }
+                if !proposal.contactAccess.isEmpty { contacts }
+                permissions
+            }
+            .padding(.top, NSpacing.sm)
+        }
+        .font(NTypography.bodyMedium)
     }
 
     private var reminders: some View {
@@ -149,18 +176,6 @@ struct AgentProposalView: View {
                             .font(NTypography.bodyLarge)
                     }
                 }
-            }
-        }
-    }
-
-    private var safety: some View {
-        ConsumerSection("Safety summary") {
-            HStack(alignment: .top, spacing: NSpacing.sm) {
-                ConsumerRiskLabel(risk: proposal.risk)
-                Text(proposal.riskReason)
-                    .font(NTypography.bodyLarge)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

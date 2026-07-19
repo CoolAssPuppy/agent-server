@@ -126,6 +126,17 @@ public struct AgentProposalPresentation: Equatable, Sendable {
         AgentProposalReadiness(connections: connections)
     }
 
+    public var summary: AgentProposalSummary {
+        AgentProposalSummary(
+            name: name,
+            outcome: explanation,
+            schedule: schedule,
+            requiredSetupNames: readiness.requiredSetupNames,
+            risk: risk,
+            riskReason: riskReason
+        )
+    }
+
     public init(
         reviewId: String? = nil,
         name: String,
@@ -155,6 +166,15 @@ public struct AgentProposalPresentation: Equatable, Sendable {
         self.risk = risk
         self.riskReason = riskReason
     }
+}
+
+public struct AgentProposalSummary: Equatable, Sendable {
+    public let name: String
+    public let outcome: String
+    public let schedule: String
+    public let requiredSetupNames: [String]
+    public let risk: ConsumerRiskLevel
+    public let riskReason: String
 }
 
 public struct AgentProposalReadiness: Equatable, Sendable {

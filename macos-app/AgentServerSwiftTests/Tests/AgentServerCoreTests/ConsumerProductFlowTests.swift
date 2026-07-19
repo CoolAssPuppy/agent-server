@@ -369,6 +369,18 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(proposal.readiness.requiredSetupNames, [])
     }
 
+    func testProposalSummaryLeadsWithIdentityScheduleSetupAndRisk() {
+        let proposal = AgentProposalPresentation.fixture(
+            connections: [.init(name: "Personal Notion", state: .needsSetup, isRequired: true)]
+        )
+
+        XCTAssertEqual(proposal.summary.name, "Weekly summary")
+        XCTAssertEqual(proposal.summary.outcome, "Reviews activity and prepares a short summary.")
+        XCTAssertEqual(proposal.summary.schedule, "Every Friday at 5:00 p.m.")
+        XCTAssertEqual(proposal.summary.requiredSetupNames, ["Personal Notion"])
+        XCTAssertEqual(proposal.summary.risk, .low)
+    }
+
     func testCreationFailureExplainsWhetherAnythingWasSavedAndCanRetry() {
         var flow = AgentCreationFlow(request: "Send a weekly summary")
         flow.receiveProposal(.fixture())
