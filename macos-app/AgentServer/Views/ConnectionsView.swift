@@ -6,9 +6,7 @@ private enum ConnectionPanelStyle {
     static let transitionDuration = 0.22
 }
 
-/// Connections: one place that answers "what can my agents reach, and how do I
-/// give them more. Named connections lead, while runtime details and known
-/// service templates stay available for people who want more control.
+/// Named connections lead. Runtime details and service templates remain available on demand.
 struct ConnectionsView: View {
     @ObservedObject var monitor: StatusMonitor
     @ObservedObject var router: DrawerRouter
@@ -30,14 +28,9 @@ struct ConnectionsView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let telegramTokenKey = "AGENT_SERVER_TELEGRAM_BOT_TOKEN"
-    // Bare Slack token names (no AGENT_SERVER_ prefix): what Slack's own docs use
-    // and what the user keeps in Doppler/.env. The server accepts both forms.
     private static let slackBotTokenKey = "SLACK_BOT_TOKEN"
     private static let slackAppTokenKey = "SLACK_APP_TOKEN"
 
-    /// Telegram is a server-wide messaging channel (bot token), not a per-agent
-    /// capability, so it isn't in the catalog. Present it here as its own
-    /// connection with the same Add-keys flow.
     private var telegramEntry: CapabilityCatalogEntry {
         CapabilityCatalogEntry(
             id: "telegram",
@@ -52,9 +45,6 @@ struct ConnectionsView: View {
         )
     }
 
-    /// Slack as a two-way messaging channel (chat with a bot) — distinct from
-    /// the Slack data connection above. Socket Mode needs a bot token (sending)
-    /// and an app-level token (receiving), so it collects both keys.
     private var slackMessagingEntry: CapabilityCatalogEntry {
         CapabilityCatalogEntry(
             id: "slack-bot",
@@ -69,8 +59,6 @@ struct ConnectionsView: View {
         )
     }
 
-    /// Only the service connections (MCP) — the file/command/web capabilities
-    /// are agent permissions, not connections, and belong on the agent page.
     private var services: [CapabilityCatalogEntry] {
         catalog.filter { $0.kind == "mcp" }
     }
