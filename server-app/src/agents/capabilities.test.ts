@@ -248,9 +248,10 @@ describe('applyCapabilityChanges', () => {
     const updates = applyCapabilityChanges(agent, [{ id: 'write-files', enabled: false }]);
 
     expect(updates.permissions).toEqual({
-      allow: agent.permissions?.allow,
+      allow: ['Read', 'Bash', 'mcp__notion-personal__notion-search'],
       deny: ['Write', 'Edit'],
     });
+    expect(updates.disallowed_tools).toBeUndefined();
     expect(deriveCapabilities({ ...agent, ...updates })).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: 'write-files', enabled: false }),
@@ -270,7 +271,7 @@ describe('applyCapabilityChanges', () => {
     const updates = applyCapabilityChanges(agent, [{ id: 'write-files', enabled: true }]);
 
     expect(updates.permissions).toEqual({
-      allow: agent.permissions?.allow,
+      allow: ['Read', 'Write', 'Edit', 'mcp__notion-personal__notion-search'],
       deny: [],
     });
   });

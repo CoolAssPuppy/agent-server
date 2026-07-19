@@ -883,3 +883,13 @@ Review:
 - Connected services use a server-scoped denial, so one service can be disabled without changing the permissions of another connection.
 - Local API version 5 forces the macOS app to replace a running server that still has the old permission behavior.
 - Verification: 1,151 server tests, 239 Swift tests, TypeScript type-check and build, and the unsigned macOS build passed. UI automation was not run.
+
+## Lossless existing-agent permission edits
+
+- [x] Add failing tests that require unrelated frontmatter bytes and Markdown bodies to remain unchanged.
+- [x] Remove disabled local tools from permissions.allow and add them only to permissions.deny.
+- [x] Avoid writing redundant disallowed_tools entries when permissions is authoritative.
+- [x] Patch only changed frontmatter fields without reformatting unrelated YAML.
+- [x] Verify include-based source generation does not overwrite frontmatter changes.
+- [ ] Repair the six affected agent diffs to their intended minimal permission changes without altering prose.
+- [ ] Run full verification, commit consequential batches, simplify, and launch without UI automation.

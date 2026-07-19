@@ -33,7 +33,7 @@ import {
 } from './security-utils.js';
 
 type EnvSource = Record<string, string | undefined>;
-const LOCAL_API_VERSION = 5;
+const LOCAL_API_VERSION = 6;
 
 type ConnectionSnapshot = {
   servers: DiscoveredConnection[];

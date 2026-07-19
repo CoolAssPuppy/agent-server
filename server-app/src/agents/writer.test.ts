@@ -168,40 +168,62 @@ enabled: true
   });
 
   it('persists removal of file editing for an agent with detailed permissions', async () => {
-    const { dir, writer } = await seededWriter({
-      'editor.md': `---
+    const original = `---
 id: editor
 name: Manuscript Editor
-tools:
-  - Read
-  - Write
-  - Edit
+description: >
+  Keep this exact wrapping because a small permission edit must not reflow
+  unrelated frontmatter text.
+tools: ["Read", "Write", "Edit"]
 permissions:
   allow:
-    - Read
-    - Write
-    - Edit
-    - mcp__notion-personal__notion-search
-  deny: []
+    - "Read"
+    - "Write"
+    - "Edit"
+    - "mcp__notion-personal__notion-search"
+  deny:
+    - "Bash"
+mcp_servers:
+  notion-personal:
+    command: npx
+    args: ["-y", "@notionhq/notion-mcp-server"]
 custom_field: keep-me
 ---
-
 # Edit the manuscript
-`,
-    });
+`;
+    const { dir, writer } = await seededWriter({ 'editor.md': original });
 
     const updated = await writer.update('editor', {
       capabilities: [{ id: 'write-files', enabled: false }],
     });
 
     expect(updated.permissions).toEqual({
-      allow: ['Read', 'Write', 'Edit', 'mcp__notion-personal__notion-search'],
-      deny: ['Write', 'Edit'],
+      allow: ['Read', 'mcp__notion-personal__notion-search'],
+      deny: ['Bash', 'Write', 'Edit'],
     });
     const content = await readFile(join(dir, 'editor.md'), 'utf-8');
-    expect(content).toContain('custom_field: keep-me');
-    expect(content).toContain('# Edit the manuscript');
-    expect(content).toContain('mcp__notion-personal__notion-search');
+    expect(content).toBe(original
+      .replace('    - "Write"\n    - "Edit"\n', '')
+      .replace('    - "Bash"\n', '    - "Bash"\n    - "Write"\n    - "Edit"\n'));
+  });
+
+  it('preserves every unrelated byte when changing a top-level field', async () => {
+    const original = `---
+id: editor
+name: Manuscript Editor
+description: >
+  Keep this unusual
+  wrapping.
+schedule: "0 3 * * *" # keep this comment
+---
+# Body starts immediately after the delimiter.
+`;
+    const { dir, writer } = await seededWriter({ 'editor.md': original });
+
+    await writer.update('editor', { name: 'Book Editor' });
+
+    const content = await readFile(join(dir, 'editor.md'), 'utf-8');
+    expect(content).toBe(original.replace('name: Manuscript Editor', 'name: Book Editor'));
   });
 
   it('writes mcp server entries when enabling a connected capability', async () => {

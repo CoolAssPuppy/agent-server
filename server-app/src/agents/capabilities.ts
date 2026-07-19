@@ -669,6 +669,7 @@ export function applyCapabilityChanges(
       removeAll(permissions.deny, permissionTools);
       for (const tool of permissionTools) addUnique(permissions.allow, tool);
     } else {
+      removeAll(permissions.allow, permissionTools);
       for (const tool of permissionTools) addUnique(permissions.deny, tool);
     }
     if (permissions.allow.length !== beforeAllow || permissions.deny.length !== beforeDeny) {
@@ -731,6 +732,12 @@ export function applyCapabilityChanges(
     if (change.id.startsWith(CUSTOM_TOOL_PREFIX)) {
       const tool = change.id.slice(CUSTOM_TOOL_PREFIX.length);
       setPermissionTools([tool], change.enabled);
+      if (permissions) {
+        const beforeD = disallowed.length;
+        removeAll(disallowed, [tool]);
+        markDisallowed(beforeD);
+        continue;
+      }
       if (change.enabled) {
         const beforeD = disallowed.length;
         removeAll(disallowed, [tool]);
@@ -754,6 +761,12 @@ export function applyCapabilityChanges(
     if (def.kind === 'tools') {
       const defTools = def.tools ?? [];
       setPermissionTools(defTools, change.enabled);
+      if (permissions) {
+        const beforeD = disallowed.length;
+        removeAll(disallowed, defTools);
+        markDisallowed(beforeD);
+        continue;
+      }
       if (change.enabled) {
         const beforeD = disallowed.length;
         removeAll(disallowed, defTools);

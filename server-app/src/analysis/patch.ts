@@ -3,7 +3,6 @@ import { realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import { CronExpressionParser } from 'cron-parser';
-import { Document, Scalar, parseDocument } from 'yaml';
 import { z } from 'zod';
 import {
   AgentTelemetrySchema,
@@ -11,9 +10,8 @@ import {
   FileAccessSchema,
   NativeServicesSchema,
   parseAgentFile,
-  hasFrontmatter,
-  splitFrontmatter,
 } from '../agents/config.js';
+import { renderLosslessAgentPatch } from '../agents/lossless-yaml-editor.js';
 import { ConversationConfigSchema } from '../conversation/schema.js';
 import { NETWORK_TOOLS } from '../execution/permission-policy.js';
 import { computeAgentContentHash } from './security-rules.js';
@@ -237,16 +235,6 @@ function assertSchedule(schedule: string | null | undefined): void {
   }
 }
 
-function setField(document: Document, key: string, value: unknown): void {
-  if (value === null || value === undefined) {
-    document.delete(key);
-    return;
-  }
-  const node = document.createNode(value);
-  if (typeof value === 'string' && value.includes('\n') && node instanceof Scalar) node.type = Scalar.BLOCK_LITERAL;
-  document.set(key, node);
-}
-
 function networkWrites(changes: ConfigurationChanges, current: string[]): string[] | undefined {
   if (changes.network_access !== false) return undefined;
   return [...new Set([...current, ...NETWORK_TOOLS])];
@@ -282,22 +270,10 @@ function renderPatchedContent(content: string, changes: ConfigurationChanges): s
     }
   }
 
-  if (hasFrontmatter(content)) {
-    const { yaml, body } = splitFrontmatter(content);
-    const document = parseDocument(yaml);
-    if (document.errors.length > 0) throw new Error('The agent configuration cannot be safely edited');
-    for (const [key, value] of Object.entries(writes)) {
-      if (key === 'prompt') continue;
-      setField(document, key, value);
-    }
-    document.delete('prompt');
-    return `---\n${document.toString()}---\n\n${changes.prompt ?? body}\n`;
-  }
-
-  const document = parseDocument(content);
-  if (document.errors.length > 0) throw new Error('The agent configuration cannot be safely edited');
-  for (const [key, value] of Object.entries(writes)) setField(document, key, value);
-  return document.toString();
+  const fieldWrites = new Map(
+    Object.entries(writes).filter(([key]) => key !== 'prompt'),
+  );
+  return renderLosslessAgentPatch(content, fieldWrites, changes.prompt);
 }
 
 export class StructuredPatchService {

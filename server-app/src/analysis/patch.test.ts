@@ -40,6 +40,35 @@ function safePatch(content = original) {
 }
 
 describe('structured configuration patches', () => {
+  it('preserves unrelated frontmatter and body bytes in a reviewed patch', async () => {
+    const formatted = `---
+# Keep this explanation
+id: reports
+name: Reports
+description: >
+  Preserve this deliberate
+  wrapping exactly.
+schedule: "0 17 * * 5"
+tools: ["Read"]
+enabled: true
+---
+# Body begins without an extra blank line.
+`;
+    const repository = new InMemoryAgentContentRepository({ reports: formatted });
+    const patch = ConfigurationPatchSchema.parse({
+      schema_version: 1,
+      agent_id: 'reports',
+      expected_content_hash: computeAgentContentHash(formatted),
+      source: 'debugger',
+      reason: 'Turn off the schedule while it is reviewed',
+      changes: { enabled: false },
+    });
+
+    const preview = await new StructuredPatchService(repository).preview(patch);
+
+    expect(preview.result_content).toBe(formatted.replace('enabled: true', 'enabled: false'));
+  });
+
   it('recognizes relocated macOS home folders as broad access', () => {
     expect(isUnsafeAutomatedFilePath('/Volumes/Homes/example', '/Volumes/Homes/example')).toBe(true);
     expect(isUnsafeAutomatedFilePath('/Volumes/Homes/example/Documents', '/Volumes/Homes/example')).toBe(false);

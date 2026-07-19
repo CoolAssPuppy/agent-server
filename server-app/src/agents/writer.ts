@@ -2,14 +2,12 @@ import { readdir, readFile, writeFile, rename, mkdir } from 'fs/promises';
 import { toErrorMessage } from '../util/errors.js';
 import { join, extname } from 'path';
 import { z } from 'zod';
-import { Document, Scalar, parseDocument } from 'yaml';
+import { Document } from 'yaml';
 import { CronExpressionParser } from 'cron-parser';
 import {
   type AgentConfig,
   ProviderConfigSchema,
-  hasFrontmatter,
   parseAgentFile,
-  splitFrontmatter,
 } from './config.js';
 import { AGENT_EXTENSIONS } from './discovery.js';
 import { NotificationConfigSchema } from '../interaction/schema.js';
@@ -27,6 +25,7 @@ import {
   writeReviewedAgent,
   type ReviewedAgentWriteResult,
 } from './reviewed-agent-writer.js';
+import { renderLosslessAgentPatch } from './lossless-yaml-editor.js';
 
 /**
  * Structured writes to agent definition files. This module is the only
@@ -143,18 +142,6 @@ function assertValidSchedule(schedule: string): void {
   }
 }
 
-function setDocField(doc: Document, key: string, value: unknown): void {
-  if (value === null || value === undefined) {
-    doc.delete(key);
-    return;
-  }
-  const node = doc.createNode(value);
-  if (typeof value === 'string' && value.includes('\n') && node instanceof Scalar) {
-    node.type = Scalar.BLOCK_LITERAL;
-  }
-  doc.set(key, node);
-}
-
 /**
  * Collects the concrete field writes for a patch: explicit field edits
  * first, then capability toggles layered on top (a toggle recomputes
@@ -243,22 +230,7 @@ export function applyPatchToContent(
   if (patch.schedule) assertValidSchedule(patch.schedule);
 
   const fields = collectFieldWrites(config, patch, env, discovered);
-
-  if (hasFrontmatter(content)) {
-    const { yaml, body } = splitFrontmatter(content);
-    const doc = parseDocument(yaml);
-    for (const [key, value] of fields) setDocField(doc, key, value);
-    // In frontmatter format the markdown body IS the prompt; a stray
-    // `prompt` key in the frontmatter would silently lose to the body.
-    if (patch.prompt !== undefined) doc.delete('prompt');
-    const newBody = patch.prompt ?? body;
-    return `---\n${doc.toString()}---\n\n${newBody}\n`;
-  }
-
-  const doc = parseDocument(content);
-  for (const [key, value] of fields) setDocField(doc, key, value);
-  if (patch.prompt !== undefined) setDocField(doc, 'prompt', patch.prompt);
-  return doc.toString();
+  return renderLosslessAgentPatch(content, fields, patch.prompt);
 }
 
 async function writeAtomically(path: string, content: string): Promise<void> {
