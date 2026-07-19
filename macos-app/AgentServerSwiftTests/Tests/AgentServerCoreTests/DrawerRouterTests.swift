@@ -20,6 +20,22 @@ final class DrawerRouterTests: XCTestCase {
         XCTAssertNil(router.open)
         XCTAssertFalse(router.isDetailOpen)
         XCTAssertFalse(router.isSettingsOpen)
+        XCTAssertFalse(router.isPresentationActive)
+    }
+
+    func testEveryDrawerMakesTheBackgroundInert() {
+        let presentations: [Drawer] = [
+            .creation(),
+            .detail(agentId: "agent-1"),
+            .settings,
+            .connections,
+            .security(agentId: nil),
+            .debugger(runId: "run-1")
+        ]
+
+        for presentation in presentations {
+            XCTAssertTrue(DrawerRouter(open: presentation).isPresentationActive)
+        }
     }
 
     func testOpenDetailSetsState() {

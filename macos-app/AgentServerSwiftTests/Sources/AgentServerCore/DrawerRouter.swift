@@ -94,6 +94,12 @@ final class DrawerRouter: ObservableObject {
         return false
     }
 
+    /// A drawer is a modal presentation over the main window. Background
+    /// content must leave the keyboard and accessibility order while open.
+    var isPresentationActive: Bool {
+        open != nil
+    }
+
     var isCreationOpen: Bool {
         if case .creation = open { return true }
         return false

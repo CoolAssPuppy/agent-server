@@ -10,6 +10,7 @@ struct MainWindow: View {
     @ObservedObject var monitor: StatusMonitor
     @ObservedObject private var router = DrawerRouter.shared
     @EnvironmentObject var themeManager: ThemeManager
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showsCreationConnections = false
     @State private var connectionSetupCompletion: (() -> Void)?
 
@@ -27,6 +28,8 @@ struct MainWindow: View {
                 MainPane(monitor: monitor, router: router)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .allowsHitTesting(!router.isPresentationActive)
+            .accessibilityHidden(router.isPresentationActive)
 
             mainPaneDimOverlay
 
@@ -79,7 +82,7 @@ struct MainWindow: View {
         case .connections, .security, .debugger: duration = TopDrawerStyle.slideDuration
         }
         DispatchQueue.main.async {
-            withAnimation(.easeOut(duration: duration)) {
+            withAnimation(drawerAnimation(duration: duration)) {
                 router.routeTo(pending)
             }
             router.pending = nil
@@ -127,7 +130,7 @@ struct MainWindow: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .clipped()
         }
-        .animation(.easeOut(duration: TopDrawerStyle.slideDuration), value: router.isCreationOpen)
+        .animation(drawerAnimation(duration: TopDrawerStyle.slideDuration), value: router.isCreationOpen)
     }
 
     @ViewBuilder
@@ -164,10 +167,7 @@ struct MainWindow: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .clipped()
         }
-        .animation(
-            .easeOut(duration: AgentDetailDrawer.slideDuration),
-            value: router.openAgentId
-        )
+        .animation(drawerAnimation(duration: AgentDetailDrawer.slideDuration), value: router.openAgentId)
     }
 
     /// Settings drawer: slides down from the top of the window. Full window
@@ -178,10 +178,7 @@ struct MainWindow: View {
         topDrawerLayer(isPresented: router.isSettingsOpen, onDismiss: router.close) {
             SettingsDrawer(monitor: monitor, router: router)
         }
-        .animation(
-            .easeOut(duration: TopDrawerStyle.slideDuration),
-            value: router.isSettingsOpen
-        )
+        .animation(drawerAnimation(duration: TopDrawerStyle.slideDuration), value: router.isSettingsOpen)
     }
 
     /// Connections drawer: slides down from the top like Settings.
@@ -189,7 +186,7 @@ struct MainWindow: View {
         topDrawerLayer(isPresented: router.isConnectionsOpen, onDismiss: router.close) {
             ConnectionsView(monitor: monitor, router: router)
         }
-        .animation(.easeOut(duration: TopDrawerStyle.slideDuration), value: router.isConnectionsOpen)
+        .animation(drawerAnimation(duration: TopDrawerStyle.slideDuration), value: router.isConnectionsOpen)
     }
 
     private var securityDrawerLayer: some View {
@@ -200,7 +197,7 @@ struct MainWindow: View {
                 agentId: router.securityAgentId
             )
         }
-        .animation(.easeOut(duration: TopDrawerStyle.slideDuration), value: router.isSecurityOpen)
+        .animation(drawerAnimation(duration: TopDrawerStyle.slideDuration), value: router.isSecurityOpen)
     }
 
     private func topDrawerLayer<Content: View>(
@@ -238,7 +235,11 @@ struct MainWindow: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .animation(.easeOut(duration: TopDrawerStyle.slideDuration), value: router.isDebuggerOpen)
+        .animation(drawerAnimation(duration: TopDrawerStyle.slideDuration), value: router.isDebuggerOpen)
+    }
+
+    private func drawerAnimation(duration: Double) -> Animation? {
+        reduceMotion ? nil : .easeOut(duration: duration)
     }
 
     // MARK: - Actions
