@@ -23,6 +23,21 @@ public struct ConnectionCredentialDraft: Equatable, Identifiable, Sendable {
         self.targetName = targetName
         self.prefix = prefix
     }
+
+    public static func suggested(
+        label: String = "Access token",
+        targetName: String
+    ) -> Self {
+        let suffix = UUID().uuidString
+            .replacingOccurrences(of: "-", with: "")
+            .prefix(8)
+            .uppercased()
+        return Self(
+            label: label,
+            environmentVariable: "AGENT_CONNECTION_\(suffix)_TOKEN",
+            targetName: targetName
+        )
+    }
 }
 
 public struct ConnectionAdapterRequest: Codable, Equatable, Sendable {

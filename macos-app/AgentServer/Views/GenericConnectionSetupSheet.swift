@@ -12,11 +12,7 @@ struct GenericConnectionSetupSheet: View {
     @State private var webURL = ""
     @State private var command = ""
     @State private var arguments = ""
-    @State private var credentials = [ConnectionCredentialDraft(
-        label: "Access token",
-        environmentVariable: "",
-        targetName: "Authorization"
-    )]
+    @State private var credentials = [ConnectionCredentialDraft.suggested(targetName: "Authorization")]
     @State private var isSaving = false
     @State private var errorMessage: String?
 
@@ -91,17 +87,19 @@ struct GenericConnectionSetupSheet: View {
             title: "Credentials",
             explanation: "Add the keys this connection needs. Values stay in the selected Agent Server folder's .env file."
         ) {
-            ForEach($credentials) { $credential in
-                credentialEditor($credential)
-                if credential.id != credentials.last?.id { Divider().opacity(0.3) }
+            if credentials.isEmpty {
+                Text("No credentials required")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            } else {
+                ForEach($credentials) { $credential in
+                    credentialEditor($credential)
+                    if credential.id != credentials.last?.id { Divider().opacity(0.3) }
+                }
             }
 
             Button {
-                credentials.append(ConnectionCredentialDraft(
-                    label: "",
-                    environmentVariable: "",
-                    targetName: method == .web ? "Authorization" : "API_KEY"
-                ))
+                credentials.append(.suggested(targetName: method == .web ? "Authorization" : "API_KEY"))
             } label: {
                 Label("Add credential", systemImage: "plus")
             }
@@ -113,31 +111,31 @@ struct GenericConnectionSetupSheet: View {
     private func credentialEditor(_ credential: Binding<ConnectionCredentialDraft>) -> some View {
         VStack(alignment: .leading, spacing: NSpacing.sm) {
             HStack {
-                TextField("Credential name", text: credential.label)
-                    .textFieldStyle(.roundedBorder)
-                if credentials.count > 1 {
-                    Button {
-                        credentials.removeAll { $0.id == credential.wrappedValue.id }
-                    } label: {
-                        Image(systemName: "minus.circle")
-                    }
-                    .buttonStyle(.plain)
-                    .help("Remove this credential")
-                    .accessibilityLabel("Remove \(credential.wrappedValue.label.isEmpty ? "credential" : credential.wrappedValue.label)")
+                Text(credential.wrappedValue.label)
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                Spacer()
+                Button {
+                    credentials.removeAll { $0.id == credential.wrappedValue.id }
+                } label: {
+                    Image(systemName: "minus.circle")
                 }
+                .buttonStyle(.plain)
+                .help("Remove this credential")
+                .accessibilityLabel("Remove \(credential.wrappedValue.label)")
             }
 
-            HStack {
-                TextField("Environment variable, such as NOTION_TOKEN", text: credential.environmentVariable)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityLabel("Environment variable name")
-                SecureField("Secret value", text: credential.value)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityLabel("Credential value")
-            }
+            SecureField("Paste secret value", text: credential.value)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityLabel("\(credential.wrappedValue.label) value")
 
-            DisclosureGroup("Where this credential is used") {
+            DisclosureGroup("Credential details") {
                 VStack(alignment: .leading, spacing: NSpacing.sm) {
+                    TextField("Credential name", text: credential.label)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("Environment variable", text: credential.environmentVariable)
+                        .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel("Environment variable name")
                     TextField(method == .web ? "Request header" : "Process variable", text: credential.targetName)
                         .textFieldStyle(.roundedBorder)
                     if method == .web {
@@ -228,7 +226,7 @@ struct GenericConnectionSetupSheet: View {
         errorMessage = nil
         Task {
             do {
-                var draft = method == .web
+                let draft = method == .web
                     ? ConnectionSetupDraft.web(label: label, url: webURL, credentials: credentials)
                     : ConnectionSetupDraft.local(
                         label: label,
@@ -236,7 +234,6 @@ struct GenericConnectionSetupSheet: View {
                         arguments: arguments.split(whereSeparator: \.isWhitespace).map(String.init),
                         credentials: credentials
                     )
-                draft.adapterID = "mcp.custom"
                 let request = try draft.makeRequest()
                 let environmentFile = AgentServerWorkspaceStore.current().environmentFile
                 let previousEnvironment = try EnvFileStore.load(from: environmentFile)

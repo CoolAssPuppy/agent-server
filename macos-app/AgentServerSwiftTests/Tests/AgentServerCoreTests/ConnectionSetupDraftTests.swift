@@ -2,6 +2,14 @@ import XCTest
 @testable import AgentServerCore
 
 final class ConnectionSetupDraftTests: XCTestCase {
+    func testSuggestedCredentialReferenceDoesNotDependOnAServiceName() {
+        let credential = ConnectionCredentialDraft.suggested(targetName: "Authorization")
+
+        XCTAssertTrue(credential.environmentVariable.hasPrefix("AGENT_CONNECTION_"))
+        XCTAssertTrue(credential.environmentVariable.hasSuffix("_TOKEN"))
+        XCTAssertEqual(credential.targetName, "Authorization")
+    }
+
     func testArbitraryLabelDoesNotBecomeAdapterOrRuntimeIdentity() throws {
         let draft = ConnectionSetupDraft.web(
             label: "Whatever I want to call this",
