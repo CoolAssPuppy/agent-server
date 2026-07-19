@@ -105,6 +105,25 @@ describe('run lifecycle', () => {
     expect(onTerminal).toHaveBeenCalledWith(agent, 'failed');
   });
 
+  it('records why a concurrent run was skipped', async () => {
+    const skipped: RunResult = {
+      status: 'skipped',
+      code: 'lock_contention',
+      error: 'This run was skipped because Test Agent is already running.',
+    };
+    const { lifecycle, store } = createHarness(skipped);
+
+    const runId = lifecycle.trigger(makeAgent());
+    await lifecycle.waitForTerminal(runId);
+
+    expect(store.get(runId)).toMatchObject({
+      status: 'skipped',
+      code: 'lock_contention',
+      summary: 'This run was skipped because Test Agent is already running.',
+      error: 'This run was skipped because Test Agent is already running.',
+    });
+  });
+
   it('preserves agent telemetry context for reporter creation', async () => {
     const { lifecycle, createReporter } = createHarness();
     const agent = makeAgent({ telemetry: { progress_mode: 'batched' } });

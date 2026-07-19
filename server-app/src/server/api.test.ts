@@ -523,7 +523,13 @@ describe('API routes', () => {
 
   describe('GET /runs/:id', () => {
     it('returns a specific run', async () => {
-      store.add(makeStoredRun({ progressMessages: ['Step 1'] }));
+      store.add(makeStoredRun({
+        status: 'skipped',
+        code: 'lock_contention',
+        summary: 'This run was skipped because Test Agent is already running.',
+        error: 'This run was skipped because Test Agent is already running.',
+        progressMessages: ['Step 1'],
+      }));
       const app = createApp();
       const res = await authenticatedRequest(app, '/runs/run-1');
       expect(res.status).toBe(200);
@@ -531,6 +537,12 @@ describe('API routes', () => {
       const body = await res.json();
       expect(body.runId).toBe('run-1');
       expect(body.progressMessages).toEqual(['Step 1']);
+      expect(body).toMatchObject({
+        status: 'skipped',
+        code: 'lock_contention',
+        summary: 'This run was skipped because Test Agent is already running.',
+        error: 'This run was skipped because Test Agent is already running.',
+      });
     });
 
     it('returns retry linkage while redacting unsafe identifier content', async () => {

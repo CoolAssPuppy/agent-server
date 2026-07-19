@@ -464,6 +464,10 @@ describe('runAgent', () => {
 
     expect(result.status).toBe('skipped');
     expect(result.runId).toBeDefined();
+    expect(result).toMatchObject({
+      code: 'lock_contention',
+      error: 'This run was skipped because Test Agent is already running.',
+    });
   });
 
   it('reports a canceled status with lock_contention code when agent is locked', async () => {

@@ -233,7 +233,14 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
     result: RunResult,
   ): void {
     if (result.status === 'skipped') {
-      dependencies.store.update(runId, { status: 'skipped', completedAt: new Date() });
+      const reason = result.error ?? 'This run was skipped.';
+      dependencies.store.update(runId, {
+        status: 'skipped',
+        completedAt: new Date(),
+        summary: reason,
+        error: reason,
+        code: result.code,
+      });
     } else if (result.status === 'failed') {
       emitFailure(runId, agent, options, result.error ?? 'Unknown error', result.code);
     }

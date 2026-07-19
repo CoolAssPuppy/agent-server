@@ -14,6 +14,7 @@ export type StoredRun = {
   completedAt?: Date;
   summary?: string;
   error?: string;
+  code?: string;
   turnCount: number;
   toolsUsed: string[];
   filesRead: string[];

@@ -85,6 +85,7 @@ export function sanitizeStoredRun(run: StoredRun): StoredRun {
     ...run,
     summary: run.summary ? sanitizeText(run.summary, 2_000) : undefined,
     error: run.error ? sanitizeText(run.error, 1_000) : undefined,
+    code: run.code ? sanitizeText(run.code, 120) : undefined,
     retryOfRunId: run.retryOfRunId ? sanitizeText(run.retryOfRunId, 128) : undefined,
     repairId: run.repairId ? sanitizeText(run.repairId, 128) : undefined,
     toolsUsed: run.toolsUsed.slice(0, 64).map((x) => sanitizeText(x, 120)),

@@ -8,6 +8,7 @@ import type { DecisionContext } from './decision-handler.js';
 import { toErrorMessage } from '../util/errors.js';
 
 export const RUN_TIMEOUT_CODE = 'run_timeout';
+export const LOCK_CONTENTION_CODE = 'lock_contention';
 
 export type RunResult = {
   runId?: string;
@@ -76,16 +77,14 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
   const runId = options.runId ?? randomUUID();
 
   if (!acquireLock(lockDir, agent.id)) {
-    // Fix 4: Panel should still record that a concurrent invocation was
-    // rejected. Build a minimal reporter and emit a canceled status with
-    // `lock_contention` so the run appears in history instead of silently
-    // vanishing.
+    const reason = `This run was skipped because ${agent.name} is already running.`;
+    // Record the rejected invocation so it remains explainable in run history.
     try {
       const reporter = options.createReporter(runId, agent.name, options.conversationId);
       if (typeof reporter.cancel === 'function') {
-        await reporter.cancel('Another invocation of this agent is already running.', 'lock_contention');
+        await reporter.cancel(reason, LOCK_CONTENTION_CODE);
       } else {
-        await reporter.fail(new Error('lock_contention: another invocation is already running'));
+        await reporter.fail(new Error(`${LOCK_CONTENTION_CODE}: ${reason}`));
       }
       reporter.stop();
     } catch (err) {
@@ -97,7 +96,7 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
         `[runner] Failed to emit lock_contention notification for agent=${agent.id} name=${agent.name}: ${message}`,
       );
     }
-    return { runId, status: 'skipped' };
+    return { runId, status: 'skipped', code: LOCK_CONTENTION_CODE, error: reason };
   }
 
   const reporter = createReporter(runId, agent.name, conversationId);

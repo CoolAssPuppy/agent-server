@@ -41,6 +41,7 @@ describe('SqliteRunStore', () => {
       mode: 'safe_test',
       retryOfRunId: 'failed-run',
       repairId: 'repair-42',
+      code: 'lock_contention',
       filesRead: ['a.txt'],
       filesWritten: ['b.txt'],
       commandsRun: ['ls'],
@@ -81,11 +82,16 @@ describe('SqliteRunStore', () => {
     legacy.close();
 
     store = new SqliteRunStore({ path: dbPath });
-    store.add(makeStoredRun({ retryOfRunId: 'failed-run', repairId: 'repair-42' }));
+    store.add(makeStoredRun({
+      retryOfRunId: 'failed-run',
+      repairId: 'repair-42',
+      code: 'lock_contention',
+    }));
 
     expect(store.get('run-1')).toMatchObject({
       retryOfRunId: 'failed-run',
       repairId: 'repair-42',
+      code: 'lock_contention',
     });
   });
 

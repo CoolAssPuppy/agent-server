@@ -30,6 +30,7 @@ type RunRow = {
   completed_at: number | null;
   summary: string | null;
   error: string | null;
+  code: string | null;
   turn_count: number;
   tools_used: string;
   files_read: string;
@@ -149,6 +150,7 @@ export class SqliteRunStore implements RunStoreLike {
         completed_at INTEGER,
         summary TEXT,
         error TEXT,
+        code TEXT,
         turn_count INTEGER NOT NULL DEFAULT 0,
         tools_used TEXT NOT NULL DEFAULT '[]',
         files_read TEXT NOT NULL DEFAULT '[]',
@@ -178,6 +180,9 @@ export class SqliteRunStore implements RunStoreLike {
     if (!columns.some((column) => column.name === 'repair_id')) {
       this.db.exec('ALTER TABLE runs ADD COLUMN repair_id TEXT');
     }
+    if (!columns.some((column) => column.name === 'code')) {
+      this.db.exec('ALTER TABLE runs ADD COLUMN code TEXT');
+    }
   }
 
   private writeRun(run: StoredRun): void {
@@ -185,11 +190,11 @@ export class SqliteRunStore implements RunStoreLike {
       .prepare(
         `INSERT OR REPLACE INTO runs (
           run_id, agent_id, agent_name, status, started_at, completed_at,
-          summary, error, turn_count, tools_used, files_read, files_written,
+          summary, error, code, turn_count, tools_used, files_read, files_written,
           commands_run, progress_messages, conversation_id, duration_ms,
           estimated_cost_usd, input_tokens, output_tokens, model, run_mode,
           retry_of_run_id, repair_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         run.runId,
@@ -200,6 +205,7 @@ export class SqliteRunStore implements RunStoreLike {
         run.completedAt ? run.completedAt.getTime() : null,
         run.summary ?? null,
         run.error ?? null,
+        run.code ?? null,
         run.turnCount,
         JSON.stringify(run.toolsUsed),
         JSON.stringify(run.filesRead),
@@ -251,6 +257,7 @@ function rowToRun(row: RunRow): StoredRun {
     completedAt: row.completed_at != null ? new Date(row.completed_at) : undefined,
     summary: row.summary ?? undefined,
     error: row.error ?? undefined,
+    code: row.code ?? undefined,
     turnCount: row.turn_count,
     toolsUsed: parseStringArray(row.tools_used),
     filesRead: parseStringArray(row.files_read),
