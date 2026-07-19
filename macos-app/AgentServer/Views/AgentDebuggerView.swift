@@ -259,16 +259,15 @@ struct AgentDebuggerView: View {
     private func observeRetry(_ runId: String) {
         retryTask?.cancel()
         retryTask = Task {
-            while !Task.isCancelled, flow.phase == .retrying {
-                switch await actions.runState(runId) {
-                case .success(let state):
-                    flow.updateRetry(runId: runId, state: state)
-                    if state != .running { return }
-                    try? await Task.sleep(for: .seconds(1))
-                case .failure(let failure):
-                    flow.fail(failure)
-                    return
-                }
+            let observation = await RunTerminalObserver.wait {
+                await actions.runState(runId)
+            }
+            guard !Task.isCancelled else { return }
+            switch observation {
+            case .success(let state):
+                flow.updateRetry(runId: runId, state: state)
+            case .failure(let failure):
+                flow.fail(failure)
             }
         }
     }

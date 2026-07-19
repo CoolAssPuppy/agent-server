@@ -611,26 +611,17 @@ struct GuidedAgentCreationView: View {
     private func observeSafeTest(runId: String, result: SavedAgentPresentation) {
         safeTestTask?.cancel()
         safeTestTask = Task {
-            while !Task.isCancelled, flow.phase == .testing {
-                switch await actions.safeTestState(runId) {
-                case .success(let state):
-                    flow.updateSafeTest(state)
-                    switch state {
-                    case .completed:
-                        onCreated(result)
-                        return
-                    case .failed:
-                        onTestFailed(runId)
-                        return
-                    case .running:
-                        try? await Task.sleep(for: .seconds(1))
-                    case .stopped:
-                        return
-                    }
-                case .failure(let failure):
-                    flow.fail(failure)
-                    return
-                }
+            let observation = await RunTerminalObserver.wait {
+                await actions.safeTestState(runId)
+            }
+            guard !Task.isCancelled else { return }
+            switch observation {
+            case .success(let state):
+                flow.updateSafeTest(state)
+                if state == .completed { onCreated(result) }
+                if case .failed = state { onTestFailed(runId) }
+            case .failure(let failure):
+                flow.fail(failure)
             }
         }
     }
