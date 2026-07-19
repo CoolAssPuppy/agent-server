@@ -2,6 +2,19 @@
 
 Status: Native service integration and final release verification are complete.
 
+## Connection account model correction
+
+- [x] Restore `~/.agent-server/.env` as the single environment file used by the app and server.
+- [ ] Replace key-centric connection language with a named, repeatable account model.
+- [ ] Define legacy key adoption and exact connection identity rules for multiple Notion and Linear accounts.
+- [ ] Run affected server and Swift tests, build both targets, commit, and simplify.
+
+### Environment path review
+
+- The app and server now read the documented `~/.agent-server/.env` file only.
+- Connection setup writes to that same file and the UI names it accurately.
+- Verification: 1,139 server tests, 210 Swift tests, TypeScript type-check and build, and the unsigned app build passed.
+
 ## Consumer UI cleanup
 
 - [x] Explain why Notion is requested and show its bundled brand mark.
@@ -144,7 +157,7 @@ Security fixes receive behavior tests before production changes.
   setup, review, confirmation, presentation, accessibility, and undo controls.
 - Agent Markdown remains the source of truth. Security review metadata and fix
   history stay in local app data and never enter agent files.
-- Existing connection secrets remain in the current `.env.local` path for this
+- Existing connection secrets remain in the current `.env` path for this
   milestone. A move to Keychain requires a matching server token bridge and must
   be done as one separate security change.
 - Existing agents continue to run after upgrade unless a deterministic critical

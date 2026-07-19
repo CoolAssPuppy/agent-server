@@ -80,10 +80,7 @@ public enum EnvFileStore {
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
     ) -> [URL] {
         let baseDirectory = homeDirectory.appendingPathComponent(".agent-server")
-        return [
-            baseDirectory.appendingPathComponent(".env.local"),
-            baseDirectory.appendingPathComponent(".env")
-        ]
+        return [baseDirectory.appendingPathComponent(".env")]
     }
 
     // MARK: Validation
@@ -127,7 +124,6 @@ public enum EnvFileStore {
     }
 
     /// Returns the first non-empty value using the supplied file order.
-    /// Callers pass `.env.local` before `.env` to match the server's precedence.
     public static func firstValue(forKey key: String, from urls: [URL]) throws -> String? {
         for url in urls {
             if let value = try value(forKey: key, from: url) {

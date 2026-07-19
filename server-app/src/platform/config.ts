@@ -4,23 +4,14 @@ import { join } from 'path';
 import { existsSync, readFileSync } from 'fs';
 import { parse as parseDotenv } from 'dotenv';
 
-/**
- * Load `~/.agent-server/.env.local` and `.env`, layered under `existing`
- * (shell env). Precedence: existing > .env.local > .env, so secrets the app
- * writes to `.env.local` (e.g. connection keys from the Connect flow) override
- * the general `.env`, and both defer to real shell/Doppler env. Missing files
- * are skipped.
- */
+/** Load `~/.agent-server/.env` under the existing shell environment. */
 export function loadEnvFile(
   dir: string,
   existing: Record<string, string | undefined> = {},
 ): Record<string, string | undefined> {
   const merged = { ...existing };
-  // .env.local first so its values win over .env (each file only fills keys
-  // still undefined in `merged`).
-  for (const filename of ['.env.local', '.env']) {
-    const envPath = join(dir, filename);
-    if (!existsSync(envPath)) continue;
+  const envPath = join(dir, '.env');
+  if (existsSync(envPath)) {
     const fileVars = parseDotenv(readFileSync(envPath, 'utf-8'));
     for (const [key, value] of Object.entries(fileVars)) {
       if (merged[key] === undefined) {

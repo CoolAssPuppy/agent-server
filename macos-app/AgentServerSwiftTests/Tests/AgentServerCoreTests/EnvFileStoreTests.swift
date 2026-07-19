@@ -101,6 +101,15 @@ final class EnvFileStoreTests: XCTestCase {
         XCTAssertNil(try EnvFileStore.value(forKey: "MISSING_KEY", from: url))
     }
 
+    func testDefaultEnvironmentFileIsAgentServerDotEnv() {
+        let home = URL(fileURLWithPath: "/Users/example", isDirectory: true)
+
+        XCTAssertEqual(
+            EnvFileStore.defaultURLs(homeDirectory: home),
+            [home.appendingPathComponent(".agent-server/.env")]
+        )
+    }
+
     func testFirstValueUsesEnvironmentFileOrderAndSkipsMissingValues() throws {
         let base = tempURL().deletingLastPathComponent()
         let localURL = base.appendingPathComponent(".env.local")
@@ -161,30 +170,27 @@ final class EnvFileStoreTests: XCTestCase {
         }
     }
 
-    func testLocalAPIAuthenticationMatchesServerEnvironmentPrecedence() throws {
+    func testLocalAPIAuthenticationPrefersProcessEnvironmentOverDotEnv() throws {
         let base = tempURL().deletingLastPathComponent()
-        let localURL = base.appendingPathComponent(".env.local")
         let envURL = base.appendingPathComponent(".env")
-        try "AGENT_SERVER_API_KEY=local-file-key\n"
-            .write(to: localURL, atomically: true, encoding: .utf8)
         try "AGENT_SERVER_API_KEY=base-file-key\n"
             .write(to: envURL, atomically: true, encoding: .utf8)
         let endpoint = URL(string: "http://127.0.0.1:47821/agents")!
 
-        let localRequest = try LocalAPIAuthentication.authenticatedRequest(
+        let fileRequest = try LocalAPIAuthentication.authenticatedRequest(
             URLRequest(url: endpoint),
-            environmentURLs: [localURL, envURL],
+            environmentURLs: [envURL],
             processEnvironment: [:]
         )
         let processRequest = try LocalAPIAuthentication.authenticatedRequest(
             URLRequest(url: endpoint),
-            environmentURLs: [localURL, envURL],
+            environmentURLs: [envURL],
             processEnvironment: ["AGENT_SERVER_API_KEY": "process-key"]
         )
 
         XCTAssertEqual(
-            localRequest.value(forHTTPHeaderField: "Authorization"),
-            "Bearer local-file-key"
+            fileRequest.value(forHTTPHeaderField: "Authorization"),
+            "Bearer base-file-key"
         )
         XCTAssertEqual(
             processRequest.value(forHTTPHeaderField: "Authorization"),

@@ -252,7 +252,7 @@ struct ConnectionsView: View {
                 .font(NTypography.labelSmall)
                 .tracking(0.8)
                 .foregroundStyle(theme.tokens.mutedForeground)
-            Text("Prefer your own account or a self-hosted server? Add its keys and they're stored privately in ~/.agent-server/.env.local — never inside an agent file.")
+            Text("Prefer your own account or a self-hosted server? Add its keys and they're stored privately in ~/.agent-server/.env — never inside an agent file.")
                 .font(NTypography.caption)
                 .foregroundStyle(theme.tokens.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
@@ -323,18 +323,13 @@ struct ConnectionsView: View {
         .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.accent.opacity(0.25), lineWidth: 1))
     }
 
-    /// Whether an env key is set (non-empty) in either env file.
+    /// Whether an env key is set (non-empty) in Agent Server's environment file.
     private static func isConnected(_ key: String) -> Bool {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        for name in [".agent-server/.env.local", ".agent-server/.env"] {
-            let url = home.appendingPathComponent(name)
-            if let pairs = try? EnvFileStore.load(from: url),
-               let pair = pairs.first(where: { $0.key == key }),
-               !pair.value.trimmingCharacters(in: .whitespaces).isEmpty {
-                return true
-            }
-        }
-        return false
+        let url = home.appendingPathComponent(".agent-server/.env")
+        guard let pairs = try? EnvFileStore.load(from: url),
+              let pair = pairs.first(where: { $0.key == key }) else { return false }
+        return !pair.value.trimmingCharacters(in: .whitespaces).isEmpty
     }
 }
 
@@ -507,7 +502,7 @@ struct ConnectServiceSheet: View {
                 Text("Connect \(entry.label)")
                     .font(NTypography.headlineMedium)
                     .foregroundStyle(theme.tokens.foreground)
-                Text("Stored privately in ~/.agent-server/.env.local — never inside an agent file.")
+                Text("Stored privately in ~/.agent-server/.env — never inside an agent file.")
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
                     .fixedSize(horizontal: false, vertical: true)
