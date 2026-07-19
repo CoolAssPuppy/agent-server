@@ -26,6 +26,27 @@ const profile = (): ConnectionProfile => ({
 });
 
 describe('ConnectionProfileSchema', () => {
+  it('rejects references to Agent Server and runtime credentials', () => {
+    expect(() => ConnectionProfileSchema.parse({
+      ...profile(),
+      credentials: [{
+        id: profile().credentials[0].id,
+        label: 'Token',
+        environment_variable: 'AGENT_SERVER_PANEL_API_KEY',
+        secret: true,
+      }],
+    })).toThrow();
+    expect(() => ConnectionProfileSchema.parse({
+      ...profile(),
+      credentials: [{
+        id: profile().credentials[0].id,
+        label: 'Token',
+        environment_variable: 'ANTHROPIC_API_KEY',
+        secret: true,
+      }],
+    })).toThrow();
+  });
+
   it('keeps a user label separate from adapter and transport identity', () => {
     const parsed = ConnectionProfileSchema.parse(profile());
 

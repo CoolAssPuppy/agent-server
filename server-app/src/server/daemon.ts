@@ -17,6 +17,8 @@ import type { ChannelReply } from '../channels/channel.js';
 import { homedir } from 'os';
 import { join } from 'path';
 import type { Reporter } from '../execution/runner.js';
+import { ConnectionProfileStore } from '../connections/profile-store.js';
+import { createConnectionResolvingExecutor } from '../connections/connection-executor.js';
 
 function createDefaultRegistry(): ExecutorRegistry {
   const registry = new ExecutorRegistry();
@@ -32,10 +34,12 @@ type RunOptions = {
 
 function runAgentWithConfig(config: ServerConfig, agent: AgentConfig, options: RunOptions = {}) {
   const registry = createDefaultRegistry();
+  const profiles = new ConnectionProfileStore(join(config.agentsDir, '..', 'connections.json'));
+  const execute = createConnectionResolvingExecutor(profiles, (candidate) => registry.resolve(candidate));
   return runAgent({
     agent,
     lockDir: config.lockDir,
-    execute: (a, reporter) => registry.resolve(a)(a, reporter),
+    execute,
     createReporter: (runId, agentName, convId) => createReporter(config, runId, agentName, {
       conversationId: convId,
       agentTelemetry: agent.telemetry,
@@ -186,11 +190,13 @@ export async function listAgents(config: ServerConfig): Promise<void> {
 
 function createInvokeRun(config: ServerConfig): InvokeRun {
   const registry = createDefaultRegistry();
+  const profiles = new ConnectionProfileStore(join(config.agentsDir, '..', 'connections.json'));
+  const execute = createConnectionResolvingExecutor(profiles, (candidate) => registry.resolve(candidate));
   return async (options) => {
     return runAgent({
       agent: options.agent,
       lockDir: config.lockDir,
-      execute: (a, reporter) => registry.resolve(a)(a, reporter),
+      execute,
       createReporter: (runId, agentName, convId) => {
         const reporter = createReporter(config, runId, agentName, {
           conversationId: convId,

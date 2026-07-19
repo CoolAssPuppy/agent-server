@@ -17,6 +17,7 @@ vi.mock('../plugins/claude-code.js', () => ({
 }));
 
 import { runDueAgents, listAgents, runSingleAgent } from './daemon.js';
+import { executeAgent } from '../plugins/claude-code.js';
 import type { ServerConfig } from '../platform/config.js';
 
 function createTempDir(): string {
@@ -140,6 +141,42 @@ describe('runSingleAgent', () => {
     writeAgent(config.agentsDir, 'test.yaml', EVERY_MINUTE_AGENT);
 
     await runSingleAgent(config, 'always-runs');
+  });
+
+  it('resolves saved connection bindings for direct CLI runs', async () => {
+    const config = makeConfig();
+    dirs.push(config.agentsDir, config.lockDir);
+    mkdirSync(config.agentsDir, { recursive: true });
+    const connectionId = '11111111-1111-4111-8111-111111111111';
+    writeAgent(config.agentsDir, 'bound.yaml', `
+id: bound
+name: Bound
+prompt: Use notes.
+connection_bindings:
+  notes: ${connectionId}
+`);
+    writeFileSync(join(config.agentsDir, '..', 'connections.json'), JSON.stringify({
+      schema_version: 1,
+      connections: [{
+        schema_version: 1,
+        id: connectionId,
+        label: 'Notes',
+        adapter: { id: 'generic.mcp', version: 1 },
+        runtime_name: 'notes',
+        credentials: [],
+        transport: {
+          kind: 'mcp_stdio', command: 'notes-helper', args: [], environment: {},
+        },
+        created_at: '2026-07-19T18:00:00.000Z',
+        updated_at: '2026-07-19T18:00:00.000Z',
+      }],
+    }), 'utf-8');
+
+    await runSingleAgent(config, 'bound');
+
+    expect(vi.mocked(executeAgent)).toHaveBeenLastCalledWith(expect.objectContaining({
+      mcp_servers: { notes: { command: 'notes-helper', args: [], env: {} } },
+    }), expect.anything(), expect.anything());
   });
 
   it('reports error for unknown agent id', async () => {

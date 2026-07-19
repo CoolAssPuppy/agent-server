@@ -19,6 +19,7 @@ import { parseInteractionBlock, parseDecisionBlock } from '../interaction/parser
 import { buildCanUseTool } from '../execution/permissions.js';
 import { runDecisionCycle, type DecisionContext } from '../execution/decision-handler.js';
 import { nativeServiceGrantEnvironment } from '../agents/native-services.js';
+import { resolveSavedConnectionValues } from '../connections/runtime-resolution.js';
 
 type ExecuteAgentExtra = {
   abortController?: AbortController;
@@ -644,22 +645,32 @@ export function buildProviderEnv(agent: AgentConfig): Record<string, string | un
   return buildClaudeChildEnvironment(agent);
 }
 
-export function buildMcpServers(agent: AgentConfig): Options['mcpServers'] {
+export function buildMcpServers(
+  agent: AgentConfig,
+  environment: Record<string, string | undefined> = process.env,
+): Options['mcpServers'] {
   const servers: NonNullable<Options['mcpServers']> = {};
 
   if (agent.mcp_servers) {
     for (const [name, config] of Object.entries(agent.mcp_servers)) {
       if ('command' in config) {
+        const savedEnvironment = config.env
+          ? resolveSavedConnectionValues(agent, name, config.env, environment)
+          : undefined;
         servers[name] = {
           ...config,
-          env: config.env ? resolveApprovedMcpValues(mcpCredentialOwner(name, config), config.env) : undefined,
+          env: savedEnvironment
+            ?? (config.env ? resolveApprovedMcpValues(mcpCredentialOwner(name, config), config.env, environment) : undefined),
         };
       } else if ('url' in config) {
+        const savedHeaders = config.headers
+          ? resolveSavedConnectionValues(agent, name, config.headers, environment)
+          : undefined;
         servers[name] = {
           ...config,
-          headers: config.headers
-            ? resolveApprovedMcpValues(mcpCredentialOwner(name, config), config.headers)
-            : undefined,
+          headers: savedHeaders ?? (config.headers
+            ? resolveApprovedMcpValues(mcpCredentialOwner(name, config), config.headers, environment)
+            : undefined),
         };
       }
     }

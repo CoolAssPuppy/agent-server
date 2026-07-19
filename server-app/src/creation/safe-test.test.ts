@@ -13,6 +13,7 @@ describe('safe agent tests', () => {
       interaction: { channel: 'telegram', on_reply: 'next', timeout: '30m' },
       watch: [{ path: '~/Documents' }],
       on_complete: [{ agent: 'next' }],
+      connection_bindings: { notes: '11111111-1111-4111-8111-111111111111' },
     });
     const original = structuredClone(saved);
     const triggerAgent = vi.fn(() => 'safe-run');
@@ -30,6 +31,7 @@ describe('safe agent tests', () => {
       watch: undefined,
       on_complete: undefined,
       mcp_servers: {},
+      connection_bindings: undefined,
     }));
     const executed = triggerAgent.mock.calls[0]?.[0];
     expect(executed?.prompt).toContain('External actions are intentionally unavailable');

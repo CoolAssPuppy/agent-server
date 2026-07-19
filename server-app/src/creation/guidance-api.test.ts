@@ -321,9 +321,10 @@ describe('consumer guidance API', () => {
   });
 
   it('resolves the reviewed service identity into its exact runtime binding when saving', async () => {
+    const connectionId = '11111111-1111-4111-8111-111111111111';
     const proposal = completeProposal();
     proposal.connections = [{
-      id: 'mcp:notion-personal:abc123',
+      id: connectionId,
       name: 'Personal Notion',
       required: true,
       status: 'connected',
@@ -344,10 +345,10 @@ describe('consumer guidance API', () => {
     } as const;
     const registry: ServiceRegistry = {
       connections: [{
-        id: 'mcp:notion-personal:abc123', service_id: 'notion', name: 'Personal Notion',
+        id: connectionId, service_id: 'notion', name: 'Personal Notion',
         source: 'configured_api', status: 'connected', actions: ['read', 'write'], actions_known: true,
       }],
-      bindings: new Map([['mcp:notion-personal:abc123', { serverName: 'notion-personal', config }]]),
+      bindings: new Map([[connectionId, { connectionId, serverName: 'notion-personal', config }]]),
     };
     const { app, writer } = createFixture({
       model: { generate: vi.fn(async () => proposal) },
@@ -359,14 +360,14 @@ describe('consumer guidance API', () => {
         request: 'Store a note in Personal Notion.',
         timezone: 'Europe/Lisbon',
         connected_services: [{
-          id: 'mcp:notion-personal:abc123',
+          id: connectionId,
           service_id: 'notion',
           name: 'Personal Notion',
           source: 'configured_api',
           actions: ['read', 'write'],
           actions_known: true,
         }],
-        answers: [{ question_id: 'connection-notion', value: 'mcp:notion-personal:abc123' }],
+        answers: [{ question_id: 'connection-notion', value: connectionId }],
       }),
     }).then((response) => response.json());
     expect(generated.status, JSON.stringify(generated)).toBe('proposal');
@@ -379,6 +380,7 @@ describe('consumer guidance API', () => {
     expect(response.status).toBe(201);
     expect(writer.createReviewed).toHaveBeenCalledWith(expect.objectContaining({
       mcp_servers: { 'notion-personal': config },
+      connection_bindings: { 'notion-personal': connectionId },
       permissions: expect.objectContaining({ allow: expect.arrayContaining([
         'mcp__notion-personal__API-query-data-source',
         'mcp__notion-personal__API-post-page',

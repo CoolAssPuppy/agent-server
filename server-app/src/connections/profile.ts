@@ -1,6 +1,14 @@
 import { z } from 'zod';
 
-const EnvironmentVariableSchema = z.string().regex(/^[A-Z][A-Z0-9_]*$/);
+function isProtectedEnvironmentVariable(name: string): boolean {
+  return name.startsWith('AGENT_SERVER_')
+    || name === 'ANTHROPIC_API_KEY'
+    || name === 'OPENAI_API_KEY';
+}
+
+const EnvironmentVariableSchema = z.string()
+  .regex(/^[A-Z][A-Z0-9_]*$/)
+  .refine((name) => !isProtectedEnvironmentVariable(name), 'This environment variable is reserved');
 const AdapterIdentifierSchema = z.string().regex(/^[a-z][a-z0-9._-]*$/).max(120);
 const RuntimeNameSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/).max(120);
 

@@ -1,9 +1,12 @@
 import type { AgentConfig } from '../agents/config.js';
 import type { Reporter } from './runner.js';
 import type { ExecutionResult } from './executor.js';
+import type { DecisionContext } from './decision-handler.js';
 
 export type ExecutorFnOptions = {
   abortController?: AbortController;
+  runId?: string;
+  decisionContext?: DecisionContext;
   /**
    * Path to the user's installed Claude executable (from runtime discovery).
    * When set, the Claude executor uses it instead of the SDK's bundled runtime,

@@ -8,6 +8,7 @@ import { truncate } from '../execution/executor.js';
 import type { Reporter } from '../execution/runner.js';
 import { parseInteractionBlock } from '../interaction/parser.js';
 import { nativeServiceGrantEnvironment } from '../agents/native-services.js';
+import { resolveSavedConnectionValues } from '../connections/runtime-resolution.js';
 
 type ExecuteCodexExtra = {
   abortController?: AbortController;
@@ -109,7 +110,10 @@ function getProviderOptions(agent: AgentConfig): { baseUrl?: string; apiKey?: st
 
 function getCodexConfig(agent: AgentConfig): Record<string, Record<string, CodexMcpServer>> | undefined {
   const servers = Object.fromEntries(
-    Object.entries(agent.mcp_servers ?? {}).map(([name, config]) => [name, normalizeMcpServer(name, config)]),
+    Object.entries(agent.mcp_servers ?? {}).map(([name, config]) => [
+      name,
+      normalizeMcpServer(agent, name, config),
+    ]),
   );
   const eventKitBin = process.env.AGENT_SERVER_EVENTKIT_BIN;
   if (eventKitBin && !servers.eventkit) {
@@ -139,23 +143,31 @@ type CodexMcpServer = {
   required: boolean;
 };
 
-function normalizeMcpServer(name: string, config: McpServerConfig): CodexMcpServer {
+function normalizeMcpServer(agent: AgentConfig, name: string, config: McpServerConfig): CodexMcpServer {
   if ('command' in config) {
-    if (config.env && Object.keys(config.env).length > 0) {
+    const savedEnvironment = config.env
+      ? resolveSavedConnectionValues(agent, name, config.env)
+      : undefined;
+    if (config.env && !savedEnvironment && Object.keys(config.env).length > 0) {
       throw new Error(`Codex MCP server "${name}" contains credentials; use a token-backed adapter`);
     }
     return {
       command: config.command,
       ...(config.args ? { args: config.args } : {}),
+      ...(savedEnvironment ? { env: savedEnvironment } : {}),
       enabled: true,
       required: true,
     };
   }
-  if (config.headers && Object.keys(config.headers).length > 0) {
+  const savedHeaders = config.headers
+    ? resolveSavedConnectionValues(agent, name, config.headers)
+    : undefined;
+  if (config.headers && !savedHeaders && Object.keys(config.headers).length > 0) {
     throw new Error(`Codex MCP server "${name}" contains credentials; use a token-backed adapter`);
   }
   return {
     url: config.url,
+    ...(savedHeaders ? { http_headers: savedHeaders } : {}),
     enabled: true,
     required: true,
   };

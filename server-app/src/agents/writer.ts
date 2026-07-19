@@ -6,6 +6,7 @@ import { Document } from 'yaml';
 import { CronExpressionParser } from 'cron-parser';
 import {
   type AgentConfig,
+  ConnectionBindingsSchema,
   ProviderConfigSchema,
   parseAgentFile,
 } from './config.js';
@@ -62,6 +63,7 @@ export const AgentPatchSchema = z
     tools: z.array(z.string().trim().min(1).max(120)).max(128).optional(),
     disallowed_tools: z.array(z.string().trim().min(1).max(120)).max(128).optional(),
     notification: NotificationConfigSchema.nullable().optional(),
+    connection_bindings: ConnectionBindingsSchema.nullable().optional(),
     capabilities: z.array(CapabilityChangeSchema).max(64).optional(),
   })
   .strict();
@@ -173,6 +175,7 @@ function collectFieldWrites(
     'tools',
     'disallowed_tools',
     'notification',
+    'connection_bindings',
   ];
   for (const key of direct) {
     if (patch[key] !== undefined) fields.set(key, patch[key]);

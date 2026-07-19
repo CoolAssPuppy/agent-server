@@ -96,6 +96,17 @@ const McpServerConfigSchema = z.union([
 
 export type McpServerConfig = z.infer<typeof McpServerConfigSchema>;
 
+const ConnectionRuntimeNameSchema = z.string()
+  .regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/)
+  .max(120);
+
+export const ConnectionBindingsSchema = z.record(
+  ConnectionRuntimeNameSchema,
+  z.uuid(),
+).refine((bindings) => Object.keys(bindings).length <= 64, 'At most 64 saved connections may be used');
+
+export type ConnectionBindings = z.infer<typeof ConnectionBindingsSchema>;
+
 export const FileAccessSchema = z.object({
   path: z.string().trim().min(1).max(1_024)
     .refine((value) => !value.includes('\0'), 'File path cannot contain a null byte')
@@ -207,6 +218,7 @@ export const AgentConfigSchema = z
     codex_sandbox: z.enum(['read-only', 'workspace-write', 'danger-full-access']).optional(),
     permissions: PermissionsSchema.optional(),
     mcp_servers: z.record(z.string().min(1), McpServerConfigSchema).optional(),
+    connection_bindings: ConnectionBindingsSchema.optional(),
     interaction: InteractionConfigSchema.optional(),
     notification: NotificationConfigSchema.optional(),
     conversation: ConversationConfigSchema.optional(),
@@ -229,6 +241,10 @@ export const AgentConfigSchema = z
       });
     }
     for (const [serverName, server] of Object.entries(agent.mcp_servers ?? {})) {
+      // A saved binding replaces this inline transport before execution. Its
+      // reviewed profile owns the credential references, so the fixed catalog
+      // allowlist does not apply to the inert, human-readable snapshot.
+      if (agent.connection_bindings?.[serverName]) continue;
       const values = 'command' in server ? server.env : server.headers;
       const owner = mcpCredentialOwner(serverName, server);
       if (values && !areApprovedMcpReferences(owner, values)) {

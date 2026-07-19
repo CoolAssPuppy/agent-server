@@ -7,6 +7,7 @@ import { z } from 'zod';
 import {
   AgentTelemetrySchema,
   CalendarAccessSchema,
+  ConnectionBindingsSchema,
   FileAccessSchema,
   NativeServicesSchema,
   parseAgentFile,
@@ -38,6 +39,7 @@ export const ConfigurationChangesSchema = z.object({
   disallowed_tools: ToolListSchema.optional(),
   permissions: z.object({ allow: ToolListSchema, deny: ToolListSchema }).strict().nullable().optional(),
   mcp_servers: z.record(z.string().trim().min(1).max(160), z.unknown()).nullable().optional(),
+  connection_bindings: ConnectionBindingsSchema.nullable().optional(),
   model: z.string().trim().min(1).max(120).nullable().optional(),
   executor: z.enum(['claude-code', 'codex']).nullable().optional(),
   provider: z.object({
@@ -104,7 +106,8 @@ const FIELD_SUMMARIES: Record<string, string> = {
   name: 'Change the agent name', description: 'Change the description', prompt: 'Update the agent instructions',
   schedule: 'Change when the agent runs', timezone: 'Change the schedule time zone', enabled: 'Change whether the agent is enabled',
   working_directory: 'Change the working folder', tools: 'Change allowed actions', disallowed_tools: 'Change blocked actions',
-  permissions: 'Change detailed action permissions', mcp_servers: 'Change connected apps and services', model: 'Change the model',
+  permissions: 'Change detailed action permissions', mcp_servers: 'Change connected apps and services',
+  connection_bindings: 'Use saved connections', model: 'Change the model',
   executor: 'Change the local runtime', provider: 'Change the model service', codex_sandbox: 'Change file access limits',
   permission_mode: 'Change approval behavior', notification: 'Change notifications', interaction: 'Change reply handling',
   watch: 'Change watched folders', on_complete: 'Change follow-up agents', on_failure: 'Change failure handling',
@@ -209,6 +212,7 @@ function classifyPatchRisk(
       || (Array.isArray(server.args) && server.args.includes('-c'))));
   if (startsShell) throw new PatchPolicyError('Automated patches cannot add a shell-based connected service');
   if (changedServices.length > 0) reasons.push('Adds or changes a connected service');
+  if (changes.connection_bindings !== undefined) reasons.push('Changes saved connections');
   if (changes.notification) reasons.push('Changes external notifications');
   if (changes.schedule || (changes.watch && changes.watch.length > 0)) reasons.push('Changes automatic execution');
   if ((changes.on_complete?.length ?? 0) > 0 || (changes.on_failure?.length ?? 0) > 0) {

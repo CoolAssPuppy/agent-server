@@ -283,6 +283,48 @@ describe('executeCodexAgent', () => {
     delete process.env.NOTION_TOKEN;
   });
 
+  it('passes reviewed saved-connection credentials to Codex without inheriting them globally', async () => {
+    const { executeCodexAgent } = await import('./codex.js');
+    const { resolveAgentConnectionBindings } = await import('../connections/runtime-resolution.js');
+    const previous = process.env.NOTES_TOKEN;
+    process.env.NOTES_TOKEN = 'local-secret';
+    runStreamed.mockResolvedValue({ events: streamEvents([]) });
+    try {
+      const profile = {
+        schema_version: 1 as const,
+        id: '11111111-1111-4111-8111-111111111111',
+        label: 'Notes',
+        adapter: { id: 'generic.mcp', version: 1 },
+        runtime_name: 'notes',
+        credentials: [{
+          id: '22222222-2222-4222-8222-222222222222',
+          label: 'Token', environment_variable: 'NOTES_TOKEN', secret: true,
+        }],
+        transport: {
+          kind: 'mcp_stdio' as const,
+          command: 'notes-helper', args: [],
+          environment: { TOKEN: '22222222-2222-4222-8222-222222222222' },
+        },
+        created_at: '2026-07-19T18:00:00.000Z',
+        updated_at: '2026-07-19T18:00:00.000Z',
+      };
+      const resolved = resolveAgentConnectionBindings(makeAgent({
+        connection_bindings: { notes: profile.id },
+      }), [profile]);
+      await executeCodexAgent(resolved, createMockReporter());
+
+      expect(codexConstructor).toHaveBeenLastCalledWith(expect.objectContaining({
+        env: expect.not.objectContaining({ NOTES_TOKEN: 'local-secret' }),
+        config: { mcp_servers: { notes: expect.objectContaining({
+          command: 'notes-helper', env: { TOKEN: 'local-secret' },
+        }) } },
+      }));
+    } finally {
+      if (previous === undefined) delete process.env.NOTES_TOKEN;
+      else process.env.NOTES_TOKEN = previous;
+    }
+  });
+
   it('surfaces a failed turn', async () => {
     const { executeCodexAgent } = await import('./codex.js');
     runStreamed.mockResolvedValue({ events: streamEvents([

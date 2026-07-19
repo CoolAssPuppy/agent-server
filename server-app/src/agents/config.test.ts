@@ -593,6 +593,55 @@ schedule: "* * * * *"
 `;
 
 describe('mcp_servers config', () => {
+  it('accepts opaque saved connection bindings without changing MCP transport validation', () => {
+    const result = AgentConfigSchema.parse({
+      id: 'bound-agent',
+      name: 'Bound agent',
+      prompt: 'Use the saved connection.',
+      connection_bindings: {
+        'notion-personal': '11111111-1111-4111-8111-111111111111',
+      },
+    });
+
+    expect(result.connection_bindings).toEqual({
+      'notion-personal': '11111111-1111-4111-8111-111111111111',
+    });
+  });
+
+  it('accepts custom credential references only when a saved binding owns that runtime transport', () => {
+    const custom = {
+      id: 'bound-agent',
+      name: 'Bound agent',
+      prompt: 'Use the saved connection.',
+      mcp_servers: {
+        notes: {
+          type: 'http' as const,
+          url: 'https://notes.example.test/mcp',
+          headers: { Authorization: 'Bearer ${MY_NOTES_TOKEN}' },
+        },
+      },
+    };
+
+    expect(() => AgentConfigSchema.parse(custom)).toThrow(/not approved/i);
+    expect(AgentConfigSchema.parse({
+      ...custom,
+      connection_bindings: { notes: '11111111-1111-4111-8111-111111111111' },
+    }).mcp_servers?.notes).toEqual(custom.mcp_servers.notes);
+  });
+
+  it('rejects invalid runtime names and non-UUID saved connection bindings', () => {
+    const base = { id: 'bound-agent', name: 'Bound agent', prompt: 'Use it.' };
+
+    expect(() => AgentConfigSchema.parse({
+      ...base,
+      connection_bindings: { 'has spaces': '11111111-1111-4111-8111-111111111111' },
+    })).toThrow();
+    expect(() => AgentConfigSchema.parse({
+      ...base,
+      connection_bindings: { notion: 'personal' },
+    })).toThrow();
+  });
+
   it('accepts config with stdio mcp server', () => {
     const result = AgentConfigSchema.safeParse({
       id: 'mcp-agent',

@@ -1,4 +1,4 @@
-export { AgentConfigSchema, PermissionsSchema, ProviderConfigSchema, parseAgentYaml, parseAgentFile, resolveEnvVars, resolveEnvString, type AgentConfig, type McpServerConfig, type Permissions, type ProviderConfig } from './agents/config.js';
+export { AgentConfigSchema, ConnectionBindingsSchema, PermissionsSchema, ProviderConfigSchema, parseAgentYaml, parseAgentFile, resolveEnvVars, resolveEnvString, type AgentConfig, type ConnectionBindings, type McpServerConfig, type Permissions, type ProviderConfig } from './agents/config.js';
 export { matchesPattern, isToolAllowed, buildCanUseTool } from './execution/permissions.js';
 export { discoverAgents } from './agents/discovery.js';
 export {
@@ -15,6 +15,22 @@ export {
   type DiscoveredConnection,
 } from './agents/capabilities.js';
 export { ConnectionCache, type ConnectionSnapshot } from './connections/cache.js';
+export {
+  ConnectionProfileDraftSchema,
+  ConnectionProfileSchema,
+  ConnectionProfileRegistrySchema,
+  type ConnectionProfile,
+  type ConnectionProfileDraft,
+  type ConnectionTransport,
+  type CredentialReference,
+} from './connections/profile.js';
+export {
+  planInlineConnectionAdoption,
+  type ConnectionAdoptionPlan,
+  type ConnectionAdoptionProposal,
+  type ConnectionAdoptionRefusal,
+  type InlineAgentSource,
+} from './connections/adoption.js';
 export {
   ConnectionCapabilityOperationSchema,
   ConnectionCapabilitySnapshotSchema,

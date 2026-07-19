@@ -9,6 +9,7 @@ import { discoverAgents } from '../agents/discovery.js';
 import { createAgentWriter } from '../agents/writer.js';
 import { ConnectionCache } from '../connections/cache.js';
 import { ConnectionProfileStore } from '../connections/profile-store.js';
+import { createConnectionResolvingExecutor } from '../connections/connection-executor.js';
 import { loadEnvFile } from '../platform/config.js';
 import type { RunStoreLike } from '../reporting/store.js';
 import { RunStore } from '../reporting/store.js';
@@ -254,6 +255,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   executorRegistry.register('claude-code', executeAgent);
   executorRegistry.register('codex', executeCodexAgent);
   executorRegistry.setDefault('claude-code');
+  const connectionProfileStore = new ConnectionProfileStore(join(config.agentsDir, '..', 'connections.json'));
 
   // Discover the user's installed Claude / Codex binaries once at startup so
   // runs use the runtimes (and subscription logins) they already have, falling
@@ -373,14 +375,17 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     runTimeoutMs: config.runTimeoutMs,
     store,
     broadcaster,
-    execute: (agent, reporter, executorOptions) => executorRegistry.resolve(agent)(
-      agent,
-      reporter,
-      {
+    execute: createConnectionResolvingExecutor(
+      connectionProfileStore,
+      (agent) => async (resolvedAgent, reporter, executorOptions) => executorRegistry.resolve(agent)(
+        resolvedAgent,
+        reporter,
+        {
         ...executorOptions,
         claudeExecutablePath: runtimePaths.claudeExecutablePath,
         codexExecutablePath: runtimePaths.codexExecutablePath,
-      },
+        },
+      ),
     ),
     createReporter: (runId, name, conversationId, agent) => createReporter(config, runId, name, {
       serverId,
@@ -534,7 +539,6 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     return runPreflightGate.run(agent, triggerOptions, { source, confirmedContentHash });
   }
   const getAgents = (): Promise<AgentConfig[]> => discoverAgents(config.agentsDir);
-  const connectionProfileStore = new ConnectionProfileStore(join(config.agentsDir, '..', 'connections.json'));
   const guidanceApi = createGuidanceApi({
     model: guidanceModel,
     writer: agentWriter,

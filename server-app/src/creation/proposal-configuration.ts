@@ -18,6 +18,7 @@ export type ProposalServiceBinding = {
   id: string;
   serverName: string;
   config?: McpServerConfig;
+  connectionId?: string;
 };
 
 export type ProposalConfigurationOptions = {
@@ -96,6 +97,14 @@ export function proposalToAgentConfig(
         return binding?.config ? [[binding.serverName, binding.config] as const] : [];
       }),
   );
+  const connectionBindings = Object.fromEntries(
+    requiredConnections.flatMap((connection) => {
+      const binding = bindings.get(connection.id);
+      return binding?.connectionId
+        ? [[binding.serverName, binding.connectionId] as const]
+        : [];
+    }),
+  );
   const primaryPath = proposal.file_access[0]?.path;
   const workingDirectory = proposal.file_access[0]?.kind === 'file' && primaryPath
     ? dirname(primaryPath)
@@ -128,6 +137,7 @@ export function proposalToAgentConfig(
     disallowed_tools: [],
     permissions: { allow, deny: [] },
     mcp_servers: Object.keys(mcpServers).length > 0 ? mcpServers : undefined,
+    connection_bindings: Object.keys(connectionBindings).length > 0 ? connectionBindings : undefined,
     max_turns: 20,
     enabled: false,
     executor: proposal.runtime?.executor,

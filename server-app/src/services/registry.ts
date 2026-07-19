@@ -11,7 +11,12 @@ import type { ConnectionProfile } from '../connections/profile.js';
 import { resolveConnectionProfile } from '../connections/profile-resolver.js';
 
 type EnvironmentSource = Record<string, string | undefined>;
-export type ServiceRuntimeBinding = { serverName: string; config?: McpServerConfig };
+export type ServiceRuntimeBinding = {
+  serverName: string;
+  config?: McpServerConfig;
+  /** Present only for an opaque, user-saved connection profile. */
+  connectionId?: string;
+};
 
 export type ServiceConnectionStatus = 'connected' | 'needs_setup' | 'unavailable' | 'conflict';
 export type ServiceConnectionSource = 'account' | 'configured_api' | 'mcp' | 'macos';
@@ -284,7 +289,7 @@ function savedProfileConnections(
   const runtime = new Map<string, ServiceRuntimeBinding>();
   const connections = profiles.map((profile): ServiceConnection => {
     const required = profile.credentials.map(({ environment_variable: name }) => name);
-    runtime.set(profile.id, resolveConnectionProfile(profile));
+    runtime.set(profile.id, { ...resolveConnectionProfile(profile), connectionId: profile.id });
     return {
       id: profile.id,
       service_id: profile.adapter.id,

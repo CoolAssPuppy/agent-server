@@ -68,6 +68,34 @@ describe('AgentWriter.update', () => {
     expect(parseAgentFile(content).description).toBe('Posts weekly status');
   });
 
+  it('updates an opaque saved connection binding without rewriting its inline fallback', async () => {
+    const original = `---
+id: reporter
+name: Weekly Reporter
+# Keep the inline fallback readable
+mcp_servers:
+  notes:
+    command: old-notes-helper
+custom_setting: keep-me
+---
+
+# Weekly report
+`;
+    const { dir, writer } = await seededWriter({ 'reporter.md': original });
+    const connectionId = '11111111-1111-4111-8111-111111111111';
+
+    const updated = await writer.update('reporter', {
+      connection_bindings: { notes: connectionId },
+    });
+
+    expect(updated.connection_bindings).toEqual({ notes: connectionId });
+    const content = await readFile(join(dir, 'reporter.md'), 'utf-8');
+    expect(content).toContain('# Keep the inline fallback readable');
+    expect(content).toContain('command: old-notes-helper');
+    expect(content).toContain('custom_setting: keep-me');
+    expect(content).toContain(`notes: ${connectionId}`);
+  });
+
   it('replaces the markdown body when patching the prompt', async () => {
     const { dir, writer } = await seededWriter({ 'reporter.md': MD_AGENT });
 

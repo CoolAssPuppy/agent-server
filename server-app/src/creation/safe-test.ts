@@ -34,6 +34,7 @@ export function prepareSafeTestAgent(agent: AgentConfig): AgentConfig {
     disallowed_tools: [...new Set([...agent.disallowed_tools, ...BLOCKED_TOOLS])],
     permissions: { allow: readTools, deny: [...BLOCKED_TOOLS] },
     mcp_servers: {},
+    connection_bindings: undefined,
     codex_sandbox: 'read-only',
     permission_mode: 'dontAsk',
     max_turns: Math.min(agent.max_turns, 5),

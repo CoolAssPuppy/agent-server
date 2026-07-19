@@ -45,6 +45,7 @@ describe('consumer service registry', () => {
     }));
     expect(registry.bindings.get(profile.id)).toEqual({
       serverName: profile.runtime_name,
+      connectionId: profile.id,
       config: {
         type: 'http',
         url: 'https://service.example/mcp',

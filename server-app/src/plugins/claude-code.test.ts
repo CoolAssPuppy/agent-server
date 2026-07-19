@@ -941,6 +941,39 @@ describe('buildMcpServers eventkit auto-injection', () => {
     });
   });
 
+  it('resolves reviewed saved-connection credentials at the executor boundary', async () => {
+    const { buildMcpServers } = await import('./claude-code.js');
+    const { resolveAgentConnectionBindings } = await import('../connections/runtime-resolution.js');
+    const profile = {
+      schema_version: 1 as const,
+      id: '11111111-1111-4111-8111-111111111111',
+      label: 'Personal notes',
+      adapter: { id: 'generic.mcp', version: 1 },
+      runtime_name: 'notes',
+      credentials: [{
+        id: '22222222-2222-4222-8222-222222222222',
+        label: 'Token', environment_variable: 'NOTES_TOKEN', secret: true,
+      }],
+      transport: {
+        kind: 'mcp_http' as const,
+        url: 'https://notes.example.test/mcp',
+        headers: [{
+          name: 'Authorization', prefix: 'Bearer ',
+          credential_id: '22222222-2222-4222-8222-222222222222',
+        }],
+      },
+      created_at: '2026-07-19T18:00:00.000Z',
+      updated_at: '2026-07-19T18:00:00.000Z',
+    };
+    const resolved = resolveAgentConnectionBindings(createAgentConfig({
+      connection_bindings: { notes: profile.id },
+    }), [profile]);
+
+    expect(buildMcpServers(resolved, { NOTES_TOKEN: 'local-secret' })?.notes).toMatchObject({
+      headers: { Authorization: 'Bearer local-secret' },
+    });
+  });
+
   it('injects eventkit alongside existing user-declared mcp_servers', async () => {
     const { buildMcpServers } = await import('./claude-code.js');
     process.env.AGENT_SERVER_EVENTKIT_BIN = '/path/to/helper';

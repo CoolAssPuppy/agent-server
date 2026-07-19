@@ -1022,6 +1022,34 @@ describe('guided agent proposal creation', () => {
     expect(agent.permissions?.allow).not.toContain('mcp__mcp_notion_personal_abc123__*');
   });
 
+  it('keeps an opaque saved connection binding alongside its reviewed transport', () => {
+    const proposal = completeProposal();
+    const connectionId = '11111111-1111-4111-8111-111111111111';
+    proposal.connections = [{
+      id: connectionId,
+      name: 'Personal Notion',
+      required: true,
+      status: 'connected',
+      reason: 'Stores the review.',
+    }];
+    proposal.permissions.can_use_connected_apps = true;
+    const config = { command: 'notion-helper' } as const;
+
+    const agent = proposalToAgentConfig(
+      CreationProposalSchema.parse(proposal),
+      'manuscript-review',
+      { serviceBindings: [{
+        id: connectionId,
+        connectionId,
+        serverName: 'notion-personal',
+        config,
+      }] },
+    );
+
+    expect(agent.connection_bindings).toEqual({ 'notion-personal': connectionId });
+    expect(agent.mcp_servers).toEqual({ 'notion-personal': config });
+  });
+
   it('fails closed when reviewed services are missing or collide at runtime', () => {
     const proposal = completeProposal();
     proposal.connections = [
