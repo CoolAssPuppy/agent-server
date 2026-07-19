@@ -71,10 +71,10 @@ struct MainWindow: View {
         guard let pending = router.pending else { return }
         let duration: Double
         switch pending {
-        case .creation: duration = SettingsDrawer.slideDuration
+        case .creation: duration = TopDrawerStyle.slideDuration
         case .detail: duration = AgentDetailDrawer.slideDuration
-        case .settings: duration = SettingsDrawer.slideDuration
-        case .connections, .security, .debugger: duration = SettingsDrawer.slideDuration
+        case .settings: duration = TopDrawerStyle.slideDuration
+        case .connections, .security, .debugger: duration = TopDrawerStyle.slideDuration
         }
         DispatchQueue.main.async {
             withAnimation(.easeOut(duration: duration)) {
@@ -121,7 +121,7 @@ struct MainWindow: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .clipped()
         }
-        .animation(.easeOut(duration: SettingsDrawer.slideDuration), value: router.isCreationOpen)
+        .animation(.easeOut(duration: TopDrawerStyle.slideDuration), value: router.isCreationOpen)
     }
 
     @ViewBuilder
@@ -173,7 +173,7 @@ struct MainWindow: View {
             SettingsDrawer(monitor: monitor, router: router)
         }
         .animation(
-            .easeOut(duration: SettingsDrawer.slideDuration),
+            .easeOut(duration: TopDrawerStyle.slideDuration),
             value: router.isSettingsOpen
         )
     }
@@ -183,7 +183,7 @@ struct MainWindow: View {
         topDrawerLayer(isPresented: router.isConnectionsOpen, onDismiss: router.close) {
             ConnectionsView(monitor: monitor, router: router)
         }
-        .animation(.easeOut(duration: SettingsDrawer.slideDuration), value: router.isConnectionsOpen)
+        .animation(.easeOut(duration: TopDrawerStyle.slideDuration), value: router.isConnectionsOpen)
     }
 
     private var securityDrawerLayer: some View {
@@ -194,7 +194,7 @@ struct MainWindow: View {
                 agentId: router.securityAgentId
             )
         }
-        .animation(.easeOut(duration: SettingsDrawer.slideDuration), value: router.isSecurityOpen)
+        .animation(.easeOut(duration: TopDrawerStyle.slideDuration), value: router.isSecurityOpen)
     }
 
     private func topDrawerLayer<Content: View>(
@@ -231,7 +231,7 @@ struct MainWindow: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .animation(.easeOut(duration: SettingsDrawer.slideDuration), value: router.isDebuggerOpen)
+        .animation(.easeOut(duration: TopDrawerStyle.slideDuration), value: router.isDebuggerOpen)
     }
 
     // MARK: - Actions

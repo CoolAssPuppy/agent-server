@@ -44,9 +44,6 @@ struct SettingsDrawer: View {
     @State private var telemetryIncludeMetadata: Bool = false
     @State private var showAdvancedSettings: Bool = false
 
-    static let height = TopDrawerStyle.height
-    static let slideDuration = TopDrawerStyle.slideDuration
-
     private static let envPath: URL = {
         let home = FileManager.default.homeDirectoryForCurrentUser
         return home.appendingPathComponent(".agent-server/.env")
