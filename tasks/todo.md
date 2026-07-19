@@ -852,3 +852,18 @@ Review:
 - Green is reserved for Low risk. Needs review uses a warning symbol and label; High risk and Critical use destructive symbols and labels.
 - “Each agent is checked separately on this Mac” was removed. The current row now says only which agent is being analyzed.
 - Verification: 236 Swift behavior tests and the unsigned macOS build passed. UI automation was not run.
+
+## Security progressive panels
+
+- [x] Keep the security agent list visible as the first panel when an agent is selected.
+- [x] Open the selected agent's analysis in a panel to the right and compact the list to the left.
+- [x] Add an All agents back action and make Escape step back before closing the drawer.
+- [x] Preserve direct agent-security entry points inside the same panel structure.
+- [x] Add navigation behavior tests first, build, commit, and simplify.
+
+Review:
+
+- Selecting an agent now keeps the dashboard as a compact left panel and opens the analysis on the right.
+- The selected row remains visibly selected. All agents and Escape return to the dashboard before the drawer closes.
+- Direct security entry points start with both panels visible, and Reduced Motion removes the panel transition.
+- Verification: 239 Swift behavior tests and the unsigned macOS build passed. UI automation was not run.

@@ -37,6 +37,7 @@
 		39740E464CDDEC9742EDB194 /* ConnectionsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 019F0C7D13F571CF359F3CB9 /* ConnectionsStore.swift */; };
 		3CB4D6BB18637F00B57B4B59 /* MenuBarDecisionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FD3C4BF1D811F05450C0CF2 /* MenuBarDecisionsViewModel.swift */; };
 		3EFC9693295BBE956E57FEC1 /* ModelField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 691983804F92F4A89C92EBC6 /* ModelField.swift */; };
+		42B48CA2A7599EAEADD5B916 /* SecurityPanelNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9B5EC84594BC59394B136EE /* SecurityPanelNavigation.swift */; };
 		470120920161412825893DBC /* StatusMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DF962BADEAC09F5A5F46093 /* StatusMonitor.swift */; };
 		4B39C03414ADB3FF5BE48D71 /* SecurityCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C77FD0BA1F5F49A3D94CDF /* SecurityCenterView.swift */; };
 		519B2C93BA543F3811D53C8E /* AgentServerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBA361A75AD13345528DB75F /* AgentServerApp.swift */; };
@@ -239,6 +240,7 @@
 		CF20AAD9B4C764E299F55F41 /* AgentServerWorkspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentServerWorkspace.swift; sourceTree = "<group>"; };
 		D3E8A93100DB8E38D44B85FE /* GuidedAgentCreationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedAgentCreationView.swift; sourceTree = "<group>"; };
 		D885EDB8362181BEA390FCF9 /* CronNextFire.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CronNextFire.swift; sourceTree = "<group>"; };
+		D9B5EC84594BC59394B136EE /* SecurityPanelNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityPanelNavigation.swift; sourceTree = "<group>"; };
 		DCE3C4B67936078814AFEBF3 /* AgentServerClient+Security.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentServerClient+Security.swift"; sourceTree = "<group>"; };
 		DE79D9B93066560186CAA3DB /* SecurityFindingCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityFindingCard.swift; sourceTree = "<group>"; };
 		E0885A392057C026891B6710 /* MenuBarPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPopover.swift; sourceTree = "<group>"; };
@@ -472,6 +474,7 @@
 				6C69CBD9DEF52B8367E593F5 /* RuntimeSelection.swift */,
 				FDB22418EF86F5F4F13FAF67 /* SchedulePreset.swift */,
 				BA5E29A51EBB871CA9ED8BC1 /* SecurityBackgroundScanState.swift */,
+				D9B5EC84594BC59394B136EE /* SecurityPanelNavigation.swift */,
 				B00F566E57973BAC7955CF89 /* SecurityServerModels.swift */,
 				BEB4ABEDF791380EFF9F2DA7 /* ServerProcessReliability.swift */,
 				325C74DAF7BB5F1C25B3A733 /* SidebarViewModel.swift */,
@@ -766,6 +769,7 @@
 				4B39C03414ADB3FF5BE48D71 /* SecurityCenterView.swift in Sources */,
 				DD043593980101A908BC8778 /* SecurityDashboardView.swift in Sources */,
 				18DBB572B045AD41B966D76A /* SecurityFindingCard.swift in Sources */,
+				42B48CA2A7599EAEADD5B916 /* SecurityPanelNavigation.swift in Sources */,
 				5577857D16D3CF0DD7314BB5 /* SecurityScanProgressView.swift in Sources */,
 				B21F725CDF123FDED4325916 /* SecurityServerModels.swift in Sources */,
 				D2837235002AFAAA229A8257 /* ServerProcessManager.swift in Sources */,

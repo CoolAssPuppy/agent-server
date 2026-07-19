@@ -16,6 +16,7 @@ struct TopDrawerSurface<HeaderActions: View, Content: View>: View {
     let title: String
     let closeLabel: String
     let onClose: () -> Void
+    let onEscape: () -> Void
     let showsDivider: Bool
     let titleIcon: String?
     let titleStatus: TopDrawerTitleStatus
@@ -28,6 +29,7 @@ struct TopDrawerSurface<HeaderActions: View, Content: View>: View {
         title: String,
         closeLabel: String,
         onClose: @escaping () -> Void,
+        onEscape: (() -> Void)? = nil,
         showsDivider: Bool = true,
         titleIcon: String? = nil,
         titleStatus: TopDrawerTitleStatus = .normal,
@@ -37,6 +39,7 @@ struct TopDrawerSurface<HeaderActions: View, Content: View>: View {
         self.title = title
         self.closeLabel = closeLabel
         self.onClose = onClose
+        self.onEscape = onEscape ?? onClose
         self.showsDivider = showsDivider
         self.titleIcon = titleIcon
         self.titleStatus = titleStatus
@@ -57,7 +60,7 @@ struct TopDrawerSurface<HeaderActions: View, Content: View>: View {
         .compositingGroup()
         .shadow(color: Color.black.opacity(0.25), radius: 16, x: 0, y: 6)
         .onKeyPress(.escape) {
-            onClose()
+            onEscape()
             return .handled
         }
     }
@@ -123,6 +126,7 @@ extension TopDrawerSurface where HeaderActions == EmptyView {
         title: String,
         closeLabel: String,
         onClose: @escaping () -> Void,
+        onEscape: (() -> Void)? = nil,
         showsDivider: Bool = true,
         titleIcon: String? = nil,
         titleStatus: TopDrawerTitleStatus = .normal,
@@ -132,6 +136,7 @@ extension TopDrawerSurface where HeaderActions == EmptyView {
             title: title,
             closeLabel: closeLabel,
             onClose: onClose,
+            onEscape: onEscape,
             showsDivider: showsDivider,
             titleIcon: titleIcon,
             titleStatus: titleStatus,

@@ -39,3 +39,4 @@
 - A model repeating answered questions is a normalization case, not a reason to discard an otherwise valid proposal. Remove only questions proven answered and preserve validated proposal content.
 - Every model-backed server route must have a bounded server timeout shorter than its macOS client timeout. Keep deterministic results when semantic analysis times out.
 - A completion icon must not imply a safety verdict. Security progress rows must show the resulting risk level as soon as each analysis finishes.
+- Security drill-downs should preserve context. Keep the list as a left panel and add details to the right instead of replacing the drawer's content.

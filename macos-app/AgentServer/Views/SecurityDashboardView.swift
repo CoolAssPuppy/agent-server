@@ -11,6 +11,8 @@ struct SecurityDashboardView: View {
     let actions: SecurityDashboardActions
     let openAgent: (String) -> Void
     let showsHeading: Bool
+    let isCompact: Bool
+    let selectedAgentId: String?
 
     @Environment(\.nTheme) private var theme
     @State private var dashboard: SecurityDashboardPresentation?
@@ -23,19 +25,25 @@ struct SecurityDashboardView: View {
     init(
         dashboard: SecurityDashboardPresentation? = nil,
         showsHeading: Bool = true,
+        isCompact: Bool = false,
+        selectedAgentId: String? = nil,
         actions: SecurityDashboardActions,
         openAgent: @escaping (String) -> Void
     ) {
         self.actions = actions
         self.openAgent = openAgent
         self.showsHeading = showsHeading
+        self.isCompact = isCompact
+        self.selectedAgentId = selectedAgentId
         _dashboard = State(initialValue: dashboard)
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-            Divider().opacity(0.3)
+            if !isCompact {
+                header
+                Divider().opacity(0.3)
+            }
             content
         }
         .background(theme.tokens.background)
@@ -93,7 +101,7 @@ struct SecurityDashboardView: View {
     private func dashboardContent(_ dashboard: SecurityDashboardPresentation) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: NSpacing.lg) {
-                summary(dashboard)
+                if !isCompact { summary(dashboard) }
                 ConsumerSection("Agents") {
                     if filteredAgents(dashboard).isEmpty {
                         Text(query.isEmpty ? "No agents to scan yet." : "No agents match your search.")
@@ -119,6 +127,13 @@ struct SecurityDashboardView: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .padding(.vertical, NSpacing.xxs)
+                            .background(
+                                agent.id == selectedAgentId
+                                    ? theme.tokens.primary.opacity(0.08)
+                                    : Color.clear
+                            )
+                            .accessibilityAddTraits(agent.id == selectedAgentId ? .isSelected : [])
                             Divider().opacity(0.3)
                         }
                     }
