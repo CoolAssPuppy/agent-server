@@ -77,7 +77,7 @@ Current verification:
 - [x] Extract focused Settings components so the drawer coordinates state instead of owning every presentation detail.
 - [x] Run focused and full Swift tests plus an unsigned build, commit, and complete a simplification review.
 
-Settings now has one predictable reading order and remains usable when the drawer is narrower than two readable cards. General, coding agents, notifications, storage, and updates lead. Agent Panel, raw environment values, and telemetry remain available under Advanced. Support links live in About, and Settings no longer carries promotional links or decorative footer copy. The drawer coordinator fell from 1,077 to 625 lines by extracting the environment editor and reusable settings rows. Verification: 310 Swift behavior tests and the unsigned macOS app build passed. UI automation was not run.
+Settings now has one predictable reading order and remains usable when the drawer is narrower than two readable cards. General, coding agents, notifications, storage, and updates lead. Agent Panel, raw environment values, and telemetry remain available under Advanced. Support links live in About, and Settings no longer carries promotional links or decorative footer copy. The drawer coordinator fell from 1,077 to 637 lines by extracting the environment editor and reusable settings rows. Verification: 310 Swift behavior tests and the unsigned macOS app build passed. UI automation was not run.
 
 ## Utility navigation and drawer consistency
 
