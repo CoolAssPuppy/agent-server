@@ -330,6 +330,18 @@ private struct RunRow: View {
         isSelected ? Color.white.opacity(0.85) : theme.tokens.mutedForeground
     }
 
+    private var accessibilityPresentation: RunRowAccessibilityPresentation {
+        RunRowAccessibilityPresentation(
+            status: run.status.displayLabel,
+            date: run.startedAt.formatted(date: .long, time: .omitted),
+            time: run.startedAt.formatted(date: .omitted, time: .shortened),
+            turnCount: run.turnCount,
+            duration: run.duration.map(formatDuration),
+            estimatedCost: run.estimatedCostUsd.flatMap { $0 > 0 ? formatCost($0) : nil },
+            hasConversation: run.conversationId != nil
+        )
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: NSpacing.sm) {
             StatusIndicator(status: run.status)
@@ -357,6 +369,9 @@ private struct RunRow: View {
             }
         }
         .padding(.vertical, NSpacing.xxs)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityPresentation.label)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     /// Compact metric row: icon + number, no long labels. Keeps every item on

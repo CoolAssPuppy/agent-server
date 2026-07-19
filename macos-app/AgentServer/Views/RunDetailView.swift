@@ -1,13 +1,6 @@
 import SwiftUI
 import NerdsUI
 
-enum RunDetailTab: String, CaseIterable {
-    case activity = "Activity"
-    case logs = "Logs"
-    case decisions = "Decisions"
-    case information = "Information"
-}
-
 struct RunDetailView: View {
     let run: Run
     let logs: [PanelLog]
@@ -17,7 +10,8 @@ struct RunDetailView: View {
     var decisions: [Decision] = []
 
     @Environment(\.nTheme) private var theme
-    @State private var selectedTab: RunDetailTab = .activity
+    @State private var selectedTab: RunDetailTabKind = .activity
+    @FocusState private var focusedTab: RunDetailTabKind?
 
     private var runDecisionsViewModel: RunDecisionsViewModel {
         RunDecisionsViewModel(runId: run.runId, decisions: decisions)
@@ -236,8 +230,8 @@ struct RunDetailView: View {
         }
     }
 
-    private var visibleTabs: [RunDetailTab] {
-        RunDetailTab.allCases.filter { tab in
+    private var visibleTabs: [RunDetailTabKind] {
+        RunDetailTabKind.allCases.filter { tab in
             if tab == .decisions && runDecisionsViewModel.isEmpty { return false }
             return true
         }
@@ -248,8 +242,9 @@ struct RunDetailView: View {
             ForEach(visibleTabs, id: \.self) { tab in
                 Button {
                     selectedTab = tab
+                    focusedTab = tab
                 } label: {
-                    Text(tab.rawValue)
+                    Text(tab.title)
                         .font(NTypography.labelMedium)
                         .foregroundStyle(selectedTab == tab ? theme.tokens.foreground : theme.tokens.mutedForeground)
                         .padding(.horizontal, NSpacing.md)
@@ -258,11 +253,36 @@ struct RunDetailView: View {
                         .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
                 }
                 .buttonStyle(.plain)
+                .focused($focusedTab, equals: tab)
+                .accessibilityLabel("\(tab.title) tab")
+                .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
+                .accessibilityIdentifier("runDetail.tab.\(tab.rawValue)")
             }
             Spacer()
         }
         .padding(.horizontal, NSpacing.lg)
         .padding(.vertical, NSpacing.sm)
+        .onMoveCommand(perform: moveTabSelection)
+    }
+
+    private func moveTabSelection(_ direction: MoveCommandDirection) {
+        let moveDirection: RunDetailTabMoveDirection
+        switch direction {
+        case .left:
+            moveDirection = .previous
+        case .right:
+            moveDirection = .next
+        default:
+            return
+        }
+
+        let nextTab = RunDetailTabNavigation.move(
+            from: selectedTab,
+            direction: moveDirection,
+            available: visibleTabs
+        )
+        selectedTab = nextTab
+        focusedTab = nextTab
     }
 
     @ViewBuilder

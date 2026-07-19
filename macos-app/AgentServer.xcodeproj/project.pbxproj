@@ -60,6 +60,7 @@
 		73C2DE5F4E6148DE94C2F81C /* InfoTooltip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C80B8DFDFC46D7C1A5157D4 /* InfoTooltip.swift */; };
 		73C79F5A0B52F3E3BDD13A15 /* AgentFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ADE39E580F94F63F2070A8B /* AgentFile.swift */; };
 		73F6D71FD3F944966029972D /* AgentRunControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83F246615EB2840C0AAD020A /* AgentRunControl.swift */; };
+		A11CE001A11CE001A11CE001 /* RunAccessibilityPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11CE002A11CE002A11CE002 /* RunAccessibilityPresentation.swift */; };
 		75ACE5919755E3B0BF2CDC90 /* MainPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = B21BEF5E401D5885B7088847 /* MainPane.swift */; };
 		7811CF34DE952EEB05F3F917 /* CapabilityIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60FF47B3068DE16B2285FC43 /* CapabilityIconView.swift */; };
 		7A01C939E76AF850AAD3EC4E /* PanelRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1166D983A336A4F217C9282E /* PanelRun.swift */; };
@@ -256,6 +257,7 @@
 		BF167864F821C8B9892C0849 /* RunHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunHelpers.swift; sourceTree = "<group>"; };
 		BF267E78CF53DB3D651E8D62 /* AgentServer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AgentServer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C0AE4F8750CFC69C6D44996F /* NativeServiceGrantPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeServiceGrantPolicy.swift; sourceTree = "<group>"; };
+		A11CE002A11CE002A11CE002 /* RunAccessibilityPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunAccessibilityPresentation.swift; sourceTree = "<group>"; };
 		C15E607F9D1A278E69D84D77 /* AgentDebuggerFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentDebuggerFlow.swift; sourceTree = "<group>"; };
 		C1C9BFADC1AEB3CEFB05D566 /* AgentServerEventKit */ = {isa = PBXFileReference; includeInIndex = 0; path = AgentServerEventKit; sourceTree = BUILT_PRODUCTS_DIR; };
 		CA248DACCE7F0D7F58939FBF /* agent-server-failure.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = "agent-server-failure.aiff"; sourceTree = "<group>"; };
@@ -510,6 +512,7 @@
 				0FD3C4BF1D811F05450C0CF2 /* MenuBarDecisionsViewModel.swift */,
 				C0AE4F8750CFC69C6D44996F /* NativeServiceGrantPolicy.swift */,
 				FD0F9CC8F36CEDDEA44E1D44 /* NotificationPreferences.swift */,
+				A11CE002A11CE002A11CE002 /* RunAccessibilityPresentation.swift */,
 				4A846AEE9153B33BA7E15DB9 /* RunDecisionsViewModel.swift */,
 				25662F3E02815D79079DCF72 /* RunSelectionCoordinator.swift */,
 				14107F8E0B52FB9FF10E3A3B /* RunTerminalObserver.swift */,
@@ -811,6 +814,7 @@
 				2CDA922300E92E5825F5EEB1 /* PanelClient.swift in Sources */,
 				7A01C939E76AF850AAD3EC4E /* PanelRun.swift in Sources */,
 				FD1B10D564F93D1B6DD2DD0C /* PressableStyle.swift in Sources */,
+				A11CE001A11CE001A11CE001 /* RunAccessibilityPresentation.swift in Sources */,
 				0684663469A89D89CA00F022 /* RunDecisionsViewModel.swift in Sources */,
 				A965DC2A98A88151EDC11360 /* RunDetailGutter.swift in Sources */,
 				02C20F87D5C7526ABDB06C67 /* RunDetailTabs.swift in Sources */,

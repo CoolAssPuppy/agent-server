@@ -1,13 +1,35 @@
 import Foundation
 
-/// Sub-tab kinds for the run detail tab bar. Chunk 10 adds `.decisions` to the
-/// existing `activity / logs / output / details` set.
 enum RunDetailTabKind: String, CaseIterable {
     case activity
     case logs
-    case output
     case decisions
-    case details
+    case information
+
+    var title: String {
+        rawValue.capitalized
+    }
+}
+
+enum RunDetailTabMoveDirection {
+    case previous
+    case next
+}
+
+enum RunDetailTabNavigation {
+    static func move(
+        from current: RunDetailTabKind,
+        direction: RunDetailTabMoveDirection,
+        available: [RunDetailTabKind]
+    ) -> RunDetailTabKind {
+        guard let currentIndex = available.firstIndex(of: current) else {
+            return available.first ?? current
+        }
+
+        let candidateIndex = direction == .next ? currentIndex + 1 : currentIndex - 1
+        guard available.indices.contains(candidateIndex) else { return current }
+        return available[candidateIndex]
+    }
 }
 
 /// Drives the run detail **Decisions** sub-tab: splits decisions into pending

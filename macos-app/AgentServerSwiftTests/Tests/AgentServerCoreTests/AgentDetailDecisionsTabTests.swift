@@ -65,7 +65,28 @@ final class AgentDetailDecisionsTabTests: XCTestCase {
 
     func testRunDetailTabsIncludeDecisionsSubTab() {
         // Guards the enum contract used by RunDetailView tab picker.
-        let expected: Set<String> = ["activity", "logs", "output", "decisions", "details"]
+        let expected: Set<String> = ["activity", "logs", "decisions", "information"]
         XCTAssertEqual(Set(RunDetailTabKind.allCases.map(\.rawValue)), expected)
+    }
+
+    func testArrowNavigationMovesOnlyAmongVisibleTabsAndStopsAtEdges() {
+        let visible: [RunDetailTabKind] = [.activity, .logs, .information]
+
+        XCTAssertEqual(
+            RunDetailTabNavigation.move(from: .activity, direction: .next, available: visible),
+            .logs
+        )
+        XCTAssertEqual(
+            RunDetailTabNavigation.move(from: .logs, direction: .next, available: visible),
+            .information
+        )
+        XCTAssertEqual(
+            RunDetailTabNavigation.move(from: .information, direction: .next, available: visible),
+            .information
+        )
+        XCTAssertEqual(
+            RunDetailTabNavigation.move(from: .activity, direction: .previous, available: visible),
+            .activity
+        )
     }
 }

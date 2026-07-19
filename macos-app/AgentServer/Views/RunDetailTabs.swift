@@ -82,6 +82,15 @@ struct TimelineRow: View {
         return .secondary
     }
 
+    private var accessibilityPresentation: TimelineRowAccessibilityPresentation {
+        TimelineRowAccessibilityPresentation(
+            message: isToolUse ? formatToolName(displayMessage) : displayMessage,
+            kind: isToolUse ? .toolUse : (level == "error" ? .error : .update),
+            turn: turnsCompleted,
+            time: timestamp.map(Self.timeFormatter.string(from:))
+        )
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: NSpacing.md) {
             VStack(spacing: 0) {
@@ -133,6 +142,8 @@ struct TimelineRow: View {
             }
             .padding(.bottom, isLast ? 0 : NSpacing.sm)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityPresentation.label)
     }
 }
 
