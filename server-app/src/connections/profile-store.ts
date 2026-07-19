@@ -24,7 +24,10 @@ export type ConnectionProfileDraft = {
   transport: StdioTransportDraft | RemoteTransportDraft;
 };
 
-const EMPTY_REGISTRY = { schema_version: 1 as const, connections: [] };
+const EMPTY_REGISTRY: { schema_version: 1; connections: ConnectionProfile[] } = {
+  schema_version: 1,
+  connections: [],
+};
 
 function errorCode(error: unknown): string | undefined {
   if (typeof error !== 'object' || error === null || !('code' in error)) return undefined;

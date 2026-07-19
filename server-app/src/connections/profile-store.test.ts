@@ -2,14 +2,14 @@ import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createTempDir } from '../test-factories.js';
-import { ConnectionProfileStore } from './profile-store.js';
+import { ConnectionProfileStore, type ConnectionProfileDraft } from './profile-store.js';
 
-const draft = (label: string, environmentVariable: string) => ({
+const draft = (label: string, environmentVariable: string): ConnectionProfileDraft => ({
   label,
   adapter: { id: 'mcp.custom', version: 1 },
   credentials: [{ label: 'Token', environment_variable: environmentVariable, secret: true }],
   transport: {
-    kind: 'mcp_http' as const,
+    kind: 'mcp_http',
     url: 'https://service.example/mcp',
     headers: [{ name: 'Authorization', credential_index: 0, prefix: 'Bearer ' }],
   },

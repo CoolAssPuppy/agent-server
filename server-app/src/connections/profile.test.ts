@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { ConnectionProfileSchema } from './profile.js';
+import { ConnectionProfileSchema, type ConnectionProfile } from './profile.js';
 
-const profile = () => ({
-  schema_version: 1 as const,
+const profile = (): ConnectionProfile => ({
+  schema_version: 1,
   id: '018f47a2-9a13-7d61-bf4f-f9a5d8f67c21',
   label: 'Whatever I want to call this',
   adapter: { id: 'mcp.custom', version: 1 },
@@ -13,7 +13,7 @@ const profile = () => ({
     secret: true,
   }],
   transport: {
-    kind: 'mcp_stdio' as const,
+    kind: 'mcp_stdio',
     command: '/opt/homebrew/bin/example-mcp',
     args: ['serve'],
     environment: {
