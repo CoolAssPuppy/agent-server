@@ -19,7 +19,7 @@ import { isToolAllowed } from '../execution/permissions.js';
  *   adding their tools to `disallowed_tools` (deny wins in the SDK); MCP
  *   capabilities by adding the server-level `mcp__<name>` rule. This keeps
  *   every toggle reversible and hand-written YAML intact.
- * - A `permissions` block is authoritative when present. Local tool toggles
+ * - A `permissions` block is authoritative when present. Capability toggles
  *   update that policy so consumer controls match what the runtime enforces.
  */
 
@@ -281,6 +281,14 @@ function isToolEffectivelyAllowed(agent: AgentConfig, tool: string): boolean {
   return agent.tools.includes(tool);
 }
 
+function hasServerPermissionGrant(permissions: Permissions, serverKey: string): boolean {
+  const prefix = `mcp__${serverKey}`;
+  return permissions.allow.some(
+    (pattern) => pattern === '*' || pattern === 'mcp__*'
+      || pattern === prefix || pattern.startsWith(`${prefix}__`),
+  );
+}
+
 /**
  * Whether a `permissions` block grants any tool on an MCP server — i.e. an
  * `allow` pattern targets `mcp__<serverKey>__*` (or a broad wildcard). Deny
@@ -289,11 +297,8 @@ function isToolEffectivelyAllowed(agent: AgentConfig, tool: string): boolean {
  */
 function isServerAllowedByPermissions(agent: AgentConfig, serverKey: string): boolean {
   if (!agent.permissions) return false;
-  const prefix = `mcp__${serverKey}`;
-  const hasGrant = agent.permissions.allow.some(
-    (p) => p === '*' || p === 'mcp__*' || p === prefix || p.startsWith(`${prefix}__`),
-  );
-  return hasGrant && !agent.permissions.deny.includes(`${prefix}__*`);
+  return hasServerPermissionGrant(agent.permissions, serverKey)
+    && !agent.permissions.deny.includes(`mcp__${serverKey}__*`);
 }
 
 function serverRule(serverKey: string): string {
@@ -678,12 +683,7 @@ export function applyCapabilityChanges(
     const beforeDeny = permissions.deny.length;
     if (enabled) {
       removeAll(permissions.deny, [rule]);
-      const prefix = serverRule(serverKey);
-      const hasGrant = permissions.allow.some(
-        (pattern) => pattern === '*' || pattern === 'mcp__*'
-          || pattern === prefix || pattern.startsWith(`${prefix}__`),
-      );
-      if (!hasGrant) addUnique(permissions.allow, rule);
+      if (!hasServerPermissionGrant(permissions, serverKey)) addUnique(permissions.allow, rule);
     } else {
       addUnique(permissions.deny, rule);
     }
