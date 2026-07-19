@@ -822,3 +822,19 @@ Review:
 - The monitor keeps polling its live snapshot while demo fixtures are shown, then restores that snapshot when Demo Mode is disabled.
 - Agent writes, run actions, connection key writes, and security requests are suppressed for demo fixtures.
 - Verification: 235 Swift behavior tests passed and the unsigned macOS Debug build succeeded. No UI automation was run.
+
+## Creation and security timeout reliability
+
+- [x] Keep a valid model proposal when all of its required questions were already answered.
+- [x] Bound semantic security analysis so deterministic findings still return when the model stalls.
+- [x] Give security analysis routes enough client time to complete their bounded work.
+- [x] Bump local API compatibility so the app replaces an older server process.
+- [x] Add regression tests first and run full verification.
+
+### Creation and security timeout review
+
+- Answered model questions are removed from the proposal while the rest of the validated model output is retained.
+- Semantic security review has a four-second deadline. A timeout returns deterministic findings with a timed-out model status instead of failing the whole security check.
+- macOS security analysis and scan requests allow 15 seconds; review writes keep the ordinary five-second limit.
+- Local API version 4 forces the app to replace older server processes that do not have these reliability contracts.
+- Verification: 1,147 server tests, 235 Swift tests, TypeScript type-check and build, and the unsigned macOS build passed. UI automation was not run.

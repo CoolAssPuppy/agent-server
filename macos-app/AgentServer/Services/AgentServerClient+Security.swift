@@ -20,7 +20,11 @@ extension AgentServerClient {
     private func securityRequest<Response: Decodable>(
         _ route: SecurityServerRoute
     ) async throws -> Response {
-        try await routeRequest(path: route.path, method: route.method)
+        try await routeRequest(
+            path: route.path,
+            method: route.method,
+            timeoutInterval: route.timeoutInterval
+        )
     }
 
     private func securityRequest<Response: Decodable, Body: Encodable>(
@@ -30,7 +34,8 @@ extension AgentServerClient {
         try await routeRequest(
             path: route.path,
             method: route.method,
-            bodyData: JSONEncoder().encode(body)
+            bodyData: JSONEncoder().encode(body),
+            timeoutInterval: route.timeoutInterval
         )
     }
 }

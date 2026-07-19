@@ -622,22 +622,33 @@ export async function createAgentProposal(input: CreateProposalInput): Promise<P
       const parsedProposal = parseModelValue(value);
       const withFiles = parsedProposal ? applyConfirmedFileAccess(parsedProposal, request) : undefined;
       const withNativeAccess = withFiles ? applyConfirmedNativeAccess(withFiles, request) : undefined;
-      if (withNativeAccess && (withNativeAccess.missing_information.length > 0
-        || withNativeAccess.questions.some((question) => question.required))) {
+      let resolvedProposal = withNativeAccess;
+      if (resolvedProposal && (resolvedProposal.missing_information.length > 0
+        || resolvedProposal.questions.some((question) => question.required))) {
         const answeredIds = new Set(request.answers.map((answer) => answer.question_id));
-        const unansweredQuestions = withNativeAccess.questions.filter((question) => (
+        const requiredQuestions = resolvedProposal.questions.filter((question) => question.required);
+        const unansweredQuestions = requiredQuestions.filter((question) => (
           question.required && !answeredIds.has(question.id)
         ));
-        if (unansweredQuestions.length === 0) continue;
-        return {
-          status: 'needs_information',
-          questions: unansweredQuestions,
-          explanation: withNativeAccess.explanation,
-          usedFallback: false,
-          modelStatus: 'completed',
+        if (unansweredQuestions.length > 0) {
+          return {
+            status: 'needs_information',
+            questions: unansweredQuestions,
+            explanation: resolvedProposal.explanation,
+            usedFallback: false,
+            modelStatus: 'completed',
+          };
+        }
+        if (requiredQuestions.length === 0) continue;
+        resolvedProposal = {
+          ...resolvedProposal,
+          missing_information: [],
+          questions: resolvedProposal.questions.filter((question) => !answeredIds.has(question.id)),
         };
       }
-      const withConnections = withNativeAccess ? applyAuthoritativeConnections(withNativeAccess, request) : undefined;
+      const withConnections = resolvedProposal
+        ? applyAuthoritativeConnections(resolvedProposal, request)
+        : undefined;
       const proposal = withConnections ? applyDeterministicRisk(withConnections) : undefined;
       if (proposal) {
         return { status: 'proposal', proposal, usedFallback: false };

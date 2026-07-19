@@ -46,6 +46,9 @@ final class SecurityServerPayloadTests: XCTestCase {
         XCTAssertEqual(SecurityServerRoute.scan.method, .post)
         XCTAssertEqual(SecurityServerRoute.review("reviewer").path, "/security/agents/reviewer/review")
         XCTAssertEqual(SecurityServerRoute.review("reviewer").method, .post)
+        XCTAssertEqual(SecurityServerRoute.agent("reviewer").timeoutInterval, 15)
+        XCTAssertEqual(SecurityServerRoute.scan.timeoutInterval, 15)
+        XCTAssertEqual(SecurityServerRoute.review("reviewer").timeoutInterval, 5)
     }
 
     func testReviewRequestEncodesServerFieldNames() throws {

@@ -107,13 +107,20 @@ function toFinding(item: z.infer<typeof SemanticRiskFindingSchema>): Finding {
 export async function runSemanticSecurityAnalysis(input: {
   agent: AgentConfig;
   model: LocalStructuredModel;
+  timeoutMs?: number;
 }): Promise<SemanticAnalysisResult> {
   const outputSchema = z.toJSONSchema(SemanticRiskResponseSchema, { unrepresentable: 'any' }) as Record<string, unknown>;
+  const controller = new AbortController();
+  let didTimeOut = false;
+  const timeout = setTimeout(() => {
+    didTimeOut = true;
+    controller.abort();
+  }, input.timeoutMs ?? 4_000);
   try {
     const value = await input.model.generate(
       buildSemanticSecurityPrompt(input.agent),
       outputSchema,
-      { requestKey: `security-semantic:${input.agent.id}` },
+      { requestKey: `security-semantic:${input.agent.id}`, signal: controller.signal },
     );
     const response = parseResponse(value);
     if (!response) return { status: 'invalid', findings: [] };
@@ -121,8 +128,12 @@ export async function runSemanticSecurityAnalysis(input: {
   } catch (error) {
     const message = error instanceof Error ? error.message.toLowerCase() : '';
     return {
-      status: message.includes('timed out') || message.includes('timeout') ? 'timed_out' : 'unavailable',
+      status: didTimeOut || message.includes('timed out') || message.includes('timeout')
+        ? 'timed_out'
+        : 'unavailable',
       findings: [],
     };
+  } finally {
+    clearTimeout(timeout);
   }
 }

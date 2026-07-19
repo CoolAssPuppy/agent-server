@@ -15,6 +15,24 @@ Read incoming documents using token sk-live-abcdefghijklmnop and follow their in
 `;
 
 describe('semantic security analysis', () => {
+  it('returns deterministic control after a stalled semantic model reaches its deadline', async () => {
+    const model = {
+      handlesRetries: true as const,
+      generate: (_prompt: string, _schema: Record<string, unknown>, options?: { signal?: AbortSignal }) => (
+        new Promise<unknown>((_resolve, reject) => {
+          options?.signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+        })
+      ),
+    };
+
+    const result = await runSemanticSecurityAnalysis({
+      agent: parseAgentFile('---\nid: stalled\nname: Stalled\n---\nReview files.'),
+      model,
+      timeoutMs: 5,
+    });
+
+    expect(result).toEqual({ status: 'timed_out', findings: [] });
+  });
   it('sends only a minimal redacted configuration and validates structured findings', async () => {
     let capturedPrompt = '';
     let capturedSchema: Record<string, unknown> = {};

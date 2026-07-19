@@ -17,6 +17,13 @@ public enum SecurityServerRoute: Equatable, Sendable {
         }
     }
 
+    public var timeoutInterval: TimeInterval {
+        switch self {
+        case .agent, .scan: return 15
+        case .review: return 5
+        }
+    }
+
     public var path: String {
         switch self {
         case .agent(let id): return "/security/agents/\(Self.pathSegment(id))"

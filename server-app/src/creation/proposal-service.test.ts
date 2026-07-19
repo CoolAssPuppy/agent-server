@@ -797,7 +797,7 @@ describe('guided agent proposal creation', () => {
     expect(result.proposal.permissions.requires_network).toBe(false);
   });
 
-  it('does not repeat a model question that the user already answered', async () => {
+  it('keeps a valid model proposal after removing a question the user already answered', async () => {
     const stale = validProposal();
     stale.connections = [];
     stale.notification_destination = null;
@@ -827,7 +827,7 @@ describe('guided agent proposal creation', () => {
       model: modelReturning(stale, stale).model,
     });
 
-    expect(result).toMatchObject({ status: 'proposal', usedFallback: true });
+    expect(result).toMatchObject({ status: 'proposal', usedFallback: false });
     if (result.status !== 'proposal') throw new Error('Expected proposal');
     expect(result.proposal.questions).toEqual([]);
     expect(result.proposal.missing_information).toEqual([]);
