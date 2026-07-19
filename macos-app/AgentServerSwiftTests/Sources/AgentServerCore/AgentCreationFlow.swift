@@ -281,7 +281,7 @@ public struct AgentCreationFlow: Equatable, Sendable {
     public mutating func didSave(_ result: SavedAgentPresentation) {
         savedAgent = result
         hasSaved = true
-        phase = shouldRunSafeTest ? .testing : .complete
+        phase = shouldRunSafeTest && result.safeTestRunId != nil ? .testing : .complete
     }
 
     public mutating func updateSafeTest(_ state: SafeTestRunState) {

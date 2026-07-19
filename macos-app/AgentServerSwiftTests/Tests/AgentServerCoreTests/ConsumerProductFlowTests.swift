@@ -331,6 +331,17 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertNil(flow.failedSafeTestRunId)
     }
 
+    func testMissingSafeTestRunIdentifierCannotLeaveCreationStuck() {
+        var flow = AgentCreationFlow(request: "Send a weekly summary")
+        flow.receiveProposal(.fixture())
+        flow.beginSave(runSafeTest: true)
+
+        flow.didSave(SavedAgentPresentation(agentId: "weekly-summary", safeTestRunId: nil))
+
+        XCTAssertEqual(flow.phase, .complete)
+        XCTAssertTrue(flow.hasSaved)
+    }
+
     func testSavedAgentResultKeepsTheSafeTestRunVisible() {
         let result = SavedAgentPresentation(agentId: "weekly-summary", safeTestRunId: "run-2")
 
