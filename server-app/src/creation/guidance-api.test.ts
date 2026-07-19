@@ -379,7 +379,10 @@ describe('consumer guidance API', () => {
     expect(response.status).toBe(201);
     expect(writer.createReviewed).toHaveBeenCalledWith(expect.objectContaining({
       mcp_servers: { 'notion-personal': config },
-      permissions: expect.objectContaining({ allow: expect.arrayContaining(['mcp__notion_personal__*']) }),
+      permissions: expect.objectContaining({ allow: expect.arrayContaining([
+        'mcp__notion-personal__API-query-data-source',
+        'mcp__notion-personal__API-post-page',
+      ]) }),
     }));
   });
 

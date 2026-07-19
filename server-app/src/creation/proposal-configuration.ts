@@ -1,6 +1,7 @@
 import type { AgentConfig } from '../agents/config.js';
 import { mcpServerKey } from '../agents/capabilities.js';
 import type { McpServerConfig } from '../agents/config.js';
+import { mcpServicePermissionTools } from '../agents/mcp-service-profile.js';
 import type { CreationProposal } from './proposal-schema.js';
 import { dirname } from 'node:path';
 
@@ -12,11 +13,6 @@ const CALENDAR_WRITE_TOOLS = ['mcp__eventkit__create_event', 'mcp__eventkit__upd
 const REMINDER_READ_TOOLS = ['mcp__eventkit__list_reminder_lists', 'mcp__eventkit__list_reminders'] as const;
 const REMINDER_CREATE_TOOL = 'mcp__eventkit__create_reminder';
 const REMINDER_COMPLETE_TOOL = 'mcp__eventkit__complete_reminder';
-
-function serviceToolPattern(id: string): string | undefined {
-  const normalized = mcpServerKey(id);
-  return normalized.length > 0 ? `mcp__${normalized}__*` : undefined;
-}
 
 export type ProposalServiceBinding = {
   id: string;
@@ -58,8 +54,11 @@ function explicitToolAllowlist(
   }
   if (proposal.permissions.can_use_connected_apps) {
     proposal.connections.filter((connection) => connection.required).forEach((connection) => {
-      const tool = serviceToolPattern(bindings.get(connection.id)?.serverName ?? connection.id);
-      if (tool) allow.add(tool);
+      const binding = bindings.get(connection.id);
+      const serverKey = binding?.config
+        ? binding.serverName
+        : mcpServerKey(binding?.serverName ?? connection.id);
+      mcpServicePermissionTools(serverKey, binding?.config).forEach((tool) => allow.add(tool));
     });
   }
   return [...allow];

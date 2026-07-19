@@ -44,3 +44,4 @@
 - Lossless configuration editing means byte preservation outside the exact changed nodes. Parsing and serializing a full YAML document can preserve meaning while still creating an unacceptable diff.
 - Long-running status should replace the result inside its existing card while surrounding navigation and lists stay put. Whole-view swaps make a background operation feel like a different screen.
 - Connection readiness must come from the named connection instance, not a generic service catalog entry. Preserve Personal, Work, and other account identities, and expose only the environment variable names required to edit them locally.
+- A connection label is presentation metadata, not a provider identifier, environment-variable convention, or tool namespace. Bind behavior to an opaque ID, reviewed transport, credential references, and discovered operations so users can name and group connections however they choose.

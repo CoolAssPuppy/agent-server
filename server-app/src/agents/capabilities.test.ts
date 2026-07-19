@@ -112,7 +112,28 @@ describe('deriveCapabilities', () => {
     expect(notion.server_name).toBe('notion-personal');
   });
 
-  it('enables an mcp capability granted through a permissions block', () => {
+  it('uses the exact environment reference from a named server connection', () => {
+    const agent = makeAgent({
+      mcp_servers: {
+        'notion-personal': {
+          command: 'npx',
+          args: ['-y', '@notionhq/notion-mcp-server'],
+          env: { NOTION_TOKEN: '${NOTION_PERSONAL_API_KEY}' },
+        },
+      },
+    });
+
+    const ready = capability(agent, 'notion', { NOTION_PERSONAL_API_KEY: 'configured' });
+    expect(ready.required_env).toEqual(['NOTION_PERSONAL_API_KEY']);
+    expect(ready.env_ready).toBe(true);
+    expect(ready.server_name).toBe('notion-personal');
+
+    const missing = capability(agent, 'notion', { NOTION_API_KEY: 'wrong-account' });
+    expect(missing.required_env).toEqual(['NOTION_PERSONAL_API_KEY']);
+    expect(missing.env_ready).toBe(false);
+  });
+
+  it('does not report a connection ready when its grants name tools that it does not expose', () => {
     // Mirrors a hand-written agent that uses permissions (allow/deny globs)
     // rather than the tools allowlist — the tools list here is non-empty but
     // does not mention Notion, so only the permissions block grants it.
@@ -124,7 +145,7 @@ describe('deriveCapabilities', () => {
         deny: ['mcp__notion-personal__notion-update-*'],
       },
     });
-    expect(capability(agent, 'notion').enabled).toBe(true);
+    expect(capability(agent, 'notion').enabled).toBe(false);
     expect(capability(agent, 'read-files').enabled).toBe(true);
     // A service the agent never references (no server, no key, no connector)
     // does not appear at all.
@@ -411,6 +432,54 @@ describe('applyCapabilityChanges', () => {
     });
     const updates = applyCapabilityChanges(agent, [{ id: 'notion', enabled: false }], EMPTY_ENV);
     expect(updates.disallowed_tools).toEqual(['mcp__notion-personal']);
+  });
+
+  it('grants the real least-privilege tools exposed by Personal Notion', () => {
+    const agent = makeAgent({
+      mcp_servers: {
+        'notion-personal': {
+          command: 'npx',
+          args: ['-y', '@notionhq/notion-mcp-server'],
+          env: { NOTION_TOKEN: '${NOTION_PERSONAL_API_KEY}' },
+        },
+      },
+      permissions: {
+        allow: ['Read', 'mcp__notion-personal__notion-create-pages'],
+        deny: ['mcp__notion-personal__*'],
+      },
+    });
+
+    const updates = applyCapabilityChanges(
+      agent,
+      [{ id: 'notion', enabled: true }],
+      { NOTION_PERSONAL_API_KEY: 'configured' },
+    );
+
+    expect(updates.permissions?.allow).toEqual(expect.arrayContaining([
+      'mcp__notion-personal__API-query-data-source',
+      'mcp__notion-personal__API-post-page',
+    ]));
+    expect(updates.permissions?.allow).not.toContain('mcp__notion-personal__*');
+    expect(updates.permissions?.deny).not.toContain('mcp__notion-personal__*');
+  });
+
+  it('rejects enabling a named connection when its exact key is missing', () => {
+    const agent = makeAgent({
+      mcp_servers: {
+        'notion-personal': {
+          command: 'npx',
+          args: ['-y', '@notionhq/notion-mcp-server'],
+          env: { NOTION_TOKEN: '${NOTION_PERSONAL_API_KEY}' },
+        },
+      },
+    });
+
+    expect(() => applyCapabilityChanges(agent, [{ id: 'notion', enabled: true }], {
+      NOTION_API_KEY: 'wrong-account',
+    })).toThrow(expect.objectContaining({
+      code: 'missing_env',
+      missingEnv: ['NOTION_PERSONAL_API_KEY'],
+    }));
   });
 
   it('toggles custom mcp capabilities by id', () => {

@@ -1013,7 +1013,12 @@ describe('guided agent proposal creation', () => {
     );
 
     expect(agent.mcp_servers).toEqual({ 'notion-personal': binding.config });
-    expect(agent.permissions?.allow).toContain('mcp__notion_personal__*');
+    expect(agent.permissions?.allow).toEqual(expect.arrayContaining([
+      'mcp__notion-personal__API-query-data-source',
+      'mcp__notion-personal__API-post-page',
+    ]));
+    expect(agent.permissions?.allow).not.toContain('mcp__notion-personal__API-delete-a-block');
+    expect(agent.permissions?.allow).not.toContain('mcp__notion_personal__*');
     expect(agent.permissions?.allow).not.toContain('mcp__mcp_notion_personal_abc123__*');
   });
 

@@ -1,5 +1,6 @@
 import type { AgentConfig, McpServerConfig, Permissions } from './config.js';
 import { isToolAllowed } from '../execution/permissions.js';
+import { mcpEnvironmentReferences, mcpServicePermissionTools } from './mcp-service-profile.js';
 
 /**
  * The capability catalog is the translation layer between agent YAML
@@ -281,26 +282,6 @@ function isToolEffectivelyAllowed(agent: AgentConfig, tool: string): boolean {
   return agent.tools.includes(tool);
 }
 
-function hasServerPermissionGrant(permissions: Permissions, serverKey: string): boolean {
-  const prefix = `mcp__${serverKey}`;
-  return permissions.allow.some(
-    (pattern) => pattern === '*' || pattern === 'mcp__*'
-      || pattern === prefix || pattern.startsWith(`${prefix}__`),
-  );
-}
-
-/**
- * Whether a `permissions` block grants any tool on an MCP server — i.e. an
- * `allow` pattern targets `mcp__<serverKey>__*` (or a broad wildcard). Deny
- * rules only narrow which tools are usable; as long as something on the server
- * is allowed, the capability is on.
- */
-function isServerAllowedByPermissions(agent: AgentConfig, serverKey: string): boolean {
-  if (!agent.permissions) return false;
-  return hasServerPermissionGrant(agent.permissions, serverKey)
-    && !agent.permissions.deny.includes(`mcp__${serverKey}__*`);
-}
-
 function serverRule(serverKey: string): string {
   return `mcp__${serverKey}`;
 }
@@ -406,9 +387,14 @@ function isMcpToolName(tool: string): boolean {
 }
 
 /** Permission-aware on/off state for an MCP server the agent can reach. */
-function isServerEnabled(agent: AgentConfig, serverKey: string): boolean {
-  return agent.permissions
-    ? isServerAllowedByPermissions(agent, serverKey)
+function isServerEnabled(
+  agent: AgentConfig,
+  serverKey: string,
+  permissionTools: string[] = [serverPermissionRule(serverKey)],
+): boolean {
+  const permissions = agent.permissions;
+  return permissions
+    ? permissionTools.some((tool) => isToolAllowed(tool, permissions))
     : !isServerDisallowed(agent, serverKey) && isServerCoveredByAllowlist(agent, serverKey);
 }
 
@@ -474,6 +460,9 @@ export function deriveCapabilities(
     // "Configured but not wired in" reads as available-yet-off: env is ready but
     // there is no server entry, connector, or builtin backing it on this agent.
     const present = Boolean(existingKey) || Boolean(connector) || Boolean(def.builtin);
+    const existingConfig = existingKey ? agent.mcp_servers?.[existingKey] : undefined;
+    const exactRequiredEnv = existingConfig ? mcpEnvironmentReferences(existingConfig) : [];
+    const requiredEnv = exactRequiredEnv.length > 0 ? exactRequiredEnv : def.requiredEnv ?? [];
     result.push({
       id: def.id,
       label: def.label,
@@ -481,10 +470,14 @@ export function deriveCapabilities(
       icon: def.icon,
       kind: 'mcp',
       auth: resolveAuth(def),
-      enabled: present && isServerEnabled(agent, serverKey),
+      enabled: present && isServerEnabled(
+        agent,
+        serverKey,
+        mcpServicePermissionTools(serverKey, existingConfig),
+      ),
       custom: false,
-      required_env: def.requiredEnv ?? [],
-      env_ready: envReady(def, env),
+      required_env: requiredEnv,
+      env_ready: requiredEnv.every((name) => Boolean(env[name]?.trim())),
       server_name: serverKey,
       ...(connector ? { status: connector.status } : {}),
     });
@@ -677,14 +670,18 @@ export function applyCapabilityChanges(
     }
   };
 
-  const setPermissionServer = (serverKey: string, enabled: boolean): void => {
+  const setPermissionServer = (
+    serverKey: string,
+    enabled: boolean,
+    permissionTools: string[] = [serverPermissionRule(serverKey)],
+  ): void => {
     if (!permissions) return;
     const rule = serverPermissionRule(serverKey);
     const beforeAllow = permissions.allow.length;
     const beforeDeny = permissions.deny.length;
     if (enabled) {
       removeAll(permissions.deny, [rule]);
-      if (!hasServerPermissionGrant(permissions, serverKey)) addUnique(permissions.allow, rule);
+      for (const tool of permissionTools) addUnique(permissions.allow, tool);
     } else {
       addUnique(permissions.deny, rule);
     }
@@ -693,8 +690,8 @@ export function applyCapabilityChanges(
     }
   };
 
-  const enableServer = (serverKey: string): void => {
-    setPermissionServer(serverKey, true);
+  const enableServer = (serverKey: string, config?: McpServerConfig): void => {
+    setPermissionServer(serverKey, true, mcpServicePermissionTools(serverKey, config));
     const beforeD = disallowed.length;
     removeAll(disallowed, [serverRule(serverKey)]);
     markDisallowed(beforeD);
@@ -790,13 +787,23 @@ export function applyCapabilityChanges(
     const serverKey =
       existingKey ?? (connector ? mcpServerKey(connector.name) : def.serverName ?? def.id);
     if (change.enabled) {
+      const existingConfig = existingKey ? servers[existingKey] : undefined;
+      const exactRequiredEnv = existingConfig ? mcpEnvironmentReferences(existingConfig) : [];
+      const missing = exactRequiredEnv.filter((name) => !env[name]?.trim());
+      if (missing.length > 0) {
+        throw new CapabilityError(
+          `Capability "${def.id}" needs environment variables: ${missing.join(', ')}`,
+          'missing_env',
+          missing,
+        );
+      }
       // Write a bring-your-own server only when the service is not already
       // declared, not a builtin, and not reachable as an account connector.
       if (!existingKey && !def.builtin && !connector) {
         servers[serverKey] = buildServerConfig(def, env);
         serversChanged = true;
       }
-      enableServer(serverKey);
+      enableServer(serverKey, existingConfig ?? (!connector ? servers[serverKey] : undefined));
     } else {
       disableServer(serverKey);
     }

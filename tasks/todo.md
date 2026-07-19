@@ -20,6 +20,24 @@ Status: Native service integration and final release verification are complete.
 - Verification: 1,153 server tests, 246 Swift behavior tests, TypeScript type-check and build, and the unsigned macOS app build passed. UI automation was not run.
 - Post-commit simplification moved reusable connection rows and the key-editing sheet out of the main drawer view. The focused files are 335 and 303 lines, with the same 246 Swift tests and unsigned app build passing.
 
+## Generic connection platform
+
+- [x] Separate a user-chosen connection label from runtime behavior and credential variable names.
+- [x] Define opaque connection identity, arbitrary credential references, transport configuration, capability discovery, and reviewed agent grants.
+- [x] Compile the current Personal Notion transport into exact real operations instead of tools from a different Notion connection.
+- [ ] Persist workspace-local connection definitions containing references but no secret values.
+- [ ] Add adoption for existing inline MCP configurations and loose `.env` credential references.
+- [ ] Add the guided macOS flow for templates and custom connections, testing, discovered actions, and agent selection.
+- [ ] Update canonical source agents under `~/Developer/brain`, regenerate, verify, and review diffs.
+
+### Connection platform decisions
+
+- Labels are user-owned presentation text. Renaming a connection cannot change its credentials, transport, tools, agent bindings, or runtime identity.
+- Templates provide defaults only. Custom MCP, OpenAPI, manual API, and native adapters use the same opaque connection and operation models.
+- Credential values remain in `~/.agent-server/.env`. Connection records store only environment variable references.
+- Configured operations come from transport discovery or versioned adapter declarations. Unknown operations remain unavailable until reviewed.
+- The Connections drawer serves technical knowledge workers with guided defaults plus expandable environment, transport, endpoint, command, inventory, and exact grant details.
+
 ## Utility navigation and drawer consistency
 
 - [x] Put Security check, Connections, and Settings in one bottom-right icon cluster in that order.
