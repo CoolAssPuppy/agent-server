@@ -76,6 +76,42 @@ describe('AgentConfigSchema', () => {
 
     expect(result.success).toBe(false);
   });
+
+  it('rejects unknown required output fields that would not be enforced', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'daily-report',
+      name: 'Daily report',
+      prompt: 'Create the daily report.',
+      output: {
+        primary: {
+          description: 'Create the report',
+          tool: 'mcp__notion__create_page',
+          required: true,
+          destination_id: 'not-an-enforced-field',
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it.each(['', '   '])('rejects an empty required output target value (%j)', (equals) => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'daily-report',
+      name: 'Daily report',
+      prompt: 'Create the daily report.',
+      output: {
+        primary: {
+          description: 'Create the report',
+          tool: 'mcp__notion__create_page',
+          required: true,
+          target_match: { field: 'data_source_id', equals },
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
   it('validates a minimal config', () => {
     const result = AgentConfigSchema.safeParse({
       id: 'test',

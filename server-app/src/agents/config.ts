@@ -62,7 +62,7 @@ const OutputCallRangeSchema = z.object({
 
 const OutputTargetMatchSchema = z.object({
   field: z.string().trim().min(1).max(120),
-  equals: z.union([z.string().max(2_048), z.number().finite(), z.boolean()]),
+  equals: z.union([z.string().trim().min(1).max(2_048), z.number().finite(), z.boolean()]),
 }).strict();
 
 const OutputPrimarySchema = z.object({
@@ -73,7 +73,7 @@ const OutputPrimarySchema = z.object({
   successful_calls: OutputCallRangeSchema.optional(),
   target_match: OutputTargetMatchSchema.optional(),
   update_tool: z.string().trim().min(1).max(240).optional(),
-}).passthrough();
+}).strict();
 
 export const AgentOutputSchema = z.object({
   primary: OutputPrimarySchema,
