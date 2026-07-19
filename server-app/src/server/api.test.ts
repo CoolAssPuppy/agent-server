@@ -159,6 +159,8 @@ describe('API routes', () => {
           list: vi.fn(async () => [connection]),
           create: vi.fn(),
           rename: vi.fn(),
+          duplicate: vi.fn(),
+          remove: vi.fn(),
         },
       });
 
@@ -187,7 +189,9 @@ describe('API routes', () => {
         getAgents: async () => [],
         store,
         triggerRun,
-        connectionProfiles: { list: vi.fn(), create, rename: vi.fn() },
+        connectionProfiles: {
+          list: vi.fn(), create, rename: vi.fn(), duplicate: vi.fn(), remove: vi.fn(),
+        },
       });
       const draft = {
         label: 'No prescribed nomenclature',
@@ -216,7 +220,9 @@ describe('API routes', () => {
         getAgents: async () => [],
         store,
         triggerRun,
-        connectionProfiles: { list: vi.fn(), create, rename: vi.fn() },
+        connectionProfiles: {
+          list: vi.fn(), create, rename: vi.fn(), duplicate: vi.fn(), remove: vi.fn(),
+        },
       });
 
       const response = await authenticatedRequest(app, '/connection-profiles', {
@@ -235,6 +241,145 @@ describe('API routes', () => {
       expect(response.status).toBe(400);
       expect(create).not.toHaveBeenCalled();
       expect(JSON.stringify(await response.json())).not.toContain('secret');
+    });
+
+    it('renames a profile without accepting changes to its technical configuration', async () => {
+      const rename = vi.fn(async (_id: string, label: string) => ({ id: 'profile-1', label }));
+      const app = createApi({
+        getAgents: async () => [],
+        store,
+        triggerRun,
+        connectionProfiles: {
+          list: vi.fn(), create: vi.fn(), rename, duplicate: vi.fn(), remove: vi.fn(),
+        },
+      });
+
+      const response = await authenticatedRequest(app, '/connection-profiles/profile-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: 'Personal research' }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(rename).toHaveBeenCalledWith('profile-1', 'Personal research');
+
+      const unsafe = await authenticatedRequest(app, '/connection-profiles/profile-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: 'Unsafe', runtime_name: 'changed' }),
+      });
+      expect(unsafe.status).toBe(400);
+    });
+
+    it('duplicates a profile under a new presentation label', async () => {
+      const duplicate = vi.fn(async (_id: string, label: string) => ({ id: 'profile-2', label }));
+      const app = createApi({
+        getAgents: async () => [],
+        store,
+        triggerRun,
+        connectionProfiles: {
+          list: vi.fn(), create: vi.fn(), rename: vi.fn(), duplicate, remove: vi.fn(),
+        },
+      });
+
+      const response = await authenticatedRequest(app, '/connection-profiles/profile-1/duplicate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: 'Personal research copy' }),
+      });
+
+      expect(response.status).toBe(201);
+      expect(duplicate).toHaveBeenCalledWith('profile-1', 'Personal research copy');
+    });
+
+    it('checks local readiness without returning credential values', async () => {
+      const connection = {
+        schema_version: 1 as const,
+        id: '018f47a2-9a13-7d61-bf4f-f9a5d8f67c21',
+        label: 'Reports',
+        adapter: { id: 'mcp.custom', version: 1 },
+        runtime_name: 'connection_018f47a29a137d61bf4ff9a5d8f67c21',
+        credentials: [{
+          id: '018f47a2-9a13-7d61-bf4f-f9a5d8f67c22',
+          label: 'Token',
+          environment_variable: 'REPORTS_TOKEN',
+          secret: true,
+        }],
+        transport: { kind: 'mcp_http' as const, url: 'https://example.com/mcp', headers: [] },
+        created_at: '2026-07-19T18:00:00.000Z',
+        updated_at: '2026-07-19T18:00:00.000Z',
+      };
+      const app = createApi({
+        getAgents: async () => [],
+        store,
+        triggerRun,
+        getEnv: () => ({ REPORTS_TOKEN: 'must-not-leak' }),
+        connectionProfiles: {
+          list: vi.fn(async () => [connection]),
+          create: vi.fn(), rename: vi.fn(), duplicate: vi.fn(), remove: vi.fn(),
+        },
+      });
+
+      const response = await authenticatedRequest(
+        app,
+        '/connection-profiles/018f47a2-9a13-7d61-bf4f-f9a5d8f67c21/check',
+        { method: 'POST' },
+      );
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body).toEqual({ status: 'ready', missing_credentials: [] });
+      expect(JSON.stringify(body)).not.toContain('must-not-leak');
+    });
+
+    it('fails closed when removing a profile referenced by agents', async () => {
+      const remove = vi.fn();
+      const app = createApi({
+        getAgents: async () => [makeAgent({
+          id: 'daily-brief',
+          name: 'Daily brief',
+          connection_bindings: { reports: '018f47a2-9a13-7d61-bf4f-f9a5d8f67c21' },
+        })],
+        store,
+        triggerRun,
+        connectionProfiles: {
+          list: vi.fn(), create: vi.fn(), rename: vi.fn(), duplicate: vi.fn(), remove,
+        },
+      });
+
+      const response = await authenticatedRequest(
+        app,
+        '/connection-profiles/018f47a2-9a13-7d61-bf4f-f9a5d8f67c21',
+        { method: 'DELETE' },
+      );
+
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual({
+        error: 'This connection is still used by 1 agent.',
+        code: 'connection_in_use',
+        agents: [{ id: 'daily-brief', name: 'Daily brief' }],
+      });
+      expect(remove).not.toHaveBeenCalled();
+    });
+
+    it('removes an unreferenced profile', async () => {
+      const remove = vi.fn(async () => undefined);
+      const app = createApi({
+        getAgents: async () => [],
+        store,
+        triggerRun,
+        connectionProfiles: {
+          list: vi.fn(), create: vi.fn(), rename: vi.fn(), duplicate: vi.fn(), remove,
+        },
+      });
+
+      const response = await authenticatedRequest(app, '/connection-profiles/profile-1', {
+        method: 'DELETE',
+      });
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ success: true, connection_id: 'profile-1' });
+      expect(remove).toHaveBeenCalledWith('profile-1');
     });
   });
 

@@ -56,4 +56,38 @@ describe('ConnectionProfileStore', () => {
       transport: original.transport,
     });
   });
+
+  it('duplicates configuration with new opaque profile and credential identities', async () => {
+    const store = new ConnectionProfileStore(join(createTempDir('connections'), 'connections.json'));
+    const original = await store.create(draft('Personal workspace', 'PERSONAL_TOKEN'));
+
+    const duplicate = await store.duplicate(original.id, 'Book research');
+
+    expect(duplicate).toMatchObject({
+      label: 'Book research',
+      adapter: original.adapter,
+      credentials: [{
+        label: 'Token',
+        environment_variable: 'PERSONAL_TOKEN',
+        secret: true,
+      }],
+    });
+    expect(duplicate.id).not.toBe(original.id);
+    expect(duplicate.runtime_name).not.toBe(original.runtime_name);
+    expect(duplicate.credentials[0]?.id).not.toBe(original.credentials[0]?.id);
+    expect(duplicate.transport).toMatchObject({
+      kind: 'mcp_http',
+      headers: [{ credential_id: duplicate.credentials[0]?.id }],
+    });
+  });
+
+  it('removes exactly one saved profile without changing the others', async () => {
+    const store = new ConnectionProfileStore(join(createTempDir('connections'), 'connections.json'));
+    const removed = await store.create(draft('Old workspace', 'OLD_TOKEN'));
+    const retained = await store.create(draft('Current workspace', 'CURRENT_TOKEN'));
+
+    await store.remove(removed.id);
+
+    expect(await store.list()).toEqual([retained]);
+  });
 });

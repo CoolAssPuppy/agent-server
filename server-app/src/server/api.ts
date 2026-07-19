@@ -84,7 +84,10 @@ type ApiDependencies = {
    */
   connections?: ConnectionSource;
   /** Workspace-local user-named connection definitions. Values remain in .env. */
-  connectionProfiles?: Pick<ConnectionProfileStore, 'list' | 'create' | 'rename'>;
+  connectionProfiles?: Pick<
+    ConnectionProfileStore,
+    'list' | 'create' | 'rename' | 'duplicate' | 'remove'
+  >;
   /** Optional local security analysis and configuration patch routes. */
   analysisApi?: Hono;
   /** Optional local guided creation and debugger routes. */
@@ -102,6 +105,9 @@ const TriggerRunBodySchema = z.object({
   with: z.string().trim().max(4_000).optional(),
   confirmed_content_hash: z.string().regex(/^sha256:[a-f0-9]{64}$/).optional(),
 });
+const ConnectionLabelSchema = z.object({
+  label: z.string().trim().min(1).max(120),
+}).strict();
 
 function isAgentWriteRequest(method: string, path: string): boolean {
   if (method === 'POST' && path === '/agents') return true;
@@ -368,6 +374,84 @@ export function createApi(deps: ApiDependencies): Hono {
     } catch (error) {
       console.error(`[api] Connection profile write failed: ${sanitizeText(toErrorMessage(error), 300)}`);
       return c.json({ error: 'Connection profile could not be saved' }, 500);
+    }
+  });
+
+  app.patch('/connection-profiles/:id', async (c) => {
+    if (!deps.connectionProfiles) {
+      return c.json({ error: 'Connection editing is not available on this server' }, 501);
+    }
+    const read = await readJsonBody(c);
+    if (!read.ok) return read.response;
+    const parsed = ConnectionLabelSchema.safeParse(read.body);
+    if (!parsed.success) return c.json({ error: 'Enter a connection name' }, 400);
+    try {
+      return c.json(await deps.connectionProfiles.rename(c.req.param('id'), parsed.data.label));
+    } catch (error) {
+      console.error(`[api] Connection profile rename failed: ${sanitizeText(toErrorMessage(error), 300)}`);
+      return c.json({ error: 'Connection could not be renamed' }, 404);
+    }
+  });
+
+  app.post('/connection-profiles/:id/duplicate', async (c) => {
+    if (!deps.connectionProfiles) {
+      return c.json({ error: 'Connection editing is not available on this server' }, 501);
+    }
+    const read = await readJsonBody(c);
+    if (!read.ok) return read.response;
+    const parsed = ConnectionLabelSchema.safeParse(read.body);
+    if (!parsed.success) return c.json({ error: 'Enter a name for the copy' }, 400);
+    try {
+      return c.json(
+        await deps.connectionProfiles.duplicate(c.req.param('id'), parsed.data.label),
+        201,
+      );
+    } catch (error) {
+      console.error(`[api] Connection profile copy failed: ${sanitizeText(toErrorMessage(error), 300)}`);
+      return c.json({ error: 'Connection could not be copied' }, 404);
+    }
+  });
+
+  app.post('/connection-profiles/:id/check', async (c) => {
+    if (!deps.connectionProfiles) {
+      return c.json({ error: 'Connection checking is not available on this server' }, 501);
+    }
+    const profile = (await deps.connectionProfiles.list())
+      .find(({ id }) => id === c.req.param('id'));
+    if (!profile) return c.json({ error: 'Connection not found' }, 404);
+
+    const environment = getEnv();
+    const missingCredentials = profile.credentials
+      .map(({ environment_variable }) => environment_variable)
+      .filter((name) => !environment[name]?.trim());
+    return c.json({
+      status: missingCredentials.length === 0 ? 'ready' : 'needs_credentials',
+      missing_credentials: missingCredentials,
+    });
+  });
+
+  app.delete('/connection-profiles/:id', async (c) => {
+    if (!deps.connectionProfiles) {
+      return c.json({ error: 'Connection editing is not available on this server' }, 501);
+    }
+    const connectionID = c.req.param('id');
+    const referencingAgents = (await deps.getAgents())
+      .filter((agent) => Object.values(agent.connection_bindings ?? {}).includes(connectionID))
+      .map(({ id, name }) => ({ id, name }));
+    if (referencingAgents.length > 0) {
+      const noun = referencingAgents.length === 1 ? 'agent' : 'agents';
+      return c.json({
+        error: `This connection is still used by ${referencingAgents.length} ${noun}.`,
+        code: 'connection_in_use',
+        agents: referencingAgents,
+      }, 409);
+    }
+    try {
+      await deps.connectionProfiles.remove(connectionID);
+      return c.json({ success: true, connection_id: connectionID });
+    } catch (error) {
+      console.error(`[api] Connection profile removal failed: ${sanitizeText(toErrorMessage(error), 300)}`);
+      return c.json({ error: 'Connection could not be removed' }, 404);
     }
   });
 

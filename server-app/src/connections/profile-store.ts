@@ -68,6 +68,63 @@ export class ConnectionProfileStore {
     });
   }
 
+  async duplicate(id: string, label: string): Promise<ConnectionProfile> {
+    return this.mutate(async (connections) => {
+      const original = connections.find((connection) => connection.id === id);
+      if (!original) throw new Error(`Connection ${id} was not found`);
+
+      const credentialIDs = new Map<string, string>();
+      const credentials = original.credentials.map((credential) => {
+        const newID = randomUUID();
+        credentialIDs.set(credential.id, newID);
+        return { ...credential, id: newID };
+      });
+      const newID = randomUUID();
+      const now = new Date().toISOString();
+      const duplicate = ConnectionProfileSchema.parse({
+        ...original,
+        id: newID,
+        label,
+        runtime_name: `connection_${newID.replaceAll('-', '')}`,
+        credentials,
+        transport: this.remapTransportCredentials(original.transport, credentialIDs),
+        created_at: now,
+        updated_at: now,
+      });
+      connections.push(duplicate);
+      return duplicate;
+    });
+  }
+
+  async remove(id: string): Promise<void> {
+    return this.mutate(async (connections) => {
+      const index = connections.findIndex((connection) => connection.id === id);
+      if (index === -1) throw new Error(`Connection ${id} was not found`);
+      connections.splice(index, 1);
+    });
+  }
+
+  private remapTransportCredentials(
+    transport: ConnectionTransport,
+    credentialIDs: ReadonlyMap<string, string>,
+  ): ConnectionTransport {
+    if (transport.kind === 'mcp_stdio') {
+      return {
+        ...transport,
+        environment: Object.fromEntries(Object.entries(transport.environment).map(([name, id]) => (
+          [name, credentialIDs.get(id) ?? id]
+        ))),
+      };
+    }
+    return {
+      ...transport,
+      headers: transport.headers.map((header) => ({
+        ...header,
+        credential_id: credentialIDs.get(header.credential_id) ?? header.credential_id,
+      })),
+    };
+  }
+
   private materializeTransport(
     transport: ConnectionProfileDraft['transport'],
     credentials: CredentialReference[],
