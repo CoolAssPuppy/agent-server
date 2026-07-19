@@ -25,7 +25,7 @@ Status: Native service integration and final release verification are complete.
 - [x] Separate a user-chosen connection label from runtime behavior and credential variable names.
 - [x] Define opaque connection identity, arbitrary credential references, transport configuration, capability discovery, and reviewed agent grants.
 - [x] Compile the current Personal Notion transport into exact real operations instead of tools from a different Notion connection.
-- [ ] Persist workspace-local connection definitions containing references but no secret values.
+- [x] Persist workspace-local connection definitions containing references but no secret values.
 - [ ] Add adoption for existing inline MCP configurations and loose `.env` credential references.
 - [ ] Add the guided macOS flow for templates and custom connections, testing, discovered actions, and agent selection.
 - [ ] Update canonical source agents under `~/Developer/brain`, regenerate, verify, and review diffs.
