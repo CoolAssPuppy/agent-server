@@ -5,10 +5,6 @@ extension AgentServerClient {
         try await securityRequest(.agent(agentId))
     }
 
-    func scanSecurity() async throws -> SecurityScanPayload {
-        try await securityRequest(.scan)
-    }
-
     func markSecurityReviewed(
         agentId: String,
         contentHash: String,
