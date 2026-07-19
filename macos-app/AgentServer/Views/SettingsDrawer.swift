@@ -3,10 +3,9 @@ import NerdsUI
 import AppKit
 import UserNotifications
 
-/// Settings drawer (mock 3NT-1). Pulls down over the main pane from the top
-/// edge of the window. Three flat cards side by side: General,
-/// Panel connections, Updates. Panel connections edits the selected workspace `.env`
-/// via `EnvFileStore` (atomic, comment-preserving).
+/// Settings drawer that pulls down over the main pane. Everyday controls lead
+/// in an adaptive grid. Infrastructure controls stay behind Advanced, and the
+/// whole surface scrolls when the window is short or narrow.
 ///
 /// Visual rules:
 ///  - Overlay, not push. The drawer layers on top of the content; the main
@@ -65,10 +64,7 @@ struct SettingsDrawer: View {
             onClose: router.close,
             showsDivider: false
         ) {
-            VStack(spacing: 0) {
-                content
-                footer
-            }
+            content
         }
         .task {
             guard !didLoad else { return }
@@ -78,61 +74,43 @@ struct SettingsDrawer: View {
     }
 
     private var content: some View {
-        HStack(alignment: .top, spacing: NSpacing.lg) {
-            VStack(spacing: NSpacing.lg) {
-                generalCard
-                runtimeCard
-                notificationsCard
-            }
-            VStack(alignment: .trailing, spacing: NSpacing.lg) {
-                storageCard
-                updatesCard
-                contactCard
-                // Advanced sits under Contact, right-aligned; toggling it opens
-                // the power-user panels in the column to the right.
-                advancedDisclosure
-            }
-            // Power-user knobs (panel telemetry, raw env grid) stay one click
-            // away instead of front and center.
-            VStack(alignment: .leading, spacing: NSpacing.lg) {
-                if showAdvancedSettings {
-                    agentPanelCard
-                    panelConnectionsCard
-                    telemetryCard
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: NSpacing.lg) {
+                    LazyVGrid(columns: gridColumns(for: proxy.size.width), alignment: .leading, spacing: NSpacing.lg) {
+                        generalCard
+                        runtimeCard
+                        notificationsCard
+                        storageCard
+                        updatesCard
+                    }
+
+                    SettingsAdvancedDisclosure(isExpanded: $showAdvancedSettings)
+
+                    if showAdvancedSettings {
+                        LazyVGrid(columns: gridColumns(for: proxy.size.width), alignment: .leading, spacing: NSpacing.lg) {
+                            agentPanelCard
+                            environmentCard
+                            telemetryCard
+                        }
+                        .accessibilityIdentifier("settings.advancedContent")
+                    }
                 }
+                .padding(.horizontal, NSpacing.xxl)
+                .padding(.bottom, NSpacing.xxl)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
+            .scrollBounceBehavior(.basedOnSize)
         }
-        .padding(.horizontal, NSpacing.xxl)
     }
 
-    private var advancedDisclosure: some View {
-        Button {
-            withAnimation(.easeOut(duration: 0.15)) { showAdvancedSettings.toggle() }
-        } label: {
-            HStack(spacing: NSpacing.xs) {
-                Image(systemName: showAdvancedSettings ? "chevron.down" : "chevron.right")
-                    .font(.system(size: 10, weight: .semibold))
-                Text("Advanced")
-                    .font(NTypography.labelMedium)
-            }
-            .foregroundStyle(theme.tokens.mutedForeground)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var footer: some View {
-        HStack {
-            Text("Made with love in Lisbon, Portugal.")
-                .font(NTypography.captionSmall)
-                .foregroundStyle(theme.tokens.mutedForeground)
-            Spacer()
-            Text("© 2026 Strategic Nerds, Inc.")
-                .font(NTypography.captionSmall)
-                .foregroundStyle(theme.tokens.mutedForeground)
-        }
-        .padding(.horizontal, NSpacing.xxl)
-        .padding(.vertical, NSpacing.md)
+    private func gridColumns(for availableWidth: CGFloat) -> [GridItem] {
+        let contentWidth = max(0, availableWidth - (NSpacing.xxl * 2))
+        let count = SettingsPresentation.columnCount(availableWidth: Double(contentWidth))
+        return Array(
+            repeating: GridItem(.flexible(minimum: 280), spacing: NSpacing.lg, alignment: .top),
+            count: count
+        )
     }
 
     // MARK: - Cards
@@ -143,28 +121,28 @@ struct SettingsDrawer: View {
             titleContextActionLabel: monitor.demoModeState.contextMenuTitle,
             onTitleContextAction: monitor.toggleDemoMode
         ) {
-            settingsToggle("Launch at login", isOn: $launchAtLogin)
+            SettingsToggleRow(label: "Launch at login", isOn: $launchAtLogin)
                 .onChange(of: launchAtLogin) { _, newValue in
                     LaunchAtLoginManager.shared.isEnabled = newValue
                 }
 
-            settingsToggle("Resume scheduled agents after wake", isOn: $resumeAfterWake)
+            SettingsToggleRow(label: "Resume scheduled agents after wake", isOn: $resumeAfterWake)
                 .onChange(of: resumeAfterWake) { _, newValue in
                     pairs = catchUpPreference.updating(pairs, to: newValue)
                     persistIfValid()
                 }
 
             if resumeAfterWake != savedResumeAfterWake {
-                restartNotice(action: restartForGeneralChange)
+                SettingsRestartNotice(action: restartForGeneralChange)
             }
 
-            settingsToggle("Help improve Agent Server", isOn: $telemetryOptIn)
+            SettingsToggleRow(label: "Help improve Agent Server", isOn: $telemetryOptIn)
                 .onChange(of: telemetryOptIn) { _, newValue in
                     Telemetry.setOptedIn(newValue)
                 }
 
-            settingsRow(label: "Server status") {
-                statusPill(
+            SettingsValueRow(label: "Server status") {
+                SettingsStatusPill(
                     isHealthy: monitor.isServerReachable,
                     label: monitor.isServerReachable ? "Running" : "Offline"
                 )
@@ -179,23 +157,23 @@ struct SettingsDrawer: View {
     }
 
     private var runtimeCard: some View {
-        SettingsCard(title: "Claude and Codex") {
+        SettingsCard(title: "Coding agents") {
             Text("Use the versions already installed on this Mac.")
                 .font(NTypography.captionSmall)
                 .foregroundStyle(theme.tokens.mutedForeground)
 
-            settingsToggle("Use installed Claude", isOn: $useInstalledClaude)
+            SettingsToggleRow(label: "Use installed Claude", isOn: $useInstalledClaude)
                 .onChange(of: useInstalledClaude) { _, newValue in
                     persistRuntimeFlag(RuntimeEnvKey.useInstalledClaude, useInstalled: newValue)
                 }
 
-            settingsToggle("Use installed Codex", isOn: $useInstalledCodex)
+            SettingsToggleRow(label: "Use installed Codex", isOn: $useInstalledCodex)
                 .onChange(of: useInstalledCodex) { _, newValue in
                     persistRuntimeFlag(RuntimeEnvKey.useInstalledCodex, useInstalled: newValue)
                 }
 
             if currentRuntimeSelection.requiresRestart(comparedTo: savedRuntimeSelection) {
-                restartNotice(action: restartForRuntimeChange)
+                SettingsRestartNotice(action: restartForRuntimeChange)
                     .accessibilityIdentifier("settings.restartRuntime")
             }
         }
@@ -226,71 +204,22 @@ struct SettingsDrawer: View {
         }
     }
 
-    private var panelConnectionsCard: some View {
-        SettingsCard(title: "Environment") {
-            VStack(alignment: .leading, spacing: NSpacing.xs) {
-                // Grid body: header + rows. Single outer surface with a
-                // divider between header and body and between rows. The +/-
-                // toolbar sits outside the grid at the bottom of the card.
-                VStack(spacing: 0) {
-                    headerRow
-                        .padding(.horizontal, NSpacing.sm)
-                        .padding(.vertical, 6)
-                    Divider().opacity(0.4)
-
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            ForEach(Array(pairs.enumerated()), id: \.offset) { idx, pair in
-                                connectionRow(index: idx, pair: pair)
-                                    .padding(.horizontal, NSpacing.sm)
-                                    .padding(.vertical, 4)
-                                    .background(
-                                        selectedIndex == idx
-                                            ? theme.tokens.primary.opacity(0.10)
-                                            : Color.clear
-                                    )
-                                    .contentShape(Rectangle())
-                                    .onTapGesture { selectedIndex = idx }
-                                if idx < pairs.count - 1 {
-                                    Divider().opacity(0.25)
-                                }
-                            }
-                        }
-                    }
-                    // Minimum height keeps a stable 3-row footprint visible
-                    // even when the user has only a couple of env vars set,
-                    // so the card doesn't collapse to a thin strip and the
-                    // +/- toolbar always has the same visual anchor.
-                    .frame(minHeight: 110, maxHeight: 240)
-                }
-                .background(
-                    RoundedRectangle(cornerRadius: NRadius.sm)
-                        .fill(theme.tokens.background)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: NRadius.sm)
-                                .stroke(theme.tokens.border, lineWidth: 1)
-                        )
-                )
-
-                gridToolbar
-
-                if !invalidKeys.isEmpty {
-                    Text("Keys must match `[A-Z][A-Z0-9_]*`.")
-                        .font(NTypography.captionSmall)
-                        .foregroundStyle(theme.tokens.destructive)
-                }
-                if let saveError {
-                    Text(saveError)
-                        .font(NTypography.captionSmall)
-                        .foregroundStyle(theme.tokens.destructive)
-                }
-            }
-        }
+    private var environmentCard: some View {
+        EnvironmentSettingsCard(
+            pairs: $pairs,
+            revealedKeys: $revealedKeys,
+            editingKey: $editingKey,
+            invalidKeys: $invalidKeys,
+            selectedIndex: $selectedIndex,
+            saveError: saveError,
+            onRefreshValidation: refreshValidation,
+            onPersist: persistIfValid
+        )
     }
 
     private var agentPanelCard: some View {
         SettingsCard(title: "Agent Panel") {
-            settingsToggle("Send data to Agent Panel", isOn: panelSendingBinding)
+            SettingsToggleRow(label: "Send data to Agent Panel", isOn: panelSendingBinding)
                 .disabled(!agentPanelSettings.hasRequiredCredentials)
                 .opacity(agentPanelSettings.hasRequiredCredentials ? 1 : 0.45)
 
@@ -301,8 +230,8 @@ struct SettingsDrawer: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            settingsRow(label: "Agent Panel connection") {
-                statusPill(
+            SettingsValueRow(label: "Agent Panel connection") {
+                SettingsStatusPill(
                     isHealthy: isAgentPanelConnected,
                     label: agentPanelConnectionLabel
                 )
@@ -325,209 +254,12 @@ struct SettingsDrawer: View {
         }
     }
 
-    /// +/- toolbar pinned under the grid. Mirrors the Finder/NSTableView
-    /// idiom: click a row to select, `-` removes it, `+` appends a new row.
-    private var gridToolbar: some View {
-        HStack(spacing: 0) {
-            Button(action: appendRow) {
-                Image(systemName: "plus")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(theme.tokens.foreground)
-                    .frame(width: 24, height: 22)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Add connection")
-
-            Divider().frame(height: 14).opacity(0.4)
-
-            Button(action: removeSelectedRow) {
-                Image(systemName: "minus")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(
-                        selectedIndex == nil
-                            ? theme.tokens.mutedForeground.opacity(0.5)
-                            : theme.tokens.foreground
-                    )
-                    .frame(width: 24, height: 22)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(selectedIndex == nil)
-            .help("Remove selected connection")
-
-            Spacer()
-        }
-        .background(
-            RoundedRectangle(cornerRadius: NRadius.xs)
-                .stroke(theme.tokens.border, lineWidth: 1)
-        )
-    }
-
-    private func appendRow() {
-        pairs.append(EnvPair(key: "", value: "", isSecret: false))
-        selectedIndex = pairs.count - 1
-        refreshValidation()
-    }
-
-    private func removeSelectedRow() {
-        guard let idx = selectedIndex, pairs.indices.contains(idx) else { return }
-        deleteRow(at: idx)
-        if pairs.isEmpty {
-            selectedIndex = nil
-        } else {
-            selectedIndex = min(idx, pairs.count - 1)
-        }
-    }
-
-    private var headerRow: some View {
-        HStack(spacing: NSpacing.sm) {
-            Text("KEY")
-                .font(.system(size: 10, weight: .semibold))
-                .tracking(0.6)
-                .foregroundStyle(theme.tokens.mutedForeground)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Text("VALUE")
-                .font(.system(size: 10, weight: .semibold))
-                .tracking(0.6)
-                .foregroundStyle(theme.tokens.mutedForeground)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private func connectionRow(index: Int, pair: EnvPair) -> some View {
-        HStack(spacing: NSpacing.sm) {
-            keyField(index: index, pair: pair)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            valueField(index: index, pair: pair)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private func keyField(index: Int, pair: EnvPair) -> some View {
-        let binding = Binding<String>(
-            get: { pairs[index].key },
-            set: { newKey in
-                let updated = EnvPair(
-                    key: newKey,
-                    value: pairs[index].value,
-                    isSecret: EnvFileStore.isSecretKey(newKey)
-                )
-                pairs[index] = updated
-                refreshValidation()
-            }
-        )
-        return TextField("KEY", text: binding, onCommit: persistIfValid)
-            .textFieldStyle(.plain)
-            .font(.system(size: 11, design: .monospaced))
-            .foregroundStyle(theme.tokens.foreground)
-            .padding(.horizontal, NSpacing.xs)
-            .padding(.vertical, 5)
-            .background(
-                RoundedRectangle(cornerRadius: NRadius.xs)
-                    .fill(theme.tokens.background)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: NRadius.xs)
-                            .stroke(
-                                invalidKeys.contains(pair.key)
-                                    ? theme.tokens.destructive
-                                    : theme.tokens.border,
-                                lineWidth: 1
-                            )
-                    )
-            )
-    }
-
-    @ViewBuilder
-    private func valueField(index: Int, pair: EnvPair) -> some View {
-        let isRevealed = revealedKeys.contains(pair.key)
-        let shouldMask = pair.isSecret && !isRevealed
-        let isEditing = editingKey == pair.key && !shouldMask
-
-        if shouldMask {
-            HStack(spacing: NSpacing.xxs) {
-                Text(EnvFileStore.masked(value: pair.value))
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(theme.tokens.foreground)
-                    .lineLimit(1)
-                Spacer()
-                Button {
-                    revealedKeys.insert(pair.key)
-                } label: {
-                    Image(systemName: "eye")
-                        .font(.system(size: 10))
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Reveal \(pair.key)")
-            }
-            .padding(.horizontal, NSpacing.xs)
-            .padding(.vertical, 5)
-            .background(
-                RoundedRectangle(cornerRadius: NRadius.xs)
-                    .fill(theme.tokens.background)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: NRadius.xs)
-                            .stroke(theme.tokens.border, lineWidth: 1)
-                    )
-            )
-            .onTapGesture {
-                revealedKeys.insert(pair.key)
-                editingKey = pair.key
-            }
-        } else {
-            let binding = Binding<String>(
-                get: { pairs[index].value },
-                set: { newValue in
-                    pairs[index] = EnvPair(
-                        key: pairs[index].key,
-                        value: newValue,
-                        isSecret: pairs[index].isSecret
-                    )
-                }
-            )
-            HStack(spacing: NSpacing.xxs) {
-                TextField("value", text: binding, onCommit: {
-                    editingKey = nil
-                    persistIfValid()
-                })
-                .textFieldStyle(.plain)
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(theme.tokens.foreground)
-                if pair.isSecret && isEditing {
-                    Button {
-                        revealedKeys.remove(pair.key)
-                        editingKey = nil
-                        persistIfValid()
-                    } label: {
-                        Image(systemName: "eye.slash")
-                            .font(.system(size: 10))
-                            .foregroundStyle(theme.tokens.mutedForeground)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Hide \(pair.key)")
-                }
-            }
-            .padding(.horizontal, NSpacing.xs)
-            .padding(.vertical, 5)
-            .background(
-                RoundedRectangle(cornerRadius: NRadius.xs)
-                    .fill(theme.tokens.background)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: NRadius.xs)
-                            .stroke(theme.tokens.border, lineWidth: 1)
-                    )
-            )
-        }
-    }
-
-
     private var notificationsCard: some View {
         SettingsCard(title: "Notifications") {
-            settingsToggle("Enable notifications", isOn: $notificationPreferences.enabled)
+            SettingsToggleRow(label: "Enable notifications", isOn: $notificationPreferences.enabled)
 
             if notificationPreferences.enabled {
-                settingsToggle("Notify for agent output", isOn: $notificationPreferences.includeAgentOutput)
+                SettingsToggleRow(label: "Notify for agent output", isOn: $notificationPreferences.includeAgentOutput)
             }
 
             if notificationsAuthorizationDenied {
@@ -551,7 +283,7 @@ struct SettingsDrawer: View {
     /// Per-agent overrides in agent YAML always win over these values.
     private var telemetryCard: some View {
         SettingsCard(title: "Telemetry") {
-            settingsRow(label: "Progress mode") {
+            SettingsValueRow(label: "Progress mode") {
                 Picker("", selection: $telemetryMode) {
                     Text("Live").tag(TelemetryMode.live)
                     Text("Batched").tag(TelemetryMode.batched)
@@ -562,7 +294,7 @@ struct SettingsDrawer: View {
                 .onChange(of: telemetryMode) { _, _ in persistTelemetry() }
             }
 
-            settingsRow(label: "Sample interval (s)") {
+            SettingsValueRow(label: "Sample interval (s)") {
                 Stepper(value: $telemetrySampleSeconds, in: 1...600) {
                     Text("\(telemetrySampleSeconds)")
                         .font(.system(size: 11, design: .monospaced))
@@ -572,7 +304,7 @@ struct SettingsDrawer: View {
                 .onChange(of: telemetrySampleSeconds) { _, _ in persistTelemetry() }
             }
 
-            settingsRow(label: "Max progress entries") {
+            SettingsValueRow(label: "Max progress entries") {
                 Stepper(value: $telemetryMaxEntries, in: 1...500) {
                     Text("\(telemetryMaxEntries)")
                         .font(.system(size: 11, design: .monospaced))
@@ -582,7 +314,7 @@ struct SettingsDrawer: View {
                 .onChange(of: telemetryMaxEntries) { _, _ in persistTelemetry() }
             }
 
-            settingsToggle("Include progress metadata", isOn: $telemetryIncludeMetadata)
+            SettingsToggleRow(label: "Include progress metadata", isOn: $telemetryIncludeMetadata)
                 .onChange(of: telemetryIncludeMetadata) { _, _ in persistTelemetry() }
 
             Text("Per-agent telemetry blocks override these values. Restart the server to apply changes.")
@@ -594,12 +326,12 @@ struct SettingsDrawer: View {
 
     private var updatesCard: some View {
         SettingsCard(title: "Updates") {
-            settingsToggle(
-                "Automatically check for updates",
+            SettingsToggleRow(
+                label: "Automatically check for updates",
                 isOn: $updater.automaticallyChecksForUpdates
             )
 
-            settingsRow(label: "Current version") {
+            SettingsValueRow(label: "Current version") {
                 Text(version)
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(theme.tokens.foreground)
@@ -619,119 +351,6 @@ struct SettingsDrawer: View {
                     )
             }
             .buttonStyle(.plain)
-        }
-    }
-
-    private var contactCard: some View {
-        SettingsCard(title: "Contact") {
-            VStack(alignment: .leading, spacing: NSpacing.sm) {
-                HStack(alignment: .center, spacing: NSpacing.xs) {
-                    Image(systemName: "ladybug.fill")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 14, height: 14)
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                    Link("bugs@agentpanel.dev",
-                         destination: URL(string: "mailto:bugs@agentpanel.dev")!)
-                        .font(.system(size: 12))
-                        .foregroundStyle(theme.tokens.primary)
-                }
-
-                Link(destination: URL(string: "https://github.com/coolasspuppy/agent-server")!) {
-                    HStack(alignment: .center, spacing: NSpacing.xs) {
-                        Image("GitHubMark")
-                            .renderingMode(.template)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 14, height: 14)
-                            .foregroundStyle(theme.tokens.mutedForeground)
-                        Text("coolasspuppy/agent-server")
-                            .font(.system(size: 12))
-                            .foregroundStyle(theme.tokens.primary)
-                    }
-                }
-
-                Link(destination: URL(string: "https://www.agentpanel.dev")!) {
-                    HStack(alignment: .center, spacing: NSpacing.xs) {
-                        Image("MenuBarIcon")
-                            .renderingMode(.template)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 14, height: 14)
-                            .foregroundStyle(theme.tokens.mutedForeground)
-                        Text("Get Agent Panel")
-                            .font(.system(size: 12))
-                            .foregroundStyle(theme.tokens.primary)
-                    }
-                }
-
-                Link(destination: URL(string: "https://venmo.com/u/coolasspuppy")!) {
-                    HStack(alignment: .center, spacing: NSpacing.xs) {
-                        Image(systemName: "cup.and.saucer.fill")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 14, height: 14)
-                            .foregroundStyle(theme.tokens.mutedForeground)
-                        Text("Buy me coffee.")
-                            .font(.system(size: 12))
-                            .foregroundStyle(theme.tokens.primary)
-                    }
-                }
-
-                Link(destination: URL(string: "https://www.strategicnerds.com/picksandshovels")!) {
-                    HStack(alignment: .center, spacing: NSpacing.xs) {
-                        Image(systemName: "book.closed.fill")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 14, height: 14)
-                            .foregroundStyle(theme.tokens.mutedForeground)
-                        Text("Buy my book.")
-                            .font(.system(size: 12))
-                            .foregroundStyle(theme.tokens.primary)
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - Row helpers
-
-    private func settingsToggle(_ label: String, isOn: Binding<Bool>) -> some View {
-        HStack {
-            Text(label)
-                .font(.system(size: 13))
-                .foregroundStyle(theme.tokens.foreground)
-            Spacer()
-            Toggle("", isOn: isOn)
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .controlSize(.small)
-        }
-        .padding(.vertical, 4)
-    }
-
-    private func settingsRow<Trailing: View>(
-        label: String,
-        @ViewBuilder trailing: () -> Trailing
-    ) -> some View {
-        HStack {
-            Text(label)
-                .font(.system(size: 13))
-                .foregroundStyle(theme.tokens.foreground)
-            Spacer()
-            trailing()
-        }
-        .padding(.vertical, 4)
-    }
-
-    private func statusPill(isHealthy: Bool, label: String) -> some View {
-        HStack(spacing: NSpacing.xxs) {
-            Circle()
-                .fill(isHealthy ? Color.green : Color.orange)
-                .frame(width: 6, height: 6)
-            Text(label)
-                .font(.system(size: 12))
-                .foregroundStyle(theme.tokens.foreground)
         }
     }
 
@@ -863,14 +482,6 @@ struct SettingsDrawer: View {
         persistIfValid()
     }
 
-    private func deleteRow(at index: Int) {
-        guard pairs.indices.contains(index) else { return }
-        let removed = pairs.remove(at: index)
-        revealedKeys.remove(removed.key)
-        refreshValidation()
-        persistIfValid()
-    }
-
     private func refreshValidation() {
         invalidKeys = Set(
             pairs
@@ -907,18 +518,6 @@ struct SettingsDrawer: View {
     private func restartForGeneralChange() {
         savedResumeAfterWake = resumeAfterWake
         monitor.requestServerRestart()
-    }
-
-    private func restartNotice(action: @escaping () -> Void) -> some View {
-        HStack(alignment: .center, spacing: NSpacing.sm) {
-            Text("Restart Agent Server to use this change.")
-                .font(NTypography.captionSmall)
-                .foregroundStyle(theme.tokens.mutedForeground)
-            Spacer(minLength: NSpacing.xs)
-            Button("Restart now", action: action)
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-        }
     }
 
     private func chooseWorkspace() {
@@ -970,57 +569,6 @@ struct SettingsDrawer: View {
             loadPairs()
             monitor.poll()
         }
-    }
-}
-
-// MARK: - Card container (flat: border + card fill, no shadows)
-
-private struct SettingsCard<Content: View>: View {
-    let title: String
-    let titleContextActionLabel: String?
-    let onTitleContextAction: (() -> Void)?
-    @ViewBuilder let content: () -> Content
-
-    @Environment(\.nTheme) private var theme
-
-    init(
-        title: String,
-        titleContextActionLabel: String? = nil,
-        onTitleContextAction: (() -> Void)? = nil,
-        @ViewBuilder content: @escaping () -> Content
-    ) {
-        self.title = title
-        self.titleContextActionLabel = titleContextActionLabel
-        self.onTitleContextAction = onTitleContextAction
-        self.content = content
-    }
-
-    var body: some View {
-        // No trailing Spacer: cards size to their content. Without this,
-        // the bottom card in each column would stretch to fill whatever
-        // the tallest column (now the middle one with telemetry) is using.
-        VStack(alignment: .leading, spacing: NSpacing.sm) {
-            Text(title.uppercased())
-                .font(.system(size: 11, weight: .semibold))
-                .tracking(0.6)
-                .foregroundStyle(theme.tokens.mutedForeground)
-                .contextMenu {
-                    if let titleContextActionLabel, let onTitleContextAction {
-                        Button(titleContextActionLabel, action: onTitleContextAction)
-                    }
-                }
-            VStack(alignment: .leading, spacing: NSpacing.xxs) {
-                content()
-            }
-        }
-        .padding(NSpacing.lg)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(theme.tokens.card)
-        .overlay(
-            RoundedRectangle(cornerRadius: NRadius.md)
-                .stroke(theme.tokens.border, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
     }
 }
 

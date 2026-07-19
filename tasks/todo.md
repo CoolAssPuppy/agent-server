@@ -68,6 +68,17 @@ Current verification:
 - The unsigned macOS app builds successfully.
 - No UI automation was run.
 
+### Settings hierarchy and responsiveness
+
+- [x] Add failing behavior coverage for primary versus advanced settings and narrow-window layout.
+- [x] Make Settings content vertically scrollable and adapt between one and two columns.
+- [x] Keep runtime controls visible while placing Agent Panel, raw environment, and telemetry behind Advanced.
+- [x] Move support and promotional destinations to About and remove decorative footer copy from Settings.
+- [x] Extract focused Settings components so the drawer coordinates state instead of owning every presentation detail.
+- [x] Run focused and full Swift tests plus an unsigned build, commit, and complete a simplification review.
+
+Settings now has one predictable reading order and remains usable when the drawer is narrower than two readable cards. General, coding agents, notifications, storage, and updates lead. Agent Panel, raw environment values, and telemetry remain available under Advanced. Support links live in About, and Settings no longer carries promotional links or decorative footer copy. The drawer coordinator fell from 1,077 to 625 lines by extracting the environment editor and reusable settings rows. Verification: 310 Swift behavior tests and the unsigned macOS app build passed. UI automation was not run.
+
 ## Utility navigation and drawer consistency
 
 - [x] Put Security check, Connections, and Settings in one bottom-right icon cluster in that order.

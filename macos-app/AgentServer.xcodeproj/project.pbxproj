@@ -32,6 +32,7 @@
 		29D4485448C4F74872E199F4 /* DemoMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE7410D6F6B48563664B0DDF /* DemoMode.swift */; };
 		2CDA922300E92E5825F5EEB1 /* PanelClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FE442CAD3D55ADB3B5F89D7 /* PanelClient.swift */; };
 		2E7E4BD18DE37418D0472DBF /* UITestScenarioWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73C44228DBD88C29AA85C3AB /* UITestScenarioWindow.swift */; };
+		3104C952CBEADE8DD5D18B3A /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFADA9FC9D6124B5E87CD883 /* SettingsComponents.swift */; };
 		335C9C3ED26B1D305D2C02EE /* agent-server-failure.aiff in Resources */ = {isa = PBXBuildFile; fileRef = CA248DACCE7F0D7F58939FBF /* agent-server-failure.aiff */; };
 		35FDE3BEDFC10D02FAD60D3F /* DrawerRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A9B17FFF708C7E5834EAB27 /* DrawerRouter.swift */; };
 		365C560AC26B5543CB9C332A /* LocalServerEndpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8F58F7D3CBAE78227893670 /* LocalServerEndpoint.swift */; };
@@ -71,6 +72,7 @@
 		83868502556254BD90C98E38 /* AgentCreationFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 792B13A5DFC5DB882DA0608A /* AgentCreationFlow.swift */; };
 		83DD619B99906B7FDB630086 /* Telemetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03E63276DE8706E5739FA6B7 /* Telemetry.swift */; };
 		866C6F8A4D433A5BF0E23958 /* StatusMonitor+Security.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99286B9B2EE90BE821F68FBA /* StatusMonitor+Security.swift */; };
+		86D7A78B13F445F9CB9D5754 /* SettingsPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36E7C28685605B900B56E4DA /* SettingsPresentation.swift */; };
 		8707E33B58D0101837C5D8D0 /* RunSelectionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25662F3E02815D79079DCF72 /* RunSelectionCoordinator.swift */; };
 		884B4BB8E2CFD7879CB6F636 /* ConnectionProfilePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50CA8C247B1FCF3FA516F3D /* ConnectionProfilePresentation.swift */; };
 		894EC630BF1BB8BF843C0744 /* agent-server-success.aiff in Resources */ = {isa = PBXBuildFile; fileRef = CA355B69E6B62F0433B2647C /* agent-server-success.aiff */; };
@@ -129,6 +131,7 @@
 		F229F4BC6A49E9AA94083970 /* agent-server-notification.aiff in Resources */ = {isa = PBXBuildFile; fileRef = 744252F976BBFD07D113817A /* agent-server-notification.aiff */; };
 		F29F0133F7342467DB3E6975 /* MainWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9978ED2ADE2B6DA7E9F2E403 /* MainWindow.swift */; };
 		F3428059091E528FF3F7B8CF /* MenuBarPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0885A392057C026891B6710 /* MenuBarPopover.swift */; };
+		F45B6C89748C6D86B20BB4BA /* EnvironmentSettingsCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C74F85D21E8CC6EC095A8FE5 /* EnvironmentSettingsCard.swift */; };
 		F4ECEBDCF7EFEB55AC8B7876 /* NotificationPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD0F9CC8F36CEDDEA44E1D44 /* NotificationPreferences.swift */; };
 		F7610AB492A625DD114561E9 /* BoundedIdentifierHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3041189F9765AF060231C8FA /* BoundedIdentifierHistory.swift */; };
 		FD1B10D564F93D1B6DD2DD0C /* PressableStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05835BA225D6013BCBB3D058 /* PressableStyle.swift */; };
@@ -184,6 +187,7 @@
 		325C74DAF7BB5F1C25B3A733 /* SidebarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarViewModel.swift; sourceTree = "<group>"; };
 		34998C870C76F29FD6B67745 /* package.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = package.json; sourceTree = "<group>"; };
 		34C199697B17F6960D44E0CC /* ConnectionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionsView.swift; sourceTree = "<group>"; };
+		36E7C28685605B900B56E4DA /* SettingsPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPresentation.swift; sourceTree = "<group>"; };
 		3933DD1F151D51274EA54DDA /* AgentServerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AgentServerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B0EE1DB6BF41B4EA3CC6310 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		3FA7DF74260188E7ABD701D6 /* ServerProcessManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerProcessManager.swift; sourceTree = "<group>"; };
@@ -260,6 +264,7 @@
 		A11CE002A11CE002A11CE002 /* RunAccessibilityPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunAccessibilityPresentation.swift; sourceTree = "<group>"; };
 		C15E607F9D1A278E69D84D77 /* AgentDebuggerFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentDebuggerFlow.swift; sourceTree = "<group>"; };
 		C1C9BFADC1AEB3CEFB05D566 /* AgentServerEventKit */ = {isa = PBXFileReference; includeInIndex = 0; path = AgentServerEventKit; sourceTree = BUILT_PRODUCTS_DIR; };
+		C74F85D21E8CC6EC095A8FE5 /* EnvironmentSettingsCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentSettingsCard.swift; sourceTree = "<group>"; };
 		CA248DACCE7F0D7F58939FBF /* agent-server-failure.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = "agent-server-failure.aiff"; sourceTree = "<group>"; };
 		CA355B69E6B62F0433B2647C /* agent-server-success.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = "agent-server-success.aiff"; sourceTree = "<group>"; };
 		CF20AAD9B4C764E299F55F41 /* AgentServerWorkspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentServerWorkspace.swift; sourceTree = "<group>"; };
@@ -275,6 +280,7 @@
 		EBA361A75AD13345528DB75F /* AgentServerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentServerApp.swift; sourceTree = "<group>"; };
 		ED303774162FECB5D22909C1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		EE7640067645F8E1352BCE04 /* AgentModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentModel.swift; sourceTree = "<group>"; };
+		EFADA9FC9D6124B5E87CD883 /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
 		EFE65F742200E563AD4BEF23 /* AgentSafetyReadinessPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSafetyReadinessPresentation.swift; sourceTree = "<group>"; };
 		F0C5881B4E817C1D164D105A /* EnvironmentBooleanPreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentBooleanPreference.swift; sourceTree = "<group>"; };
 		F1BCFCE737011048F3DAC1E5 /* AgentEnabledFileEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentEnabledFileEditor.swift; sourceTree = "<group>"; };
@@ -427,6 +433,7 @@
 				34C199697B17F6960D44E0CC /* ConnectionsView.swift */,
 				6E2C4E1EAA344668143F8889 /* ConsumerFlowComponents.swift */,
 				27E1191870D2F850C4A974C1 /* ConsumerFlowPreviews.swift */,
+				C74F85D21E8CC6EC095A8FE5 /* EnvironmentSettingsCard.swift */,
 				540053000886185ADF319275 /* GenericConnectionSetupSheet.swift */,
 				1B4F3553798E2486F4AB0B2F /* GuidedAgentCreationCopy.swift */,
 				D3E8A93100DB8E38D44B85FE /* GuidedAgentCreationView.swift */,
@@ -446,6 +453,7 @@
 				52C77FD0BA1F5F49A3D94CDF /* SecurityCenterView.swift */,
 				817E918060B661BA51609EBB /* SecurityDashboardView.swift */,
 				DE79D9B93066560186CAA3DB /* SecurityFindingCard.swift */,
+				EFADA9FC9D6124B5E87CD883 /* SettingsComponents.swift */,
 				509B360653F9527F4AD2986B /* SettingsDrawer.swift */,
 				061AB904031536A4DEDD6795 /* Sidebar.swift */,
 				84D0610682024FD2CFA94E8A /* TopDrawerSurface.swift */,
@@ -522,6 +530,7 @@
 				D9B5EC84594BC59394B136EE /* SecurityPanelNavigation.swift */,
 				B00F566E57973BAC7955CF89 /* SecurityServerModels.swift */,
 				BEB4ABEDF791380EFF9F2DA7 /* ServerProcessReliability.swift */,
+				36E7C28685605B900B56E4DA /* SettingsPresentation.swift */,
 				325C74DAF7BB5F1C25B3A733 /* SidebarViewModel.swift */,
 			);
 			name = AgentServerCore;
@@ -791,6 +800,7 @@
 				35FDE3BEDFC10D02FAD60D3F /* DrawerRouter.swift in Sources */,
 				09F56CA1A2EA7A5D37A82130 /* EnvFileStore.swift in Sources */,
 				C50ED87A117F8CE8F29EB004 /* EnvironmentBooleanPreference.swift in Sources */,
+				F45B6C89748C6D86B20BB4BA /* EnvironmentSettingsCard.swift in Sources */,
 				A0D0411E2B0DE47445503404 /* EventKitPermissionManager.swift in Sources */,
 				E924C268BA7FE54C996042B8 /* GenericConnectionSetupSheet.swift in Sources */,
 				13700BB6F905CF723685A4A4 /* GuidanceDiagnosticServerModels.swift in Sources */,
@@ -834,7 +844,9 @@
 				B21F725CDF123FDED4325916 /* SecurityServerModels.swift in Sources */,
 				D2837235002AFAAA229A8257 /* ServerProcessManager.swift in Sources */,
 				C471604134686030A7DE8D71 /* ServerProcessReliability.swift in Sources */,
+				3104C952CBEADE8DD5D18B3A /* SettingsComponents.swift in Sources */,
 				67523C8BC19E45A92FA3799F /* SettingsDrawer.swift in Sources */,
+				86D7A78B13F445F9CB9D5754 /* SettingsPresentation.swift in Sources */,
 				DC44EC489F4D3D76F454181F /* Sidebar.swift in Sources */,
 				ADEA864A419BCB76C61FD5DB /* SidebarViewModel.swift in Sources */,
 				583A9241EFF2D90D211E6822 /* StatusMonitor+AgentActions.swift in Sources */,

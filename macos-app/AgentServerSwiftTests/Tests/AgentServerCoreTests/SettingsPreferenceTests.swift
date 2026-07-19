@@ -2,6 +2,23 @@ import XCTest
 @testable import AgentServerCore
 
 final class SettingsPreferenceTests: XCTestCase {
+    func testSettingsLeadWithEverydayChoicesAndKeepInfrastructureAdvanced() {
+        XCTAssertEqual(
+            SettingsPresentation.primarySections,
+            [.general, .runtimes, .notifications, .storage, .updates]
+        )
+        XCTAssertEqual(
+            SettingsPresentation.advancedSections,
+            [.agentPanel, .environment, .telemetry]
+        )
+    }
+
+    func testSettingsUseOneColumnWhenTwoReadableCardsWillNotFit() {
+        XCTAssertEqual(SettingsPresentation.columnCount(availableWidth: 639), 1)
+        XCTAssertEqual(SettingsPresentation.columnCount(availableWidth: 640), 2)
+        XCTAssertEqual(SettingsPresentation.columnCount(availableWidth: 1_200), 2)
+    }
+
     func testAbsentEnvironmentFlagUsesItsConsumerDefault() {
         let preference = EnvironmentBooleanPreference(
             key: "AGENT_SERVER_CATCH_UP",

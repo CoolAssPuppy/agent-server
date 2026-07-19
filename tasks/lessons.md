@@ -49,3 +49,4 @@
 - A visible toggle must own persistent product state. Bind framework settings to their real manager and local-server settings to the selected workspace environment, then explain when a restart is required.
 - Async detail requests must carry the identity of the selected object and request generation. Reject late logs or hydration data after the selection changes.
 - Safety is a primary agent state, not an icon-only utility. Show connection readiness, stale review state, scan failure, and risk in one visible row with a direct recovery action.
+- A fixed-height drawer still needs one outer scroll surface. Keep common settings in a stable reading order, adapt only the column count, and place infrastructure controls behind one clearly described disclosure.
