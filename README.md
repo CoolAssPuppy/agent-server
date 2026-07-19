@@ -193,6 +193,32 @@ max_turns: 10
 | `interaction` | no | | Interactive agent config (channel, on_reply, timeout) |
 | `mcp_servers` | no | | Additional MCP servers for this agent (see [MCP servers](#mcp-servers)) |
 | `notification` | no | | Notification config (channel, on_complete, on_failure) |
+| `output` | no | | Optional reviewed output contract. See [required output contracts](#required-output-contracts). |
+
+### Required output contracts
+
+An output contract prevents an agent from reporting success when a required service action did not finish. Enforcement is opt-in. Set `output.primary.required: true` only when every normal run must create or update the result. Conditional workflows, such as "publish only when the source changed," should omit `required` or set it to `false` so a valid no-change run can complete.
+
+```yaml
+output:
+  primary:
+    description: Create one report in the approved destination
+    tool: mcp__reports__create_item
+    update_tool: mcp__reports__update_item
+    required: true
+    successful_calls:
+      min: 1
+      max: 1
+    target_match:
+      field: destination
+      equals: approved_reports
+```
+
+`tool` is the exact creation tool that satisfies the contract. `update_tool` is an optional exact alternative for workflows that may update an existing result. `successful_calls` sets the accepted number of successful matching calls and defaults to a minimum of one. Failed calls never count.
+
+`target_match` checks the structured tool input recursively, including nested objects and arrays, for the named field and exact value. Use it to confirm that the reviewed destination was used. Tool inputs, outputs, and matched target values are inspected in memory and are not added to run history or error messages.
+
+Safe test runs bypass required-output enforcement because external services are disabled. For a normal run, an unmet contract fails with the stable code `output_contract_unmet`; the debugger uses that code to explain the missing result without exposing technical payloads.
 
 ### Limit runaway agent loops
 
