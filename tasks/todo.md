@@ -79,6 +79,7 @@ Status: Native service integration and final release verification are complete.
 - File and folder choices use one native macOS panel. Every selected item has its own View only or Can make changes control, with View only as the default.
 - Unsupported-service telemetry contains only fixed service identifiers and a count. It excludes request text, file paths, connection names, and credentials.
 - Verification: 1,145 server tests, 231 Swift tests, TypeScript type-check and build, and the unsigned app build passed. UI automation was not run.
+- Post-commit simplification now derives creation-time service detection from the shared capability catalog, including TripMaster and CalorieNerds, instead of maintaining a second service list. Verification: 1,146 server tests, TypeScript type-check, and server build passed.
 
 ### Environment path review
 

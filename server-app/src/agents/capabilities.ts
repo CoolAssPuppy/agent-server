@@ -57,6 +57,8 @@ export type CapabilityDefinition = {
   id: string;
   label: string;
   description: string;
+  /** Plain-language names that can identify this service in a creation request. */
+  intentAliases?: string[];
   /** SF Symbol name rendered by the macOS app. */
   icon: string;
   kind: CapabilityKind;
@@ -177,6 +179,7 @@ export const CAPABILITY_CATALOG: CapabilityDefinition[] = [
     id: 'gmail',
     label: 'Gmail',
     description: 'Read and organize email through your Gmail MCP server',
+    intentAliases: ['google mail'],
     icon: 'envelope',
     kind: 'mcp',
     serverName: 'gmail',

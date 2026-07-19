@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { CronExpressionParser } from 'cron-parser';
 import { AgentProposalSchema } from '../analysis/models.js';
 import { analyzeAgentSecurity } from '../analysis/security-rules.js';
+import { CAPABILITY_CATALOG } from '../agents/capabilities.js';
 import { renderReviewedAgentFile } from '../agents/reviewed-agent-writer.js';
 import { sanitizeText } from '../server/security-utils.js';
 import { buildAgentProposalPrompt } from './proposal-prompt.js';
@@ -376,12 +377,13 @@ function fallback(request: ProposalRequest, modelStatus: 'unavailable' | 'invali
   };
 }
 
-const CONNECTION_SERVICES = [
-  { id: 'notion', name: 'Notion', aliases: ['notion'] },
-  { id: 'slack', name: 'Slack', aliases: ['slack'] },
-  { id: 'linear', name: 'Linear', aliases: ['linear'] },
-  { id: 'gmail', name: 'Gmail', aliases: ['gmail', 'google mail'] },
-] as const;
+const CONNECTION_SERVICES = CAPABILITY_CATALOG
+  .filter((capability) => capability.kind === 'mcp' && !capability.builtin)
+  .map((capability) => ({
+    id: capability.id,
+    name: capability.label,
+    aliases: [capability.label, capability.id, ...(capability.intentAliases ?? [])],
+  }));
 
 function mentionIndex(intent: string, aliases: readonly string[]): number | undefined {
   const indexes = aliases.flatMap((alias) => {

@@ -105,6 +105,28 @@ describe('guided agent proposal creation', () => {
     }
   });
 
+  it('uses the shared capability catalog for supported connection questions', async () => {
+    const result = await createAgentProposal({
+      request: 'Add the itinerary to TripMaster.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [{
+        id: 'tripmaster-personal', service_id: 'tripmaster', name: 'Personal TripMaster',
+        source: 'configured_api', actions: ['read', 'write'], actions_known: true,
+      }],
+      answers: [],
+      model: modelReturning(completeProposal()).model,
+    });
+
+    expect(result).toMatchObject({
+      status: 'needs_information',
+      questions: [{
+        id: 'connection-tripmaster',
+        service_name: 'TripMaster',
+        choices: [{ value: 'tripmaster-personal' }],
+      }],
+    });
+  });
+
   it('does not require file access for a scheduled Slack heartbeat', async () => {
     const service = {
       id: 'slack-personal', service_id: 'slack', name: 'Personal Slack', source: 'account' as const,
