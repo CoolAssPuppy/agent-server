@@ -1,5 +1,22 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Required output contract enforcement
+
+- [x] Audit existing agent `output` declarations and captured tool-call evidence.
+- [x] Add failing schema tests for a generic required primary output tool and target.
+- [x] Add failing runtime tests for missing tool calls, wrong targets, failed writes, and valid outputs.
+- [x] Validate required output before recording a run as completed.
+- [x] Return an actionable failure code and preserve diagnostic evidence without exposing secrets.
+- [x] Run full server and Swift verification, commit, simplify, rebuild, and relaunch.
+
+### Required output contract review
+
+- Required contracts are explicit and opt-in. They validate an exact successful tool, a recursive exact destination field/value, and a reviewed call-count range before any completion record, notification, telemetry event, or downstream trigger.
+- Missing calls, failed tools, wrong destinations, and incorrect call counts fail with `output_contract_unmet`. The stored run keeps the safe code and consumer error, while raw tool inputs and outputs remain out of history and diagnostic evidence.
+- Safe tests bypass external-output enforcement. Conditional workflows remain advisory until their condition can be represented deterministically.
+- Five unconditional live agents now enforce delivery. Daily Focus, Weekly Status Report, Weekly Goals Report, and CMO Coaching require one successful output. Daily Portuguese and French requires two. Proactive Work remains advisory because zero outputs can be correct.
+- Verification: 1,231 server tests across 91 files, 325 Swift behavior tests, TypeScript type-check, ESLint, server build, and the unsigned macOS build passed. UI automation was not run.
+
 ## Drawer navigation and Advanced settings correction
 
 - [x] Inspect Advanced settings grouping and place Agent Panel telemetry with the controls it affects.

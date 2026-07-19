@@ -64,3 +64,9 @@
 - Escape should dismiss the deepest visible detail first.
 - A sidebar selection must never leave an unrelated detail panel stranded on screen. Selecting the current agent closes its detail; selecting another agent replaces the detail in one action.
 - Advanced telemetry controls belong beside the Agent Panel connection they configure, not in a visually unrelated column or card.
+
+## Completion must mean the promised result exists
+
+- A clean model or SDK exit proves only that execution stopped without a transport error.
+- When an agent declares a required output, validate the observed tool call, destination, and successful result before recording completion or sending a success notification.
+- Unknown passthrough configuration must never look enforceable. Model supported contracts explicitly in the schema and fail closed when they are unmet.
