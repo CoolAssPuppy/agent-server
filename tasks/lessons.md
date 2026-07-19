@@ -42,3 +42,4 @@
 - Security drill-downs should preserve context. Keep the list as a left panel and add details to the right instead of replacing the drawer's content.
 - Consumer permission controls must write to the policy the runtime actually enforces. When an agent has a detailed permissions block, changing only legacy tool fields creates a switch that cannot persist its state.
 - Lossless configuration editing means byte preservation outside the exact changed nodes. Parsing and serializing a full YAML document can preserve meaning while still creating an unacceptable diff.
+- Long-running status should replace the result inside its existing card while surrounding navigation and lists stay put. Whole-view swaps make a background operation feel like a different screen.

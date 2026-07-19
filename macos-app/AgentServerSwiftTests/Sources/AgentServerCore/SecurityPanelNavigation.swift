@@ -20,3 +20,39 @@ public struct SecurityPanelNavigationState: Equatable, Sendable {
         return true
     }
 }
+
+public enum SecurityPanelHeaderAction: Hashable, Sendable {
+    case exportReport
+    case scanAll
+
+    public var systemImage: String {
+        switch self {
+        case .exportReport: "square.and.arrow.down"
+        case .scanAll: "arrow.triangle.2.circlepath"
+        }
+    }
+}
+
+public enum SecurityOverallStatusContent: Equatable, Sendable {
+    case summary
+    case scanProgress
+}
+
+public struct SecurityPanelPresentation: Equatable, Sendable {
+    public let scanPhase: SecurityBackgroundScanPhase
+
+    public init(scanPhase: SecurityBackgroundScanPhase) {
+        self.scanPhase = scanPhase
+    }
+
+    public var headerActions: [SecurityPanelHeaderAction] {
+        [.exportReport, .scanAll]
+    }
+
+    public var showsSubtitle: Bool { false }
+    public var showsAgentList: Bool { true }
+
+    public var overallStatusContent: SecurityOverallStatusContent {
+        scanPhase == .scanning ? .scanProgress : .summary
+    }
+}

@@ -2,6 +2,28 @@ import XCTest
 @testable import AgentServerCore
 
 final class SecurityPanelNavigationTests: XCTestCase {
+    func testSecurityPanelPutsExportAndRescanBeforeCloseWithoutASubtitle() {
+        let presentation = SecurityPanelPresentation(scanPhase: .idle)
+
+        XCTAssertEqual(presentation.headerActions, [.exportReport, .scanAll])
+        XCTAssertEqual(presentation.headerActions.map(\.systemImage), ["square.and.arrow.down", "arrow.triangle.2.circlepath"])
+        XCTAssertFalse(presentation.showsSubtitle)
+    }
+
+    func testScanningReplacesOnlyOverallStatusAndKeepsAgentListVisible() {
+        let presentation = SecurityPanelPresentation(scanPhase: .scanning)
+
+        XCTAssertEqual(presentation.overallStatusContent, .scanProgress)
+        XCTAssertTrue(presentation.showsAgentList)
+    }
+
+    func testCompletedPanelShowsSummaryAndAgentList() {
+        let presentation = SecurityPanelPresentation(scanPhase: .complete)
+
+        XCTAssertEqual(presentation.overallStatusContent, .summary)
+        XCTAssertTrue(presentation.showsAgentList)
+    }
+
     func testSelectingAnAgentAddsADetailPanelWithoutRemovingTheList() {
         var navigation = SecurityPanelNavigationState()
 

@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import NerdsUI
 
 private enum SecurityPanelStyle {
@@ -10,6 +11,9 @@ struct SecurityCenterView: View {
     @ObservedObject var monitor: StatusMonitor
     @ObservedObject var router: DrawerRouter
     @State private var navigation: SecurityPanelNavigationState
+    @State private var exportedReport: String?
+    @State private var isExporting = false
+    @Environment(\.nTheme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(monitor: StatusMonitor, router: DrawerRouter, agentId: String?) {
@@ -25,36 +29,33 @@ struct SecurityCenterView: View {
             onClose: close,
             onEscape: stepBackOrClose,
             titleIcon: "checkmark.shield",
-            titleStatus: titleStatus
+            titleStatus: titleStatus,
+            headerActions: { headerActions }
         ) {
             securityPanels
         }
+        .fileExporter(
+            isPresented: $isExporting,
+            document: exportedReport.map(RedactedSecurityReport.init),
+            contentType: .plainText,
+            defaultFilename: "Agent Server security report"
+        ) { _ in exportedReport = nil }
     }
 
     @ViewBuilder
     private var securityPanels: some View {
-        if monitor.securityScanState.phase == .scanning
-            || monitor.securityScanState.phase == .failed,
-           navigation.selectedAgentId == nil {
-            SecurityScanProgressView(
-                state: monitor.securityScanState,
-                failure: monitor.securityScanFailure,
-                retry: retry
-            )
-        } else {
-            HStack(spacing: 0) {
-                dashboardPanel
-                if let agentId = navigation.selectedAgentId {
-                    Divider().opacity(0.35)
-                    agentPanel(agentId: agentId)
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
-                }
+        HStack(spacing: 0) {
+            dashboardPanel
+            if let agentId = navigation.selectedAgentId {
+                Divider().opacity(0.35)
+                agentPanel(agentId: agentId)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
             }
-            .animation(
-                reduceMotion ? nil : .easeInOut(duration: SecurityPanelStyle.transitionDuration),
-                value: navigation.selectedAgentId
-            )
         }
+        .animation(
+            reduceMotion ? nil : .easeInOut(duration: SecurityPanelStyle.transitionDuration),
+            value: navigation.selectedAgentId
+        )
     }
 
     @ViewBuilder
@@ -71,6 +72,8 @@ struct SecurityCenterView: View {
     private var dashboard: some View {
         SecurityDashboardView(
             dashboard: monitor.securityDashboard,
+            scanState: monitor.securityScanState,
+            scanFailure: monitor.securityScanFailure,
             showsHeading: false,
             isCompact: navigation.selectedAgentId != nil,
             selectedAgentId: navigation.selectedAgentId,
@@ -125,10 +128,55 @@ struct SecurityCenterView: View {
         Task { _ = await monitor.scanAllSecurity() }
     }
 
+    private var headerActions: some View {
+        HStack(spacing: NSpacing.sm) {
+            ForEach(panelPresentation.headerActions, id: \.self) { action in
+                headerActionButton(action)
+            }
+        }
+    }
+
+    private var panelPresentation: SecurityPanelPresentation {
+        SecurityPanelPresentation(scanPhase: monitor.securityScanState.phase)
+    }
+
+    private func headerActionButton(_ action: SecurityPanelHeaderAction) -> some View {
+        Button {
+            switch action {
+            case .exportReport: export()
+            case .scanAll: retry()
+            }
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(theme.tokens.muted)
+                    .overlay(Circle().stroke(theme.tokens.border, lineWidth: 1))
+                if action == .scanAll, monitor.securityScanState.phase == .scanning {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: action.systemImage)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                }
+            }
+            .frame(width: 28, height: 28)
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(action == .scanAll && monitor.securityScanState.phase == .scanning)
+        .help(action == .exportReport ? "Export redacted report" : "Scan all agents")
+        .accessibilityLabel(action == .exportReport ? "Export redacted report" : "Scan all agents")
+        .accessibilityIdentifier(action == .scanAll ? ConsumerFlowAccessibility.securityScanAll : "security-export-report")
+    }
+
+    private func export() {
+        exportedReport = monitor.redactedSecurityReport()
+        isExporting = true
+    }
+
     private var dashboardActions: SecurityDashboardActions {
         SecurityDashboardActions(
-            scanAll: { await monitor.scanAllSecurity() },
-            exportReport: { .success(monitor.redactedSecurityReport()) }
+            scanAll: { await monitor.scanAllSecurity() }
         )
     }
 
@@ -142,5 +190,17 @@ struct SecurityCenterView: View {
             },
             markReviewed: { await monitor.markSecurityReviewed(agentId: agentId) }
         )
+    }
+}
+
+private struct RedactedSecurityReport: FileDocument {
+    static var readableContentTypes: [UTType] { [.plainText] }
+    let text: String
+
+    init(_ text: String) { self.text = text }
+    init(configuration: ReadConfiguration) throws { text = "" }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: Data(text.utf8))
     }
 }

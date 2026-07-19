@@ -47,8 +47,7 @@ import SwiftUI
     SecurityDashboardView(
         dashboard: ConsumerFlowDemoFixtures.dashboard,
         actions: SecurityDashboardActions(
-            scanAll: { .success(ConsumerFlowDemoFixtures.dashboard) },
-            exportReport: { .success("Agent Server security report\nAll credential values are redacted.") }
+            scanAll: { .success(ConsumerFlowDemoFixtures.dashboard) }
         ),
         openAgent: { _ in }
     )

@@ -42,7 +42,6 @@
 		4B39C03414ADB3FF5BE48D71 /* SecurityCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C77FD0BA1F5F49A3D94CDF /* SecurityCenterView.swift */; };
 		519B2C93BA543F3811D53C8E /* AgentServerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBA361A75AD13345528DB75F /* AgentServerApp.swift */; };
 		5566EB106B664A891B221E52 /* Info.plist.example in Resources */ = {isa = PBXBuildFile; fileRef = 8820C4A9F5B4B9595EDFC80C /* Info.plist.example */; };
-		5577857D16D3CF0DD7314BB5 /* SecurityScanProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85638B513D8882F124201153 /* SecurityScanProgressView.swift */; };
 		583A9241EFF2D90D211E6822 /* StatusMonitor+AgentActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F7E8ED97EF202B704E9E0AC /* StatusMonitor+AgentActions.swift */; };
 		58A7C69B96F0E2B1A99A3C2E /* RuntimeSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C69CBD9DEF52B8367E593F5 /* RuntimeSelection.swift */; };
 		59592B3D24D39DD5E4D21714 /* NerdsUI in Frameworks */ = {isa = PBXBuildFile; productRef = 2A1CF52BEE1D8E2E8804D3C5 /* NerdsUI */; };
@@ -203,7 +202,6 @@
 		7B8C3600FDBE09650A796C7E /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		817E918060B661BA51609EBB /* SecurityDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityDashboardView.swift; sourceTree = "<group>"; };
 		84D0610682024FD2CFA94E8A /* TopDrawerSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopDrawerSurface.swift; sourceTree = "<group>"; };
-		85638B513D8882F124201153 /* SecurityScanProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityScanProgressView.swift; sourceTree = "<group>"; };
 		8820C4A9F5B4B9595EDFC80C /* Info.plist.example */ = {isa = PBXFileReference; path = Info.plist.example; sourceTree = "<group>"; };
 		8A39F8EC44F73E7FD02BB9B6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		8ADE39E580F94F63F2070A8B /* AgentFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentFile.swift; sourceTree = "<group>"; };
@@ -411,7 +409,6 @@
 				52C77FD0BA1F5F49A3D94CDF /* SecurityCenterView.swift */,
 				817E918060B661BA51609EBB /* SecurityDashboardView.swift */,
 				DE79D9B93066560186CAA3DB /* SecurityFindingCard.swift */,
-				85638B513D8882F124201153 /* SecurityScanProgressView.swift */,
 				509B360653F9527F4AD2986B /* SettingsDrawer.swift */,
 				061AB904031536A4DEDD6795 /* Sidebar.swift */,
 				84D0610682024FD2CFA94E8A /* TopDrawerSurface.swift */,
@@ -770,7 +767,6 @@
 				DD043593980101A908BC8778 /* SecurityDashboardView.swift in Sources */,
 				18DBB572B045AD41B966D76A /* SecurityFindingCard.swift in Sources */,
 				42B48CA2A7599EAEADD5B916 /* SecurityPanelNavigation.swift in Sources */,
-				5577857D16D3CF0DD7314BB5 /* SecurityScanProgressView.swift in Sources */,
 				B21F725CDF123FDED4325916 /* SecurityServerModels.swift in Sources */,
 				D2837235002AFAAA229A8257 /* ServerProcessManager.swift in Sources */,
 				C471604134686030A7DE8D71 /* ServerProcessReliability.swift in Sources */,

@@ -891,5 +891,29 @@ Review:
 - [x] Avoid writing redundant disallowed_tools entries when permissions is authoritative.
 - [x] Patch only changed frontmatter fields without reformatting unrelated YAML.
 - [x] Verify include-based source generation does not overwrite frontmatter changes.
-- [ ] Repair the six affected agent diffs to their intended minimal permission changes without altering prose.
-- [ ] Run full verification, commit consequential batches, simplify, and launch without UI automation.
+- [x] Repair the six affected agent diffs to their intended minimal permission changes without altering prose.
+- [x] Run full verification, commit consequential batches, simplify, and launch without UI automation.
+
+Review:
+
+- Existing permission edits now use one shared byte-splice editor for direct agent updates and structured security or debugger patches.
+- The six affected source agents contain only the intended allow-to-deny moves. Their prompts and unrelated frontmatter are unchanged.
+- `build-agents.py` replaces explicit Markdown include regions only, so these frontmatter permissions remain authoritative after generation.
+- Verification: 1,153 server tests, 242 Swift tests, TypeScript type-check and build, and the unsigned macOS build passed. UI automation was not run.
+
+## Security panel status layout
+
+- [x] Add presentation tests for header action order, in-place scan progress, and a persistent agent list.
+- [x] Move Export and Scan All to icon buttons immediately before Close.
+- [x] Remove the explanatory subtitle from the drawer.
+- [x] Replace only Overall status with scan progress and keep the agent list visible.
+- [x] Left-align agent counts with their risk labels and add space below Overall status.
+- [x] Verify, commit, simplify, and launch without UI automation.
+
+Review:
+
+- Export and rescan are compact native icon buttons immediately before Close, with help text, accessibility labels, and a live rescan spinner.
+- Overall status alone changes to one-agent-at-a-time progress. The agent list stays visible and completed rows keep their actual risk symbol, color, and text.
+- Risk counts align to the leading edge of their labels, and the status card has clear separation from the agent list.
+- The obsolete whole-drawer scan view was removed.
+- Verification: 242 Swift behavior tests and the unsigned macOS build passed. UI automation was not run.

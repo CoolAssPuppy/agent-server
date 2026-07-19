@@ -1,10 +1,8 @@
 import SwiftUI
-import UniformTypeIdentifiers
 import NerdsUI
 
 struct SecurityDashboardActions {
     let scanAll: () async -> Result<SecurityDashboardPresentation, ConsumerFlowFailure>
-    let exportReport: () async -> Result<String, ConsumerFlowFailure>
 }
 
 struct SecurityDashboardView: View {
@@ -13,17 +11,19 @@ struct SecurityDashboardView: View {
     let showsHeading: Bool
     let isCompact: Bool
     let selectedAgentId: String?
+    let scanState: SecurityBackgroundScanState
+    let scanFailure: ConsumerFlowFailure?
+    let sourceDashboard: SecurityDashboardPresentation?
 
     @Environment(\.nTheme) private var theme
     @State private var dashboard: SecurityDashboardPresentation?
     @State private var failure: ConsumerFlowFailure?
-    @State private var isScanning = false
     @State private var query = ""
-    @State private var exportedReport: String?
-    @State private var isExporting = false
 
     init(
         dashboard: SecurityDashboardPresentation? = nil,
+        scanState: SecurityBackgroundScanState = .idle,
+        scanFailure: ConsumerFlowFailure? = nil,
         showsHeading: Bool = true,
         isCompact: Bool = false,
         selectedAgentId: String? = nil,
@@ -35,12 +35,15 @@ struct SecurityDashboardView: View {
         self.showsHeading = showsHeading
         self.isCompact = isCompact
         self.selectedAgentId = selectedAgentId
+        self.scanState = scanState
+        self.scanFailure = scanFailure
+        self.sourceDashboard = dashboard
         _dashboard = State(initialValue: dashboard)
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            if !isCompact {
+            if !isCompact && showsHeading {
                 header
                 Divider().opacity(0.3)
             }
@@ -48,48 +51,28 @@ struct SecurityDashboardView: View {
         }
         .background(theme.tokens.background)
         .searchable(text: $query, prompt: "Find an agent")
-        .fileExporter(
-            isPresented: $isExporting,
-            document: exportedReport.map(RedactedSecurityReport.init),
-            contentType: .plainText,
-            defaultFilename: "Agent Server security report"
-        ) { _ in exportedReport = nil }
+        .onChange(of: sourceDashboard) { _, refreshed in
+            dashboard = refreshed
+        }
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: NSpacing.lg) {
-            if showsHeading {
-                ConsumerFlowHeader(
-                    title: "Security check",
-                    explanation: explanation
-                )
-            } else {
-                Text(explanation)
-                    .font(NTypography.bodyMedium)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-            }
-            Spacer()
-            Button("Export redacted report") { Task { await export() } }
-                .disabled(dashboard == nil)
-            Button("Scan all") { Task { await scan() } }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut("r", modifiers: [.command, .shift])
-                .disabled(isScanning)
-                .accessibilityIdentifier(ConsumerFlowAccessibility.securityScanAll)
-        }
-        .padding(NSpacing.xl)
-    }
-
-    private var explanation: String {
-        "Review what your agents can access and where they can send information."
+        Text("Security check")
+            .font(NTypography.headlineLarge)
+            .foregroundStyle(theme.tokens.foreground)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(NSpacing.xl)
     }
 
     @ViewBuilder
     private var content: some View {
-        if isScanning {
-            ConsumerProgressView(title: "Checking all agents", message: "The scan runs locally and never includes secret values in its results.")
-        } else if let failure {
-            ConsumerFlowFailureView(failure: failure, retry: failure.canRetry ? { Task { await scan() } } : nil)
+        if scanState.phase == .scanning, dashboard == nil {
+            scanningContent
+        } else if let visibleFailure = failure ?? scanFailure, dashboard == nil {
+            ConsumerFlowFailureView(
+                failure: visibleFailure,
+                retry: visibleFailure.canRetry ? { Task { await scan() } } : nil
+            )
                 .padding(NSpacing.xl)
         } else if let dashboard {
             dashboardContent(dashboard)
@@ -98,10 +81,75 @@ struct SecurityDashboardView: View {
         }
     }
 
+    private var scanningContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: NSpacing.lg) {
+                ConsumerSection("Overall status") { scanProgress }
+                    .padding(.bottom, NSpacing.md)
+                ConsumerSection("Agents") {
+                    ForEach(scanState.agents) { agent in
+                        HStack(spacing: NSpacing.md) {
+                            scanAgentIcon(agent.status)
+                                .frame(width: 24)
+                            Text(agent.name)
+                                .font(NTypography.bodyMedium)
+                            Spacer()
+                            Text(agent.status.displayLabel)
+                                .font(NTypography.caption)
+                                .foregroundStyle(scanAgentColor(agent.status))
+                        }
+                        .padding(.vertical, NSpacing.xxs)
+                        Divider().opacity(0.3)
+                    }
+                }
+            }
+            .padding(NSpacing.xl)
+        }
+    }
+
+    @ViewBuilder
+    private func scanAgentIcon(_ status: SecurityScanAgentStatus) -> some View {
+        switch status {
+        case .pending:
+            Image(systemName: "circle")
+                .foregroundStyle(scanAgentColor(status))
+        case .analyzing:
+            ProgressView().controlSize(.small)
+        case .checked(.low):
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(scanAgentColor(status))
+        case .checked(.needsReview):
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(scanAgentColor(status))
+        case .checked(.high), .checked(.critical), .failed:
+            Image(systemName: "exclamationmark.octagon.fill")
+                .foregroundStyle(scanAgentColor(status))
+        }
+    }
+
+    private func scanAgentColor(_ status: SecurityScanAgentStatus) -> Color {
+        switch status {
+        case .failed: theme.tokens.destructive
+        case .checked(.low): theme.tokens.success
+        case .checked(.needsReview): theme.tokens.warning
+        case .checked(.high), .checked(.critical): theme.tokens.destructive
+        case .pending, .analyzing: theme.tokens.mutedForeground
+        }
+    }
+
     private func dashboardContent(_ dashboard: SecurityDashboardPresentation) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: NSpacing.lg) {
-                if !isCompact { summary(dashboard) }
+                if !isCompact {
+                    summary(dashboard)
+                        .padding(.bottom, NSpacing.md)
+                }
+                if let scanFailure {
+                    ConsumerFlowFailureView(
+                        failure: scanFailure,
+                        retry: scanFailure.canRetry ? { Task { await scan() } } : nil
+                    )
+                }
                 ConsumerSection("Agents") {
                     if filteredAgents(dashboard).isEmpty {
                         Text(query.isEmpty ? "No agents to scan yet." : "No agents match your search.")
@@ -145,21 +193,49 @@ struct SecurityDashboardView: View {
 
     private func summary(_ dashboard: SecurityDashboardPresentation) -> some View {
         ConsumerSection("Overall status") {
-            HStack(spacing: NSpacing.lg) {
-                ForEach(ConsumerRiskLevel.allCases, id: \.self) { risk in
-                    VStack(alignment: .leading, spacing: NSpacing.xxs) {
-                        ConsumerRiskLabel(risk: risk)
-                        Text("\(dashboard.agentCount(for: risk)) agents")
-                            .font(NTypography.caption)
+            if scanState.phase == .scanning {
+                scanProgress
+            } else {
+                HStack(alignment: .top, spacing: NSpacing.lg) {
+                    ForEach(ConsumerRiskLevel.allCases, id: \.self) { risk in
+                        VStack(alignment: .leading, spacing: NSpacing.xxs) {
+                            ConsumerRiskLabel(risk: risk)
+                            Text("\(dashboard.agentCount(for: risk)) agents")
+                                .font(NTypography.caption)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                if dashboard.needsReviewCount > 0 {
+                    Label("\(dashboard.needsReviewCount) changed since the last review", systemImage: "clock.badge.exclamationmark")
+                        .font(NTypography.bodyMedium)
                 }
             }
-            if dashboard.needsReviewCount > 0 {
-                Label("\(dashboard.needsReviewCount) changed since the last review", systemImage: "clock.badge.exclamationmark")
-                    .font(NTypography.bodyMedium)
-            }
         }
+    }
+
+    private var scanProgress: some View {
+        VStack(alignment: .leading, spacing: NSpacing.sm) {
+            Text(scanProgressTitle)
+                .font(NTypography.bodyMedium)
+            if let current = scanState.currentAgent {
+                Text("Analyzing \(current.name) now.")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            }
+            ProgressView(
+                value: Double(scanState.processedCount),
+                total: Double(max(scanState.agents.count, 1))
+            )
+            .accessibilityLabel("Security check progress")
+            .accessibilityValue("\(scanState.processedCount) of \(scanState.agents.count) agents checked")
+        }
+    }
+
+    private var scanProgressTitle: String {
+        guard !scanState.agents.isEmpty else { return "Checking agents" }
+        return "Checking \(min(scanState.processedCount + 1, scanState.agents.count)) of \(scanState.agents.count)"
     }
 
     private var emptyState: some View {
@@ -189,33 +265,11 @@ struct SecurityDashboardView: View {
     }
 
     private func scan() async {
-        isScanning = true
         failure = nil
         switch await actions.scanAll() {
         case .success(let result): dashboard = result
         case .failure(let error): failure = error
         }
-        isScanning = false
     }
 
-    private func export() async {
-        switch await actions.exportReport() {
-        case .success(let report):
-            exportedReport = report
-            isExporting = true
-        case .failure(let error): failure = error
-        }
-    }
-}
-
-private struct RedactedSecurityReport: FileDocument {
-    static var readableContentTypes: [UTType] { [.plainText] }
-    let text: String
-
-    init(_ text: String) { self.text = text }
-    init(configuration: ReadConfiguration) throws { text = "" }
-
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        FileWrapper(regularFileWithContents: Data(text.utf8))
-    }
 }
