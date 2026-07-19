@@ -26,14 +26,14 @@ final class ConnectionCredentialsPresentationTests: XCTestCase {
         XCTAssertEqual(section.rows.last?.action.title, "Add another")
     }
 
-    func testServiceWithoutConfiguredAccountOffersAddKeys() {
+    func testServiceWithoutConfiguredAccountOffersConsumerSetupLanguage() {
         let section = ConnectionCredentialsPresentation(
             catalog: [catalogService(id: "tripmaster", name: "TripMaster", keys: ["TRIPMASTER_API_KEY"])],
             connections: []
         )
 
         XCTAssertEqual(section.rows.map(\.action), [.addKeys])
-        XCTAssertEqual(section.rows.first?.action.title, "Add keys")
+        XCTAssertEqual(section.rows.first?.action.title, "Set up")
     }
 
     func testTwoNamedAccountsStaySeparateAndOnlyOneAddAnotherRowAppears() {
@@ -63,6 +63,7 @@ final class ConnectionCredentialsPresentationTests: XCTestCase {
 
         XCTAssertEqual(section.rows.count, 1)
         XCTAssertEqual(section.rows.first?.action, .modifyKeys)
+        XCTAssertEqual(section.rows.first?.action.title, "Modify connection")
         XCTAssertEqual(section.rows.first?.status, .connected)
     }
 

@@ -115,7 +115,7 @@ struct ConnectionRow: View {
                     .font(NTypography.caption)
             }
         } else {
-            Button("Add keys", action: onConnect)
+            Button("Set up", action: onConnect)
                 .buttonStyle(.borderless)
                 .font(NTypography.caption)
         }
@@ -296,7 +296,7 @@ struct ConnectServiceSheet: View {
                 onDone()
             } catch {
                 busy = false
-                errorMessage = "Could not save keys: \(error.localizedDescription)"
+                errorMessage = "Could not save connection: \(error.localizedDescription)"
             }
         }
     }

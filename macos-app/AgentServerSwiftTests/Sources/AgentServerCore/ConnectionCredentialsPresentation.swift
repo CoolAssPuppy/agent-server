@@ -19,8 +19,8 @@ public enum ConnectionCredentialAction: Equatable, Sendable {
 
     public var title: String {
         switch self {
-        case .addKeys: "Add keys"
-        case .modifyKeys: "Modify keys"
+        case .addKeys: "Set up"
+        case .modifyKeys: "Modify connection"
         case .addAnother: "Add another"
         }
     }

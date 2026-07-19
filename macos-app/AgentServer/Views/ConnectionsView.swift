@@ -7,9 +7,8 @@ private enum ConnectionPanelStyle {
 }
 
 /// Connections: one place that answers "what can my agents reach, and how do I
-/// give them more." Two truths, stated plainly:
-///  1. Anything you've connected in Claude is already available to your agents.
-///  2. You can add your own API keys here; they're stored privately in .env.
+/// give them more. Named connections lead, while runtime details and known
+/// service templates stay available for people who want more control.
 struct ConnectionsView: View {
     @ObservedObject var monitor: StatusMonitor
     @ObservedObject var router: DrawerRouter
@@ -27,6 +26,7 @@ struct ConnectionsView: View {
     @State private var telegramConnected = false
     @State private var slackMessagingConnected = false
     @State private var navigation = ConnectionPanelNavigationState()
+    @State private var showsConnectionTemplates = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let telegramTokenKey = "AGENT_SERVER_TELEGRAM_BOT_TOKEN"
@@ -387,28 +387,28 @@ struct ConnectionsView: View {
     // MARK: - Services
 
     private var servicesSection: some View {
-        VStack(alignment: .leading, spacing: NSpacing.sm) {
-            Text("CONNECT WITH YOUR OWN KEYS")
-                .font(NTypography.labelSmall)
-                .tracking(0.8)
-                .foregroundStyle(theme.tokens.mutedForeground)
-            Text("Prefer your own account or a self-hosted server? Add its keys and they are stored privately in your Agent Server folder, never inside an agent file.")
-                .font(NTypography.caption)
-                .foregroundStyle(theme.tokens.mutedForeground)
-                .fixedSize(horizontal: false, vertical: true)
+        DisclosureGroup("Connection templates", isExpanded: $showsConnectionTemplates) {
+            VStack(alignment: .leading, spacing: NSpacing.sm) {
+                Text("Quick setup for known services. Use Add connection above for custom MCP, HTTP, or API setups.")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            VStack(spacing: 0) {
-                ForEach(Array(credentialPresentation.rows.enumerated()), id: \.element.id) { index, row in
-                    if index > 0 { Divider().opacity(0.25) }
-                    CredentialConnectionRow(row: row, catalogEntry: catalogEntry(for: row)) {
-                        connectTarget = CatalogConnectTarget(entry: connectionEntry(for: row))
+                VStack(spacing: 0) {
+                    ForEach(Array(credentialPresentation.rows.enumerated()), id: \.element.id) { index, row in
+                        if index > 0 { Divider().opacity(0.25) }
+                        CredentialConnectionRow(row: row, catalogEntry: catalogEntry(for: row)) {
+                            connectTarget = CatalogConnectTarget(entry: connectionEntry(for: row))
+                        }
                     }
                 }
+                .background(theme.tokens.background)
+                .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border, lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
             }
-            .background(theme.tokens.background)
-            .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border, lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
+            .padding(.top, NSpacing.sm)
         }
+        .font(NTypography.bodyMedium)
     }
 
     private func catalogEntry(for row: ConnectionCredentialRow) -> CapabilityCatalogEntry? {
