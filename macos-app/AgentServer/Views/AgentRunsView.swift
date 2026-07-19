@@ -10,6 +10,7 @@ struct AgentRunsView: View {
     @State private var isLoading = true
     @State private var loadError: String?
     @State private var pollTimer: Timer?
+    @State private var selectionCoordinator = RunSelectionCoordinator()
     @ObservedObject private var router = DrawerRouter.shared
 
     @Environment(\.nTheme) private var theme
@@ -64,12 +65,7 @@ struct AgentRunsView: View {
         .onChange(of: hasActiveRuns) { _, isActive in
             if isActive { startPolling() } else { stopPolling() }
         }
-        .onChange(of: selectedRunId) { _, newId in
-            Task {
-                await fetchLogsForRun(newId)
-                await hydrateSelectedRunFromPanel(newId)
-            }
-        }
+        .task(id: selectedRunId) { await loadSelectedRun(selectedRunId) }
         .onDisappear { stopPolling() }
     }
 
@@ -82,7 +78,7 @@ struct AgentRunsView: View {
                 await fetchRuns()
                 if let id = selectedRunId,
                    runs.first(where: { $0.runId == id })?.isActive == true {
-                    await fetchLogsForRun(id)
+                    await loadSelectedRun(id)
                 }
             }
         }
@@ -239,22 +235,36 @@ struct AgentRunsView: View {
         try await localClient.runsForAgent(id: agentId)
     }
 
-    private func hydrateSelectedRunFromPanel(_ runId: String?) async {
-        guard !monitor.isDemoMode else { return }
-        guard let runId, let panelClient else { return }
-        guard let localRun = runs.first(where: { $0.runId == runId }) else { return }
+    private func loadSelectedRun(_ runId: String?) async {
+        guard let request = selectionCoordinator.select(runId) else {
+            selectedRunLogs = []
+            return
+        }
+
+        async let logs = logsForRun(request.runId)
+        async let hydratedRun = hydratedRunFromPanel(request.runId)
+        let (loadedLogs, loadedRun) = await (logs, hydratedRun)
+
+        guard selectionCoordinator.accepts(request) else { return }
+        selectedRunLogs = loadedLogs
+        if let loadedRun,
+           let index = runs.firstIndex(where: { $0.runId == request.runId }) {
+            runs[index] = loadedRun
+        }
+    }
+
+    private func hydratedRunFromPanel(_ runId: String) async -> Run? {
+        guard !monitor.isDemoMode, let panelClient else { return nil }
+        guard let localRun = runs.first(where: { $0.runId == runId }) else { return nil }
         do {
-            guard let panelRun = try await panelClient.fetchRun(id: runId) else { return }
-            if panelRun.id != runId {
-                print("[AgentRunsView] panel run id \(panelRun.id) != local \(runId)")
-                return
-            }
-            let merged = mergeFields(local: localRun, panel: panelRun.toRun(agentId: localRun.agentId))
-            if let idx = runs.firstIndex(where: { $0.runId == runId }) {
-                runs[idx] = merged
-            }
+            guard let panelRun = try await panelClient.fetchRun(id: runId) else { return nil }
+            guard panelRun.id == runId else { return nil }
+            return mergeFields(
+                local: localRun,
+                panel: panelRun.toRun(agentId: localRun.agentId)
+            )
         } catch {
-            // Offline is fine — local run renders as-is
+            return nil
         }
     }
 
@@ -286,19 +296,15 @@ struct AgentRunsView: View {
         )
     }
 
-    private func fetchLogsForRun(_ runId: String?) async {
+    private func logsForRun(_ runId: String) async -> [PanelLog] {
         guard !monitor.isDemoMode else {
-            selectedRunLogs = []
-            return
+            return []
         }
-        guard let runId, let panelClient else {
-            selectedRunLogs = []
-            return
-        }
+        guard let panelClient else { return [] }
         do {
-            selectedRunLogs = try await panelClient.fetchLogs(runId: runId)
+            return try await panelClient.fetchLogs(runId: runId)
         } catch {
-            selectedRunLogs = []
+            return []
         }
     }
 }
