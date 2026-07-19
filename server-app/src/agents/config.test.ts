@@ -34,6 +34,48 @@ prompt: Do something.
 `;
 
 describe('AgentConfigSchema', () => {
+  it('accepts a reviewed required output contract while preserving current output guidance', () => {
+    const result = AgentConfigSchema.parse({
+      id: 'daily-report',
+      name: 'Daily report',
+      prompt: 'Create the daily report.',
+      output: {
+        primary: {
+          description: 'Create one report in the selected database',
+          tool: 'mcp__notion__create_page',
+          target: 'My selected report database',
+          required: true,
+          successful_calls: { min: 1, max: 1 },
+          target_match: { field: 'data_source_id', equals: 'destination-id' },
+          update_tool: 'mcp__notion__update_page',
+        },
+        notification: { description: 'Send a completion notice', tool: 'notification' },
+        on_failure: { action: 'save_locally', logfile: '~/.agent-server/logs/failure.md' },
+      },
+    });
+
+    expect(result.output?.primary.required).toBe(true);
+    expect(result.output?.primary.successful_calls).toEqual({ min: 1, max: 1 });
+    expect(result.output?.on_failure?.action).toBe('save_locally');
+  });
+
+  it('rejects an impossible required output call range', () => {
+    const result = AgentConfigSchema.safeParse({
+      id: 'daily-report',
+      name: 'Daily report',
+      prompt: 'Create the daily report.',
+      output: {
+        primary: {
+          description: 'Create reports',
+          tool: 'mcp__notion__create_page',
+          required: true,
+          successful_calls: { min: 2, max: 1 },
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
   it('validates a minimal config', () => {
     const result = AgentConfigSchema.safeParse({
       id: 'test',

@@ -155,8 +155,11 @@ export async function executeAgent(
               const output = 'content' in block
                 ? (block as { content: unknown }).content
                 : undefined;
+              const isError = 'is_error' in block
+                && (block as { is_error?: unknown }).is_error === true;
               completedToolCalls.push({
                 name: started.name,
+                status: isError ? 'failed' : 'succeeded',
                 input: started.input,
                 output,
                 duration_ms: Math.max(0, performance.now() - started.startedAt),

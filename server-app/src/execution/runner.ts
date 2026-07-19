@@ -6,6 +6,10 @@ import { sanitizePromptSuffix } from '../server/security-utils.js';
 import { assessPromptInjectionRisk, wrapUntrustedUserContext } from './prompt-injection.js';
 import type { DecisionContext } from './decision-handler.js';
 import { toErrorMessage } from '../util/errors.js';
+import {
+  assertRequiredOutput,
+  OutputContractError,
+} from './output-contract.js';
 
 export const RUN_TIMEOUT_CODE = 'run_timeout';
 export const LOCK_CONTENTION_CODE = 'lock_contention';
@@ -45,6 +49,7 @@ type RunAgentOptions = {
   createReporter: (runId: string, agentName: string, conversationId?: string) => Reporter;
   promptSuffix?: string;
   conversationId?: string;
+  mode?: 'normal' | 'safe_test';
   buildDecisionContext?: (runId: string) => DecisionContext | undefined;
   /**
    * Maximum wall-clock duration for the run in milliseconds. When elapsed,
@@ -143,6 +148,7 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
       timeoutMs,
       abortController,
     );
+    assertRequiredOutput(agent, result, { mode: options.mode });
     await reporter.complete(result);
     reporter.stop();
     return { runId, status: 'completed', result };
@@ -168,7 +174,12 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
     }
     await reporter.fail(error);
     reporter.stop();
-    return { runId, status: 'failed', error: error.message };
+    return {
+      runId,
+      status: 'failed',
+      error: error.message,
+      code: error instanceof OutputContractError ? error.code : undefined,
+    };
   } finally {
     releaseLock(lockDir, agent.id);
   }

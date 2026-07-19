@@ -148,6 +148,7 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
           dependencies.createReporter(id, name, conversationId, agent),
         promptSuffix: options.promptSuffix,
         conversationId: options.conversationId,
+        mode: options.mode ?? 'normal',
         timeoutMs: dependencies.resolveTimeoutMs?.(agent) ??
           (dependencies.runTimeoutMs > 0 ? dependencies.runTimeoutMs : undefined),
         abortController,
@@ -177,7 +178,6 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
       abortController,
       disableMcpServers: (options.mode ?? 'normal') === 'safe_test',
     });
-    recordCompletion(runId, originalAgent, options, result);
     return result;
   }
 
@@ -232,7 +232,9 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
     options: TriggerRunOptions,
     result: RunResult,
   ): void {
-    if (result.status === 'skipped') {
+    if (result.status === 'completed' && result.result) {
+      recordCompletion(runId, agent, options, result.result);
+    } else if (result.status === 'skipped') {
       const reason = result.error ?? 'This run was skipped.';
       dependencies.store.update(runId, {
         status: 'skipped',
@@ -253,7 +255,7 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
     error: string,
     code?: string,
   ): void {
-    dependencies.store.update(runId, { status: 'failed', completedAt: new Date(), error });
+    dependencies.store.update(runId, { status: 'failed', completedAt: new Date(), error, code });
     dependencies.broadcaster.emit(sanitizeProgressEvent({
       type: 'run_failed',
       runId,

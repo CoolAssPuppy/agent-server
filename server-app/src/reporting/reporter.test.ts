@@ -147,6 +147,23 @@ describe('TelemetryReporter', () => {
     expect(body.error?.message).toBe('Something broke');
   });
 
+  it('sends a stable machine-readable failure code', async () => {
+    const mockFetch = createMockFetch();
+    const reporter = makeReporter({ fetch: mockFetch });
+    const error = Object.assign(new Error('The required result was not created.'), {
+      code: 'output_contract_unmet',
+    });
+
+    await reporter.start();
+    await reporter.fail(error);
+
+    const body = JSON.parse(mockFetch.mock.calls[1][1].body) as StatusEvent;
+    expect(body.error).toEqual({
+      message: 'The required result was not created.',
+      code: 'output_contract_unmet',
+    });
+  });
+
   it('sends progress events with message and metadata', async () => {
     const mockFetch = createMockFetch();
     const reporter = makeReporter({ fetch: mockFetch });

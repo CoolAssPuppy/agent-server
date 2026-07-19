@@ -47,6 +47,48 @@ export const AgentTelemetrySchema = z.object({
 
 export type AgentTelemetry = z.infer<typeof AgentTelemetrySchema>;
 
+const OutputCallRangeSchema = z.object({
+  min: z.number().int().min(1).default(1),
+  max: z.number().int().min(1).optional(),
+}).strict().superRefine((range, ctx) => {
+  if (range.max !== undefined && range.max < range.min) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['max'],
+      message: 'Maximum successful calls cannot be less than the minimum',
+    });
+  }
+});
+
+const OutputTargetMatchSchema = z.object({
+  field: z.string().trim().min(1).max(120),
+  equals: z.union([z.string().max(2_048), z.number().finite(), z.boolean()]),
+}).strict();
+
+const OutputPrimarySchema = z.object({
+  description: z.string().trim().min(1).max(500),
+  tool: z.string().trim().min(1).max(240),
+  target: z.string().trim().min(1).max(1_024).optional(),
+  required: z.boolean().optional(),
+  successful_calls: OutputCallRangeSchema.optional(),
+  target_match: OutputTargetMatchSchema.optional(),
+  update_tool: z.string().trim().min(1).max(240).optional(),
+}).passthrough();
+
+export const AgentOutputSchema = z.object({
+  primary: OutputPrimarySchema,
+  notification: z.object({
+    description: z.string().trim().min(1).max(500).optional(),
+    tool: z.string().trim().min(1).max(240).optional(),
+  }).passthrough().optional(),
+  on_failure: z.object({
+    action: z.string().trim().min(1).max(120).optional(),
+    logfile: z.string().trim().min(1).max(1_024).optional(),
+  }).passthrough().optional(),
+}).passthrough();
+
+export type AgentOutput = z.infer<typeof AgentOutputSchema>;
+
 const ENV_REFERENCE_PATTERN = /\$\{([A-Z][A-Z0-9_]*)}/g;
 const EXACT_ENV_REFERENCE_PATTERN = /^\$\{([A-Z][A-Z0-9_]*)}$/;
 
@@ -223,6 +265,7 @@ export const AgentConfigSchema = z
     notification: NotificationConfigSchema.optional(),
     conversation: ConversationConfigSchema.optional(),
     telemetry: AgentTelemetrySchema.optional(),
+    output: AgentOutputSchema.optional(),
   })
   .passthrough()
   .superRefine((agent, ctx) => {

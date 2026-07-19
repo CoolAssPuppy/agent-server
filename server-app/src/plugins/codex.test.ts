@@ -234,6 +234,10 @@ describe('executeCodexAgent', () => {
     expect(result.commandsRun).toEqual(['pnpm test']);
     expect(result.filesWritten).toEqual(['src/index.ts']);
     expect(result.toolsUsed).toEqual(expect.arrayContaining(['command_execution', 'file_change', 'mcp__github__list_issues']));
+    expect(result.toolCalls).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'command_execution', status: 'succeeded' }),
+      expect.objectContaining({ name: 'mcp__github__list_issues', status: 'succeeded' }),
+    ]));
     expect(result.usage).toEqual(expect.objectContaining({
       input_tokens: 20,
       output_tokens: 7,
@@ -243,6 +247,30 @@ describe('executeCodexAgent', () => {
       cost_source: 'subscription-not-reported',
     }));
     expect(reporter.progress).toHaveBeenCalled();
+  });
+
+  it('marks a failed Codex service call for output validation', async () => {
+    const { executeCodexAgent } = await import('./codex.js');
+    runStreamed.mockResolvedValue({ events: streamEvents([
+      {
+        type: 'item.completed',
+        item: {
+          id: 'mcp-1',
+          type: 'mcp_tool_call',
+          server: 'notion',
+          tool: 'create_page',
+          arguments: {},
+          status: 'failed',
+          error: { message: 'Request rejected' },
+        },
+      },
+    ]) });
+
+    const result = await executeCodexAgent(makeAgent(), createMockReporter());
+
+    expect(result.toolCalls).toEqual([
+      expect.objectContaining({ name: 'mcp__notion__create_page', status: 'failed' }),
+    ]);
   });
 
   it('passes only safe process variables to the Codex runtime', async () => {

@@ -2,6 +2,7 @@ import type { DiagnosticResult, Evidence, RecommendedAction, RiskSeverity } from
 import { hasAnyPermittedTool, hasEffectiveNetworkAccess, WRITE_TOOLS } from '../execution/permission-policy.js';
 import { sanitizeText } from '../server/security-utils.js';
 import type { DiagnosticInput, DiagnosticRule } from './diagnostic-types.js';
+import { OUTPUT_CONTRACT_UNMET_CODE } from '../execution/output-contract.js';
 
 type Diagnosis = {
   summary: string;
@@ -57,6 +58,25 @@ function action(
 }
 
 const readinessRules: DiagnosticRule[] = [
+  (input) => input.run.code === OUTPUT_CONTRACT_UNMET_CODE ? result(input, {
+    summary: 'The agent did not create the required result.',
+    cause: input.run.error ?? 'The required output action did not complete successfully.',
+    evidence: [evidence(
+      'required-output-unmet',
+      'Required result missing',
+      'The run ended before the reviewed output requirement was satisfied.',
+      'run',
+    )],
+    fix: action(
+      'review-output-connection',
+      'Review the output connection',
+      'Check the selected connection and destination before retrying.',
+      'manual',
+      'needs_review',
+      true,
+    ),
+    rerunSafety: 'confirm',
+  }) : undefined,
   (input) => !input.readiness.serverOnline ? result(input, {
     summary: 'Agent Server is not running.',
     cause: 'The local server was unavailable when the run was checked.',

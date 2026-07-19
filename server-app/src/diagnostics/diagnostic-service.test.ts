@@ -8,6 +8,22 @@ import {
 } from './diagnostic-service.js';
 
 describe('guided run diagnostics', () => {
+  it('explains a required output failure without exposing tool payloads', async () => {
+    const result = await analyzeRunFailure({
+      agent: makeAgent(),
+      run: makeStoredRun({
+        status: 'failed',
+        code: 'output_contract_unmet',
+        error: 'The agent used the output service, but not the approved destination.',
+      }),
+      readiness: { serverOnline: true, runtimeAvailable: true, workingDirectoryExists: true },
+    });
+
+    expect(result.source).toBe('deterministic');
+    expect(result.summary).toBe('The agent did not create the required result.');
+    expect(result.suggested_fix.label).toBe('Review the output connection');
+    expect(JSON.stringify(result)).not.toContain('tool input');
+  });
   it.each([
     {
       readiness: { serverOnline: true, runtimeAvailable: true, workingDirectoryExists: true, runAlreadyActive: true },

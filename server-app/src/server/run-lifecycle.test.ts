@@ -36,12 +36,18 @@ function createHarness(
     execute: vi.fn().mockResolvedValue(executionResult),
     createReporter,
     run: vi.fn(async (options) => {
-      if (runResult) return runResult;
       const activeReporter = options.createReporter(
         options.runId ?? 'missing-run-id',
         options.agent.name,
         options.conversationId,
       );
+      if (runResult?.status === 'failed') {
+        await options.execute(options.agent, activeReporter, {
+          runId: options.runId ?? 'missing-run-id',
+        });
+        return runResult;
+      }
+      if (runResult) return runResult;
       const result = await options.execute(options.agent, activeReporter, {
         runId: options.runId ?? 'missing-run-id',
       });
@@ -86,7 +92,11 @@ describe('run lifecycle', () => {
   });
 
   it('records runner failures and invokes the failure hooks once', async () => {
-    const failure: RunResult = { status: 'failed', error: 'Connection unavailable' };
+    const failure: RunResult = {
+      status: 'failed',
+      error: 'Connection unavailable',
+      code: 'output_contract_unmet',
+    };
     const { lifecycle, store, events, notify, onTerminal } = createHarness(failure);
     const agent = makeAgent();
 
@@ -96,6 +106,7 @@ describe('run lifecycle', () => {
     expect(store.get(runId)).toMatchObject({
       status: 'failed',
       error: 'Connection unavailable',
+      code: 'output_contract_unmet',
     });
     expect(events.map((event) => event.type)).toEqual(['run_started', 'run_failed']);
     expect(notify).toHaveBeenCalledWith(agent, runId, {
@@ -103,6 +114,26 @@ describe('run lifecycle', () => {
       error: 'Connection unavailable',
     });
     expect(onTerminal).toHaveBeenCalledWith(agent, 'failed');
+  });
+
+  it('does not record executor completion until the runner accepts the result', async () => {
+    const failure: RunResult = {
+      status: 'failed',
+      error: 'The agent finished without creating its required output.',
+      code: 'output_contract_unmet',
+    };
+    const { lifecycle, store, events, notify } = createHarness(failure);
+
+    const runId = lifecycle.trigger(makeAgent());
+    await lifecycle.waitForTerminal(runId);
+
+    expect(store.get(runId)).toMatchObject({ status: 'failed', code: 'output_contract_unmet' });
+    expect(events.map((event) => event.type)).toEqual(['run_started', 'run_failed']);
+    expect(notify).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ status: 'completed' }),
+    );
   });
 
   it('records why a concurrent run was skipped', async () => {

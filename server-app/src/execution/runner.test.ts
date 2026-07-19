@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { rmSync } from 'fs';
 import { runAgent } from './runner.js';
+import { OUTPUT_CONTRACT_UNMET_CODE } from './output-contract.js';
 import { makeAgent, makeExecutionResult, createTempDir } from '../test-factories.js';
 
 const noop = async () => {};
@@ -116,6 +117,61 @@ describe('runAgent', () => {
     expect(completionArg.filesRead).toEqual([]);
     expect(completionArg.filesWritten).toEqual([]);
     expect(completionArg.commandsRun).toEqual([]);
+  });
+
+  it('fails before completion reporting when required output was not created', async () => {
+    const lockDir = createTempDir('runner');
+    dirs.push(lockDir);
+    const complete = vi.fn();
+    const fail = vi.fn();
+    const agent = makeAgent({
+      output: {
+        primary: {
+          description: 'Create the report',
+          tool: 'mcp__notion__create_page',
+          required: true,
+        },
+      },
+    });
+
+    const result = await runAgent({
+      agent,
+      lockDir,
+      execute: async () => makeExecutionResult({ toolCalls: [] }),
+      createReporter: () => ({ start: noop, progress: noop, complete, fail, stop: () => {} }),
+    });
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      code: OUTPUT_CONTRACT_UNMET_CODE,
+      error: 'The agent finished without creating its required output.',
+    });
+    expect(complete).not.toHaveBeenCalled();
+    expect(fail).toHaveBeenCalledOnce();
+  });
+
+  it('allows a safe test to finish without making the required external output', async () => {
+    const lockDir = createTempDir('runner');
+    dirs.push(lockDir);
+    const complete = vi.fn();
+    const result = await runAgent({
+      agent: makeAgent({
+        output: {
+          primary: {
+            description: 'Create the report',
+            tool: 'mcp__notion__create_page',
+            required: true,
+          },
+        },
+      }),
+      mode: 'safe_test',
+      lockDir,
+      execute: async () => makeExecutionResult({ toolCalls: [] }),
+      createReporter: () => ({ start: noop, progress: noop, complete, fail: noop, stop: () => {} }),
+    });
+
+    expect(result.status).toBe('completed');
+    expect(complete).toHaveBeenCalledOnce();
   });
 
   it('reports failure when executor throws', async () => {

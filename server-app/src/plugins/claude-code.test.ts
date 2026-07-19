@@ -828,8 +828,27 @@ describe('executeAgent with Agent SDK', () => {
     const call = result.toolCalls!.find((c) => c.name === 'Bash');
     expect(call).toBeDefined();
     expect(call?.duration_ms).toBeGreaterThanOrEqual(0);
+    expect(call?.status).toBe('succeeded');
     expect(call?.input).toEqual({ command: 'ls' });
     expect(call?.output).toBe('total 0');
+  });
+
+  it('marks a failed tool result for output validation', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createAssistantMessageWithTools([
+        { type: 'tool_use', id: 'tool-1', name: 'mcp__notion__create_page', input: {} },
+      ]),
+      createUserMessageWithFailedToolResult('tool-1', 'Request rejected'),
+      createResultSuccess({ result: 'Done', num_turns: 1 }),
+    ]));
+
+    const result = await executeAgent(createAgentConfig(), createMockReporter());
+
+    expect(result.toolCalls).toEqual([
+      expect.objectContaining({ name: 'mcp__notion__create_page', status: 'failed' }),
+    ]);
   });
 
   it('returns default summary when result text is empty', async () => {
@@ -1214,6 +1233,21 @@ function createUserMessageWithToolResult(toolUseId: string, output: string) {
     parent_tool_use_id: null,
     uuid: '00000000-0000-0000-0000-000000000006' as `${string}-${string}-${string}-${string}-${string}`,
     session_id: 'session-1',
+  };
+}
+
+function createUserMessageWithFailedToolResult(toolUseId: string, output: string) {
+  const message = createUserMessageWithToolResult(toolUseId, output);
+  return {
+    ...message,
+    message: {
+      content: [{
+        type: 'tool_result' as const,
+        tool_use_id: toolUseId,
+        content: output,
+        is_error: true,
+      }],
+    },
   };
 }
 

@@ -211,10 +211,16 @@ export class TelemetryReporter {
       return;
     }
     this.terminalSent = true;
+    const errorCode = 'code' in error && typeof error.code === 'string'
+      ? sanitizeText(error.code, 120)
+      : undefined;
     try {
       await this.send({
         state: 'failed',
-        error: { message: sanitizeText(error.message, 1_000) },
+        error: {
+          message: sanitizeText(error.message, 1_000),
+          ...(errorCode ? { code: errorCode } : {}),
+        },
       });
     } finally {
       this.stopHeartbeat();

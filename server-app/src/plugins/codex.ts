@@ -229,7 +229,12 @@ function handleItem(item: ThreadItem, state: CodexState, reporter: Reporter): vo
   if (item.type === 'command_execution') {
     state.toolsUsed.add(item.type);
     state.commandsRun.push(item.command);
-    state.toolCalls.push({ name: item.type, input: { command: item.command }, output: item.aggregated_output });
+    state.toolCalls.push({
+      name: item.type,
+      status: item.status === 'completed' && item.exit_code === 0 ? 'succeeded' : 'failed',
+      input: { command: item.command },
+      output: item.aggregated_output,
+    });
     void reporter.progress(`Using tool: ${item.type}`, progressMetadata(state));
     return;
   }
@@ -241,7 +246,12 @@ function handleItem(item: ThreadItem, state: CodexState, reporter: Reporter): vo
   if (item.type === 'mcp_tool_call') {
     const name = `mcp__${item.server}__${item.tool}`;
     state.toolsUsed.add(name);
-    state.toolCalls.push({ name, input: item.arguments, output: item.result ?? item.error });
+    state.toolCalls.push({
+      name,
+      status: item.status === 'completed' ? 'succeeded' : 'failed',
+      input: item.arguments,
+      output: item.result ?? item.error,
+    });
     void reporter.progress(`Using tool: ${name}`, progressMetadata(state));
     return;
   }
