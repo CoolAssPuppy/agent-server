@@ -1,7 +1,7 @@
 import Foundation
 
 public enum LocalServerCompatibility {
-    public static let requiredAPIVersion = 8
+    public static let requiredAPIVersion = 9
 
     public static func shouldReplace(apiVersion: Int?) -> Bool {
         guard let apiVersion else { return true }

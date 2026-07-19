@@ -95,6 +95,25 @@ extension StatusMonitor {
         }
     }
 
+    func renameConnectionProfile(id: String, label: String) async throws -> ConnectionProfile {
+        guard !isDemoMode else { throw DemoModeWriteError() }
+        return try await client.renameConnectionProfile(id: id, label: label)
+    }
+
+    func duplicateConnectionProfile(id: String, label: String) async throws -> ConnectionProfile {
+        guard !isDemoMode else { throw DemoModeWriteError() }
+        return try await client.duplicateConnectionProfile(id: id, label: label)
+    }
+
+    func checkConnectionProfile(id: String) async throws -> ConnectionReadinessResponse {
+        try await client.checkConnectionProfile(id: id)
+    }
+
+    func removeConnectionProfile(id: String) async throws {
+        guard !isDemoMode else { throw DemoModeWriteError() }
+        try await client.removeConnectionProfile(id: id)
+    }
+
     func connections() async -> ConnectionSnapshot {
         (try? await client.connections()) ?? .empty
     }

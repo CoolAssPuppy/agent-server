@@ -631,7 +631,7 @@ describe('API routes', () => {
 
       const body = await res.json();
       expect(body.status).toBe('ok');
-      expect(body.api_version).toBe(8);
+      expect(body.api_version).toBe(9);
     });
 
     it('returns started_at timestamp when provided', async () => {

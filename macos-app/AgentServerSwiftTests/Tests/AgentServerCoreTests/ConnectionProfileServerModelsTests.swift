@@ -98,4 +98,67 @@ final class ConnectionProfileServerModelsTests: XCTestCase {
         XCTAssertTrue(body.contains("REPORTS_TOKEN"))
         XCTAssertFalse(body.contains("must-stay-on-this-mac"))
     }
+
+    func testDecodesAReadinessCheckWithoutCredentialValues() throws {
+        let payload = Data(#"""
+        {
+          "status": "needs_credentials",
+          "missing_credentials": ["REPORTS_TOKEN"]
+        }
+        """#.utf8)
+
+        let response = try JSONDecoder().decode(ConnectionReadinessResponse.self, from: payload)
+        let presentation = ConnectionReadinessPresentation(response: response)
+
+        XCTAssertEqual(response.status, .needsCredentials)
+        XCTAssertEqual(response.missingCredentials, ["REPORTS_TOKEN"])
+        XCTAssertEqual(presentation.title, "Needs credentials")
+        XCTAssertEqual(
+            presentation.explanation,
+            "Add REPORTS_TOKEN before an agent uses this connection."
+        )
+        XCTAssertFalse(String(decoding: payload, as: UTF8.self).contains("must-not-leak"))
+    }
+
+    func testReadyConnectionExplainsTheScopeOfTheLocalCheck() {
+        let presentation = ConnectionReadinessPresentation(
+            response: ConnectionReadinessResponse(status: .ready, missingCredentials: [])
+        )
+
+        XCTAssertEqual(presentation.title, "Ready to use")
+        XCTAssertTrue(presentation.isReady)
+        XCTAssertEqual(
+            presentation.explanation,
+            "The required credentials are available. The service itself will be checked when an agent uses it."
+        )
+    }
+
+    func testDecodesAgentsThatPreventConnectionRemoval() throws {
+        let payload = Data(#"""
+        {
+          "error": "This connection is still used by 2 agents.",
+          "code": "connection_in_use",
+          "agents": [
+            { "id": "daily-brief", "name": "Daily brief" },
+            { "id": "weekly-review", "name": "Weekly review" }
+          ]
+        }
+        """#.utf8)
+
+        let conflict = try JSONDecoder().decode(ConnectionRemovalConflict.self, from: payload)
+
+        XCTAssertEqual(conflict.agents.map(\.name), ["Daily brief", "Weekly review"])
+        XCTAssertEqual(
+            conflict.consumerExplanation,
+            "Remove this connection from Daily brief and Weekly review before deleting it."
+        )
+    }
+
+    func testDuplicateConnectionGetsARecognizableEditableName() {
+        XCTAssertEqual(ConnectionCopyName.suggested(from: "Personal Notion"), "Personal Notion copy")
+        XCTAssertEqual(
+            ConnectionCopyName.suggested(from: String(repeating: "a", count: 120)).count,
+            120
+        )
+    }
 }

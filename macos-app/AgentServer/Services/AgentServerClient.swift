@@ -217,6 +217,54 @@ actor AgentServerClient {
         return try decoder.decode(ConnectionProfile.self, from: data)
     }
 
+    func renameConnectionProfile(id: String, label: String) async throws -> ConnectionProfile {
+        var request = URLRequest(url: baseURL.appendingPathComponent("/connection-profiles/\(id)"))
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(ConnectionLabelRequest(label: label))
+        request = try authenticatedRequest(request)
+        let (data, response) = try await session.data(for: request)
+        try validateWriteResponse(data: data, response: response)
+        return try decoder.decode(ConnectionProfile.self, from: data)
+    }
+
+    func duplicateConnectionProfile(id: String, label: String) async throws -> ConnectionProfile {
+        var request = URLRequest(
+            url: baseURL.appendingPathComponent("/connection-profiles/\(id)/duplicate")
+        )
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(ConnectionLabelRequest(label: label))
+        request = try authenticatedRequest(request)
+        let (data, response) = try await session.data(for: request)
+        try validateWriteResponse(data: data, response: response)
+        return try decoder.decode(ConnectionProfile.self, from: data)
+    }
+
+    func checkConnectionProfile(id: String) async throws -> ConnectionReadinessResponse {
+        var request = URLRequest(
+            url: baseURL.appendingPathComponent("/connection-profiles/\(id)/check")
+        )
+        request.httpMethod = "POST"
+        request = try authenticatedRequest(request)
+        let (data, response) = try await session.data(for: request)
+        try validateWriteResponse(data: data, response: response)
+        return try decoder.decode(ConnectionReadinessResponse.self, from: data)
+    }
+
+    func removeConnectionProfile(id: String) async throws {
+        var request = URLRequest(url: baseURL.appendingPathComponent("/connection-profiles/\(id)"))
+        request.httpMethod = "DELETE"
+        request = try authenticatedRequest(request)
+        let (data, response) = try await session.data(for: request)
+        if let httpResponse = response as? HTTPURLResponse,
+           httpResponse.statusCode == 409,
+           let conflict = try? decoder.decode(ConnectionRemovalConflict.self, from: data) {
+            throw ClientError.connectionInUse(conflict.consumerExplanation)
+        }
+        try validateWriteResponse(data: data, response: response)
+    }
+
     /// Re-probes the runtime and returns the fresh snapshot. Backs the
     /// "Refresh connections" action; costs an MCP connection, no tokens.
     func refreshConnections() async throws -> ConnectionSnapshot {
@@ -389,6 +437,7 @@ enum ClientError: LocalizedError {
     case httpError(statusCode: Int)
     case writeFailed(message: String, missingEnv: [String])
     case runTriggerFailed(message: String, code: String?, missingEnv: [String])
+    case connectionInUse(String)
 
     var errorDescription: String? {
         switch self {
@@ -398,6 +447,8 @@ enum ClientError: LocalizedError {
             return "Agent Server needs to finish its secure local setup. Restart the server and try again."
         case .httpError(let statusCode):
             return "HTTP error: \(statusCode)"
+        case .connectionInUse(let message):
+            return message
         case .writeFailed(let message, _):
             return message
         case .runTriggerFailed(let message, _, _):
@@ -411,6 +462,8 @@ enum ClientError: LocalizedError {
         switch self {
         case .writeFailed(_, let missingEnv), .runTriggerFailed(_, _, let missingEnv):
             return missingEnv
+        case .connectionInUse:
+            return []
         default:
             return []
         }

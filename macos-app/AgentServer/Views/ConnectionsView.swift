@@ -198,8 +198,34 @@ struct ConnectionsView: View {
             onBack: { _ = navigation.stepBack() },
             onModifyCredentials: {
                 connectTarget = CatalogConnectTarget(entry: connectionEntry(for: profile, presentation: presentation))
+            },
+            onRename: { label in
+                let renamed = try await monitor.renameConnectionProfile(id: profile.id, label: label)
+                replaceSavedProfile(renamed)
+                return renamed
+            },
+            onDuplicate: {
+                let duplicate = try await monitor.duplicateConnectionProfile(
+                    id: profile.id,
+                    label: ConnectionCopyName.suggested(from: profile.label)
+                )
+                savedProfiles.append(duplicate)
+                navigation.selectConnection(duplicate.id)
+                return duplicate
+            },
+            onCheck: { try await monitor.checkConnectionProfile(id: profile.id) },
+            onRemove: {
+                try await monitor.removeConnectionProfile(id: profile.id)
+                savedProfiles.removeAll { $0.id == profile.id }
+                _ = navigation.stepBack()
+                registeredServices = await monitor.serviceConnections()
             }
         )
+    }
+
+    private func replaceSavedProfile(_ profile: ConnectionProfile) {
+        guard let index = savedProfiles.firstIndex(where: { $0.id == profile.id }) else { return }
+        savedProfiles[index] = profile
     }
 
     private var refreshButton: some View {

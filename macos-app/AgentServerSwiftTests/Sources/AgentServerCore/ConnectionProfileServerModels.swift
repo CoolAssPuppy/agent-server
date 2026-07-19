@@ -8,6 +8,85 @@ public struct ConnectionProfileListResponse: Codable, Equatable, Sendable {
     }
 }
 
+public struct ConnectionLabelRequest: Codable, Equatable, Sendable {
+    public let label: String
+
+    public init(label: String) {
+        self.label = label
+    }
+}
+
+public struct ConnectionReadinessResponse: Codable, Equatable, Sendable {
+    public enum Status: String, Codable, Equatable, Sendable {
+        case ready
+        case needsCredentials = "needs_credentials"
+    }
+
+    public let status: Status
+    public let missingCredentials: [String]
+
+    public init(status: Status, missingCredentials: [String]) {
+        self.status = status
+        self.missingCredentials = missingCredentials
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case missingCredentials = "missing_credentials"
+    }
+}
+
+public struct ConnectionReadinessPresentation: Equatable, Sendable {
+    public let title: String
+    public let explanation: String
+    public let isReady: Bool
+
+    public init(response: ConnectionReadinessResponse) {
+        switch response.status {
+        case .ready:
+            title = "Ready to use"
+            explanation = "The required credentials are available. The service itself will be checked when an agent uses it."
+            isReady = true
+        case .needsCredentials:
+            title = "Needs credentials"
+            let references = response.missingCredentials.joined(separator: ", ")
+            explanation = "Add \(references) before an agent uses this connection."
+            isReady = false
+        }
+    }
+}
+
+public struct ConnectionAgentReference: Codable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let name: String
+}
+
+public struct ConnectionRemovalConflict: Codable, Equatable, Sendable {
+    public let error: String
+    public let code: String
+    public let agents: [ConnectionAgentReference]
+
+    public var consumerExplanation: String {
+        let names = agents.map(\.name)
+        let list: String
+        if names.count < 2 {
+            list = names.first ?? "the agents that use it"
+        } else if names.count == 2 {
+            list = names.joined(separator: " and ")
+        } else {
+            list = names.dropLast().joined(separator: ", ") + ", and " + (names.last ?? "")
+        }
+        return "Remove this connection from \(list) before deleting it."
+    }
+}
+
+public enum ConnectionCopyName {
+    public static func suggested(from label: String) -> String {
+        let suffix = " copy"
+        return String(label.prefix(120 - suffix.count)).trimmingCharacters(in: .whitespaces) + suffix
+    }
+}
+
 public struct ConnectionProfile: Codable, Equatable, Identifiable, Sendable {
     public let schemaVersion: Int
     public let id: String
