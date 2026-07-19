@@ -6,11 +6,19 @@ enum TopDrawerStyle {
     static let slideDuration: Double = 0.26
 }
 
+enum TopDrawerTitleStatus {
+    case normal
+    case working
+    case error
+}
+
 struct TopDrawerSurface<HeaderActions: View, Content: View>: View {
     let title: String
     let closeLabel: String
     let onClose: () -> Void
     let showsDivider: Bool
+    let titleIcon: String?
+    let titleStatus: TopDrawerTitleStatus
     private let headerActions: HeaderActions
     private let content: Content
 
@@ -21,6 +29,8 @@ struct TopDrawerSurface<HeaderActions: View, Content: View>: View {
         closeLabel: String,
         onClose: @escaping () -> Void,
         showsDivider: Bool = true,
+        titleIcon: String? = nil,
+        titleStatus: TopDrawerTitleStatus = .normal,
         @ViewBuilder headerActions: () -> HeaderActions,
         @ViewBuilder content: () -> Content
     ) {
@@ -28,6 +38,8 @@ struct TopDrawerSurface<HeaderActions: View, Content: View>: View {
         self.closeLabel = closeLabel
         self.onClose = onClose
         self.showsDivider = showsDivider
+        self.titleIcon = titleIcon
+        self.titleStatus = titleStatus
         self.headerActions = headerActions()
         self.content = content()
     }
@@ -52,6 +64,12 @@ struct TopDrawerSurface<HeaderActions: View, Content: View>: View {
 
     private var header: some View {
         HStack(alignment: .top) {
+            if let titleIcon {
+                titleStatusIcon(titleIcon)
+                    .frame(width: 20, height: 20)
+                    .padding(.top, NSpacing.xs)
+                    .accessibilityHidden(true)
+            }
             Text(title)
                 .font(NTypography.headlineLarge)
                 .foregroundStyle(theme.tokens.foreground)
@@ -77,6 +95,27 @@ struct TopDrawerSurface<HeaderActions: View, Content: View>: View {
         .padding(.top, 28)
         .padding(.bottom, NSpacing.md)
     }
+
+    @ViewBuilder
+    private func titleStatusIcon(_ systemName: String) -> some View {
+        switch titleStatus {
+        case .normal:
+            Image(systemName: systemName)
+                .foregroundStyle(theme.tokens.mutedForeground)
+        case .working:
+            ProgressView()
+                .controlSize(.small)
+        case .error:
+            Image(systemName: systemName)
+                .foregroundStyle(theme.tokens.destructive)
+                .overlay(alignment: .topTrailing) {
+                    Circle()
+                        .fill(theme.tokens.destructive)
+                        .frame(width: 6, height: 6)
+                        .offset(x: 3, y: -2)
+                }
+        }
+    }
 }
 
 extension TopDrawerSurface where HeaderActions == EmptyView {
@@ -85,6 +124,8 @@ extension TopDrawerSurface where HeaderActions == EmptyView {
         closeLabel: String,
         onClose: @escaping () -> Void,
         showsDivider: Bool = true,
+        titleIcon: String? = nil,
+        titleStatus: TopDrawerTitleStatus = .normal,
         @ViewBuilder content: () -> Content
     ) {
         self.init(
@@ -92,6 +133,8 @@ extension TopDrawerSurface where HeaderActions == EmptyView {
             closeLabel: closeLabel,
             onClose: onClose,
             showsDivider: showsDivider,
+            titleIcon: titleIcon,
+            titleStatus: titleStatus,
             headerActions: EmptyView.init,
             content: content
         )

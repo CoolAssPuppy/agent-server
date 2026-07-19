@@ -304,4 +304,8 @@ public struct SecurityDashboardPresentation: Equatable, Sendable {
     public var needsReviewCount: Int {
         reportedNeedsReviewCount ?? agents.count(where: \.isStale)
     }
+
+    public var notificationAttentionCount: Int {
+        agents.count { $0.risk == .high || $0.risk == .critical }
+    }
 }

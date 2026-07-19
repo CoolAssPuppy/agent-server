@@ -9,7 +9,9 @@ struct SecurityCenterView: View {
         TopDrawerSurface(
             title: "Security check",
             closeLabel: "Close security check",
-            onClose: close
+            onClose: close,
+            titleIcon: "checkmark.shield",
+            titleStatus: titleStatus
         ) {
             if let agentId {
                 AgentSecurityAnalyzerView(
@@ -17,8 +19,16 @@ struct SecurityCenterView: View {
                     actions: agentActions(agentId: agentId),
                     showsHeading: false
                 )
+            } else if monitor.securityScanState.phase == .scanning
+                        || monitor.securityScanState.phase == .failed {
+                SecurityScanProgressView(
+                    state: monitor.securityScanState,
+                    failure: monitor.securityScanFailure,
+                    retry: retry
+                )
             } else {
                 SecurityDashboardView(
+                    dashboard: monitor.securityDashboard,
                     showsHeading: false,
                     actions: dashboardActions,
                     openAgent: { router.openSecurity(agentId: $0) }
@@ -29,6 +39,18 @@ struct SecurityCenterView: View {
 
     private func close() {
         router.closeSecurity()
+    }
+
+    private var titleStatus: TopDrawerTitleStatus {
+        switch monitor.securityScanState.phase {
+        case .scanning: .working
+        case .failed: .error
+        case .idle, .complete: .normal
+        }
+    }
+
+    private func retry() {
+        Task { _ = await monitor.scanAllSecurity() }
     }
 
     private var dashboardActions: SecurityDashboardActions {

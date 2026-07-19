@@ -2,22 +2,41 @@ import Foundation
 
 @MainActor
 extension StatusMonitor {
-    func scanAllSecurity() async -> Result<SecurityDashboardPresentation, ConsumerFlowFailure> {
-        do {
-            let payload = try await client.scanSecurity()
-            securityAnalyses = Dictionary(
-                payload.analyses.map { ($0.agentId, $0) },
-                uniquingKeysWith: { _, newest in newest }
-            )
-            let names = Dictionary(agents.map { ($0.id, $0.name) }, uniquingKeysWith: { _, newest in newest })
-            return .success(payload.presentation(agentNames: names))
-        } catch {
-            return .failure(securityFailure(
-                title: "Could not check your agents",
-                error: error,
-                recovery: "Make sure the local server is running, then try again."
-            ))
+    func startBackgroundSecurityScan() {
+        let scanAgents = securityScanAgents()
+        let signature = securityScanTrigger
+        guard securityScanTask == nil,
+              signature != lastBackgroundSecuritySignature || securityScanState.phase == .idle else { return }
+        lastBackgroundSecuritySignature = signature
+        securityScanTask = makeSecurityScanTask(scanAgents)
+    }
+
+    var securityScanTrigger: [String] {
+        agents.sorted { $0.id < $1.id }.map { agent in
+            var hasher = Hasher()
+            hasher.combine(agent.id)
+            hasher.combine(agent.name)
+            hasher.combine(agent.prompt)
+            hasher.combine(agent.schedule)
+            hasher.combine(agent.tools)
+            hasher.combine(agent.disallowedTools)
+            hasher.combine(agent.permissionMode)
+            hasher.combine(agent.workingDirectory)
+            hasher.combine(agent.model)
+            hasher.combine(agent.executor)
+            hasher.combine(agent.enabled)
+            hasher.combine(agent.capabilities?.map { "\($0.id):\($0.enabled)" })
+            return "\(agent.id):\(hasher.finalize())"
         }
+    }
+
+    func scanAllSecurity() async -> Result<SecurityDashboardPresentation, ConsumerFlowFailure> {
+        if let securityScanTask { return await securityScanTask.value }
+        let scanAgents = securityScanAgents()
+        lastBackgroundSecuritySignature = securityScanTrigger
+        let task = makeSecurityScanTask(scanAgents)
+        securityScanTask = task
+        return await task.value
     }
 
     func analyzeSecurity(agentId: String) async -> Result<SecurityScanPresentation, ConsumerFlowFailure> {
@@ -173,6 +192,81 @@ extension StatusMonitor {
             didSave: false,
             canRetry: true
         )
+    }
+
+    private func securityScanAgents() -> [SecurityScanAgent] {
+        agents
+            .map { SecurityScanAgent(id: $0.id, name: $0.name) }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private func makeSecurityScanTask(
+        _ scanAgents: [SecurityScanAgent]
+    ) -> Task<Result<SecurityDashboardPresentation, ConsumerFlowFailure>, Never> {
+        Task { [weak self] in
+            guard let self else {
+                return .failure(ConsumerFlowFailure(
+                    title: "Could not check your agents",
+                    message: "The security check stopped because the window closed.",
+                    recovery: "Open Security check to try again.",
+                    technicalDetails: "The security monitor is no longer available.",
+                    didSave: false,
+                    canRetry: true
+                ))
+            }
+            let result = await self.performSequentialSecurityScan(scanAgents)
+            self.securityScanTask = nil
+            return result
+        }
+    }
+
+    private func performSequentialSecurityScan(
+        _ scanAgents: [SecurityScanAgent]
+    ) async -> Result<SecurityDashboardPresentation, ConsumerFlowFailure> {
+        securityScanState = .scanning(agents: scanAgents)
+        securityScanFailure = nil
+        var firstFailure: ConsumerFlowFailure?
+
+        for agent in scanAgents {
+            guard !Task.isCancelled else { break }
+            do {
+                securityAnalyses[agent.id] = try await client.securityAnalysis(agentId: agent.id)
+                securityScanState = securityScanState.completingCurrentAgent()
+            } catch {
+                let failure = securityFailure(
+                    title: "Could not check \(agent.name)",
+                    error: error,
+                    recovery: "Make sure the local server is running, then try again."
+                )
+                firstFailure = firstFailure ?? failure
+                securityScanState = securityScanState.recordingCurrentFailure(message: failure.message)
+            }
+        }
+
+        let dashboard = makeSecurityDashboard(for: scanAgents)
+        securityDashboard = dashboard
+        securityAnalyses = securityAnalyses.filter { analysis in
+            scanAgents.contains { $0.id == analysis.key }
+        }
+        securityScanState = securityScanState.reportingAttention(count: dashboard.notificationAttentionCount)
+        securityScanFailure = firstFailure
+        if let firstFailure { return .failure(firstFailure) }
+        return .success(dashboard)
+    }
+
+    private func makeSecurityDashboard(
+        for scanAgents: [SecurityScanAgent]
+    ) -> SecurityDashboardPresentation {
+        SecurityDashboardPresentation(agents: scanAgents.compactMap { agent in
+            guard let analysis = securityAnalyses[agent.id] else { return nil }
+            return SecurityAgentPresentation(
+                id: agent.id,
+                name: agent.name,
+                risk: analysis.risk.consumerLevel,
+                findingCount: analysis.findings.count,
+                isStale: analysis.reviewState?.isStale ?? analysis.isStale
+            )
+        })
     }
 
     private func securityPresentation(

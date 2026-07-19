@@ -17,6 +17,9 @@ final class StatusMonitor: ObservableObject {
     @Published var staleRunCount: Int = 0
     @Published private(set) var pendingDecisions: [Decision] = []
     @Published var securityAnalyses: [String: SecurityAnalysisPayload] = [:]
+    @Published var securityScanState = SecurityBackgroundScanState.idle
+    @Published var securityDashboard: SecurityDashboardPresentation?
+    @Published var securityScanFailure: ConsumerFlowFailure?
 
     let client = AgentServerClient()
     // Retained only for resolving decisions (a write, POSTed to the panel with
@@ -57,6 +60,8 @@ final class StatusMonitor: ObservableObject {
     var securityAcknowledgements = SecurityAcknowledgementState()
     var debuggerPatches: [String: (patch: GuidanceConfigurationPatch, preview: GuidancePatchPreview)] = [:]
     var securityPatches: [String: (patch: GuidanceConfigurationPatch, preview: GuidancePatchPreview)] = [:]
+    var securityScanTask: Task<Result<SecurityDashboardPresentation, ConsumerFlowFailure>, Never>?
+    var lastBackgroundSecuritySignature: [String] = []
 
     func setServerProcess(_ manager: ServerProcessManager) {
         self.serverProcess = manager

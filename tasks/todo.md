@@ -23,6 +23,23 @@ Status: Native service integration and final release verification are complete.
 - Agent-specific security review returns to that agent when closed. The global dashboard closes to the main screen.
 - Verification: 212 Swift behavior tests and the unsigned app build passed. UI automation was not run.
 
+## Background security scan
+
+- [x] Start a quiet security scan after the main window has loaded its agents.
+- [x] Analyze agents sequentially and publish progress without blocking the main thread.
+- [x] Show live shield status in the Security drawer header and agent-by-agent progress in the drawer.
+- [x] Show an accessible notification badge on the Security footer icon for failures and findings that need attention.
+- [x] Keep manual retry and scan-again actions, coalescing duplicate scan requests.
+- [x] Verify behavior tests and an unsigned macOS build without UI automation, then commit and simplify.
+
+### Background security review
+
+- Opening the main window starts a coalesced local check after the agent list arrives and repeats when security-relevant agent presentation changes.
+- Agents are checked in name order, one at a time. A failed agent receives its own failed row and does not prevent later agents from being checked.
+- The bottom-right shield uses a subtle 1.1-second pulse while checking and stops under Reduce Motion. The drawer header uses the shield position as its working or error indicator.
+- The footer shows an accessible red error marker for scan failures and a count for high or critical agents. Low and ordinary Needs review results remain in the drawer without turning the footer into a constant alarm.
+- Verification: 219 Swift behavior tests and the unsigned app build passed. UI automation was not run.
+
 ### Environment path review
 
 - The app and server now read the documented `~/.agent-server/.env` file only.

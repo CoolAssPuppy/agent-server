@@ -187,22 +187,54 @@ struct MainPane: View {
 
             ForEach(MainFooterUtilityDestination.allCases, id: \.self) { destination in
                 Button { destination.open(using: router) } label: {
-                    Label(destination.title, systemImage: destination.systemImage)
-                        .labelStyle(.iconOnly)
+                    FooterUtilityIcon(
+                        destination: destination,
+                        isScanning: destination == .security && monitor.securityScanState.phase == .scanning
+                    )
                         .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
-                        .font(NTypography.caption)
-                        .foregroundStyle(theme.tokens.mutedForeground)
+                        .overlay(alignment: .topTrailing) {
+                            if destination == .security {
+                                securityNotificationBadge
+                            }
+                        }
                 }
                 .buttonStyle(.plain)
                 .help(destination.help)
-                .accessibilityLabel(destination.title)
+                .accessibilityLabel(accessibilityLabel(for: destination))
                 .accessibilityIdentifier(destination.accessibilityIdentifier)
             }
         }
         .padding(.horizontal, NSpacing.lg)
         .padding(.vertical, NSpacing.sm)
         .overlay(alignment: .top) { Divider().opacity(0.4) }
+    }
+
+    @ViewBuilder
+    private var securityNotificationBadge: some View {
+        switch monitor.securityScanState.notification {
+        case .none:
+            EmptyView()
+        case .error:
+            Text("!")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(Color.white)
+                .frame(width: 13, height: 13)
+                .background(theme.tokens.destructive, in: Circle())
+                .offset(x: 2, y: -2)
+        case .attention(let count):
+            Text(count > 9 ? "9+" : "\(count)")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(Color.white)
+                .padding(.horizontal, count > 9 ? 3 : 0)
+                .frame(minWidth: 13, minHeight: 13)
+                .background(theme.tokens.destructive, in: Capsule())
+                .offset(x: 3, y: -2)
+        }
+    }
+
+    private func accessibilityLabel(for destination: MainFooterUtilityDestination) -> String {
+        destination == .security ? monitor.securityScanState.accessibilitySummary : destination.title
     }
 
     // MARK: - Small helpers
@@ -233,6 +265,38 @@ struct MainPane: View {
 
     private func clockTime(_ date: Date) -> String {
         date.formatted(date: .omitted, time: .shortened)
+    }
+}
+
+private struct FooterUtilityIcon: View {
+    let destination: MainFooterUtilityDestination
+    let isScanning: Bool
+
+    @Environment(\.nTheme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isPulsing = false
+
+    var body: some View {
+        Label(destination.title, systemImage: destination.systemImage)
+            .labelStyle(.iconOnly)
+            .font(NTypography.caption)
+            .foregroundStyle(theme.tokens.mutedForeground)
+            .scaleEffect(isScanning && isPulsing ? 1.06 : 1)
+            .opacity(isScanning && isPulsing ? 0.68 : 1)
+            .onAppear(perform: updateAnimation)
+            .onChange(of: isScanning) { _, _ in updateAnimation() }
+            .onChange(of: reduceMotion) { _, _ in updateAnimation() }
+    }
+
+    private func updateAnimation() {
+        guard isScanning, !reduceMotion else {
+            withAnimation(.easeOut(duration: 0.2)) { isPulsing = false }
+            return
+        }
+        isPulsing = false
+        withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
+            isPulsing = true
+        }
     }
 }
 

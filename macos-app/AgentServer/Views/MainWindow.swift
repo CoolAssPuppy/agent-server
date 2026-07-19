@@ -48,6 +48,9 @@ struct MainWindow: View {
         .nTheme(themeManager.themeConfig)
         .background(themeManager.themeConfig.tokens.background)
         .environment(\.colorScheme, isDark ? .dark : .light)
+        .task(id: monitor.securityScanTrigger) {
+            monitor.startBackgroundSecurityScan()
+        }
         .onAppear { commitPendingRouteIfAny() }
         .onChange(of: router.pending) { _, _ in commitPendingRouteIfAny() }
         .sheet(
