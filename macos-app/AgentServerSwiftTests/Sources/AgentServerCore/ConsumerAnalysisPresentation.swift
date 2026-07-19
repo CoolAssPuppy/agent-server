@@ -227,6 +227,7 @@ public struct DiagnosticPresentation: Equatable, Sendable {
     public let recommendedFix: ConfigurationFixPresentation?
     public let preventionTip: String?
     public let technicalDetails: String
+    public let rerunSafety: DiagnosticRerunSafety
 
     public init(
         title: String,
@@ -234,7 +235,8 @@ public struct DiagnosticPresentation: Equatable, Sendable {
         evidence: [String],
         recommendedFix: ConfigurationFixPresentation?,
         preventionTip: String?,
-        technicalDetails: String
+        technicalDetails: String,
+        rerunSafety: DiagnosticRerunSafety = .confirm
     ) {
         self.title = title
         self.explanation = explanation
@@ -242,7 +244,14 @@ public struct DiagnosticPresentation: Equatable, Sendable {
         self.recommendedFix = recommendedFix
         self.preventionTip = preventionTip
         self.technicalDetails = technicalDetails
+        self.rerunSafety = rerunSafety
     }
+}
+
+public enum DiagnosticRerunSafety: String, Codable, Equatable, Sendable {
+    case safe
+    case confirm
+    case unsafe
 }
 
 public struct SecurityFindingPresentation: Identifiable, Equatable, Sendable {

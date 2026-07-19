@@ -21,6 +21,7 @@ public struct GuidanceDiagnosticPayload: Decodable, Equatable, Sendable {
     let affectedSettings: [String]
     public let risk: String
     public let canAutomate: Bool
+    public let rerunSafety: DiagnosticRerunSafety?
     public let nextStep: String
     public let source: String
     public let resolution: GuidanceResolutionPayload?
@@ -32,6 +33,7 @@ public struct GuidanceDiagnosticPayload: Decodable, Equatable, Sendable {
         case suggestedFix = "suggested_fix"
         case affectedSettings = "affected_settings"
         case canAutomate = "can_automate"
+        case rerunSafety = "rerun_safety"
         case nextStep = "next_step"
     }
 
@@ -59,7 +61,8 @@ public struct GuidanceDiagnosticPayload: Decodable, Equatable, Sendable {
                 )
             },
             preventionTip: nextStep,
-            technicalDetails: "Source: \(source)\nConfidence: \(Int(confidence * 100))%"
+            technicalDetails: "Source: \(source)\nConfidence: \(Int(confidence * 100))%",
+            rerunSafety: rerunSafety ?? .confirm
         )
     }
 

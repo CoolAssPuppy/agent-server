@@ -488,6 +488,29 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertFalse(flow.canApplyFix)
     }
 
+    func testDebuggerRerunSafetyDefaultsToConfirmationAndCanExplicitlyBlockRetry() {
+        let defaultDiagnosis = DiagnosticPresentation(
+            title: "The run failed.",
+            explanation: "The cause needs review.",
+            evidence: [],
+            recommendedFix: nil,
+            preventionTip: nil,
+            technicalDetails: ""
+        )
+        let unsafeDiagnosis = DiagnosticPresentation(
+            title: "The run may delete files.",
+            explanation: "Trying again without changes could repeat a destructive action.",
+            evidence: [],
+            recommendedFix: nil,
+            preventionTip: nil,
+            technicalDetails: "",
+            rerunSafety: .unsafe
+        )
+
+        XCTAssertEqual(defaultDiagnosis.rerunSafety, .confirm)
+        XCTAssertEqual(unsafeDiagnosis.rerunSafety, .unsafe)
+    }
+
     func testSecuritySummaryGroupsFindingsByImportanceAndUsesNonColorLabels() {
         let findings = [
             SecurityFindingPresentation.fixture(id: "medium", severity: .needsReview),

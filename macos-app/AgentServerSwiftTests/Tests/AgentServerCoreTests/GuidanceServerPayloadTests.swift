@@ -197,6 +197,7 @@ final class GuidanceServerPayloadTests: XCTestCase {
         XCTAssertEqual(diagnosis.recommendedFix?.title, "Allow report edits")
         XCTAssertFalse(diagnosis.recommendedFix?.canApply ?? true)
         XCTAssertEqual(diagnosis.evidence.first, "Write access: The Reports folder is read-only.")
+        XCTAssertEqual(diagnosis.rerunSafety, .confirm)
     }
 
     func testGuidanceRoutesUsePostAndEscapeBoundIdentifiers() {

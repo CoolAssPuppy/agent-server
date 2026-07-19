@@ -33,6 +33,7 @@ struct AgentDebuggerView: View {
     @Environment(\.nTheme) private var theme
     @State private var flow: AgentDebuggerFlow
     @State private var showsTechnicalDetails = false
+    @State private var showsRetryConfirmation = false
     @State private var retryTask: Task<Void, Never>?
 
     init(
@@ -66,6 +67,16 @@ struct AgentDebuggerView: View {
             await diagnose()
         }
         .onDisappear { retryTask?.cancel() }
+        .confirmationDialog(
+            "Retry this agent without changes?",
+            isPresented: $showsRetryConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Retry") { Task { await retryRun() } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The same problem may happen again. No settings will be changed.")
+        }
     }
 
     @ViewBuilder
@@ -136,10 +147,26 @@ struct AgentDebuggerView: View {
 
     private var actionsRow: some View {
         HStack {
-            Button("Retry without changes") { Task { await retryRun() } }
-                .accessibilityIdentifier(ConsumerFlowAccessibility.debuggerRetry)
+            retryWithoutChangesAction
             Button("Open agent settings", action: openAgentSettings)
             Spacer()
+        }
+    }
+
+    @ViewBuilder
+    private var retryWithoutChangesAction: some View {
+        switch flow.diagnosis?.rerunSafety ?? .confirm {
+        case .safe:
+            Button("Retry without changes") { Task { await retryRun() } }
+                .accessibilityIdentifier(ConsumerFlowAccessibility.debuggerRetry)
+        case .confirm:
+            Button("Retry without changes…") { showsRetryConfirmation = true }
+                .accessibilityIdentifier(ConsumerFlowAccessibility.debuggerRetry)
+        case .unsafe:
+            Label("Change the setup before trying again", systemImage: "exclamationmark.shield")
+                .font(NTypography.caption)
+                .foregroundStyle(theme.tokens.warning)
+                .accessibilityIdentifier("debugger.retryBlocked")
         }
     }
 
