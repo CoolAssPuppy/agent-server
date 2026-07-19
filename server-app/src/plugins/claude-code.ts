@@ -1,5 +1,5 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import type { Options, Query, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { Options, Query } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentConfig } from '../agents/config.js';
 import {
   buildClaudeChildEnvironment,
@@ -20,6 +20,7 @@ import { buildCanUseTool } from '../execution/permissions.js';
 import { runDecisionCycle, type DecisionContext } from '../execution/decision-handler.js';
 import { nativeServiceGrantEnvironment } from '../agents/native-services.js';
 import { resolveSavedConnectionValues } from '../connections/runtime-resolution.js';
+import { startClaudeQueryWithMcp } from './claude-query-setup.js';
 
 type ExecuteAgentExtra = {
   abortController?: AbortController;
@@ -31,56 +32,6 @@ type ExecuteAgentExtra = {
    */
   claudeExecutablePath?: string;
 };
-
-type PromptGate = {
-  messages: AsyncIterable<SDKUserMessage>;
-  release: () => void;
-  cancel: () => void;
-};
-
-function createPromptGate(prompt: string): PromptGate {
-  let settle!: (shouldSend: boolean) => void;
-  const readiness = new Promise<boolean>((resolve) => { settle = resolve; });
-
-  return {
-    messages: (async function* () {
-      if (!await readiness) return;
-      yield {
-        type: 'user',
-        message: { role: 'user', content: prompt },
-        parent_tool_use_id: null,
-        session_id: '',
-      };
-    })(),
-    release: () => { settle(true); },
-    cancel: () => { settle(false); },
-  };
-}
-
-async function startConfiguredQuery(
-  prompt: string,
-  options: Options,
-  mcpServers: NonNullable<Options['mcpServers']>,
-  abortController: AbortController,
-): Promise<Query> {
-  const gate = createPromptGate(prompt);
-  const stream = query({ prompt: gate.messages, options });
-
-  try {
-    await stream.setMcpServers(mcpServers);
-    gate.release();
-    return stream;
-  } catch (error) {
-    gate.cancel();
-    abortController.abort(error);
-    try {
-      stream.close();
-    } catch {
-      // Preserve the MCP setup failure as the actionable error.
-    }
-    throw error;
-  }
-}
 
 export async function executeAgent(
   agent: AgentConfig,
@@ -161,7 +112,7 @@ export async function executeAgent(
   // resumption text appended to the prompt. Without a decisionContext this
   // loop runs exactly once (backward compatible).
   while (true) {
-    const stream = await startConfiguredQuery(
+    const stream = await startClaudeQueryWithMcp(
       currentPrompt,
       options,
       configuredMcpServers,
