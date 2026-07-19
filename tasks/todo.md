@@ -9,6 +9,20 @@ Status: Native service integration and final release verification are complete.
 - [ ] Define legacy key adoption and exact connection identity rules for multiple Notion and Linear accounts.
 - [ ] Run affected server and Swift tests, build both targets, commit, and simplify.
 
+## Utility navigation and drawer consistency
+
+- [x] Put Security check, Connections, and Settings in one bottom-right icon cluster in that order.
+- [x] Give every icon a tooltip, accessibility label, and stable test identifier.
+- [x] Make Security check use the shared top-drawer surface, geometry, dimming, close control, and motion.
+- [x] Verify behavior tests and an unsigned macOS build without UI automation, then commit and simplify.
+
+### Utility navigation review
+
+- Security check, Connections, and Settings now form one trailing icon cluster.
+- All three use one top-drawer surface and one overlay implementation, so height, title placement, close control, dimming, shape, shadow, Escape handling, and motion cannot drift independently.
+- Agent-specific security review returns to that agent when closed. The global dashboard closes to the main screen.
+- Verification: 212 Swift behavior tests and the unsigned app build passed. UI automation was not run.
+
 ### Environment path review
 
 - The app and server now read the documented `~/.agent-server/.env` file only.

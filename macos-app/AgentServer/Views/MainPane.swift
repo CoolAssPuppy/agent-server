@@ -182,43 +182,23 @@ struct MainPane: View {
     // MARK: - Footer
 
     private var footer: some View {
-        HStack(spacing: NSpacing.md) {
-            Button {
-                router.openConnections()
-            } label: {
-                Label("Connections", systemImage: "link")
-                    .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Services your agents can use")
-
-            Button {
-                router.openSecurity()
-            } label: {
-                Label("Security check", systemImage: "checkmark.shield")
-                    .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Review agent access and safety")
-            .accessibilityIdentifier(ConsumerFlowAccessibility.securityNavigation)
-
+        HStack(spacing: NSpacing.sm) {
             Spacer()
 
-            Button {
-                router.openSettings()
-            } label: {
-                Label("Settings", systemImage: "gearshape")
-                    .labelStyle(.iconOnly)
-                    .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                    .contentShape(Rectangle())
+            ForEach(MainFooterUtilityDestination.allCases, id: \.self) { destination in
+                Button { destination.open(using: router) } label: {
+                    Label(destination.title, systemImage: destination.systemImage)
+                        .labelStyle(.iconOnly)
+                        .frame(width: 28, height: 28)
+                        .contentShape(Rectangle())
+                        .font(NTypography.caption)
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                }
+                .buttonStyle(.plain)
+                .help(destination.help)
+                .accessibilityLabel(destination.title)
+                .accessibilityIdentifier(destination.accessibilityIdentifier)
             }
-            .buttonStyle(.plain)
-            .help("Settings")
         }
         .padding(.horizontal, NSpacing.lg)
         .padding(.vertical, NSpacing.sm)

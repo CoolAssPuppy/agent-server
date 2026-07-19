@@ -66,9 +66,12 @@ struct ConnectionsView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider().opacity(0.3)
+        TopDrawerSurface(
+            title: "Connections",
+            closeLabel: "Close connections",
+            onClose: close,
+            headerActions: { refreshButton }
+        ) {
             ScrollView {
                 VStack(alignment: .leading, spacing: NSpacing.xl) {
                     availableSection
@@ -82,18 +85,6 @@ struct ConnectionsView: View {
             // connector list once the probe returns; anchoring to the top keeps
             // the view pinned there instead of drifting as content grows below.
             .defaultScrollAnchor(.top)
-        }
-        // Match the Settings drawer: same fixed height, card surface, rounded
-        // bottom, and soft shadow. Content scrolls inside.
-        .frame(maxWidth: .infinity)
-        .frame(height: SettingsDrawer.height)
-        .background(theme.tokens.card)
-        .clipShape(BottomRoundedRectangle(radius: NRadius.md))
-        .compositingGroup()
-        .shadow(color: Color.black.opacity(0.25), radius: 16, x: 0, y: 6)
-        .onKeyPress(.escape) {
-            close()
-            return .handled
         }
         .task {
             guard !loaded else { return }
@@ -122,36 +113,6 @@ struct ConnectionsView: View {
                 Task { catalog = await monitor.capabilityCatalog() }
             }
         }
-    }
-
-    // MARK: - Header
-
-    private var header: some View {
-        HStack {
-            Text("Connections")
-                .font(NTypography.headlineLarge)
-                .foregroundStyle(theme.tokens.foreground)
-            Spacer()
-            refreshButton
-            Button(action: close) {
-                ZStack {
-                    Circle().fill(theme.tokens.muted)
-                        .overlay(Circle().stroke(theme.tokens.border, lineWidth: 1))
-                    Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                }
-                .frame(width: 28, height: 28)
-                .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Close connections")
-        }
-        .padding(.horizontal, NSpacing.xxl)
-        // Reserve space for the transparent titlebar's traffic lights, matching
-        // the Settings drawer so the title sits just below them.
-        .padding(.top, 28)
-        .padding(.bottom, NSpacing.md)
     }
 
     private func close() {

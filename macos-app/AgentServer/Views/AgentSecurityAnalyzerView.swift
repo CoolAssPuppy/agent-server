@@ -18,6 +18,7 @@ private struct ReviewedSecurityFix: Identifiable {
 struct AgentSecurityAnalyzerView: View {
     let agentName: String
     let actions: AgentSecurityActions
+    var showsHeading = true
 
     @Environment(\.nTheme) private var theme
     @State private var scan: SecurityScanPresentation?
@@ -46,13 +47,24 @@ struct AgentSecurityAnalyzerView: View {
 
     private var header: some View {
         HStack(alignment: .top) {
-            ConsumerFlowHeader(
-                title: "Security check",
-                explanation: "See what \(agentName) can access and what could happen if something goes wrong."
-            )
+            if showsHeading {
+                ConsumerFlowHeader(
+                    title: "Security check",
+                    explanation: explanation
+                )
+            } else {
+                Text(explanation)
+                    .font(NTypography.bodyMedium)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            }
+            Spacer()
             Button("Check again") { Task { await runScan() } }
                 .disabled(isLoading)
         }
+    }
+
+    private var explanation: String {
+        "See what \(agentName) can access and what could happen if something goes wrong."
     }
 
     @ViewBuilder

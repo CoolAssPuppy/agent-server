@@ -44,8 +44,8 @@ struct SettingsDrawer: View {
     @State private var telemetryIncludeMetadata: Bool = false
     @State private var showAdvancedSettings: Bool = false
 
-    static let height: CGFloat = 640
-    static let slideDuration: Double = 0.26
+    static let height = TopDrawerStyle.height
+    static let slideDuration = TopDrawerStyle.slideDuration
 
     private static let envPath: URL = {
         let home = FileManager.default.homeDirectoryForCurrentUser
@@ -53,65 +53,22 @@ struct SettingsDrawer: View {
     }()
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            content
-            footer
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: Self.height)
-        // Distinct surface color so the drawer reads as its own layer.
-        .background(theme.tokens.card)
-        .clipShape(BottomRoundedRectangle(radius: NRadius.md))
-        // Rasterize before shadow so the drawer draws one soft edge, not
-        // a per-card bleed-through.
-        .compositingGroup()
-        .shadow(color: Color.black.opacity(0.25), radius: 16, x: 0, y: 6)
-        .onKeyPress(.escape) {
-            router.close()
-            return .handled
+        TopDrawerSurface(
+            title: "Settings",
+            closeLabel: "Close settings",
+            onClose: router.close,
+            showsDivider: false
+        ) {
+            VStack(spacing: 0) {
+                content
+                footer
+            }
         }
         .task {
             guard !didLoad else { return }
             didLoad = true
             loadPairs()
         }
-    }
-
-    // MARK: - Header
-
-    private var header: some View {
-        HStack(alignment: .top) {
-            Text("Settings")
-                .font(NTypography.headlineLarge)
-                .foregroundStyle(theme.tokens.foreground)
-                .padding(.top, NSpacing.xs)
-
-            Spacer()
-
-            Button(action: router.close) {
-                ZStack {
-                    Circle()
-                        .fill(theme.tokens.muted)
-                        .overlay(
-                            Circle().stroke(theme.tokens.border, lineWidth: 1)
-                        )
-                    Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                }
-                .frame(width: 28, height: 28)
-                .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Close settings")
-        }
-        .padding(.horizontal, NSpacing.xxl)
-        // Reserve space for the transparent titlebar's traffic lights.
-        // The drawer covers the titlebar area, so the Settings title and
-        // ✕ close sit just below the traffic light row.
-        .padding(.top, 28)
-        .padding(.bottom, NSpacing.md)
     }
 
     private var content: some View {

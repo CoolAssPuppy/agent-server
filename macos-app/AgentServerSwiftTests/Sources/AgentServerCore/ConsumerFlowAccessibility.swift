@@ -13,6 +13,8 @@ public enum ConsumerFlowAccessibility {
     public static let debuggerRetry = "debugger.retry"
     public static let securityScanAll = "security.scanAll"
     public static let securityNavigation = "security.navigation"
+    public static let connectionsNavigation = "connections.navigation"
+    public static let settingsNavigation = "settings.navigation"
     public static let securityFindingPrefix = "security.finding."
     public static let debuggerOpen = "debugger.open"
 }

@@ -3,6 +3,18 @@ import XCTest
 
 final class DrawerRouterTests: XCTestCase {
 
+    func testFooterUtilitiesAreIconOnlyAndOrderedByIncreasingScope() {
+        XCTAssertEqual(
+            MainFooterUtilityDestination.allCases,
+            [.security, .connections, .settings]
+        )
+        XCTAssertEqual(
+            MainFooterUtilityDestination.allCases.map(\.title),
+            ["Security check", "Connections", "Settings"]
+        )
+        XCTAssertTrue(MainFooterUtilityDestination.allCases.allSatisfy(\.isIconOnly))
+    }
+
     func testStartsClosed() {
         let router = DrawerRouter()
         XCTAssertNil(router.open)
@@ -62,6 +74,16 @@ final class DrawerRouterTests: XCTestCase {
         router.openSecurity(agentId: "agent-1")
         XCTAssertEqual(router.securityAgentId, "agent-1")
         XCTAssertFalse(router.isDetailOpen)
+    }
+
+    func testClosingSecurityReturnsToItsAgentOrClosesTheDashboard() {
+        let dashboardRouter = DrawerRouter(open: .security(agentId: nil))
+        dashboardRouter.closeSecurity()
+        XCTAssertNil(dashboardRouter.open)
+
+        let agentRouter = DrawerRouter(open: .security(agentId: "agent-1"))
+        agentRouter.closeSecurity()
+        XCTAssertEqual(agentRouter.open, .detail(agentId: "agent-1"))
     }
 
     func testFailedRunOpensDebuggerAndKeepsRunIdentifier() {

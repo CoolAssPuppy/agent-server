@@ -10,6 +10,7 @@ struct SecurityDashboardActions {
 struct SecurityDashboardView: View {
     let actions: SecurityDashboardActions
     let openAgent: (String) -> Void
+    let showsHeading: Bool
 
     @Environment(\.nTheme) private var theme
     @State private var dashboard: SecurityDashboardPresentation?
@@ -21,11 +22,13 @@ struct SecurityDashboardView: View {
 
     init(
         dashboard: SecurityDashboardPresentation? = nil,
+        showsHeading: Bool = true,
         actions: SecurityDashboardActions,
         openAgent: @escaping (String) -> Void
     ) {
         self.actions = actions
         self.openAgent = openAgent
+        self.showsHeading = showsHeading
         _dashboard = State(initialValue: dashboard)
     }
 
@@ -47,10 +50,17 @@ struct SecurityDashboardView: View {
 
     private var header: some View {
         HStack(alignment: .top, spacing: NSpacing.lg) {
-            ConsumerFlowHeader(
-                title: "Security check",
-                explanation: "Review what your agents can access and where they can send information."
-            )
+            if showsHeading {
+                ConsumerFlowHeader(
+                    title: "Security check",
+                    explanation: explanation
+                )
+            } else {
+                Text(explanation)
+                    .font(NTypography.bodyMedium)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            }
+            Spacer()
             Button("Export redacted report") { Task { await export() } }
                 .disabled(dashboard == nil)
             Button("Scan all") { Task { await scan() } }
@@ -60,6 +70,10 @@ struct SecurityDashboardView: View {
                 .accessibilityIdentifier(ConsumerFlowAccessibility.securityScanAll)
         }
         .padding(NSpacing.xl)
+    }
+
+    private var explanation: String {
+        "Review what your agents can access and where they can send information."
     }
 
     @ViewBuilder

@@ -169,22 +169,8 @@ struct MainWindow: View {
     /// transparent titlebar area while open — that's the "drawer sliding
     /// over the titlebar" feel). Rounded bottom corners only.
     private var settingsDrawerLayer: some View {
-        ZStack(alignment: .top) {
-            Group {
-                if router.isSettingsOpen {
-                    Color.black.opacity(0.22)
-                        .onTapGesture(perform: router.close)
-                        .transition(.opacity)
-                }
-            }
-            Group {
-                if router.isSettingsOpen {
-                    SettingsDrawer(monitor: monitor, router: router)
-                        .transition(
-                            .move(edge: .top).combined(with: .opacity)
-                        )
-                }
-            }
+        topDrawerLayer(isPresented: router.isSettingsOpen, onDismiss: router.close) {
+            SettingsDrawer(monitor: monitor, router: router)
         }
         .animation(
             .easeOut(duration: SettingsDrawer.slideDuration),
@@ -194,36 +180,37 @@ struct MainWindow: View {
 
     /// Connections drawer: slides down from the top like Settings.
     private var connectionsDrawerLayer: some View {
-        ZStack(alignment: .top) {
-            Group {
-                if router.isConnectionsOpen {
-                    Color.black.opacity(0.22)
-                        .onTapGesture(perform: router.close)
-                        .transition(.opacity)
-                }
-            }
-            Group {
-                if router.isConnectionsOpen {
-                    ConnectionsView(monitor: monitor, router: router)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-            }
+        topDrawerLayer(isPresented: router.isConnectionsOpen, onDismiss: router.close) {
+            ConnectionsView(monitor: monitor, router: router)
         }
         .animation(.easeOut(duration: SettingsDrawer.slideDuration), value: router.isConnectionsOpen)
     }
 
     private var securityDrawerLayer: some View {
-        ZStack(alignment: .top) {
-            if router.isSecurityOpen {
-                SecurityCenterView(
-                    monitor: monitor,
-                    router: router,
-                    agentId: router.securityAgentId
-                )
-                .transition(.move(edge: .top).combined(with: .opacity))
-            }
+        topDrawerLayer(isPresented: router.isSecurityOpen, onDismiss: router.closeSecurity) {
+            SecurityCenterView(
+                monitor: monitor,
+                router: router,
+                agentId: router.securityAgentId
+            )
         }
         .animation(.easeOut(duration: SettingsDrawer.slideDuration), value: router.isSecurityOpen)
+    }
+
+    private func topDrawerLayer<Content: View>(
+        isPresented: Bool,
+        onDismiss: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        ZStack(alignment: .top) {
+            if isPresented {
+                Color.black.opacity(0.22)
+                    .onTapGesture(perform: onDismiss)
+                    .transition(.opacity)
+                content()
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
     }
 
     private var debuggerDrawerLayer: some View {

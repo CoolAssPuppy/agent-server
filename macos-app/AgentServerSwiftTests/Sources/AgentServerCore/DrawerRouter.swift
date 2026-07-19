@@ -79,6 +79,14 @@ final class DrawerRouter: ObservableObject {
         open = nil
     }
 
+    func closeSecurity() {
+        if let agentId = securityAgentId {
+            open = .detail(agentId: agentId)
+        } else {
+            open = nil
+        }
+    }
+
     // MARK: Queries
 
     var isDetailOpen: Bool {
