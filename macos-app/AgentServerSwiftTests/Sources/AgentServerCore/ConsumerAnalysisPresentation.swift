@@ -229,6 +229,8 @@ public struct DiagnosticPresentation: Equatable, Sendable {
     public let technicalDetails: String
     public let rerunSafety: DiagnosticRerunSafety
 
+    public var hasEvidence: Bool { !evidence.isEmpty }
+
     public init(
         title: String,
         explanation: String,

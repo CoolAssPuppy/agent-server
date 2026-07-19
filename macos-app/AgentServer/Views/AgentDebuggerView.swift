@@ -116,10 +116,12 @@ struct AgentDebuggerView: View {
                 Text(diagnosis.explanation)
                     .foregroundStyle(theme.tokens.mutedForeground)
             }
-            ConsumerSection("Evidence") {
-                ForEach(diagnosis.evidence.prefix(3), id: \.self) { fact in
-                    Label(fact, systemImage: "info.circle")
-                        .font(NTypography.bodyLarge)
+            if diagnosis.hasEvidence {
+                ConsumerSection("Evidence") {
+                    ForEach(diagnosis.evidence.prefix(3), id: \.self) { fact in
+                        Label(fact, systemImage: "info.circle")
+                            .font(NTypography.bodyLarge)
+                    }
                 }
             }
             if let fix = diagnosis.recommendedFix {

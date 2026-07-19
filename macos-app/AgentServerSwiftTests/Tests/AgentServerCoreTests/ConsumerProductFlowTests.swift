@@ -511,6 +511,28 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(unsafeDiagnosis.rerunSafety, .unsafe)
     }
 
+    func testDebuggerShowsEvidenceOnlyWhenThereAreFactsToReview() {
+        let withoutEvidence = DiagnosticPresentation(
+            title: "The run failed.",
+            explanation: "No local evidence was available.",
+            evidence: [],
+            recommendedFix: nil,
+            preventionTip: nil,
+            technicalDetails: ""
+        )
+        let withEvidence = DiagnosticPresentation(
+            title: "The run failed.",
+            explanation: "The destination could not be reached.",
+            evidence: ["Notion was not connected"],
+            recommendedFix: nil,
+            preventionTip: nil,
+            technicalDetails: ""
+        )
+
+        XCTAssertFalse(withoutEvidence.hasEvidence)
+        XCTAssertTrue(withEvidence.hasEvidence)
+    }
+
     func testSecuritySummaryGroupsFindingsByImportanceAndUsesNonColorLabels() {
         let findings = [
             SecurityFindingPresentation.fixture(id: "medium", severity: .needsReview),
