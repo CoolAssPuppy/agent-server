@@ -1,5 +1,5 @@
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import type { Options, Query } from '@anthropic-ai/claude-agent-sdk';
+import type { Options, Query, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { AgentConfig } from '../agents/config.js';
 import {
   buildClaudeChildEnvironment,
@@ -32,6 +32,56 @@ type ExecuteAgentExtra = {
   claudeExecutablePath?: string;
 };
 
+type PromptGate = {
+  messages: AsyncIterable<SDKUserMessage>;
+  release: () => void;
+  cancel: () => void;
+};
+
+function createPromptGate(prompt: string): PromptGate {
+  let settle!: (shouldSend: boolean) => void;
+  const readiness = new Promise<boolean>((resolve) => { settle = resolve; });
+
+  return {
+    messages: (async function* () {
+      if (!await readiness) return;
+      yield {
+        type: 'user',
+        message: { role: 'user', content: prompt },
+        parent_tool_use_id: null,
+        session_id: '',
+      };
+    })(),
+    release: () => { settle(true); },
+    cancel: () => { settle(false); },
+  };
+}
+
+async function startConfiguredQuery(
+  prompt: string,
+  options: Options,
+  mcpServers: NonNullable<Options['mcpServers']>,
+  abortController: AbortController,
+): Promise<Query> {
+  const gate = createPromptGate(prompt);
+  const stream = query({ prompt: gate.messages, options });
+
+  try {
+    await stream.setMcpServers(mcpServers);
+    gate.release();
+    return stream;
+  } catch (error) {
+    gate.cancel();
+    abortController.abort(error);
+    try {
+      stream.close();
+    } catch {
+      // Preserve the MCP setup failure as the actionable error.
+    }
+    throw error;
+  }
+}
+
 export async function executeAgent(
   agent: AgentConfig,
   reporter: Reporter,
@@ -47,6 +97,8 @@ export async function executeAgent(
     allow: agent.tools,
     deny: agent.disallowed_tools ?? [],
   } : undefined);
+  const abortController = extra?.abortController ?? new AbortController();
+  const configuredMcpServers = buildMcpServers(agent) ?? {};
 
   const options: Options = {
     maxTurns: agent.max_turns,
@@ -65,8 +117,7 @@ export async function executeAgent(
     canUseTool: effectivePermissions
       ? buildCanUseTool(effectivePermissions, fileAccess)
       : undefined,
-    abortController: extra?.abortController,
-    mcpServers: buildMcpServers(agent),
+    abortController,
     // Use the user's installed Claude runtime when discovery found one;
     // undefined falls back to the SDK's bundled executable.
     pathToClaudeCodeExecutable: extra?.claudeExecutablePath,
@@ -110,7 +161,12 @@ export async function executeAgent(
   // resumption text appended to the prompt. Without a decisionContext this
   // loop runs exactly once (backward compatible).
   while (true) {
-    const stream = query({ prompt: currentPrompt, options });
+    const stream = await startConfiguredQuery(
+      currentPrompt,
+      options,
+      configuredMcpServers,
+      abortController,
+    );
 
     mcpServers = await handleMcpServerStatus(stream, reporter);
 

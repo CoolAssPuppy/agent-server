@@ -35,6 +35,7 @@ function restoreEnv(name: string, value: string | undefined): void {
 
 const mockMcpServerStatus = vi.fn();
 const mockReconnectMcpServer = vi.fn();
+const mockSetMcpServers = vi.fn();
 const mockQuery = vi.fn();
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
@@ -45,8 +46,10 @@ beforeEach(() => {
   mockQuery.mockReset();
   mockMcpServerStatus.mockReset();
   mockReconnectMcpServer.mockReset();
+  mockSetMcpServers.mockReset();
   mockMcpServerStatus.mockResolvedValue([]);
   mockReconnectMcpServer.mockResolvedValue(undefined);
+  mockSetMcpServers.mockResolvedValue({ added: [], removed: [], errors: {} });
 });
 
 describe('executeAgent with Agent SDK', () => {
@@ -65,7 +68,7 @@ describe('executeAgent with Agent SDK', () => {
     expect(result.turnCount).toBe(3);
   });
 
-  it('passes prompt and options to the SDK query function', async () => {
+  it('passes the gated prompt and ordinary options to the SDK query function', async () => {
     const { executeAgent } = await import('./claude-code.js');
 
     mockQuery.mockReturnValue(createAsyncGenerator([
@@ -82,16 +85,78 @@ describe('executeAgent with Agent SDK', () => {
 
     await executeAgent(agent, reporter);
 
-    expect(mockQuery).toHaveBeenCalledWith({
-      prompt: 'Write tests',
-      options: expect.objectContaining({
-        maxTurns: 5,
-        allowedTools: ['Read', 'Write', 'Bash'],
-        cwd: '/tmp/test-dir',
-        permissionMode: 'default',
-        allowDangerouslySkipPermissions: undefined,
-      }),
+    const request = mockQuery.mock.calls[0][0];
+    expect(await readPrompt(request.prompt)).toBe('Write tests');
+    expect(request.options).toEqual(expect.objectContaining({
+      maxTurns: 5,
+      allowedTools: ['Read', 'Write', 'Bash'],
+      cwd: '/tmp/test-dir',
+      permissionMode: 'default',
+      allowDangerouslySkipPermissions: undefined,
+    }));
+  });
+
+  it('sends MCP configuration through the SDK control stream instead of process options', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createResultSuccess({ result: 'Done', num_turns: 1 }),
+    ]));
+    const agent = createAgentConfig({
+      mcp_servers: {
+        notes: { command: '/usr/bin/notes-mcp', args: ['serve'] },
+      },
     });
+
+    await executeAgent(agent, createMockReporter());
+
+    const request = mockQuery.mock.calls[0][0];
+    expect(request.options).not.toHaveProperty('mcpServers');
+    expect(mockSetMcpServers).toHaveBeenCalledWith({
+      notes: { command: '/usr/bin/notes-mcp', args: ['serve'], env: undefined },
+    });
+  });
+
+  it('does not release the user prompt until MCP setup succeeds', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+    const setup = deferred<void>();
+    let promptRead: Promise<string> | undefined;
+    mockSetMcpServers.mockReturnValue(setup.promise);
+    mockQuery.mockImplementation((request) => {
+      promptRead = readPrompt(request.prompt);
+      return createAsyncGenerator([createResultSuccess({ result: 'Done', num_turns: 1 })]);
+    });
+
+    const result = executeAgent(createAgentConfig(), createMockReporter());
+    await vi.waitFor(() => expect(mockSetMcpServers).toHaveBeenCalledOnce());
+
+    let didReleasePrompt = false;
+    void promptRead?.then(() => { didReleasePrompt = true; });
+    await Promise.resolve();
+    expect(didReleasePrompt).toBe(false);
+
+    setup.resolve(undefined);
+    await expect(promptRead).resolves.toBe('Do something useful');
+    await expect(result).resolves.toMatchObject({ summary: 'Done' });
+  });
+
+  it('closes and aborts without releasing the prompt when MCP setup fails', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+    const setupError = new Error('MCP setup failed');
+    const abortController = new AbortController();
+    const stream = createAsyncGenerator([createResultSuccess({ result: 'unused', num_turns: 1 })]);
+    let promptRead: Promise<string> | undefined;
+    mockSetMcpServers.mockRejectedValue(setupError);
+    mockQuery.mockImplementation((request) => {
+      promptRead = readPrompt(request.prompt);
+      return stream;
+    });
+
+    await expect(executeAgent(createAgentConfig(), createMockReporter(), { abortController }))
+      .rejects.toThrow('MCP setup failed');
+
+    expect(abortController.signal.aborted).toBe(true);
+    expect(stream.close).toHaveBeenCalledOnce();
+    await expect(promptRead).resolves.toBe('');
   });
 
   it('passes the agent model to the SDK when set', async () => {
@@ -545,8 +610,9 @@ describe('executeAgent with Agent SDK', () => {
     expect(postBody.state).toBe('input_required');
     expect(postBody.decision.title).toBe('Approve?');
     expect(queryCallCount).toBe(2);
+    expect(mockSetMcpServers).toHaveBeenCalledTimes(2);
 
-    const resumedPrompt = mockQuery.mock.calls[1][0].prompt as string;
+    const resumedPrompt = await readPrompt(mockQuery.mock.calls[1][0].prompt);
     expect(resumedPrompt).toContain('User approved: Yes.');
   });
 
@@ -1070,8 +1136,38 @@ function createAsyncGenerator<T>(items: T[]) {
   return Object.assign(gen, {
     mcpServerStatus: mockMcpServerStatus,
     reconnectMcpServer: mockReconnectMcpServer,
+    setMcpServers: mockSetMcpServers,
     interrupt: vi.fn().mockResolvedValue(undefined),
+    close: vi.fn(),
   });
+}
+
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T | PromiseLike<T>) => void;
+} {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((settle) => { resolve = settle; });
+  return { promise, resolve };
+}
+
+async function readPrompt(prompt: unknown): Promise<string> {
+  if (typeof prompt === 'string') return prompt;
+  if (!prompt || typeof prompt !== 'object' || !(Symbol.asyncIterator in prompt)) return '';
+
+  for await (const message of prompt as AsyncIterable<{
+    message?: { content?: string | Array<{ type?: string; text?: string }> };
+  }>) {
+    const content = message.message?.content;
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+      return content
+        .filter((block) => block.type === 'text' && typeof block.text === 'string')
+        .map((block) => block.text)
+        .join('\n');
+    }
+  }
+  return '';
 }
 
 function createAssistantMessage(text: string) {
