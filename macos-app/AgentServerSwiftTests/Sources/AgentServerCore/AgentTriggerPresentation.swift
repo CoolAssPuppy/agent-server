@@ -35,6 +35,7 @@ enum AgentCatalogPresentation {
 
 enum AgentRunTriggerFailure: Equatable {
     case offline
+    case takingLonger
     case missingConnection
     case securityReview
     case securityBlocked
@@ -44,7 +45,8 @@ enum AgentRunTriggerFailure: Equatable {
         serverCode: String?,
         serverMessage: String? = nil,
         hasMissingConnection: Bool = false,
-        isTransportFailure: Bool = false
+        isTransportFailure: Bool = false,
+        isRequestTimeout: Bool = false
     ) -> Self {
         if hasMissingConnection { return .missingConnection }
 
@@ -62,6 +64,7 @@ enum AgentRunTriggerFailure: Equatable {
         if serverMessage?.localizedCaseInsensitiveContains("security check") == true {
             return .securityReview
         }
+        if isRequestTimeout { return .takingLonger }
         if isTransportFailure { return .offline }
         return .generic
     }
@@ -72,6 +75,7 @@ enum AgentRunTriggerRecovery: Equatable {
     case openAgentSettings
     case reviewSecurity
     case openRun
+    case checkStatus
 }
 
 struct AgentRunTriggerFeedback: Equatable {
@@ -114,6 +118,13 @@ enum AgentRunTriggerState: Equatable {
                 recoveryTitle: "Try again",
                 recovery: .retry
             )
+        case .failure(.takingLonger):
+            return AgentRunTriggerFeedback(
+                title: "The safety check is taking longer",
+                message: "The server may still start this run. Check its status before trying again.",
+                recoveryTitle: "Check status",
+                recovery: .checkStatus
+            )
         case .failure(.missingConnection):
             return AgentRunTriggerFeedback(
                 title: "Connect an app or service",
@@ -143,5 +154,24 @@ enum AgentRunTriggerState: Equatable {
                 recovery: .retry
             )
         }
+    }
+}
+
+struct AgentRunCandidate: Equatable, Sendable {
+    let runId: String
+    let agentId: String
+    let startedAt: Date
+}
+
+enum AgentRunReconciliation {
+    static func matchedRunId(
+        agentId: String,
+        requestedAt: Date,
+        candidates: [AgentRunCandidate]
+    ) -> String? {
+        candidates
+            .filter { $0.agentId == agentId && $0.startedAt >= requestedAt }
+            .max { $0.startedAt < $1.startedAt }?
+            .runId
     }
 }

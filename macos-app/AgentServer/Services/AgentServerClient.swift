@@ -295,6 +295,7 @@ actor AgentServerClient {
 
     func triggerRun(agentId: String, with context: String? = nil) async throws -> TriggerResponse {
         var request = URLRequest(url: baseURL.appendingPathComponent("/agents/\(agentId)/run"))
+        request.timeoutInterval = 75
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
@@ -305,7 +306,7 @@ actor AgentServerClient {
 
         request = try authenticatedRequest(request)
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await longRunningSession.data(for: request)
         try validateTriggerResponse(data: data, response: response)
         return try decoder.decode(TriggerResponse.self, from: data)
     }

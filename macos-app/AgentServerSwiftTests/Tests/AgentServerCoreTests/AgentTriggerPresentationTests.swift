@@ -142,4 +142,38 @@ final class AgentTriggerPresentationTests: XCTestCase {
             .offline
         )
     }
+
+    func testRequestTimeoutSaysTheRunMayStillStartInsteadOfClaimingOffline() {
+        let failure = AgentRunTriggerFailure.classify(
+            serverCode: nil,
+            isTransportFailure: true,
+            isRequestTimeout: true
+        )
+        let presentation = AgentRunTriggerState.failure(failure).presentation
+
+        XCTAssertEqual(failure, .takingLonger)
+        XCTAssertEqual(presentation?.title, "The safety check is taking longer")
+        XCTAssertEqual(presentation?.recovery, .checkStatus)
+        XCTAssertFalse(presentation?.message.contains("Nothing was run") == true)
+        XCTAssertFalse(presentation?.message.contains("offline") == true)
+    }
+
+    func testReconciliationFindsTheNewestMatchingRunStartedAfterTheRequest() {
+        let requestedAt = Date(timeIntervalSince1970: 100)
+        let candidates = [
+            AgentRunCandidate(runId: "old", agentId: "writer", startedAt: Date(timeIntervalSince1970: 90)),
+            AgentRunCandidate(runId: "other", agentId: "other", startedAt: Date(timeIntervalSince1970: 110)),
+            AgentRunCandidate(runId: "first", agentId: "writer", startedAt: Date(timeIntervalSince1970: 105)),
+            AgentRunCandidate(runId: "newest", agentId: "writer", startedAt: Date(timeIntervalSince1970: 112)),
+        ]
+
+        XCTAssertEqual(
+            AgentRunReconciliation.matchedRunId(
+                agentId: "writer",
+                requestedAt: requestedAt,
+                candidates: candidates
+            ),
+            "newest"
+        )
+    }
 }

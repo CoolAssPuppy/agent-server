@@ -10,6 +10,7 @@ struct AgentRunControl: View {
 
     @Environment(\.nTheme) private var theme
     @State private var state = AgentRunTriggerState.idle
+    @State private var requestedAt: Date?
 
     private var isRunning: Bool {
         monitor.activeRuns.contains { $0.agentId == agent.id }
@@ -111,6 +112,7 @@ struct AgentRunControl: View {
     }
 
     private func startRun() {
+        requestedAt = Date()
         state = .starting
         Task {
             state = await monitor.triggerRun(agentId: agent.id)
@@ -128,6 +130,15 @@ struct AgentRunControl: View {
         case .openRun:
             guard let runId = state.startedRunId else { return }
             onOpenRun(runId)
+        case .checkStatus:
+            guard let requestedAt else { return }
+            state = .starting
+            Task {
+                state = await monitor.reconcileTriggeredRun(
+                    agentId: agent.id,
+                    requestedAt: requestedAt
+                )
+            }
         }
     }
 }

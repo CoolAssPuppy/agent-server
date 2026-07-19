@@ -385,10 +385,35 @@ final class StatusMonitor: ObservableObject {
 
     func triggerRun(agentId: String) async -> AgentRunTriggerState {
         guard !isDemoMode else { return .failure(.generic) }
+        let requestedAt = Date()
         do {
             let response = try await client.triggerRun(agentId: agentId)
             poll()
             return .started(runId: response.runId)
+        } catch {
+            if isRequestTimeout(error) {
+                return await reconcileTriggeredRun(agentId: agentId, requestedAt: requestedAt)
+            }
+            return .failure(runTriggerFailure(for: error))
+        }
+    }
+
+    func reconcileTriggeredRun(agentId: String, requestedAt: Date) async -> AgentRunTriggerState {
+        do {
+            let runs = try await client.runs()
+            let candidates = runs.map {
+                AgentRunCandidate(runId: $0.runId, agentId: $0.agentId, startedAt: $0.startedAt)
+            }
+            if let runId = AgentRunReconciliation.matchedRunId(
+                agentId: agentId,
+                requestedAt: requestedAt,
+                candidates: candidates
+            ) {
+                poll()
+                return .started(runId: runId)
+            }
+            poll()
+            return .failure(.takingLonger)
         } catch {
             return .failure(runTriggerFailure(for: error))
         }
@@ -403,12 +428,21 @@ final class StatusMonitor: ObservableObject {
             )
         }
 
-        let isTransportFailure = error is URLError
-            || (error as NSError).domain == NSURLErrorDomain
+        let isTimeout = isRequestTimeout(error)
+        let isTransportFailure = !isTimeout && (
+            error is URLError || (error as NSError).domain == NSURLErrorDomain
+        )
         return .classify(
             serverCode: nil,
-            isTransportFailure: isTransportFailure
+            isTransportFailure: isTransportFailure,
+            isRequestTimeout: isTimeout
         )
+    }
+
+    private func isRequestTimeout(_ error: Error) -> Bool {
+        if let urlError = error as? URLError { return urlError.code == .timedOut }
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorTimedOut
     }
 
     // MARK: - WebSocket
