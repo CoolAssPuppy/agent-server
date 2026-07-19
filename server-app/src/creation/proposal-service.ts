@@ -627,9 +627,7 @@ export async function createAgentProposal(input: CreateProposalInput): Promise<P
         || resolvedProposal.questions.some((question) => question.required))) {
         const answeredIds = new Set(request.answers.map((answer) => answer.question_id));
         const requiredQuestions = resolvedProposal.questions.filter((question) => question.required);
-        const unansweredQuestions = requiredQuestions.filter((question) => (
-          question.required && !answeredIds.has(question.id)
-        ));
+        const unansweredQuestions = requiredQuestions.filter((question) => !answeredIds.has(question.id));
         if (unansweredQuestions.length > 0) {
           return {
             status: 'needs_information',
