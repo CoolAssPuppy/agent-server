@@ -165,6 +165,68 @@ extension StatusMonitor {
         }
     }
 
+    func triggerRun(agentId: String) async -> AgentRunTriggerState {
+        guard !isDemoMode else { return .failure(.generic) }
+        let requestedAt = Date()
+        do {
+            let response = try await client.triggerRun(agentId: agentId)
+            poll()
+            return .started(runId: response.runId)
+        } catch {
+            if isRequestTimeout(error) {
+                return await reconcileTriggeredRun(agentId: agentId, requestedAt: requestedAt)
+            }
+            return .failure(runTriggerFailure(for: error))
+        }
+    }
+
+    func reconcileTriggeredRun(agentId: String, requestedAt: Date) async -> AgentRunTriggerState {
+        do {
+            let runs = try await client.runs()
+            let candidates = runs.map {
+                AgentRunCandidate(runId: $0.runId, agentId: $0.agentId, startedAt: $0.startedAt)
+            }
+            if let runId = AgentRunReconciliation.matchedRunId(
+                agentId: agentId,
+                requestedAt: requestedAt,
+                candidates: candidates
+            ) {
+                poll()
+                return .started(runId: runId)
+            }
+            poll()
+            return .failure(.takingLonger)
+        } catch {
+            return .failure(runTriggerFailure(for: error))
+        }
+    }
+
+    private func runTriggerFailure(for error: Error) -> AgentRunTriggerFailure {
+        if case let ClientError.runTriggerFailed(message, code, missingEnv) = error {
+            return .classify(
+                serverCode: code,
+                serverMessage: message,
+                hasMissingConnection: !missingEnv.isEmpty
+            )
+        }
+
+        let isTimeout = isRequestTimeout(error)
+        let nsError = error as NSError
+        return .classify(
+            serverCode: nil,
+            isTransportFailure: !isTimeout && (
+                error is URLError || nsError.domain == NSURLErrorDomain
+            ),
+            isRequestTimeout: isTimeout
+        )
+    }
+
+    private func isRequestTimeout(_ error: Error) -> Bool {
+        if let urlError = error as? URLError { return urlError.code == .timedOut }
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorTimedOut
+    }
+
     private func replaceAgent(_ updated: Agent) {
         guard let index = agents.firstIndex(where: { $0.id == updated.id }) else { return }
         agents[index] = updated
