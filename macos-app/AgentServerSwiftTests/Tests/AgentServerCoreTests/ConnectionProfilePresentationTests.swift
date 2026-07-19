@@ -12,6 +12,12 @@ final class ConnectionProfilePresentationTests: XCTestCase {
         XCTAssertEqual(row.location, "https://archive.example/mcp")
         XCTAssertEqual(row.credentialSummary, "1 credential")
         XCTAssertEqual(row.status, .needsCredentials)
+        XCTAssertEqual(row.rowSummary, "Web service · 1 credential")
+        XCTAssertEqual(row.statusTitle, "Needs credentials")
+        XCTAssertEqual(
+            row.statusExplanation,
+            "Add the missing credential before an agent can use this connection."
+        )
     }
 
     func testConnectionIsReadyOnlyWhenEveryReferencedCredentialExists() throws {
@@ -28,6 +34,32 @@ final class ConnectionProfilePresentationTests: XCTestCase {
 
         XCTAssertEqual(missing.status, .needsCredentials)
         XCTAssertEqual(ready.status, .ready)
+        XCTAssertEqual(ready.statusTitle, "Ready")
+        XCTAssertEqual(
+            ready.statusExplanation,
+            "Agents can use this connection when you grant them access."
+        )
+    }
+
+    func testConnectionDetailListsCredentialReferencesWithoutSecretValues() throws {
+        let row = ConnectionProfilePresentation(
+            profile: try makeProfile(),
+            configuredEnvironmentVariables: ["ARCHIVE_TOKEN"]
+        )
+
+        XCTAssertEqual(row.credentialReferences, ["Access token · ARCHIVE_TOKEN"])
+    }
+
+    func testConnectionPanelSelectionCanBeSteppedBackWithoutClosingTheDrawer() {
+        var navigation = ConnectionPanelNavigationState()
+
+        XCTAssertFalse(navigation.stepBack())
+
+        navigation.selectConnection("profile-1")
+        XCTAssertEqual(navigation.selectedConnectionID, "profile-1")
+        XCTAssertTrue(navigation.stepBack())
+        XCTAssertNil(navigation.selectedConnectionID)
+        XCTAssertFalse(navigation.stepBack())
     }
 
     private func makeProfile() throws -> ConnectionProfile {

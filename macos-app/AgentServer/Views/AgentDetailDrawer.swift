@@ -16,7 +16,6 @@ struct AgentDetailDrawer: View {
     @State private var dragOffset: CGFloat = 0
     @State private var showHistory = false
     @State private var showSettings = false
-    @State private var runTriggerState = AgentRunTriggerState.idle
     @State private var runToOpen: String?
 
     static let width: CGFloat = 780
@@ -71,7 +70,6 @@ struct AgentDetailDrawer: View {
         .offset(x: dragOffset)
         .onChange(of: agentId) { previousAgentId, selectedAgentId in
             showHistory = false
-            runTriggerState = .idle
             runToOpen = nil
             if AgentSettingsSelectionPolicy.shouldDismissSettings(
                 previousAgentId: previousAgentId,
@@ -243,7 +241,17 @@ struct AgentDetailDrawer: View {
 
     private func summaryView(for agent: Agent) -> some View {
         VStack(alignment: .leading, spacing: NSpacing.lg) {
-            runNowRow(for: agent)
+            AgentRunControl(
+                agent: agent,
+                monitor: monitor,
+                onOpenSettings: { showSettings = true },
+                onReviewSecurity: { router.openSecurity(agentId: agent.id) },
+                onOpenRun: { runId in
+                    runToOpen = runId
+                    showHistory = true
+                }
+            )
+            .id(agent.id)
             scheduleRow(for: agent)
             lastRunCard(for: agent)
                 .frame(maxHeight: .infinity)
@@ -251,118 +259,6 @@ struct AgentDetailDrawer: View {
         }
         .padding(NSpacing.xl)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-
-    // MARK: - Run now
-
-    @ViewBuilder
-    private func runNowRow(for agent: Agent) -> some View {
-        let running = monitor.activeRuns.contains { $0.agentId == agent.id }
-        let isStarting = runTriggerState.isStarting
-        VStack(alignment: .leading, spacing: NSpacing.sm) {
-            HStack(spacing: NSpacing.sm) {
-                Button {
-                    startRun(agentId: agent.id)
-                } label: {
-                    HStack(spacing: NSpacing.xs) {
-                        if running || isStarting {
-                            ProgressView().controlSize(.mini).tint(theme.tokens.primaryForeground)
-                        } else {
-                            Image(systemName: "play.fill")
-                        }
-                        Text(running ? "Running…" : isStarting ? "Starting…" : "Run now")
-                            .font(NTypography.bodyMedium)
-                            .fontWeight(.semibold)
-                    }
-                    .padding(.horizontal, NSpacing.md)
-                    .padding(.vertical, NSpacing.xs)
-                    .foregroundStyle(theme.tokens.primaryForeground)
-                    .background(
-                        RoundedRectangle(cornerRadius: NRadius.sm)
-                            .fill(theme.tokens.primary)
-                    )
-                }
-                .buttonStyle(.plain)
-                .disabled(running || isStarting || !agent.enabled)
-                .accessibilityIdentifier("agentDetail.runNow")
-
-                if !agent.enabled {
-                    Text("Paused")
-                        .font(NTypography.caption)
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                        .padding(.horizontal, NSpacing.xs)
-                        .padding(.vertical, 2)
-                        .background(theme.tokens.muted)
-                        .clipShape(Capsule())
-                }
-                Spacer()
-            }
-
-            if let feedback = runTriggerState.presentation {
-                runTriggerFeedback(feedback)
-            }
-        }
-    }
-
-    private func startRun(agentId: String) {
-        runTriggerState = .starting
-        Task {
-            let result = await monitor.triggerRun(agentId: agentId)
-            guard self.agentId == agentId else { return }
-            runTriggerState = result
-        }
-    }
-
-    private func runTriggerFeedback(_ feedback: AgentRunTriggerFeedback) -> some View {
-        HStack(alignment: .top, spacing: NSpacing.sm) {
-            Image(systemName: runTriggerState.startedRunId == nil
-                ? "exclamationmark.circle.fill"
-                : "checkmark.circle.fill")
-                .foregroundStyle(runTriggerState.startedRunId == nil
-                    ? theme.tokens.warning
-                    : theme.tokens.success)
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: NSpacing.xxs) {
-                Text(feedback.title)
-                    .font(NTypography.bodyMedium)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(theme.tokens.foreground)
-                Text(feedback.message)
-                    .font(NTypography.bodySmall)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                    .fixedSize(horizontal: false, vertical: true)
-                Button(feedback.recoveryTitle) {
-                    recoverFromRunTrigger(feedback.recovery)
-                }
-                .buttonStyle(.link)
-                .accessibilityIdentifier("agentDetail.runRecovery")
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(NSpacing.sm)
-        .background(theme.tokens.card)
-        .overlay {
-            RoundedRectangle(cornerRadius: NRadius.sm)
-                .stroke(theme.tokens.border, lineWidth: 1)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("agentDetail.runFeedback")
-    }
-
-    private func recoverFromRunTrigger(_ recovery: AgentRunTriggerRecovery) {
-        switch recovery {
-        case .retry:
-            startRun(agentId: agentId)
-        case .openAgentSettings:
-            showSettings = true
-        case .reviewSecurity:
-            router.openSecurity(agentId: agentId)
-        case .openRun:
-            runToOpen = runTriggerState.startedRunId
-            showHistory = true
-        }
     }
 
     // MARK: - Schedule

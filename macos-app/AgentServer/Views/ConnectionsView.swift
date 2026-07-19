@@ -1,6 +1,11 @@
 import SwiftUI
 import NerdsUI
 
+private enum ConnectionPanelStyle {
+    static let listWidth: CGFloat = 400
+    static let transitionDuration = 0.22
+}
+
 /// Connections: one place that answers "what can my agents reach, and how do I
 /// give them more." Two truths, stated plainly:
 ///  1. Anything you've connected in Claude is already available to your agents.
@@ -21,6 +26,8 @@ struct ConnectionsView: View {
     @State private var isAddingConnection = false
     @State private var telegramConnected = false
     @State private var slackMessagingConnected = false
+    @State private var navigation = ConnectionPanelNavigationState()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let telegramTokenKey = "AGENT_SERVER_TELEGRAM_BOT_TOKEN"
     // Bare Slack token names (no AGENT_SERVER_ prefix): what Slack's own docs use
@@ -90,22 +97,22 @@ struct ConnectionsView: View {
             title: "Connections",
             closeLabel: "Close connections",
             onClose: close,
+            onEscape: stepBackOrClose,
             headerActions: { headerActions }
         ) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: NSpacing.xl) {
-                    savedConnectionsSection
-                    availableSection
-                    servicesSection
-                    messagingSection
+            HStack(spacing: 0) {
+                mainPanel
+                if let profile = selectedProfile {
+                    Divider().opacity(0.35)
+                    savedConnectionDetail(profile)
+                        .id(profile.id)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
-                .padding(.horizontal, NSpacing.xxl)
-                .padding(.vertical, NSpacing.xl)
             }
-            // The available list grows from a short "Checking…" card to the full
-            // connector list once the probe returns; anchoring to the top keeps
-            // the view pinned there instead of drifting as content grows below.
-            .defaultScrollAnchor(.top)
+            .animation(
+                reduceMotion ? nil : .easeInOut(duration: ConnectionPanelStyle.transitionDuration),
+                value: navigation.selectedConnectionID
+            )
         }
         .task {
             guard !loaded else { return }
@@ -141,6 +148,7 @@ struct ConnectionsView: View {
             GenericConnectionSetupSheet(monitor: monitor) { profile in
                 savedProfiles.append(profile)
                 isAddingConnection = false
+                navigation.selectConnection(profile.id)
                 Task { registeredServices = await monitor.serviceConnections() }
             } onCancel: {
                 isAddingConnection = false
@@ -150,6 +158,48 @@ struct ConnectionsView: View {
 
     private func close() {
         if let onClose { onClose() } else { router.close() }
+    }
+
+    private func stepBackOrClose() {
+        if !navigation.stepBack() {
+            close()
+        }
+    }
+
+    private var selectedProfile: ConnectionProfile? {
+        guard let id = navigation.selectedConnectionID else { return nil }
+        return savedProfiles.first { $0.id == id }
+    }
+
+    private var mainPanel: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: NSpacing.xl) {
+                savedConnectionsSection
+                availableSection
+                servicesSection
+                messagingSection
+            }
+            .padding(.horizontal, NSpacing.xxl)
+            .padding(.vertical, NSpacing.xl)
+        }
+        .defaultScrollAnchor(.top)
+        .frame(width: navigation.selectedConnectionID == nil ? nil : ConnectionPanelStyle.listWidth)
+        .frame(maxHeight: .infinity)
+        .frame(maxWidth: navigation.selectedConnectionID == nil ? .infinity : nil)
+    }
+
+    private func savedConnectionDetail(_ profile: ConnectionProfile) -> some View {
+        let presentation = ConnectionProfilePresentation(
+            profile: profile,
+            configuredEnvironmentVariables: configuredEnvironmentVariables
+        )
+        return SavedConnectionDetailView(
+            presentation: presentation,
+            onBack: { _ = navigation.stepBack() },
+            onModifyCredentials: {
+                connectTarget = CatalogConnectTarget(entry: connectionEntry(for: profile, presentation: presentation))
+            }
+        )
     }
 
     private var refreshButton: some View {
@@ -229,7 +279,9 @@ struct ConnectionsView: View {
                             presentation: ConnectionProfilePresentation(
                                 profile: profile,
                                 configuredEnvironmentVariables: configuredEnvironmentVariables
-                            )
+                            ),
+                            isSelected: navigation.selectedConnectionID == profile.id,
+                            onSelect: { navigation.selectConnection(profile.id) }
                         )
                     }
                 }
@@ -349,6 +401,23 @@ struct ConnectionsView: View {
             builtin: false,
             requiredEnv: row.requiredEnvironmentKeys,
             envReady: row.status == .connected && row.action == .modifyKeys
+        )
+    }
+
+    private func connectionEntry(
+        for profile: ConnectionProfile,
+        presentation: ConnectionProfilePresentation
+    ) -> CapabilityCatalogEntry {
+        CapabilityCatalogEntry(
+            id: profile.id,
+            label: profile.label,
+            description: "Credentials for \(presentation.connectionMethod.lowercased())",
+            icon: "point.3.connected.trianglepath.dotted",
+            kind: "mcp",
+            auth: .apiKey,
+            builtin: false,
+            requiredEnv: profile.credentials.map(\.environmentVariable),
+            envReady: presentation.status == .ready
         )
     }
 
