@@ -24,12 +24,14 @@ struct MainWindow: View {
                     router: router,
                     onNewAgent: newAgent
                 )
+                .allowsHitTesting(router.allowsSidebarInteraction)
+                .accessibilityHidden(!router.allowsSidebarInteraction)
                 Divider().opacity(0.3)
                 MainPane(monitor: monitor, router: router)
+                    .allowsHitTesting(!router.isPresentationActive)
+                    .accessibilityHidden(router.isPresentationActive)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .allowsHitTesting(!router.isPresentationActive)
-            .accessibilityHidden(router.isPresentationActive)
 
             mainPaneDimOverlay
 
@@ -137,7 +139,9 @@ struct MainWindow: View {
     private var mainPaneDimOverlay: some View {
         if router.isDetailOpen {
             HStack(spacing: 0) {
-                Color.clear.frame(width: Sidebar.width)
+                Color.clear
+                    .frame(width: Sidebar.width)
+                    .allowsHitTesting(false)
                 Color(red: 17/255, green: 24/255, blue: 39/255)
                     .opacity(0.22)
                     .onTapGesture(perform: router.close)
@@ -153,7 +157,9 @@ struct MainWindow: View {
     /// from the sidebar's right border rather than crossing over it.
     private var detailDrawerLayer: some View {
         HStack(spacing: 0) {
-            Color.clear.frame(width: Sidebar.width)
+            Color.clear
+                .frame(width: Sidebar.width)
+                .allowsHitTesting(false)
             ZStack(alignment: .leading) {
                 if case .detail(let agentId) = router.open {
                     AgentDetailDrawer(

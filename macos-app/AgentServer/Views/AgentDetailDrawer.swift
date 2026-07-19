@@ -78,6 +78,7 @@ struct AgentDetailDrawer: View {
                 showSettings = false
             }
         }
+        .onExitCommand(perform: dismissDeepestDetail)
     }
 
     private func openSettings() {
@@ -86,6 +87,21 @@ struct AgentDetailDrawer: View {
 
     private func closeSettings() {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) { showSettings = false }
+    }
+
+    private func dismissDeepestDetail() {
+        switch AgentDetailDismissalPolicy.action(
+            isSettingsPresented: showSettings,
+            isHistoryPresented: showHistory
+        ) {
+        case .closeSettings:
+            closeSettings()
+        case .closeHistory:
+            showHistory = false
+            runToOpen = nil
+        case .closeDetail:
+            router.close()
+        }
     }
 
     /// Vertical 4pt grab bar glued to the right edge. Dragging it leftward

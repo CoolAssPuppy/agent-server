@@ -38,6 +38,15 @@ final class DrawerRouterTests: XCTestCase {
         }
     }
 
+    func testAgentDetailKeepsSidebarAvailableForReplacingOrClosingSelection() {
+        XCTAssertTrue(DrawerRouter().allowsSidebarInteraction)
+        XCTAssertTrue(
+            DrawerRouter(open: .detail(agentId: "agent-1")).allowsSidebarInteraction
+        )
+        XCTAssertFalse(DrawerRouter(open: .settings).allowsSidebarInteraction)
+        XCTAssertFalse(DrawerRouter(open: .creation()).allowsSidebarInteraction)
+    }
+
     func testOpenDetailSetsState() {
         let router = DrawerRouter()
         router.openDetail(agentId: "agent-1")
@@ -129,5 +138,29 @@ final class DrawerRouterTests: XCTestCase {
         XCTAssertTrue(router.isCreationOpen)
         XCTAssertEqual(router.creationSourceAgentId, "source-agent")
         XCTAssertNil(router.openAgentId)
+    }
+
+    func testEscapeDismissesTheDeepestAgentDetailLayer() {
+        XCTAssertEqual(
+            AgentDetailDismissalPolicy.action(
+                isSettingsPresented: true,
+                isHistoryPresented: true
+            ),
+            .closeSettings
+        )
+        XCTAssertEqual(
+            AgentDetailDismissalPolicy.action(
+                isSettingsPresented: false,
+                isHistoryPresented: true
+            ),
+            .closeHistory
+        )
+        XCTAssertEqual(
+            AgentDetailDismissalPolicy.action(
+                isSettingsPresented: false,
+                isHistoryPresented: false
+            ),
+            .closeDetail
+        )
     }
 }

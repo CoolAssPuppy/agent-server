@@ -94,10 +94,16 @@ final class DrawerRouter: ObservableObject {
         return false
     }
 
-    /// A drawer is a modal presentation over the main window. Background
-    /// content must leave the keyboard and accessibility order while open.
+    /// Any drawer covers the main work area, which must leave the keyboard and
+    /// accessibility order until that presentation closes.
     var isPresentationActive: Bool {
         open != nil
+    }
+
+    /// Agent details behave like an inspector beside the source list. Keep
+    /// that list available so people can replace or close the selection.
+    var allowsSidebarInteraction: Bool {
+        open == nil || isDetailOpen
     }
 
     var isCreationOpen: Bool {
@@ -152,6 +158,23 @@ final class DrawerRouter: ObservableObject {
         case nil:
             return nil
         }
+    }
+}
+
+enum AgentDetailDismissalAction: Equatable {
+    case closeSettings
+    case closeHistory
+    case closeDetail
+}
+
+enum AgentDetailDismissalPolicy {
+    static func action(
+        isSettingsPresented: Bool,
+        isHistoryPresented: Bool
+    ) -> AgentDetailDismissalAction {
+        if isSettingsPresented { return .closeSettings }
+        if isHistoryPresented { return .closeHistory }
+        return .closeDetail
     }
 }
 
