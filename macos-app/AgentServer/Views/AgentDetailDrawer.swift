@@ -253,6 +253,7 @@ struct AgentDetailDrawer: View {
             )
             .id(agent.id)
             scheduleRow(for: agent)
+            safetyReadinessRow(for: agent)
             lastRunCard(for: agent)
                 .frame(maxHeight: .infinity)
             capabilitiesStrip(for: agent)
@@ -279,6 +280,29 @@ struct AgentDetailDrawer: View {
             }
             Spacer()
         }
+    }
+
+    private func safetyReadinessRow(for agent: Agent) -> some View {
+        let presentation = safetyReadiness(for: agent)
+        return AgentSafetyReadinessRow(presentation: presentation) {
+            switch presentation.action {
+            case .openSettings: openSettings()
+            case .reviewSecurity: router.openSecurity(agentId: agent.id)
+            }
+        }
+    }
+
+    private func safetyReadiness(for agent: Agent) -> AgentSafetyReadinessPresentation {
+        let missingConnections = (agent.capabilities ?? []).count { capability in
+            guard capability.enabled, capability.kind == "mcp" else { return false }
+            return !capability.envReady || capability.status == "needs-auth" || capability.status == "failed"
+        }
+        let result = monitor.securityDashboard?.agents.first(where: { $0.id == agent.id })?.result
+            ?? .pending
+        return AgentSafetyReadinessPresentation(
+            securityResult: result,
+            missingConnectionCount: missingConnections
+        )
     }
 
     // MARK: - Last run

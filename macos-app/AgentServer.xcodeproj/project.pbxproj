@@ -65,6 +65,7 @@
 		7A01C939E76AF850AAD3EC4E /* PanelRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1166D983A336A4F217C9282E /* PanelRun.swift */; };
 		7AAC1C6BFDD7C4318C4E8FCB /* SchedulePreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDB22418EF86F5F4F13FAF67 /* SchedulePreset.swift */; };
 		7B15DE5C3DAF31547879B22E /* DrawerDragDismissal.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9BC93C3FF41E699B85E8B5A /* DrawerDragDismissal.swift */; };
+		7DE3E8D3D45ED52571C66590 /* AgentSafetyReadinessRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E4E66B179B45198682F1A3A /* AgentSafetyReadinessRow.swift */; };
 		7DFE33373ABAEA664501F320 /* AgentServerWorkspace.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF20AAD9B4C764E299F55F41 /* AgentServerWorkspace.swift */; };
 		83868502556254BD90C98E38 /* AgentCreationFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 792B13A5DFC5DB882DA0608A /* AgentCreationFlow.swift */; };
 		83DD619B99906B7FDB630086 /* Telemetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03E63276DE8706E5739FA6B7 /* Telemetry.swift */; };
@@ -115,6 +116,7 @@
 		DDB1591634A3DEBC338D69DB /* ConsumerAnalysisPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42AE2865DBF8536678D90CBE /* ConsumerAnalysisPresentation.swift */; };
 		DF5DBE12E018D9F4F22178C5 /* AgentServerPalettes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4900D26B20B4FF31D3A37106 /* AgentServerPalettes.swift */; };
 		E47054251F4B7B9B6C84E2BF /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B0EE1DB6BF41B4EA3CC6310 /* AboutView.swift */; };
+		E530D999C33DC285F3CC63C4 /* AgentSafetyReadinessPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFE65F742200E563AD4BEF23 /* AgentSafetyReadinessPresentation.swift */; };
 		E5FDD1F3278B244A0371D3EC /* AgentServerTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B13E51E6E5B8B223735BD6B /* AgentServerTheme.swift */; };
 		E883FEF25E1CA4ADE2A5E648 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66EAB07DB79E15BAC20F17E /* AppDelegate.swift */; };
 		E924C268BA7FE54C996042B8 /* GenericConnectionSetupSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 540053000886185ADF319275 /* GenericConnectionSetupSheet.swift */; };
@@ -213,6 +215,7 @@
 		6CA45D70B10EB543527A07B0 /* AgentProposalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentProposalView.swift; sourceTree = "<group>"; };
 		6DF962BADEAC09F5A5F46093 /* StatusMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusMonitor.swift; sourceTree = "<group>"; };
 		6E2C4E1EAA344668143F8889 /* ConsumerFlowComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsumerFlowComponents.swift; sourceTree = "<group>"; };
+		6E4E66B179B45198682F1A3A /* AgentSafetyReadinessRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSafetyReadinessRow.swift; sourceTree = "<group>"; };
 		6F7E8ED97EF202B704E9E0AC /* StatusMonitor+AgentActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StatusMonitor+AgentActions.swift"; sourceTree = "<group>"; };
 		73C44228DBD88C29AA85C3AB /* UITestScenarioWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestScenarioWindow.swift; sourceTree = "<group>"; };
 		744252F976BBFD07D113817A /* agent-server-notification.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = "agent-server-notification.aiff"; sourceTree = "<group>"; };
@@ -270,6 +273,7 @@
 		EBA361A75AD13345528DB75F /* AgentServerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentServerApp.swift; sourceTree = "<group>"; };
 		ED303774162FECB5D22909C1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		EE7640067645F8E1352BCE04 /* AgentModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentModel.swift; sourceTree = "<group>"; };
+		EFE65F742200E563AD4BEF23 /* AgentSafetyReadinessPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSafetyReadinessPresentation.swift; sourceTree = "<group>"; };
 		F0C5881B4E817C1D164D105A /* EnvironmentBooleanPreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentBooleanPreference.swift; sourceTree = "<group>"; };
 		F1BCFCE737011048F3DAC1E5 /* AgentEnabledFileEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentEnabledFileEditor.swift; sourceTree = "<group>"; };
 		F23C1CA4CDE204047AD9448D /* RunDetailGutter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailGutter.swift; sourceTree = "<group>"; };
@@ -413,6 +417,7 @@
 				6CA45D70B10EB543527A07B0 /* AgentProposalView.swift */,
 				83F246615EB2840C0AAD020A /* AgentRunControl.swift */,
 				643CBD2E294E942C10398144 /* AgentRunsView.swift */,
+				6E4E66B179B45198682F1A3A /* AgentSafetyReadinessRow.swift */,
 				157F358524BFC2F586756006 /* AgentSecurityAnalyzerView.swift */,
 				8DAF4A42E82017D2EA925043 /* AgentSettingsView.swift */,
 				60FF47B3068DE16B2285FC43 /* CapabilityIconView.swift */,
@@ -474,6 +479,7 @@
 				57ABDC589701B10A0E737A80 /* AgentPanelSettings.swift */,
 				5FB65A68A7D65247566F5429 /* AgentPromptDocument.swift */,
 				4809143EC5D2EAB2A2978E1C /* AgentPromptEditorModel.swift */,
+				EFE65F742200E563AD4BEF23 /* AgentSafetyReadinessPresentation.swift */,
 				CF20AAD9B4C764E299F55F41 /* AgentServerWorkspace.swift */,
 				689DD1451D8EBE1AF2A3FBE1 /* AgentsListBadgeViewModel.swift */,
 				0B3AACD6067B9CE79B84D94B /* AgentTriggerPresentation.swift */,
@@ -742,6 +748,8 @@
 				A2AD1DEE6EA8A5EFC187FAB5 /* AgentProposalView.swift in Sources */,
 				73F6D71FD3F944966029972D /* AgentRunControl.swift in Sources */,
 				B5453300A1BD30D48C23D05C /* AgentRunsView.swift in Sources */,
+				E530D999C33DC285F3CC63C4 /* AgentSafetyReadinessPresentation.swift in Sources */,
+				7DE3E8D3D45ED52571C66590 /* AgentSafetyReadinessRow.swift in Sources */,
 				8F2CE02573C9F4CD344CDE70 /* AgentSecurityAnalyzerView.swift in Sources */,
 				519B2C93BA543F3811D53C8E /* AgentServerApp.swift in Sources */,
 				D99D64BC22A236ACE313811A /* AgentServerClient+Guidance.swift in Sources */,
