@@ -78,20 +78,18 @@ struct SettingsDrawer: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: NSpacing.lg) {
                     LazyVGrid(columns: gridColumns(for: proxy.size.width), alignment: .leading, spacing: NSpacing.lg) {
-                        generalCard
-                        runtimeCard
-                        notificationsCard
-                        storageCard
-                        updatesCard
+                        ForEach(SettingsPresentation.primarySections, id: \.self) { section in
+                            card(for: section)
+                        }
                     }
 
                     SettingsAdvancedDisclosure(isExpanded: $showAdvancedSettings)
 
                     if showAdvancedSettings {
                         LazyVGrid(columns: gridColumns(for: proxy.size.width), alignment: .leading, spacing: NSpacing.lg) {
-                            agentPanelCard
-                            environmentCard
-                            telemetryCard
+                            ForEach(SettingsPresentation.advancedSections, id: \.self) { section in
+                                card(for: section)
+                            }
                         }
                         .accessibilityIdentifier("settings.advancedContent")
                     }
@@ -114,6 +112,20 @@ struct SettingsDrawer: View {
     }
 
     // MARK: - Cards
+
+    @ViewBuilder
+    private func card(for section: SettingsSection) -> some View {
+        switch section {
+        case .general: generalCard
+        case .runtimes: runtimeCard
+        case .notifications: notificationsCard
+        case .storage: storageCard
+        case .updates: updatesCard
+        case .agentPanel: agentPanelCard
+        case .environment: environmentCard
+        case .telemetry: telemetryCard
+        }
+    }
 
     private var generalCard: some View {
         SettingsCard(
