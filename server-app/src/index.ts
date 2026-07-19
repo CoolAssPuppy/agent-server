@@ -16,6 +16,16 @@ export {
 } from './agents/capabilities.js';
 export { ConnectionCache, type ConnectionSnapshot } from './connections/cache.js';
 export {
+  ConnectionCapabilityOperationSchema,
+  ConnectionCapabilitySnapshotSchema,
+  ConnectionOperationEffectSchema,
+  classifyStoredMcpCapabilities,
+  type ConnectionCapabilityOperation,
+  type ConnectionCapabilitySnapshot,
+  type ConnectionOperationEffect,
+  type StoredMcpCapabilityOptions,
+} from './connections/capability-snapshot.js';
+export {
   AgentPatchSchema,
   AgentWriteError,
   NewAgentSchema,
