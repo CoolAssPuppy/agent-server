@@ -213,6 +213,7 @@ function collectFieldWrites(
     if (updates.tools) fields.set('tools', updates.tools);
     if (updates.disallowed_tools) fields.set('disallowed_tools', updates.disallowed_tools);
     if (updates.mcp_servers) fields.set('mcp_servers', updates.mcp_servers);
+    if (updates.permissions) fields.set('permissions', updates.permissions);
   }
 
   // Empty collections mean the same as absent; delete the key for tidiness.

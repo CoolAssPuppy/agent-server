@@ -867,3 +867,19 @@ Review:
 - The selected row remains visibly selected. All agents and Escape return to the dashboard before the drawer closes.
 - Direct security entry points start with both panels visible, and Reduced Motion removes the panel transition.
 - Verification: 239 Swift behavior tests and the unsigned macOS build passed. UI automation was not run.
+
+## Existing agent permission editing
+
+- [x] Reproduce removing file-edit permission from an agent that uses the authoritative permissions policy.
+- [x] Add failing server behavior tests before changing production code.
+- [x] Make consumer capability toggles update the authoritative policy while preserving unrelated grants.
+- [x] Keep comments, unknown fields, and reversible capability behavior intact.
+- [x] Run server tests, type-check, build the macOS app, commit, simplify, and launch without UI automation.
+
+Review:
+
+- Existing-agent capability switches now update the detailed permissions policy enforced by the runtime, while continuing to maintain legacy tool fields for compatibility.
+- Disabling file editing adds explicit Write and Edit denials without removing unrelated local or connected-service grants. Re-enabling removes only those denials.
+- Connected services use a server-scoped denial, so one service can be disabled without changing the permissions of another connection.
+- Local API version 5 forces the macOS app to replace a running server that still has the old permission behavior.
+- Verification: 1,151 server tests, 239 Swift tests, TypeScript type-check and build, and the unsigned macOS build passed. UI automation was not run.

@@ -1,4 +1,4 @@
-import type { AgentConfig, McpServerConfig } from './config.js';
+import type { AgentConfig, McpServerConfig, Permissions } from './config.js';
 import { isToolAllowed } from '../execution/permissions.js';
 
 /**
@@ -19,8 +19,8 @@ import { isToolAllowed } from '../execution/permissions.js';
  *   adding their tools to `disallowed_tools` (deny wins in the SDK); MCP
  *   capabilities by adding the server-level `mcp__<name>` rule. This keeps
  *   every toggle reversible and hand-written YAML intact.
- * - A `permissions` block is deliberately not consulted or modified here;
- *   agents using it are power-user territory handled via the raw editor.
+ * - A `permissions` block is authoritative when present. Local tool toggles
+ *   update that policy so consumer controls match what the runtime enforces.
  */
 
 export type CapabilityKind = 'tools' | 'mcp';
@@ -254,6 +254,7 @@ export type CapabilityFieldUpdates = {
   tools?: string[];
   disallowed_tools?: string[];
   mcp_servers?: Record<string, McpServerConfig>;
+  permissions?: Permissions;
 };
 
 export class CapabilityError extends Error {
@@ -289,13 +290,18 @@ function isToolEffectivelyAllowed(agent: AgentConfig, tool: string): boolean {
 function isServerAllowedByPermissions(agent: AgentConfig, serverKey: string): boolean {
   if (!agent.permissions) return false;
   const prefix = `mcp__${serverKey}`;
-  return agent.permissions.allow.some(
+  const hasGrant = agent.permissions.allow.some(
     (p) => p === '*' || p === 'mcp__*' || p === prefix || p.startsWith(`${prefix}__`),
   );
+  return hasGrant && !agent.permissions.deny.includes(`${prefix}__*`);
 }
 
 function serverRule(serverKey: string): string {
   return `mcp__${serverKey}`;
+}
+
+function serverPermissionRule(serverKey: string): string {
+  return `${serverRule(serverKey)}__*`;
 }
 
 function isServerDisallowed(agent: AgentConfig, serverKey: string): boolean {
@@ -517,7 +523,7 @@ export function deriveCapabilities(
       icon: 'puzzlepiece.extension',
       kind: 'mcp',
       auth: 'none',
-      enabled: !isServerDisallowed(agent, key) && isServerCoveredByAllowlist(agent, key),
+      enabled: isServerEnabled(agent, key),
       custom: true,
       required_env: [],
       env_ready: true,
@@ -634,9 +640,14 @@ export function applyCapabilityChanges(
   const tools = [...agent.tools];
   const disallowed = [...agent.disallowed_tools];
   const servers: Record<string, McpServerConfig> = { ...(agent.mcp_servers ?? {}) };
+  const permissions = agent.permissions ? {
+    allow: [...agent.permissions.allow],
+    deny: [...agent.permissions.deny],
+  } : undefined;
   let toolsChanged = false;
   let disallowedChanged = false;
   let serversChanged = false;
+  let permissionsChanged = false;
 
   const markTools = (before: number): void => {
     if (tools.length !== before) toolsChanged = true;
@@ -645,7 +656,44 @@ export function applyCapabilityChanges(
     if (disallowed.length !== before) disallowedChanged = true;
   };
 
+  const setPermissionTools = (permissionTools: string[], enabled: boolean): void => {
+    if (!permissions) return;
+    const beforeAllow = permissions.allow.length;
+    const beforeDeny = permissions.deny.length;
+    if (enabled) {
+      removeAll(permissions.deny, permissionTools);
+      for (const tool of permissionTools) addUnique(permissions.allow, tool);
+    } else {
+      for (const tool of permissionTools) addUnique(permissions.deny, tool);
+    }
+    if (permissions.allow.length !== beforeAllow || permissions.deny.length !== beforeDeny) {
+      permissionsChanged = true;
+    }
+  };
+
+  const setPermissionServer = (serverKey: string, enabled: boolean): void => {
+    if (!permissions) return;
+    const rule = serverPermissionRule(serverKey);
+    const beforeAllow = permissions.allow.length;
+    const beforeDeny = permissions.deny.length;
+    if (enabled) {
+      removeAll(permissions.deny, [rule]);
+      const prefix = serverRule(serverKey);
+      const hasGrant = permissions.allow.some(
+        (pattern) => pattern === '*' || pattern === 'mcp__*'
+          || pattern === prefix || pattern.startsWith(`${prefix}__`),
+      );
+      if (!hasGrant) addUnique(permissions.allow, rule);
+    } else {
+      addUnique(permissions.deny, rule);
+    }
+    if (permissions.allow.length !== beforeAllow || permissions.deny.length !== beforeDeny) {
+      permissionsChanged = true;
+    }
+  };
+
   const enableServer = (serverKey: string): void => {
+    setPermissionServer(serverKey, true);
     const beforeD = disallowed.length;
     removeAll(disallowed, [serverRule(serverKey)]);
     markDisallowed(beforeD);
@@ -656,6 +704,7 @@ export function applyCapabilityChanges(
   };
 
   const disableServer = (serverKey: string): void => {
+    setPermissionServer(serverKey, false);
     if (!disallowed.includes(serverRule(serverKey))) {
       disallowed.push(serverRule(serverKey));
       disallowedChanged = true;
@@ -681,6 +730,7 @@ export function applyCapabilityChanges(
 
     if (change.id.startsWith(CUSTOM_TOOL_PREFIX)) {
       const tool = change.id.slice(CUSTOM_TOOL_PREFIX.length);
+      setPermissionTools([tool], change.enabled);
       if (change.enabled) {
         const beforeD = disallowed.length;
         removeAll(disallowed, [tool]);
@@ -703,6 +753,7 @@ export function applyCapabilityChanges(
 
     if (def.kind === 'tools') {
       const defTools = def.tools ?? [];
+      setPermissionTools(defTools, change.enabled);
       if (change.enabled) {
         const beforeD = disallowed.length;
         removeAll(disallowed, defTools);
@@ -742,6 +793,7 @@ export function applyCapabilityChanges(
   if (toolsChanged) updates.tools = tools;
   if (disallowedChanged) updates.disallowed_tools = disallowed;
   if (serversChanged) updates.mcp_servers = servers;
+  if (permissionsChanged && permissions) updates.permissions = permissions;
   return updates;
 }
 

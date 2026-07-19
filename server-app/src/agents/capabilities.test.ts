@@ -236,6 +236,67 @@ describe('deriveCapabilities', () => {
 });
 
 describe('applyCapabilityChanges', () => {
+  it('removes file editing from the authoritative permissions policy', () => {
+    const agent = makeAgent({
+      tools: ['Read', 'Write', 'Edit', 'Bash'],
+      permissions: {
+        allow: ['Read', 'Write', 'Edit', 'Bash', 'mcp__notion-personal__notion-search'],
+        deny: [],
+      },
+    });
+
+    const updates = applyCapabilityChanges(agent, [{ id: 'write-files', enabled: false }]);
+
+    expect(updates.permissions).toEqual({
+      allow: agent.permissions?.allow,
+      deny: ['Write', 'Edit'],
+    });
+    expect(deriveCapabilities({ ...agent, ...updates })).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'write-files', enabled: false }),
+        expect.objectContaining({ id: 'read-files', enabled: true }),
+      ]),
+    );
+  });
+
+  it('restores a local capability without changing unrelated permission grants', () => {
+    const agent = makeAgent({
+      permissions: {
+        allow: ['Read', 'Write', 'Edit', 'mcp__notion-personal__notion-search'],
+        deny: ['Write', 'Edit'],
+      },
+    });
+
+    const updates = applyCapabilityChanges(agent, [{ id: 'write-files', enabled: true }]);
+
+    expect(updates.permissions).toEqual({
+      allow: agent.permissions?.allow,
+      deny: [],
+    });
+  });
+
+  it('disables one connected service in the authoritative permissions policy', () => {
+    const agent = makeAgent({
+      mcp_servers: { 'notion-personal': { command: 'npx' } },
+      permissions: {
+        allow: [
+          'Read',
+          'mcp__notion-personal__notion-search',
+          'mcp__notion-personal__notion-create-pages',
+        ],
+        deny: [],
+      },
+    });
+
+    const updates = applyCapabilityChanges(agent, [{ id: 'notion', enabled: false }]);
+
+    expect(updates.permissions).toEqual({
+      allow: agent.permissions?.allow,
+      deny: ['mcp__notion-personal__*'],
+    });
+    expect(capability({ ...agent, ...updates }, 'notion').enabled).toBe(false);
+  });
+
   it('disables a tool capability by adding to disallowed_tools only', () => {
     const agent = makeAgent({ tools: [], disallowed_tools: [] });
     const updates = applyCapabilityChanges(agent, [{ id: 'run-commands', enabled: false }], EMPTY_ENV);

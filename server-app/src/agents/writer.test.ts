@@ -167,6 +167,43 @@ enabled: true
     expect(content).toContain('# Morning briefing agent');
   });
 
+  it('persists removal of file editing for an agent with detailed permissions', async () => {
+    const { dir, writer } = await seededWriter({
+      'editor.md': `---
+id: editor
+name: Manuscript Editor
+tools:
+  - Read
+  - Write
+  - Edit
+permissions:
+  allow:
+    - Read
+    - Write
+    - Edit
+    - mcp__notion-personal__notion-search
+  deny: []
+custom_field: keep-me
+---
+
+# Edit the manuscript
+`,
+    });
+
+    const updated = await writer.update('editor', {
+      capabilities: [{ id: 'write-files', enabled: false }],
+    });
+
+    expect(updated.permissions).toEqual({
+      allow: ['Read', 'Write', 'Edit', 'mcp__notion-personal__notion-search'],
+      deny: ['Write', 'Edit'],
+    });
+    const content = await readFile(join(dir, 'editor.md'), 'utf-8');
+    expect(content).toContain('custom_field: keep-me');
+    expect(content).toContain('# Edit the manuscript');
+    expect(content).toContain('mcp__notion-personal__notion-search');
+  });
+
   it('writes mcp server entries when enabling a connected capability', async () => {
     const { dir, writer } = await seededWriter(
       { 'briefing.yaml': YAML_AGENT },
