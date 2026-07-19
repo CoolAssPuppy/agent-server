@@ -28,6 +28,7 @@ struct SettingsDrawer: View {
     @State private var selectedIndex: Int? = nil
     @State private var launchAtLogin: Bool = LaunchAtLoginManager.shared.isEnabled
     @State private var resumeAfterWake: Bool = true
+    @State private var savedResumeAfterWake: Bool = true
     @State private var useInstalledClaude: Bool = true
     @State private var useInstalledCodex: Bool = true
     @State private var savedRuntimeSelection = RuntimeSelection(
@@ -35,11 +36,16 @@ struct SettingsDrawer: View {
         usesInstalledCodex: true
     )
     @State private var workspace = AgentServerWorkspaceStore.current()
-    @State private var autoUpdates: Bool = true
     @State private var telemetryOptIn: Bool = Telemetry.isOptedIn
     @State private var didLoad: Bool = false
     @State private var notificationsAuthorizationDenied: Bool = false
     @ObservedObject private var notificationPreferences = NotificationPreferences.shared
+    @ObservedObject private var updater = UpdaterManager.shared
+
+    private let catchUpPreference = EnvironmentBooleanPreference(
+        key: "AGENT_SERVER_CATCH_UP",
+        defaultValue: true
+    )
 
     // MARK: - Telemetry state
 
@@ -143,6 +149,14 @@ struct SettingsDrawer: View {
                 }
 
             settingsToggle("Resume scheduled agents after wake", isOn: $resumeAfterWake)
+                .onChange(of: resumeAfterWake) { _, newValue in
+                    pairs = catchUpPreference.updating(pairs, to: newValue)
+                    persistIfValid()
+                }
+
+            if resumeAfterWake != savedResumeAfterWake {
+                restartNotice(action: restartForGeneralChange)
+            }
 
             settingsToggle("Help improve Agent Server", isOn: $telemetryOptIn)
                 .onChange(of: telemetryOptIn) { _, newValue in
@@ -181,16 +195,8 @@ struct SettingsDrawer: View {
                 }
 
             if currentRuntimeSelection.requiresRestart(comparedTo: savedRuntimeSelection) {
-                HStack(alignment: .center, spacing: NSpacing.sm) {
-                    Text("Restart Agent Server to use this change.")
-                        .font(NTypography.captionSmall)
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                    Spacer(minLength: NSpacing.xs)
-                    Button("Restart now", action: restartForRuntimeChange)
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                        .accessibilityIdentifier("settings.restartRuntime")
-                }
+                restartNotice(action: restartForRuntimeChange)
+                    .accessibilityIdentifier("settings.restartRuntime")
             }
         }
     }
@@ -588,7 +594,10 @@ struct SettingsDrawer: View {
 
     private var updatesCard: some View {
         SettingsCard(title: "Updates") {
-            settingsToggle("Automatically check for updates", isOn: $autoUpdates)
+            settingsToggle(
+                "Automatically check for updates",
+                isOn: $updater.automaticallyChecksForUpdates
+            )
 
             settingsRow(label: "Current version") {
                 Text(version)
@@ -770,6 +779,8 @@ struct SettingsDrawer: View {
         refreshValidation()
         loadTelemetryFromPairs()
         loadRuntimeFromPairs()
+        resumeAfterWake = catchUpPreference.value(in: pairs)
+        savedResumeAfterWake = resumeAfterWake
     }
 
     // MARK: - Runtime flag persistence
@@ -891,6 +902,23 @@ struct SettingsDrawer: View {
     private func restartForRuntimeChange() {
         savedRuntimeSelection = currentRuntimeSelection
         monitor.requestServerRestart()
+    }
+
+    private func restartForGeneralChange() {
+        savedResumeAfterWake = resumeAfterWake
+        monitor.requestServerRestart()
+    }
+
+    private func restartNotice(action: @escaping () -> Void) -> some View {
+        HStack(alignment: .center, spacing: NSpacing.sm) {
+            Text("Restart Agent Server to use this change.")
+                .font(NTypography.captionSmall)
+                .foregroundStyle(theme.tokens.mutedForeground)
+            Spacer(minLength: NSpacing.xs)
+            Button("Restart now", action: action)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+        }
     }
 
     private func chooseWorkspace() {
