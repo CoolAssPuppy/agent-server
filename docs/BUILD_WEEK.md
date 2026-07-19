@@ -85,7 +85,7 @@ The feature work adds server behavior coverage for shared schemas, environment a
 
 Swift behavior coverage includes proposal and debugger state changes, consumer risk and schedule presentation, security payloads, accessibility identifiers, drawer routing, transport recovery, and stale state protection. Four signed macOS UI tests cover the requested creation, missing-connection, safe-test, debugger, low-risk repair, embedded-secret, folder-narrowing, and high-risk review behaviors using deterministic launch scenarios.
 
-The latest non-interactive run passed 1,139 server tests across 83 files and 209 Swift tests. TypeScript checking, the server build, and unsigned builds of the app and native helper passed. The full four-flow signed UI suite passed once earlier in the feature cycle. Later UI automation stopped at the user's request because it took keyboard focus. See [FINAL_VERIFICATION.md](FINAL_VERIFICATION.md) for the full record.
+The latest non-interactive run passed 1,208 server tests across 90 files and 315 Swift tests. Server coverage reached 81.00% statements, 76.75% branches, 83.73% functions, and 82.39% lines. TypeScript checking, lint, the server build, and an unsigned app build passed. The full four-flow signed UI suite passed once earlier in the feature cycle. Later UI automation stopped at the user's request because it took keyboard focus. See [FINAL_VERIFICATION.md](FINAL_VERIFICATION.md) for the full record.
 
 ## Demo
 
@@ -120,6 +120,7 @@ Use [BUILD_WEEK_DEMO.md](BUILD_WEEK_DEMO.md) and the redacted fixtures under `se
 - Add more resolved-failure patterns to the deterministic debugger.
 - Add more UI automation once native macOS controls can be driven reliably in CI.
 - Continue pruning duplicated and dead code under behavior coverage.
+- Add a reviewed action for adopting safe inline MCP definitions into saved named profiles. The conservative adoption planner identifies candidates but never changes agents automatically.
 
 ## Selected milestone commits
 
@@ -165,3 +166,11 @@ See [FEATURE_COMMITS.md](FEATURE_COMMITS.md) for the complete chronological list
 38. `7140f72` Unify native grants with reviewed fixes
 39. `2ef3217` Harden reviewed security fixes
 40. `f810f4e` Block relocated home folder grants
+41. `bf21e6b` Respect debugger rerun safety
+42. `4b83a00` Bind agents to saved connections
+43. `1086757` Make open drawers accessibility modal
+44. `3dd148b` Improve run accessibility navigation
+45. `ec809b9` Simplify responsive Settings layout
+46. `3123a12` Manage saved connections safely
+47. `7e54fa5` Add native saved connection management
+48. `2410ff9` Simplify connection setup language

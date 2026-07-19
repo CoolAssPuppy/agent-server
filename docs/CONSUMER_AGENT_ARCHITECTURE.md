@@ -61,6 +61,20 @@ The analysis layer defines strict Zod schemas for:
 
 The API validates every model result before returning or applying it. A model response is evidence for a proposal, diagnosis, or semantic finding. It never writes configuration directly.
 
+## Named connection model
+
+A connection has three separate identities:
+
+1. A person-facing label such as Personal Notion or Client Linear.
+2. An opaque saved profile identifier used by agents.
+3. A stable runtime name used for the selected transport.
+
+The label can change without changing runtime behavior. Agent files store the opaque profile identifier in `connection_bindings` and may keep a concrete transport snapshot for readable, compatible configuration. Saved profiles store only credential variable references. Credential values remain in the selected Agent Server folder's `.env` file and are never returned by the local API.
+
+The server resolves bindings again before every scheduled, manual, or CLI run. It fails closed if a profile is missing or its runtime identity no longer matches the reviewed binding. Only credential variables declared by that profile may cross into its transport process. Protected Agent Server and runtime variables cannot be adopted as connection credentials.
+
+Existing inline MCP definitions remain valid. A conservative adoption planner can identify definitions that are safe to turn into saved profiles, but migration is never automatic. The user must review identity, transport, and credential references before an existing agent changes.
+
 ## Agent creation data flow
 
 1. The user enters a plain-language request and local time zone.

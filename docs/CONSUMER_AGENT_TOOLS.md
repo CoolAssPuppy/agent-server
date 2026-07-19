@@ -18,6 +18,8 @@ The proposal shows:
 
 Generated proposals use narrow access by default. File changes, command execution, internet access, and external messages must be visible in the proposal. Missing required connections remain setup steps instead of becoming raw runtime errors.
 
+People select exact named connections instead of a generic service. Personal Notion and Work Notion remain distinct even when both use the same kind of service. Labels are presentation only, credentials stay in the local `.env` file, and each agent records the reviewed saved connection rather than copying a secret.
+
 Files and folders are reviewed one at a time, each with its own view-only or change access. Calendar and Reminders access names the exact account and resource, then separates viewing from adding, updating, or completing items. Contacts access is read-only and limits the helper to a selected group or reviewed account plus chosen detail types. macOS permission prompts appear only after the user chooses **Allow access**.
 
 Every proposal is validated as structured data. The app converts an approved proposal into the existing Markdown plus YAML frontmatter format. Users can inspect the generated Markdown under **Advanced details**.

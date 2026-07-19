@@ -1,6 +1,6 @@
 # Feature commits
 
-This is the complete chronological commit list after baseline `5b779736985e918874b80b390372be71645dc19a` through verified implementation head `fa584b8`.
+This is the complete chronological commit list after baseline `5b779736985e918874b80b390372be71645dc19a` through the latest verified implementation batch.
 
 1. `65d033a` Harden local execution and add analysis foundation
 2. `919c6fe` Simplify local security and reliability policies
@@ -84,3 +84,59 @@ This is the complete chronological commit list after baseline `5b779736985e91887
 80. `e6c550b` Record proposal timeout verification
 81. `6291920` Clarify Notion choice and sidebar navigation
 82. `fa584b8` Finish proposals safely without model output
+83. `201cd09` Record fallback and UI verification
+84. `1dc470a` Restore the canonical Agent Server environment file
+85. `c450011` Unify utility navigation and top drawers
+86. `cc84fce` Remove obsolete drawer aliases
+87. `6cae1cb` Run security checks quietly in the background
+88. `1e87cc5` Move storage and runtime controls into Settings
+89. `266a93d` Remove obsolete aggregate security client
+90. `02a5034` Group creation connections and file access
+91. `a3fc928` Reuse capability catalog in creation guidance
+92. `e823865` Add hidden screenshot demo mode
+93. `fcdd49c` Fix creation and security analysis timeouts
+94. `e433f21` Simplify answered question filtering
+95. `9e91060` Show risk in security scan progress
+96. `62ebcee` Add progressive security detail panels
+97. `9e1ee51` Fix existing agent permission editing
+98. `cc6ae73` Simplify capability permission matching
+99. `93e120c` Preserve agent files during permission edits
+100. `152dddf` Keep security scans inside the status card
+101. `8e44d1c` Recognize named connection keys
+102. `6a87bce` Split connection drawer components
+103. `64db486` Bind permissions to exact MCP transports
+104. `4253d1d` Add generic connection profile storage
+105. `219b4c6` Simplify connection profile types
+106. `251baed` Expose generic connection profiles locally
+107. `595d2bc` Resolve saved connections into runtime bindings
+108. `6b15449` Keep connection resolver tests immutable
+109. `72305ec` Add reusable connection setup
+110. `2b6eb3d` Simplify credential entry
+111. `a7e3f77` Classify stored connection operations
+112. `f5d28d2` Track safe tests through completion
+113. `05eefec` Avoid stalled safe test state
+114. `b16965a` Track debugger retries through completion
+115. `78e4b9b` Reuse terminal run observation
+116. `9a73906` Stage agent capability edits until save
+117. `49299b4` Require connection setup before saving
+118. `460b14b` Clarify agent proposal hierarchy
+119. `5d11ba8` Preserve creation answers while editing
+120. `bd89ec1` Explain agent run failures
+121. `7900b46` Preserve failed security scan results
+122. `473c564` Simplify saved connection details
+123. `386009d` Persist settings toggles
+124. `144c7f3` Keep run details matched to selection
+125. `9f6e790` Show agent safety and readiness
+126. `ebe929d` Track macOS experience audit progress
+127. `bf21e6b` Respect debugger rerun safety
+128. `4b83a00` Bind agents to saved connections
+129. `1086757` Make open drawers accessibility modal
+130. `3dd148b` Improve run accessibility navigation
+131. `ec809b9` Simplify responsive Settings layout
+132. `3123a12` Manage saved connections safely
+133. `fc07569` Reuse the settings section catalog
+134. `c5af917` Update settings audit result
+135. `c122302` Hide empty debugger evidence
+136. `7e54fa5` Add native saved connection management
+137. `2410ff9` Simplify connection setup language
+138. `a1efb7e` Prune connection view commentary

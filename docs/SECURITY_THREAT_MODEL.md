@@ -24,6 +24,7 @@ This model covers guided agent creation, Agent Debugger, Security Analyzer, the 
 5. Agents may read untrusted files, messages, and web content.
 6. Approved patches replace local agent files.
 7. Notifications and connected services can send data outside the Mac.
+8. Saved connection profiles map opaque agent grants to local transports and credential references.
 
 ## Threat actors and failure sources
 
@@ -48,6 +49,8 @@ This model covers guided agent creation, Agent Debugger, Security Analyzer, the 
 | Literal credential in configuration | Credential theft or accidental disclosure | Secret detection, redacted evidence, environment references, blocked patch application | Pattern checks may miss uncommon credential formats |
 | Malicious or insecure provider | Prompt and task data disclosure | HTTPS requirement, loopback exception, approved provider reference, review warning | A valid HTTPS endpoint can still be untrustworthy |
 | Overpowered connected service | External records are changed or disclosed | Explicit service permissions, deny rules, connection state, security findings | Service-side scopes may be broader than individual tools |
+| Connection identity changes after review | An agent reaches a different account or transport | Opaque profile binding, stable runtime identity, fresh resolution before each run, fail-closed mismatch handling | A service can change behavior behind an unchanged remote endpoint |
+| Credential reference is widened at execution | An MCP process receives unrelated secrets | Profile-scoped credential allowlist, protected runtime-variable rejection, values resolved only at the executor boundary | A granted credential still carries the authority assigned by its service |
 | Stale or confused-deputy patch | Wrong or outdated change is applied | Agent ID validation, expected content hash, preview result hash, atomic replace | Manual edits outside Agent Server may still require recovery |
 | Model invents evidence or an unsafe fix | Misleading diagnosis or permission escalation | Strict schemas, deterministic checks first, risk floors, forbidden patch policy, bounded retry | A plausible but wrong low-risk explanation may require user judgment |
 | Secret appears in logs or model prompts | Credential exposure | Structured redaction, evidence minimization, truncation, private logging | Novel secret formats or secrets embedded in arbitrary prose may evade detection |

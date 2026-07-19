@@ -17,7 +17,7 @@ This report records automated verification for the `creation-experience` branch.
 
 - Baseline: `5b779736985e918874b80b390372be71645dc19a`
 - Branch: `creation-experience`
-- Verified feature head: `fa584b8`
+- Verified implementation head: `a1efb7e`
 - Worktree clean before closeout documentation edits: Yes
 - Primary Codex session ID: `019f7458-705a-7fe2-8819-b2bf9f383298`
 
@@ -70,12 +70,12 @@ See [FEATURE_COMMITS.md](FEATURE_COMMITS.md) for the complete chronological list
 
 | Check | Result | Evidence |
 |---|---|---|
-| Server behavior tests | Passed | 1,139 tests across 83 files |
-| Server coverage | Passed before final scoped-access batch | 78.82% statements, 74.59% branches, 80.28% functions, 80.23% lines |
+| Server behavior tests | Passed | 1,208 tests across 90 files |
+| Server coverage | Passed | 81.00% statements, 76.75% branches, 83.73% functions, 82.39% lines |
 | Server lint | Passed | `pnpm lint` exited successfully |
 | TypeScript strict check | Passed | `pnpm type-check` exited successfully |
 | Server production build | Passed | `pnpm build` exited successfully |
-| Swift behavior tests | Passed | 209 tests |
+| Swift behavior tests | Passed | 315 tests |
 | Signed macOS UI tests | Passed once | All four tests completed in 34.8 seconds. A later redundant rerun was interrupted after another app stole focus and UI testing stopped at the user's request. |
 | macOS application build | Passed | `AgentServer` scheme built successfully during final verification |
 | Native service helper build | Passed | `AgentServerEventKit` scheme built with scoped Calendar, Reminders, and Contacts support |
@@ -151,12 +151,14 @@ The UI results below come from the complete signed four-test run. They were not 
 - Reviewed Security Analyzer fixes show a sanitized exact patch preview before apply: Passed in server patch tests, Swift decoding tests, and the unsigned app build
 - Review state becomes stale after content change: Passed in server behavior tests
 - Demo fixtures contain no credentials or personal paths: Passed during documentation batch
+- Saved connection profiles expose references but never credential values: Passed in store, API, runtime, and macOS decoding tests
+- Renaming preserves connection identity; removal fails closed while agents reference the profile: Passed in server and Swift behavior tests
 
 ## Baseline comparison
 
 Existing agent Markdown and YAML remain the source of truth and continue through the existing parser, scheduler, runtime, connection, and run-history systems. The main intentional execution change is a shared security preflight for manual and automatic trigger paths. Unreviewed automatic high-risk runs are skipped and recorded; critical configurations are blocked until fixed. Safe tests use an ephemeral restricted configuration and do not change the saved agent. No permission, schedule, connection, model, or file scope changes without an approved patch.
 
-The cleanup work also extracted the server run lifecycle, split macOS guidance and security services, isolated child environments, fixed runtime path resolution and process waiting, bounded tracking state, and removed tracked machine-local files.
+The cleanup work also extracted the server run lifecycle, split macOS guidance and security services, isolated child environments, fixed runtime path resolution and process waiting, bounded tracking state, and removed tracked machine-local files. Named connections now resolve opaque profile bindings for every run and fail closed if an account or runtime identity changes. The canonical Personal Notion agents in `~/Developer/brain` now use the actual REST operations granted by their selected connection, with no general file-write fallback.
 
 ## Known limitations
 
@@ -179,4 +181,4 @@ Open blockers: None found by the non-interactive automated verification. Complet
 
 Reviewer: Codex automated verification
 
-Verification date: 2026-07-18
+Verification date: 2026-07-19

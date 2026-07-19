@@ -88,3 +88,26 @@ These issues can misrepresent state or apply an action to the wrong object.
 5. Simplify Settings and prune duplicate views, copy, icons, and status models.
 
 Each correction requires a failing behavior test first. Verification uses Swift package tests and an unsigned macOS build without focus-stealing UI automation.
+
+## Implemented audit corrections
+
+- Creation keeps reviewed answers when details are edited and cannot save while required connections are unresolved.
+- Safe tests and debugger retries follow the exact replacement run through completion or failure.
+- Run actions show useful recovery for offline, connection, preflight, and security failures.
+- Agent permission edits remain staged until Save. Cancel discards them.
+- Security keeps failed and pending agents visible and prevents stale cross-agent detail.
+- Agent detail shows Safety and readiness as a labeled row.
+- Saved connections use progressive detail panels with rename, duplicate, readiness, credential editing, and reference-safe removal.
+- Connection labels are user-owned. Technical templates and credential fields are secondary.
+- Settings scrolls, adapts from two columns to one, and keeps infrastructure controls under Advanced.
+- Open drawers make background content inert. Drawer transitions stop under Reduce Motion.
+- Run and activity rows provide composed VoiceOver labels. Run tabs expose selected state and support arrow keys.
+- Debugger retry behavior follows explicit safe, confirm, or unsafe guidance and omits an empty Evidence section.
+
+## Deliberate remaining work
+
+- Manual VoiceOver, Accessibility Inspector, keyboard-only, large-text, light and dark appearance, and Reduce Motion review remain release checks. They were not automated because macOS UI automation was taking focus from the user's active work.
+- Keychain storage remains deferred until the Node server has a matching secure token bridge. Static secrets remain in the owner-only local `.env` file and never enter agent Markdown.
+- Apple Music remains unavailable until a signed MusicKit entitlement and read-only runtime are tested.
+- Generic browser OAuth remains future platform work. Existing Claude-authenticated connectors and local credential-backed profiles continue to work.
+- Creation and Connections still contain service-specific adapters where the runtime itself is service-specific. Their default presentation stays account-oriented, with transport details available on demand.

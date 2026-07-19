@@ -5,8 +5,8 @@ Status: Native service integration and final release verification are complete.
 ## Connection account model correction
 
 - [x] Restore `~/.agent-server/.env` as the single environment file used by the app and server.
-- [ ] Replace key-centric connection language with a named, repeatable account model.
-- [ ] Define legacy key adoption and exact connection identity rules for multiple Notion and Linear accounts.
+- [x] Replace key-centric connection language with a named, repeatable account model.
+- [x] Define legacy key adoption and exact connection identity rules for multiple Notion and Linear accounts.
 - [x] Read configured connection readiness from the instance-aware service registry instead of generic catalog keys.
 - [x] Show each existing named connection separately and edit its exact environment references without exposing values through the API.
 - [x] Run affected server and Swift tests and build both targets without UI automation.
@@ -26,9 +26,9 @@ Status: Native service integration and final release verification are complete.
 - [x] Define opaque connection identity, arbitrary credential references, transport configuration, capability discovery, and reviewed agent grants.
 - [x] Compile the current Personal Notion transport into exact real operations instead of tools from a different Notion connection.
 - [x] Persist workspace-local connection definitions containing references but no secret values.
-- [ ] Add adoption for existing inline MCP configurations and loose `.env` credential references.
-- [ ] Add the guided macOS flow for templates and custom connections, testing, discovered actions, and agent selection.
-- [ ] Update canonical source agents under `~/Developer/brain`, regenerate, verify, and review diffs.
+- [x] Add conservative adoption planning for existing inline MCP configurations and loose `.env` credential references.
+- [x] Add the guided macOS flow for templates and custom connections, readiness checks, discovered actions, and agent selection.
+- [x] Update canonical source agents under `~/Developer/brain`, regenerate, verify, and review diffs.
 
 ### Connection platform decisions
 
@@ -43,10 +43,10 @@ Status: Native service integration and final release verification are complete.
 - [x] Inventory every primary screen, drawer, sheet, empty state, error state, and multi-step flow.
 - [x] Audit first impression, task clarity, navigation, visual hierarchy, terminology, repetition, control density, keyboard use, VoiceOver, and reduced motion.
 - [x] Define a three-level disclosure model: immediate decision, useful context, and technical details.
-- [ ] Simplify creation, connections, agent details, run history, debugger, security, and settings without removing advanced control.
-- [ ] Add behavior tests before each consequential correction and reuse shared components and copy models.
-- [ ] Verify all Swift behavior tests and an unsigned macOS build without UI automation.
-- [ ] Document findings, implemented corrections, deferred items, and rationale.
+- [x] Simplify creation, connections, agent details, run history, debugger, security, and settings without removing advanced control.
+- [x] Add behavior tests before each consequential correction and reuse shared components and copy models.
+- [x] Verify all Swift behavior tests and an unsigned macOS build without UI automation.
+- [x] Document findings, implemented corrections, deferred items, and rationale.
 
 Implemented audit corrections:
 
@@ -61,10 +61,16 @@ Implemented audit corrections:
 - [x] Persist resume-after-wake and automatic-update settings.
 - [x] Reject stale logs and hydration responses after a run selection changes.
 - [x] Show Safety and readiness as a visible agent-detail row.
+- [x] Respect diagnosis-specific retry safety and hide empty debugger evidence.
+- [x] Make open drawers inert behind the active surface and honor Reduce Motion.
+- [x] Add composed VoiceOver labels and arrow-key tab navigation to run details.
+- [x] Make Settings responsive and place infrastructure controls under Advanced.
+- [x] Add rename, duplicate, readiness, and reference-safe removal to saved connection details.
+- [x] Replace key-first connection language with named connections and optional templates.
 
 Current verification:
 
-- 301 Swift behavior tests pass.
+- 315 Swift behavior tests pass.
 - The unsigned macOS app builds successfully.
 - No UI automation was run.
 

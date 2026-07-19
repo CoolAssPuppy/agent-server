@@ -14,6 +14,11 @@ Build the server and app from the `creation-experience` branch. Use demo agents 
 | Codex unavailable | Hide the Codex executable and request a proposal | Creation explains that the local model is unavailable. Deterministic security checks still work. Nothing is saved. |
 | No connections | Create the GitHub to Slack demo request | The proposal marks GitHub and Slack as needing setup and allows the user to return without losing progress. |
 | Multiple connections | Connect two supported services and reopen the proposal | Each service shows its own current state. Optional services can be skipped. |
+| Multiple accounts for one service | Add Personal Notion and Work Notion with different credential references | Both accounts remain distinct by user-chosen label. Creation selects the exact account and never displays either credential value. |
+| Rename a saved connection | Rename Personal Notion after an agent uses it | The label changes without changing the opaque binding, runtime name, transport, or credential references. The agent still resolves the same account. |
+| Remove an unused saved connection | Open its detail panel and confirm removal | The profile is removed and its credential values remain untouched in `.env`. |
+| Remove a connection used by agents | Attempt removal from its detail panel | Removal stops and names the agents that must be reviewed. No agent or profile changes. |
+| Duplicate a saved connection | Duplicate an existing profile | A new profile with new opaque identifiers keeps the same credential references. The person gives it a distinct label and can modify credentials before assigning it to an agent. |
 | Malformed agent | Add a frontmatter file with an unclosed delimiter and open it | The app explains that the file cannot be read and offers technical details without replacing the file. |
 | Large prompt | Analyze an agent near the prompt limit | The app stays responsive. Analysis completes or returns a bounded error. No huge text block appears by default. |
 | Large log | Open a failed run with a large output stream | The debugger uses bounded relevant evidence, opens promptly, and copies only redacted technical details. |
@@ -91,10 +96,10 @@ Build the server and app from the `creation-experience` branch. Use demo agents 
 
 ## Release checks
 
-Current automated evidence: 1,139 server tests across 83 files, 209 Swift tests,
+Current automated evidence: 1,208 server tests across 90 files, 315 Swift tests,
 and the non-interactive lint, type-check, production build, and macOS build gates
-pass. The last recorded coverage before the final scoped-access batch was 78.82%
-statements, 74.59% branches, 80.28% functions, and 80.23% lines. The full
+pass. Current server coverage is 81.00% statements, 76.75% branches, 83.73%
+functions, and 82.39% lines. The full
 four-test signed UI suite passed once in 34.8 seconds.
 A later redundant rerun was interrupted after another application stole focus.
 UI automation was then stopped at the user's request. Repeat it only in an
