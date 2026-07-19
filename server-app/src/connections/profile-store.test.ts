@@ -25,6 +25,7 @@ describe('ConnectionProfileStore', () => {
     const mode = (await stat(path)).mode & 0o777;
 
     expect(saved.id).not.toContain(saved.label);
+    expect(saved.runtime_name).not.toContain('Personal');
     expect(source).toContain('EXISTING_PERSONAL_TOKEN');
     expect(source).not.toContain('must-never-be-stored');
     expect(mode).toBe(0o600);
@@ -50,6 +51,7 @@ describe('ConnectionProfileStore', () => {
       id: original.id,
       label: 'Anything else',
       adapter: original.adapter,
+      runtime_name: original.runtime_name,
       credentials: original.credentials,
       transport: original.transport,
     });

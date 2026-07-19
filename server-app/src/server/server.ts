@@ -8,6 +8,7 @@ import { createApi } from './api.js';
 import { discoverAgents } from '../agents/discovery.js';
 import { createAgentWriter } from '../agents/writer.js';
 import { ConnectionCache } from '../connections/cache.js';
+import { ConnectionProfileStore } from '../connections/profile-store.js';
 import { loadEnvFile } from '../platform/config.js';
 import type { RunStoreLike } from '../reporting/store.js';
 import { RunStore } from '../reporting/store.js';
@@ -573,6 +574,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       get: () => connectionCache.get(),
       refresh: () => connectionCache.refresh(),
     },
+    connectionProfiles: new ConnectionProfileStore(join(config.agentsDir, '..', 'connections.json')),
     apiKey,
     startedAt,
     host: config.host,

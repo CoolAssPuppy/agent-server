@@ -6,6 +6,7 @@ const profile = (): ConnectionProfile => ({
   id: '018f47a2-9a13-7d61-bf4f-f9a5d8f67c21',
   label: 'Whatever I want to call this',
   adapter: { id: 'mcp.custom', version: 1 },
+  runtime_name: 'connection_018f47a29a137d61bf4ff9a5d8f67c21',
   credentials: [{
     id: '018f47a2-d541-7fb1-ae66-bb2c92b90de1',
     label: 'Primary token',
@@ -30,6 +31,7 @@ describe('ConnectionProfileSchema', () => {
 
     expect(parsed.label).toBe('Whatever I want to call this');
     expect(parsed.adapter.id).toBe('mcp.custom');
+    expect(parsed.runtime_name).toBe('connection_018f47a29a137d61bf4ff9a5d8f67c21');
     expect(parsed.transport.kind).toBe('mcp_stdio');
   });
 

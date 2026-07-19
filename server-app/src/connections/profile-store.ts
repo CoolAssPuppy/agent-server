@@ -3,26 +3,15 @@ import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import {
   ConnectionProfileRegistrySchema,
+  ConnectionProfileDraftSchema,
   ConnectionProfileSchema,
   type ConnectionProfile,
+  type ConnectionProfileDraft,
   type ConnectionTransport,
   type CredentialReference,
 } from './profile.js';
 
-type CredentialDraft = Omit<CredentialReference, 'id'>;
-type StdioTransportDraft = Omit<Extract<ConnectionTransport, { kind: 'mcp_stdio' }>, 'environment'> & {
-  environment: Record<string, number>;
-};
-type RemoteTransportDraft = Omit<Extract<ConnectionTransport, { kind: 'mcp_http' | 'mcp_sse' }>, 'headers'> & {
-  headers: Array<{ name: string; credential_index: number; prefix?: string }>;
-};
-
-export type ConnectionProfileDraft = {
-  label: string;
-  adapter: ConnectionProfile['adapter'];
-  credentials: CredentialDraft[];
-  transport: StdioTransportDraft | RemoteTransportDraft;
-};
+export type { ConnectionProfileDraft } from './profile.js';
 
 const EMPTY_REGISTRY: { schema_version: 1; connections: ConnectionProfile[] } = {
   schema_version: 1,
@@ -43,15 +32,18 @@ export class ConnectionProfileStore {
     return (await this.readRegistry()).connections;
   }
 
-  async create(draft: ConnectionProfileDraft): Promise<ConnectionProfile> {
+  async create(input: unknown): Promise<ConnectionProfile> {
     return this.mutate(async (connections) => {
+      const draft = ConnectionProfileDraftSchema.parse(input);
       const credentials = draft.credentials.map((credential) => ({ ...credential, id: randomUUID() }));
       const now = new Date().toISOString();
+      const id = randomUUID();
       const connection = ConnectionProfileSchema.parse({
         schema_version: 1,
-        id: randomUUID(),
+        id,
         label: draft.label,
         adapter: draft.adapter,
+        runtime_name: draft.runtime_name ?? `connection_${id.replaceAll('-', '')}`,
         credentials,
         transport: this.materializeTransport(draft.transport, credentials),
         created_at: now,

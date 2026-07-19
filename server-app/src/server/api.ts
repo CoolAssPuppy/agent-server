@@ -11,6 +11,8 @@ import {
   type DiscoveredConnection,
 } from '../agents/capabilities.js';
 import { buildServiceRegistry } from '../services/registry.js';
+import { ConnectionProfileDraftSchema } from '../connections/profile.js';
+import type { ConnectionProfileStore } from '../connections/profile-store.js';
 import {
   AgentPatchSchema,
   AgentWriteError,
@@ -81,6 +83,8 @@ type ApiDependencies = {
    * empty snapshot and capability lists fall back to built-ins + configured.
    */
   connections?: ConnectionSource;
+  /** Workspace-local user-named connection definitions. Values remain in .env. */
+  connectionProfiles?: Pick<ConnectionProfileStore, 'list' | 'create' | 'rename'>;
   /** Optional local security analysis and configuration patch routes. */
   analysisApi?: Hono;
   /** Optional local guided creation and debugger routes. */
@@ -103,6 +107,7 @@ function isAgentWriteRequest(method: string, path: string): boolean {
   if (method === 'POST' && path === '/agents') return true;
   if (method === 'POST' && path.startsWith('/guidance/agent-proposals')) return true;
   if (method === 'POST' && /^\/guidance\/agents\/[^/]+\/similar-proposals$/.test(path)) return true;
+  if (method === 'POST' && path === '/connection-profiles') return true;
   return method === 'PUT' && /^\/agents\/[^/]+$/.test(path);
 }
 
@@ -342,6 +347,27 @@ export function createApi(deps: ApiDependencies): Hono {
       discovered: getConnections(),
     });
     return c.json({ connections: registry.connections });
+  });
+
+  app.get('/connection-profiles', async (c) => {
+    const connections = await deps.connectionProfiles?.list() ?? [];
+    return c.json({ connections });
+  });
+
+  app.post('/connection-profiles', async (c) => {
+    if (!deps.connectionProfiles) {
+      return c.json({ error: 'Connection editing is not available on this server' }, 501);
+    }
+    const read = await readJsonBody(c);
+    if (!read.ok) return read.response;
+    const parsed = ConnectionProfileDraftSchema.safeParse(read.body);
+    if (!parsed.success) return c.json({ error: 'Invalid connection profile' }, 400);
+    try {
+      return c.json(await deps.connectionProfiles.create(parsed.data), 201);
+    } catch (error) {
+      console.error(`[api] Connection profile write failed: ${sanitizeText(toErrorMessage(error), 300)}`);
+      return c.json({ error: 'Connection profile could not be saved' }, 500);
+    }
   });
 
   app.put('/agents/:id', async (c) => {

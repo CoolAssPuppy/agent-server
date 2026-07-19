@@ -4,6 +4,7 @@ import { createApi as createProductionApi } from './api.js';
 import { RunStore } from '../reporting/store.js';
 import { makeAgent, makeStoredRun } from '../test-factories.js';
 import { RunPreflightDeniedError } from '../analysis/run-preflight-gate.js';
+import type { ConnectionProfile } from '../connections/profile.js';
 
 const API_TEST_KEY = 'local-api-test-key-1234567890';
 
@@ -133,6 +134,100 @@ describe('API routes', () => {
       const app = createApp();
       const res = await authenticatedRequest(app, '/agents/nonexistent');
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe('connection profiles', () => {
+    it('lists independently saved user-named connections', async () => {
+      const connection: ConnectionProfile = {
+        schema_version: 1,
+        id: '018f47a2-9a13-7d61-bf4f-f9a5d8f67c21',
+        label: 'My arbitrary label',
+        adapter: { id: 'mcp.custom', version: 1 },
+        runtime_name: 'connection_018f47a29a137d61bf4ff9a5d8f67c21',
+        credentials: [],
+        transport: { kind: 'mcp_http', url: 'https://example.com/mcp', headers: [] },
+        created_at: '2026-07-19T18:00:00.000Z',
+        updated_at: '2026-07-19T18:00:00.000Z',
+      };
+      const app = createApi({
+        getAgents: async () => [],
+        store,
+        triggerRun,
+        connectionProfiles: {
+          list: vi.fn(async () => [connection]),
+          create: vi.fn(),
+          rename: vi.fn(),
+        },
+      });
+
+      const response = await authenticatedRequest(app, '/connection-profiles');
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ connections: [connection] });
+    });
+
+    it('creates a profile from credential references without accepting values', async () => {
+      const create = vi.fn(async (draft) => ({
+        schema_version: 1,
+        id: '018f47a2-9a13-7d61-bf4f-f9a5d8f67c21',
+        ...draft,
+        credentials: [],
+        created_at: '2026-07-19T18:00:00.000Z',
+        updated_at: '2026-07-19T18:00:00.000Z',
+      }));
+      const app = createApi({
+        getAgents: async () => [],
+        store,
+        triggerRun,
+        connectionProfiles: { list: vi.fn(), create, rename: vi.fn() },
+      });
+      const draft = {
+        label: 'No prescribed nomenclature',
+        adapter: { id: 'mcp.custom', version: 1 },
+        credentials: [{ label: 'Token', environment_variable: 'EXISTING_TOKEN', secret: true }],
+        transport: {
+          kind: 'mcp_http',
+          url: 'https://example.com/mcp',
+          headers: [{ name: 'Authorization', credential_index: 0, prefix: 'Bearer ' }],
+        },
+      };
+
+      const response = await authenticatedRequest(app, '/connection-profiles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(draft),
+      });
+
+      expect(response.status).toBe(201);
+      expect(create).toHaveBeenCalledWith(draft);
+    });
+
+    it('rejects a credential value in a connection profile request', async () => {
+      const create = vi.fn();
+      const app = createApi({
+        getAgents: async () => [],
+        store,
+        triggerRun,
+        connectionProfiles: { list: vi.fn(), create, rename: vi.fn() },
+      });
+
+      const response = await authenticatedRequest(app, '/connection-profiles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          label: 'Unsafe',
+          adapter: { id: 'mcp.custom', version: 1 },
+          credentials: [{
+            label: 'Token', environment_variable: 'EXISTING_TOKEN', secret: true, value: 'secret',
+          }],
+          transport: { kind: 'mcp_http', url: 'https://example.com/mcp', headers: [] },
+        }),
+      });
+
+      expect(response.status).toBe(400);
+      expect(create).not.toHaveBeenCalled();
+      expect(JSON.stringify(await response.json())).not.toContain('secret');
     });
   });
 

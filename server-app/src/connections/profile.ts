@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 const EnvironmentVariableSchema = z.string().regex(/^[A-Z][A-Z0-9_]*$/);
 const AdapterIdentifierSchema = z.string().regex(/^[a-z][a-z0-9._-]*$/).max(120);
+const RuntimeNameSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/).max(120);
 
 export const CredentialReferenceSchema = z.object({
   id: z.uuid(),
@@ -34,6 +35,45 @@ export const ConnectionTransportSchema = z.discriminatedUnion('kind', [
   McpRemoteTransportSchema,
 ]);
 
+const CredentialDraftSchema = CredentialReferenceSchema.omit({ id: true });
+const StdioTransportDraftSchema = McpStdioTransportSchema.omit({ environment: true }).extend({
+  environment: z.record(
+    z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/),
+    z.number().int().nonnegative(),
+  ).default({}),
+}).strict();
+const RemoteTransportDraftSchema = McpRemoteTransportSchema.omit({ headers: true }).extend({
+  headers: z.array(z.object({
+    name: z.string().trim().min(1).max(120),
+    credential_index: z.number().int().nonnegative(),
+    prefix: z.string().max(120).default(''),
+  }).strict()).max(64).default([]),
+}).strict();
+
+export const ConnectionProfileDraftSchema = z.object({
+  label: z.string().trim().min(1).max(120),
+  adapter: z.object({
+    id: AdapterIdentifierSchema,
+    version: z.number().int().positive(),
+  }).strict(),
+  runtime_name: RuntimeNameSchema.optional(),
+  credentials: z.array(CredentialDraftSchema).max(64),
+  transport: z.discriminatedUnion('kind', [StdioTransportDraftSchema, RemoteTransportDraftSchema]),
+}).strict().superRefine((draft, context) => {
+  const indexes = draft.transport.kind === 'mcp_stdio'
+    ? Object.values(draft.transport.environment)
+    : draft.transport.headers.map(({ credential_index }) => credential_index);
+  for (const index of indexes) {
+    if (!draft.credentials[index]) {
+      context.addIssue({
+        code: 'custom',
+        path: ['transport'],
+        message: `Transport references unavailable credential index ${index}`,
+      });
+    }
+  }
+});
+
 export const ConnectionProfileSchema = z.object({
   schema_version: z.literal(1),
   id: z.uuid(),
@@ -42,6 +82,7 @@ export const ConnectionProfileSchema = z.object({
     id: AdapterIdentifierSchema,
     version: z.number().int().positive(),
   }).strict(),
+  runtime_name: RuntimeNameSchema,
   credentials: z.array(CredentialReferenceSchema).max(64),
   transport: ConnectionTransportSchema,
   created_at: z.string().datetime(),
@@ -73,5 +114,6 @@ export const ConnectionProfileRegistrySchema = z.object({
 });
 
 export type ConnectionProfile = z.infer<typeof ConnectionProfileSchema>;
+export type ConnectionProfileDraft = z.infer<typeof ConnectionProfileDraftSchema>;
 export type CredentialReference = z.infer<typeof CredentialReferenceSchema>;
 export type ConnectionTransport = z.infer<typeof ConnectionTransportSchema>;
