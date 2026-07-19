@@ -383,16 +383,32 @@ final class StatusMonitor: ObservableObject {
         requestServerRestart()
     }
 
-    func triggerRun(agentId: String) {
-        guard !isDemoMode else { return }
-        Task {
-            do {
-                let _ = try await client.triggerRun(agentId: agentId)
-                poll()
-            } catch {
-                // Run trigger failed silently; next poll will show current state
-            }
+    func triggerRun(agentId: String) async -> AgentRunTriggerState {
+        guard !isDemoMode else { return .failure(.generic) }
+        do {
+            let response = try await client.triggerRun(agentId: agentId)
+            poll()
+            return .started(runId: response.runId)
+        } catch {
+            return .failure(runTriggerFailure(for: error))
         }
+    }
+
+    private func runTriggerFailure(for error: Error) -> AgentRunTriggerFailure {
+        if case let ClientError.runTriggerFailed(message, code, missingEnv) = error {
+            return .classify(
+                serverCode: code,
+                serverMessage: message,
+                hasMissingConnection: !missingEnv.isEmpty
+            )
+        }
+
+        let isTransportFailure = error is URLError
+            || (error as NSError).domain == NSURLErrorDomain
+        return .classify(
+            serverCode: nil,
+            isTransportFailure: isTransportFailure
+        )
     }
 
     // MARK: - WebSocket

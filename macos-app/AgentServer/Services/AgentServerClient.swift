@@ -258,8 +258,24 @@ actor AgentServerClient {
         request = try authenticatedRequest(request)
 
         let (data, response) = try await session.data(for: request)
-        try validateResponse(response)
+        try validateTriggerResponse(data: data, response: response)
         return try decoder.decode(TriggerResponse.self, from: data)
+    }
+
+    private func validateTriggerResponse(data: Data, response: URLResponse) throws {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw ClientError.invalidResponse
+        }
+        guard !(200...299).contains(httpResponse.statusCode) else { return }
+
+        if let body = try? decoder.decode(RunTriggerErrorBody.self, from: data) {
+            throw ClientError.runTriggerFailed(
+                message: body.error,
+                code: body.code,
+                missingEnv: body.missingEnv ?? []
+            )
+        }
+        throw ClientError.httpError(statusCode: httpResponse.statusCode)
     }
 
     private func get<T: Decodable>(
@@ -352,6 +368,17 @@ struct AgentWriteErrorBody: Decodable {
     }
 }
 
+private struct RunTriggerErrorBody: Decodable {
+    let error: String
+    let code: String?
+    let missingEnv: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case error, code
+        case missingEnv = "missing_env"
+    }
+}
+
 private struct GuidanceErrorBody: Decodable {
     let error: String
 }
@@ -361,6 +388,7 @@ enum ClientError: LocalizedError {
     case missingLocalAPIKey
     case httpError(statusCode: Int)
     case writeFailed(message: String, missingEnv: [String])
+    case runTriggerFailed(message: String, code: String?, missingEnv: [String])
 
     var errorDescription: String? {
         switch self {
@@ -372,13 +400,19 @@ enum ClientError: LocalizedError {
             return "HTTP error: \(statusCode)"
         case .writeFailed(let message, _):
             return message
+        case .runTriggerFailed(let message, _, _):
+            return message
         }
     }
 
     /// Env vars a capability needs before it can be enabled; empty when the
     /// failure was not a missing-connection problem.
     var missingEnvVars: [String] {
-        if case .writeFailed(_, let missingEnv) = self { return missingEnv }
-        return []
+        switch self {
+        case .writeFailed(_, let missingEnv), .runTriggerFailed(_, _, let missingEnv):
+            return missingEnv
+        default:
+            return []
+        }
     }
 }

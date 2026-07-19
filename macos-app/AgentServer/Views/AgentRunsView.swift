@@ -17,6 +17,16 @@ struct AgentRunsView: View {
     private let localClient = AgentServerClient()
     private let panelClient = PanelClient.fromEnv()
 
+    init(
+        agentId: String,
+        monitor: StatusMonitor,
+        initiallySelectedRunId: String? = nil
+    ) {
+        self.agentId = agentId
+        self.monitor = monitor
+        _selectedRunId = State(initialValue: initiallySelectedRunId)
+    }
+
     private var agentName: String? {
         monitor.agents.first(where: { $0.id == agentId })?.name
     }
