@@ -36,9 +36,12 @@ public enum LocalAPIAuthenticationError: Error, Equatable {
 /// logs, or a public client property. Shared by HTTP and WebSocket clients.
 public enum LocalAPIAuthentication {
     public static func defaultEnvironmentURLs(
-        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+        homeDirectory: URL? = nil
     ) -> [URL] {
-        EnvFileStore.defaultURLs(homeDirectory: homeDirectory)
+        if let homeDirectory {
+            return EnvFileStore.defaultURLs(homeDirectory: homeDirectory)
+        }
+        return EnvFileStore.configuredURLs()
     }
 
     public static func authenticatedRequest(
@@ -81,6 +84,10 @@ public enum EnvFileStore {
     ) -> [URL] {
         let baseDirectory = homeDirectory.appendingPathComponent(".agent-server")
         return [baseDirectory.appendingPathComponent(".env")]
+    }
+
+    public static func configuredURLs(defaults: UserDefaults = .standard) -> [URL] {
+        [AgentServerWorkspaceStore.current(defaults: defaults).environmentFile]
     }
 
     // MARK: Validation

@@ -5,7 +5,7 @@ import UserNotifications
 
 /// Settings drawer (mock 3NT-1). Pulls down over the main pane from the top
 /// edge of the window. Three flat cards side by side: General,
-/// Panel connections, Updates. Panel connections edits `~/.agent-server/.env`
+/// Panel connections, Updates. Panel connections edits the selected workspace `.env`
 /// via `EnvFileStore` (atomic, comment-preserving).
 ///
 /// Visual rules:
@@ -30,6 +30,11 @@ struct SettingsDrawer: View {
     @State private var resumeAfterWake: Bool = true
     @State private var useInstalledClaude: Bool = true
     @State private var useInstalledCodex: Bool = true
+    @State private var savedRuntimeSelection = RuntimeSelection(
+        usesInstalledClaude: true,
+        usesInstalledCodex: true
+    )
+    @State private var workspace = AgentServerWorkspaceStore.current()
     @State private var autoUpdates: Bool = true
     @State private var telemetryOptIn: Bool = Telemetry.isOptedIn
     @State private var didLoad: Bool = false
@@ -43,11 +48,9 @@ struct SettingsDrawer: View {
     @State private var telemetryMaxEntries: Int = 50
     @State private var telemetryIncludeMetadata: Bool = false
     @State private var showAdvancedSettings: Bool = false
+    @State private var hasPendingPanelRestart: Bool = false
 
-    private static let envPath: URL = {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        return home.appendingPathComponent(".agent-server/.env")
-    }()
+    private var envPath: URL { workspace.environmentFile }
 
     var body: some View {
         TopDrawerSurface(
@@ -72,9 +75,11 @@ struct SettingsDrawer: View {
         HStack(alignment: .top, spacing: NSpacing.lg) {
             VStack(spacing: NSpacing.lg) {
                 generalCard
+                runtimeCard
                 notificationsCard
             }
             VStack(alignment: .trailing, spacing: NSpacing.lg) {
+                storageCard
                 updatesCard
                 contactCard
                 // Advanced sits under Contact, right-aligned; toggling it opens
@@ -85,6 +90,7 @@ struct SettingsDrawer: View {
             // away instead of front and center.
             VStack(alignment: .leading, spacing: NSpacing.lg) {
                 if showAdvancedSettings {
+                    agentPanelCard
                     panelConnectionsCard
                     telemetryCard
                 }
@@ -134,32 +140,10 @@ struct SettingsDrawer: View {
 
             settingsToggle("Resume scheduled agents after wake", isOn: $resumeAfterWake)
 
-            settingsToggle("Use my installed Claude", isOn: $useInstalledClaude)
-                .onChange(of: useInstalledClaude) { _, newValue in
-                    persistRuntimeFlag(RuntimeEnvKey.useInstalledClaude, useInstalled: newValue)
-                }
-
-            settingsToggle("Use my installed Codex", isOn: $useInstalledCodex)
-                .onChange(of: useInstalledCodex) { _, newValue in
-                    persistRuntimeFlag(RuntimeEnvKey.useInstalledCodex, useInstalled: newValue)
-                }
-
-            Text("Runtime changes take effect after the server restarts.")
-                .font(NTypography.captionSmall)
-                .foregroundStyle(theme.tokens.mutedForeground)
-
             settingsToggle("Help improve Agent Server", isOn: $telemetryOptIn)
                 .onChange(of: telemetryOptIn) { _, newValue in
                     Telemetry.setOptedIn(newValue)
                 }
-
-            settingsRow(label: "Agents folder") {
-                Text(agentsFolderDisplay)
-                    .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.foreground)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
 
             settingsRow(label: "Server status") {
                 statusPill(
@@ -173,17 +157,67 @@ struct SettingsDrawer: View {
                 }
             }
 
-            settingsRow(label: "SSE stream") {
-                statusPill(
-                    isHealthy: monitor.isServerReachable && hasRequiredPanelPair,
-                    label: sseStatusText
-                )
+        }
+    }
+
+    private var runtimeCard: some View {
+        SettingsCard(title: "Claude and Codex") {
+            Text("Use the versions already installed on this Mac.")
+                .font(NTypography.captionSmall)
+                .foregroundStyle(theme.tokens.mutedForeground)
+
+            settingsToggle("Use installed Claude", isOn: $useInstalledClaude)
+                .onChange(of: useInstalledClaude) { _, newValue in
+                    persistRuntimeFlag(RuntimeEnvKey.useInstalledClaude, useInstalled: newValue)
+                }
+
+            settingsToggle("Use installed Codex", isOn: $useInstalledCodex)
+                .onChange(of: useInstalledCodex) { _, newValue in
+                    persistRuntimeFlag(RuntimeEnvKey.useInstalledCodex, useInstalled: newValue)
+                }
+
+            if currentRuntimeSelection.requiresRestart(comparedTo: savedRuntimeSelection) {
+                HStack(alignment: .center, spacing: NSpacing.sm) {
+                    Text("Restart Agent Server to use this change.")
+                        .font(NTypography.captionSmall)
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                    Spacer(minLength: NSpacing.xs)
+                    Button("Restart now", action: restartForRuntimeChange)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .accessibilityIdentifier("settings.restartRuntime")
+                }
             }
         }
     }
 
+    private var storageCard: some View {
+        SettingsCard(title: "Agent Server folder") {
+            Text("Your agents and private connection settings live here.")
+                .font(NTypography.captionSmall)
+                .foregroundStyle(theme.tokens.mutedForeground)
+
+            Text(workspace.homeDirectory.path)
+                .font(NTypography.caption)
+                .foregroundStyle(theme.tokens.foreground)
+                .lineLimit(2)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+
+            HStack(spacing: NSpacing.sm) {
+                Button("Choose…", action: chooseWorkspace)
+                    .accessibilityIdentifier("settings.chooseAgentServerFolder")
+                Button("Open in Finder", action: openWorkspace)
+                if workspace != .default() {
+                    Button("Use default", action: restoreDefaultWorkspace)
+                }
+            }
+            .controlSize(.small)
+        }
+    }
+
     private var panelConnectionsCard: some View {
-        SettingsCard(title: "Panel connections") {
+        SettingsCard(title: "Environment") {
             VStack(alignment: .leading, spacing: NSpacing.xs) {
                 // Grid body: header + rows. Single outer surface with a
                 // divider between header and body and between rows. The +/-
@@ -240,10 +274,42 @@ struct SettingsDrawer: View {
                         .font(NTypography.captionSmall)
                         .foregroundStyle(theme.tokens.destructive)
                 }
-                if !hasRequiredPanelPair {
-                    Text("SSE paused · add AGENT_SERVER_PANEL_URL + AGENT_SERVER_PANEL_API_KEY.")
+            }
+        }
+    }
+
+    private var agentPanelCard: some View {
+        SettingsCard(title: "Agent Panel") {
+            settingsToggle("Send data to Agent Panel", isOn: panelSendingBinding)
+                .disabled(!agentPanelSettings.hasRequiredCredentials)
+                .opacity(agentPanelSettings.hasRequiredCredentials ? 1 : 0.45)
+
+            if !agentPanelSettings.hasRequiredCredentials {
+                Text("Add both the Agent Panel URL and API key below to turn this on.")
+                    .font(NTypography.captionSmall)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            settingsRow(label: "Agent Panel connection") {
+                statusPill(
+                    isHealthy: isAgentPanelConnected,
+                    label: agentPanelConnectionLabel
+                )
+            }
+
+            if hasPendingPanelRestart {
+                HStack(spacing: NSpacing.sm) {
+                    Text("Restart Agent Server to use this change.")
                         .font(NTypography.captionSmall)
                         .foregroundStyle(theme.tokens.mutedForeground)
+                    Spacer(minLength: NSpacing.xs)
+                    Button("Restart now") {
+                        hasPendingPanelRestart = false
+                        monitor.requestServerRestart()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
                 }
             }
         }
@@ -469,7 +535,7 @@ struct SettingsDrawer: View {
         }
     }
 
-    /// Panel telemetry batching controls. Persists into `~/.agent-server/.env`
+    /// Panel telemetry batching controls. Persists into the selected workspace `.env`.
     /// as the four `AGENT_SERVER_TELEMETRY_PROGRESS_*` keys. Server reads
     /// these on launch, so changes take effect after the next server restart.
     /// Per-agent overrides in agent YAML always win over these values.
@@ -522,12 +588,6 @@ struct SettingsDrawer: View {
 
             settingsRow(label: "Current version") {
                 Text(version)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(theme.tokens.foreground)
-            }
-
-            settingsRow(label: "Agents loaded") {
-                Text("\(monitor.agents.count)")
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(theme.tokens.foreground)
             }
@@ -664,19 +724,26 @@ struct SettingsDrawer: View {
 
     // MARK: - Derived state
 
-    private var hasRequiredPanelPair: Bool {
-        let keys = Set(pairs.map(\.key))
-        return keys.contains("AGENT_SERVER_PANEL_URL")
-            && keys.contains("AGENT_SERVER_PANEL_API_KEY")
+    private var agentPanelSettings: AgentPanelSettings {
+        AgentPanelSettings(environment: Dictionary(uniqueKeysWithValues: pairs.map { ($0.key, $0.value) }))
     }
 
-    private var agentsFolderDisplay: String {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        return "\(home)/.agent-server/agents"
+    private var panelSendingBinding: Binding<Bool> {
+        Binding(
+            get: { agentPanelSettings.isSendingEnabled },
+            set: setPanelSendingEnabled
+        )
     }
 
-    private var sseStatusText: String {
-        if !hasRequiredPanelPair { return "Paused" }
+    private var isAgentPanelConnected: Bool {
+        agentPanelSettings.hasRequiredCredentials
+            && agentPanelSettings.isSendingEnabled
+            && monitor.isServerReachable
+    }
+
+    private var agentPanelConnectionLabel: String {
+        guard agentPanelSettings.hasRequiredCredentials else { return "Not set up" }
+        guard agentPanelSettings.isSendingEnabled else { return "Off" }
         return monitor.isServerReachable ? "Connected" : "Reconnecting"
     }
 
@@ -691,10 +758,10 @@ struct SettingsDrawer: View {
 
     private func loadPairs() {
         do {
-            pairs = try EnvFileStore.load(from: Self.envPath)
+            pairs = try EnvFileStore.load(from: envPath)
         } catch {
             pairs = []
-            saveError = "Could not load \(Self.envPath.lastPathComponent): \(error.localizedDescription)"
+            saveError = "Could not load \(envPath.lastPathComponent): \(error.localizedDescription)"
         }
         refreshValidation()
         loadTelemetryFromPairs()
@@ -708,6 +775,7 @@ struct SettingsDrawer: View {
         // Absent means the default (on); only an explicit "false" turns it off.
         useInstalledClaude = lookup[RuntimeEnvKey.useInstalledClaude] != "false"
         useInstalledCodex = lookup[RuntimeEnvKey.useInstalledCodex] != "false"
+        savedRuntimeSelection = currentRuntimeSelection
     }
 
     /// Persist a "use my installed runtime" toggle. The default is on, so we
@@ -722,6 +790,19 @@ struct SettingsDrawer: View {
             pairs.append(EnvPair(key: key, value: "false", isSecret: false))
         }
         persistIfValid()
+    }
+
+    private func setPanelSendingEnabled(_ isEnabled: Bool) {
+        let key = "AGENT_SERVER_PANEL_ENABLED"
+        if isEnabled {
+            pairs.removeAll { $0.key == key }
+        } else if let index = pairs.firstIndex(where: { $0.key == key }) {
+            pairs[index] = EnvPair(key: key, value: "false", isSecret: false)
+        } else {
+            pairs.append(EnvPair(key: key, value: "false", isSecret: false))
+        }
+        persistIfValid()
+        hasPendingPanelRestart = true
     }
 
     // MARK: - Telemetry persistence
@@ -787,12 +868,75 @@ struct SettingsDrawer: View {
         guard invalidKeys.isEmpty else { return }
         let nonEmpty = pairs.filter { !$0.key.isEmpty }
         do {
-            try EnvFileStore.save(nonEmpty, to: Self.envPath)
+            try EnvFileStore.save(nonEmpty, to: envPath)
             saveError = nil
         } catch EnvFileStoreError.invalidKey(let key) {
             saveError = "Invalid key: \(key)"
         } catch {
             saveError = "Could not save .env: \(error.localizedDescription)"
+        }
+    }
+
+    private var currentRuntimeSelection: RuntimeSelection {
+        RuntimeSelection(
+            usesInstalledClaude: useInstalledClaude,
+            usesInstalledCodex: useInstalledCodex
+        )
+    }
+
+    private func restartForRuntimeChange() {
+        savedRuntimeSelection = currentRuntimeSelection
+        monitor.requestServerRestart()
+    }
+
+    private func chooseWorkspace() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose an Agent Server folder"
+        panel.message = "Agent Server will keep agents and private connection settings in this folder."
+        panel.prompt = "Use Folder"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = workspace.homeDirectory.deletingLastPathComponent()
+        guard panel.runModal() == .OK, let selectedURL = panel.url else { return }
+
+        let alert = NSAlert()
+        alert.messageText = "Use this Agent Server folder?"
+        alert.informativeText = "Agents will be read from \(selectedURL.path)/agents and private settings from \(selectedURL.path)/.env. Existing files will not be moved."
+        alert.addButton(withTitle: "Use Folder")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        applyWorkspace(selectedURL)
+    }
+
+    private func openWorkspace() {
+        try? FileManager.default.createDirectory(
+            at: workspace.homeDirectory,
+            withIntermediateDirectories: true
+        )
+        NSWorkspace.shared.open(workspace.homeDirectory)
+    }
+
+    private func restoreDefaultWorkspace() {
+        AgentServerWorkspaceStore.restoreDefault()
+        workspace = .default()
+        reloadAfterWorkspaceChange()
+    }
+
+    private func applyWorkspace(_ url: URL) {
+        AgentServerWorkspaceStore.setHomeDirectory(url)
+        workspace = AgentServerWorkspace(homeDirectory: url)
+        reloadAfterWorkspaceChange()
+    }
+
+    private func reloadAfterWorkspaceChange() {
+        pairs = []
+        saveError = nil
+        monitor.workspaceDidChange()
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(3))
+            loadPairs()
+            monitor.poll()
         }
     }
 }

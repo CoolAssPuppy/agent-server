@@ -7,7 +7,6 @@ import NerdsUI
 struct Sidebar: View {
     @ObservedObject var monitor: StatusMonitor
     @ObservedObject var router: DrawerRouter
-    var onOpenFolder: () -> Void
     var onNewAgent: () -> Void
 
     @Environment(\.nTheme) private var theme
@@ -191,7 +190,6 @@ struct Sidebar: View {
                 .accessibilityAddTraits(router.isCreationOpen ? .isSelected : [])
             .accessibilityLabel(SidebarFooterAction.newAgent.title)
             .accessibilityIdentifier(ConsumerFlowAccessibility.sidebarCreateAgent)
-            footerButton(.chooseFolder, action: onOpenFolder)
         }
         .padding(NSpacing.xs)
     }

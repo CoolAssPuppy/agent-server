@@ -15,8 +15,7 @@ struct AgentFile: Identifiable {
     }
 
     static var agentsDirectory: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".agent-server/agents")
+        AgentServerWorkspaceStore.current().agentsDirectory
     }
 
     static func loadAll() -> [AgentFile] {

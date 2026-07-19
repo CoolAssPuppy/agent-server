@@ -1,5 +1,8 @@
 # Lessons
 
+- Navigation actions should represent navigation or primary work. Storage location belongs in Settings, and choosing a custom agents folder must move every companion lookup, including `.env`, authentication, editing, and server startup, as one coherent setting.
+- Shared runtime behavior needs shared presentation. Do not place a restart note beneath one of several controls when the requirement applies to all of them; show the consequence only after a relevant change and provide the action beside it.
+
 - A status response during an active implementation must not end the work loop.
   Resume the next concrete task immediately, keep progress updates flowing, and
   do not imply continued execution when no tool or agent is active.

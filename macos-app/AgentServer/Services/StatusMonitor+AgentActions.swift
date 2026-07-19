@@ -81,8 +81,7 @@ extension StatusMonitor {
     }
 
     func saveConnectionKeys(_ values: [String: String]) throws {
-        let url = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".agent-server/.env")
+        let url = AgentServerWorkspaceStore.current().environmentFile
         var pairs = try EnvFileStore.load(from: url)
         for (key, value) in values {
             if let index = pairs.firstIndex(where: { $0.key == key }) {

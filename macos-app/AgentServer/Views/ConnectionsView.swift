@@ -213,7 +213,7 @@ struct ConnectionsView: View {
                 .font(NTypography.labelSmall)
                 .tracking(0.8)
                 .foregroundStyle(theme.tokens.mutedForeground)
-            Text("Prefer your own account or a self-hosted server? Add its keys and they're stored privately in ~/.agent-server/.env — never inside an agent file.")
+            Text("Prefer your own account or a self-hosted server? Add its keys and they are stored privately in your Agent Server folder, never inside an agent file.")
                 .font(NTypography.caption)
                 .foregroundStyle(theme.tokens.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
@@ -286,8 +286,7 @@ struct ConnectionsView: View {
 
     /// Whether an env key is set (non-empty) in Agent Server's environment file.
     private static func isConnected(_ key: String) -> Bool {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let url = home.appendingPathComponent(".agent-server/.env")
+        let url = AgentServerWorkspaceStore.current().environmentFile
         guard let pairs = try? EnvFileStore.load(from: url),
               let pair = pairs.first(where: { $0.key == key }) else { return false }
         return !pair.value.trimmingCharacters(in: .whitespaces).isEmpty
@@ -444,7 +443,7 @@ extension CapabilityCatalogEntry {
 
 // MARK: - Connect sheet (global, no agent)
 
-/// Collects a service's API keys and saves them to ~/.agent-server/.env. Unlike
+/// Collects a service's API keys and saves them to the selected Agent Server folder. Unlike
 /// the agent-page Connect flow, this doesn't enable a capability on any agent —
 /// it just stores the keys so every agent that references them works.
 struct ConnectServiceSheet: View {
@@ -463,7 +462,7 @@ struct ConnectServiceSheet: View {
                 Text("Connect \(entry.label)")
                     .font(NTypography.headlineMedium)
                     .foregroundStyle(theme.tokens.foreground)
-                Text("Stored privately in ~/.agent-server/.env — never inside an agent file.")
+                Text("Stored privately in your Agent Server folder, never inside an agent file.")
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
                     .fixedSize(horizontal: false, vertical: true)

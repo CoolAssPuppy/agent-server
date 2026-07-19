@@ -357,10 +357,10 @@ struct GuidedAgentCreationView: View {
 
     private var footer: some View {
         HStack(spacing: NSpacing.sm) {
+            Spacer()
             Button("Cancel", action: onCancel)
                 .keyboardShortcut(.cancelAction)
                 .disabled(isBusy)
-            Spacer()
             footerActions
         }
         .padding(.horizontal, NSpacing.xl)

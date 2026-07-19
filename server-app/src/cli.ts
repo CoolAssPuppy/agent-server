@@ -10,7 +10,7 @@ import { initAgentServer } from './platform/init.js';
 import { installLaunchAgent, uninstallLaunchAgent } from './platform/launchd.js';
 import { createPanelClient } from './reporting/panel-client.js';
 
-const baseDir = join(homedir(), '.agent-server');
+const baseDir = process.env.AGENT_SERVER_HOME || join(homedir(), '.agent-server');
 const fileEnv = loadEnvFile(baseDir, process.env);
 Object.assign(process.env, fileEnv);
 

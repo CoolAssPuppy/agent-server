@@ -2,19 +2,16 @@ import Foundation
 
 enum SidebarFooterAction: CaseIterable, Equatable {
     case newAgent
-    case chooseFolder
 
     var title: String {
         switch self {
         case .newAgent: return "New Agent"
-        case .chooseFolder: return "Choose a folder"
         }
     }
 
     var systemImage: String {
         switch self {
         case .newAgent: return "plus"
-        case .chooseFolder: return "folder"
         }
     }
 }

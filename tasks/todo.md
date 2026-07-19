@@ -40,6 +40,27 @@ Status: Native service integration and final release verification are complete.
 - The footer shows an accessible red error marker for scan failures and a count for high or critical agents. Low and ordinary Needs review results remain in the drawer without turning the footer into a constant alarm.
 - Verification: 219 Swift behavior tests and the unsigned app build passed. UI automation was not run.
 
+## Agent storage and runtime settings correction
+
+- [x] Remove the folder action from the agent sidebar.
+- [x] Add a Settings card for the active Agent Server folder with Choose, Open in Finder, and restore-default actions.
+- [x] Resolve the companion `.env` from the selected Agent Server folder while preserving `~/.agent-server/.env` for the default folder.
+- [x] Make agent file access, local API authentication, connection editing, and the launched server use one selected location.
+- [x] Move installed Claude and Codex controls into one dedicated card.
+- [x] Show the shared restart requirement only after a runtime choice changes, with a Restart now action.
+- [x] Put Agent Panel sending and connection state in Advanced, gated by both required credentials.
+- [x] Remove developer-only agent counts and panel transport language from General.
+- [x] Add behavior tests first, run Swift and server verification without UI automation, commit, and simplify.
+
+### Agent storage and runtime settings review
+
+- The selected setting is an Agent Server folder, not a loose agents directory. It owns `agents/`, `.env`, locks, logs, and local history as one coherent workspace.
+- Changing the folder never moves or deletes existing files. The confirmation names the exact agent and private-settings paths before applying the change.
+- Claude and Codex share one card because both installed-runtime choices are discovered at server startup. The restart action appears only after either choice changes.
+- Agent Panel traffic is enabled by default for compatible existing setups, can be explicitly turned off without deleting credentials, and remains unavailable until both required values are present.
+- Cancel now sits directly left of the primary creation action.
+- Verification: 1,142 server tests, 226 Swift tests, TypeScript type-check and build, and the unsigned app build passed. UI automation was not run.
+
 ### Environment path review
 
 - The app and server now read the documented `~/.agent-server/.env` file only.

@@ -293,6 +293,11 @@ final class StatusMonitor: ObservableObject {
         }
     }
 
+    func workspaceDidChange() {
+        panelClient = nil
+        requestServerRestart()
+    }
+
     func triggerRun(agentId: String) {
         Task {
             do {

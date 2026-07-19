@@ -312,7 +312,7 @@ struct AgentSettingsSheet: View {
                 Button("Delete", role: .destructive) { deleteAgent() }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("The agent's file is moved aside, not destroyed. You can recover it from ~/.agent-server/agents/.deleted.")
+                Text("The agent's file is moved aside, not destroyed. You can recover it from the .deleted folder inside your agents folder.")
             }
             Spacer()
         }
@@ -534,7 +534,7 @@ struct ConnectTarget: Identifiable {
 }
 
 /// Collects the values for a connection capability's env vars, saves them to
-/// ~/.agent-server/.env, and retries the enable. Values never land in agent
+/// the selected Agent Server folder, and retries the enable. Values never land in agent
 /// files — those keep ${VAR} references.
 struct ConnectCapabilitySheet: View {
     @ObservedObject var monitor: StatusMonitor
@@ -553,7 +553,7 @@ struct ConnectCapabilitySheet: View {
                 Text("Connect \(target.capability.label)")
                     .font(NTypography.headlineMedium)
                     .foregroundStyle(theme.tokens.foreground)
-                Text("These keys are stored privately in ~/.agent-server/.env — never inside agent files.")
+                Text("These keys are stored privately in your Agent Server folder, never inside agent files.")
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
                     .fixedSize(horizontal: false, vertical: true)

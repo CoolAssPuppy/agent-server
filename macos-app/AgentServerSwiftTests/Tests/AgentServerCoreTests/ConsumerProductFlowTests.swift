@@ -345,15 +345,10 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(ConsumerFlowAccessibility.debuggerOpen, "debugger.open")
     }
 
-    func testSidebarFooterPresentsCreationThenFolderChoice() {
-        XCTAssertEqual(
-            SidebarFooterAction.allCases,
-            [.newAgent, .chooseFolder]
-        )
+    func testSidebarFooterKeepsStorageOutOfPrimaryNavigation() {
+        XCTAssertEqual(SidebarFooterAction.allCases, [.newAgent])
         XCTAssertEqual(SidebarFooterAction.newAgent.title, "New Agent")
-        XCTAssertEqual(SidebarFooterAction.chooseFolder.title, "Choose a folder")
         XCTAssertEqual(SidebarFooterAction.newAgent.systemImage, "plus")
-        XCTAssertEqual(SidebarFooterAction.chooseFolder.systemImage, "folder")
     }
 
     func testScheduledSidebarKindDoesNotNeedASecondScheduleGlyph() {

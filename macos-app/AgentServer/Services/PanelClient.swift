@@ -39,7 +39,7 @@ actor PanelClient {
     }
 
     static func fromEnv() -> PanelClient? {
-        let environmentURLs = EnvFileStore.defaultURLs()
+        let environmentURLs = EnvFileStore.configuredURLs()
         let url = (try? EnvFileStore.firstValue(
             forKey: "AGENT_SERVER_PANEL_URL",
             from: environmentURLs

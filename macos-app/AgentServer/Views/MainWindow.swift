@@ -21,7 +21,6 @@ struct MainWindow: View {
                 Sidebar(
                     monitor: monitor,
                     router: router,
-                    onOpenFolder: openAgentsFolder,
                     onNewAgent: newAgent
                 )
                 Divider().opacity(0.3)
@@ -238,13 +237,6 @@ struct MainWindow: View {
     }
 
     // MARK: - Actions
-
-    private func openAgentsFolder() {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let url = home.appendingPathComponent(".agent-server/agents")
-        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        NSWorkspace.shared.open(url)
-    }
 
     private func newAgent() {
         router.openCreation()

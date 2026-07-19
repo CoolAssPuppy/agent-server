@@ -57,7 +57,7 @@ final class ServerProcessManager {
         if let inherited = ProcessInfo.processInfo.environment[key], !inherited.isEmpty {
             return inherited
         }
-        return try? EnvFileStore.firstValue(forKey: key, from: EnvFileStore.defaultURLs())
+        return try? EnvFileStore.firstValue(forKey: key, from: EnvFileStore.configuredURLs())
     }
 
     static func setLocation(_ path: String?) {
@@ -191,6 +191,7 @@ final class ServerProcessManager {
         if let eventKitBin = Self.bundledEventKitHelperPath() {
             environment["AGENT_SERVER_EVENTKIT_BIN"] = eventKitBin
         }
+        environment["AGENT_SERVER_HOME"] = AgentServerWorkspaceStore.current().homeDirectory.path
 
         // Strip env vars that prevent the Agent SDK from spawning Claude Code
         environment.removeValue(forKey: "CLAUDECODE")

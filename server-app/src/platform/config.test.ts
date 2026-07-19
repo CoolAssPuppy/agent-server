@@ -20,10 +20,30 @@ describe('loadConfig', () => {
     expect(config.host).toBe('127.0.0.1');
     expect(config.panelUrl).toBeUndefined();
     expect(config.panelApiKey).toBeUndefined();
+    expect(config.panelEnabled).toBe(true);
     expect(config.apiKey).toBeUndefined();
     expect(config.maxConcurrentRuns).toBe(8);
     expect(config.maxWebSocketClients).toBe(100);
     expect(config.runDbPath).toBe(join(homedir(), '.agent-server', 'runs.db'));
+  });
+
+  it('derives local state from a custom Agent Server home', () => {
+    const config = loadConfig({ AGENT_SERVER_HOME: '/Volumes/Work/Agent Server' });
+
+    expect(config.agentsDir).toBe('/Volumes/Work/Agent Server/agents');
+    expect(config.lockDir).toBe('/Volumes/Work/Agent Server/locks');
+    expect(config.logsDir).toBe('/Volumes/Work/Agent Server/logs');
+    expect(config.runDbPath).toBe('/Volumes/Work/Agent Server/runs.db');
+  });
+
+  it('keeps explicit advanced paths above the selected home', () => {
+    const config = loadConfig({
+      AGENT_SERVER_HOME: '/Volumes/Work/Agent Server',
+      AGENT_SERVER_AGENTS_DIR: '/tmp/special-agents',
+    });
+
+    expect(config.agentsDir).toBe('/tmp/special-agents');
+    expect(config.lockDir).toBe('/Volumes/Work/Agent Server/locks');
   });
 
   it('reads from environment variables', () => {
@@ -68,6 +88,18 @@ describe('loadConfig', () => {
   it('treats empty panel URL as undefined', () => {
     const config = loadConfig({ AGENT_SERVER_PANEL_URL: '' });
     expect(config.panelUrl).toBeUndefined();
+  });
+
+  it('keeps panel credentials stored while disabling all panel traffic', () => {
+    const config = loadConfig({
+      AGENT_SERVER_PANEL_URL: 'https://panel.example.com',
+      AGENT_SERVER_PANEL_API_KEY: 'ap_live_test',
+      AGENT_SERVER_PANEL_ENABLED: 'false',
+    });
+
+    expect(config.panelEnabled).toBe(false);
+    expect(config.panelUrl).toBeUndefined();
+    expect(config.panelApiKey).toBeUndefined();
   });
 
   it('reads Slack tokens from bare or prefixed names', () => {

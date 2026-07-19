@@ -5,7 +5,7 @@ actor AgentServerClient {
     private let session: URLSession
     private let longRunningSession: URLSession
     private let decoder: JSONDecoder
-    private let environmentURLs: [URL]
+    private let environmentURLs: [URL]?
 
     init(port: Int = 47821, environmentURL: URL? = nil) {
         // Fail loud during init with a clear message if the host/port combo
@@ -16,7 +16,6 @@ actor AgentServerClient {
         }
         self.baseURL = url
         self.environmentURLs = environmentURL.map { [$0] }
-            ?? LocalAPIAuthentication.defaultEnvironmentURLs()
 
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 5
@@ -294,10 +293,12 @@ actor AgentServerClient {
     }
 
     private func authenticatedRequest(_ request: URLRequest) throws -> URLRequest {
+        let resolvedEnvironmentURLs = environmentURLs
+            ?? LocalAPIAuthentication.defaultEnvironmentURLs()
         do {
             return try LocalAPIAuthentication.authenticatedRequest(
                 request,
-                environmentURLs: environmentURLs
+                environmentURLs: resolvedEnvironmentURLs
             )
         } catch LocalAPIAuthenticationError.missingAPIKey {
             throw ClientError.missingLocalAPIKey
