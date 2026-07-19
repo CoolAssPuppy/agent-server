@@ -30,6 +30,7 @@ export type ServiceConnection = {
   status: ServiceConnectionStatus;
   actions: ServiceAction[];
   actions_known: boolean;
+  required_env: string[];
 };
 
 export type ServiceRegistry = {
@@ -183,6 +184,7 @@ function configuredAgentConnections(
           status: definition ? connectionStatus(config, environment) : 'unavailable',
           actions,
           actions_known: Boolean(definition),
+          required_env: environmentReferences(config),
         },
         runtime: { serverName, config },
       });
@@ -240,6 +242,7 @@ function configuredCatalogConnections(
       status: config && isReady ? 'connected' : 'needs_setup',
       actions,
       actions_known: actions.length > 0,
+      required_env: required,
     });
     if (config) runtime.set(id, { serverName: definition.serverName ?? definition.id, config });
   }
@@ -266,6 +269,7 @@ function accountConnections(discovered: DiscoveredConnection[]): ServiceConnecti
       status: runtimeStatus(connection.status),
       actions,
       actions_known: Boolean(definition),
+      required_env: [],
     };
   });
 }
@@ -286,6 +290,7 @@ export function buildServiceRegistry(input: RegistryInput): ServiceRegistry {
     status: service.status,
     actions: service.actions,
     actions_known: true,
+    required_env: [],
   }));
   return {
     connections: [...configured.connections, ...catalog.connections, ...accounts, ...native],

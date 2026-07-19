@@ -7,7 +7,17 @@ Status: Native service integration and final release verification are complete.
 - [x] Restore `~/.agent-server/.env` as the single environment file used by the app and server.
 - [ ] Replace key-centric connection language with a named, repeatable account model.
 - [ ] Define legacy key adoption and exact connection identity rules for multiple Notion and Linear accounts.
-- [ ] Run affected server and Swift tests, build both targets, commit, and simplify.
+- [x] Read configured connection readiness from the instance-aware service registry instead of generic catalog keys.
+- [x] Show each existing named connection separately and edit its exact environment references without exposing values through the API.
+- [x] Run affected server and Swift tests and build both targets without UI automation.
+- [ ] Commit this correction and complete its post-commit simplification pass.
+
+### Existing key recognition review
+
+- Existing named connections such as Personal Notion now show Connected and Modify keys when their exact referenced key exists in the selected Agent Server folder's `.env` file.
+- The local API returns environment variable names needed by a connection, never their values. The edit sheet reads values directly from the local `.env` file.
+- Generic catalog readiness no longer overrides a named account's identity. `NOTION_PERSONAL_API_KEY` is not treated as an alias for `NOTION_API_KEY`.
+- Verification: 1,153 server tests, 246 Swift behavior tests, TypeScript type-check and build, and the unsigned macOS app build passed. UI automation was not run.
 
 ## Utility navigation and drawer consistency
 

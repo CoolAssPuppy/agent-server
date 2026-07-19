@@ -12,6 +12,7 @@ struct ConnectionsView: View {
 
     @Environment(\.nTheme) private var theme
     @State private var catalog: [CapabilityCatalogEntry] = []
+    @State private var registeredServices: [GuidanceServiceConnection] = []
     @State private var snapshot: ConnectionSnapshot = .empty
     @State private var loaded = false
     @State private var refreshing = false
@@ -65,6 +66,23 @@ struct ConnectionsView: View {
         catalog.filter { $0.kind == "mcp" }
     }
 
+    private var credentialCatalog: [CapabilityCatalogEntry] {
+        services.filter { !$0.requiredEnv.isEmpty }
+    }
+
+    private var credentialPresentation: ConnectionCredentialsPresentation {
+        ConnectionCredentialsPresentation(
+            catalog: credentialCatalog.map {
+                ConnectionCatalogService(
+                    id: $0.id,
+                    name: $0.label,
+                    requiredEnvironmentKeys: $0.requiredEnv
+                )
+            },
+            connections: registeredServices
+        )
+    }
+
     var body: some View {
         TopDrawerSurface(
             title: "Connections",
@@ -90,6 +108,7 @@ struct ConnectionsView: View {
             guard !loaded else { return }
             loaded = true
             catalog = await monitor.capabilityCatalog()
+            registeredServices = await monitor.serviceConnections()
             snapshot = await monitor.connections()
             telegramConnected = Self.isConnected(Self.telegramTokenKey)
             slackMessagingConnected = Self.isConnected(Self.slackBotTokenKey)
@@ -111,6 +130,7 @@ struct ConnectionsView: View {
                 slackMessagingConnected = Self.isConnected(Self.slackBotTokenKey)
                     && Self.isConnected(Self.slackAppTokenKey)
                 Task { catalog = await monitor.capabilityCatalog() }
+                Task { registeredServices = await monitor.serviceConnections() }
             }
         }
     }
@@ -219,15 +239,36 @@ struct ConnectionsView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(spacing: 0) {
-                ForEach(Array(services.enumerated()), id: \.element.id) { index, entry in
+                ForEach(Array(credentialPresentation.rows.enumerated()), id: \.element.id) { index, row in
                     if index > 0 { Divider().opacity(0.25) }
-                    ConnectionRow(entry: entry) { connectTarget = CatalogConnectTarget(entry: entry) }
+                    CredentialConnectionRow(row: row, catalogEntry: catalogEntry(for: row)) {
+                        connectTarget = CatalogConnectTarget(entry: connectionEntry(for: row))
+                    }
                 }
             }
             .background(theme.tokens.background)
             .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border, lineWidth: 1))
             .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
         }
+    }
+
+    private func catalogEntry(for row: ConnectionCredentialRow) -> CapabilityCatalogEntry? {
+        credentialCatalog.first(where: { $0.id == row.serviceId })
+    }
+
+    private func connectionEntry(for row: ConnectionCredentialRow) -> CapabilityCatalogEntry {
+        let base = catalogEntry(for: row)
+        return CapabilityCatalogEntry(
+            id: row.id,
+            label: row.name,
+            description: base?.description ?? "A private connection for this service",
+            icon: base?.icon ?? "key",
+            kind: "mcp",
+            auth: .apiKey,
+            builtin: false,
+            requiredEnv: row.requiredEnvironmentKeys,
+            envReady: row.status == .connected && row.action == .modifyKeys
+        )
     }
 
     // MARK: - Messaging
@@ -290,6 +331,71 @@ struct ConnectionsView: View {
         guard let pairs = try? EnvFileStore.load(from: url),
               let pair = pairs.first(where: { $0.key == key }) else { return false }
         return !pair.value.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+}
+
+private struct CredentialConnectionRow: View {
+    let row: ConnectionCredentialRow
+    let catalogEntry: CapabilityCatalogEntry?
+    let onAction: () -> Void
+
+    @Environment(\.nTheme) private var theme
+
+    var body: some View {
+        HStack(spacing: NSpacing.md) {
+            CapabilityIconView(capability: iconCapability, size: 18, tint: theme.tokens.foreground)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.name)
+                    .font(NTypography.bodyMedium)
+                    .foregroundStyle(theme.tokens.foreground)
+                Text(row.action == .addAnother
+                     ? "Add another account for this service"
+                     : catalogEntry?.description ?? "Private service connection")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .lineLimit(1)
+            }
+            Spacer()
+            trailing
+        }
+        .padding(.horizontal, NSpacing.md)
+        .padding(.vertical, NSpacing.md)
+    }
+
+    @ViewBuilder
+    private var trailing: some View {
+        if row.status == .connected {
+            HStack(spacing: NSpacing.sm) {
+                Label("Connected", systemImage: "checkmark.circle.fill")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.success)
+                Button(row.action.title, action: onAction)
+                    .buttonStyle(.borderless)
+                    .font(NTypography.caption)
+            }
+        } else {
+            Button(row.action.title, action: onAction)
+                .buttonStyle(.borderless)
+                .font(NTypography.caption)
+        }
+    }
+
+    private var iconCapability: AgentCapability {
+        AgentCapability(
+            id: row.serviceId,
+            label: row.name,
+            description: "",
+            icon: catalogEntry?.icon ?? "key",
+            kind: "mcp",
+            auth: .apiKey,
+            enabled: row.status == .connected,
+            custom: false,
+            requiredEnv: row.requiredEnvironmentKeys,
+            envReady: row.status == .connected,
+            serverName: nil,
+            status: nil
+        )
     }
 }
 
@@ -459,7 +565,7 @@ struct ConnectServiceSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: NSpacing.lg) {
             VStack(alignment: .leading, spacing: NSpacing.xs) {
-                Text("Connect \(entry.label)")
+                Text(entry.envReady ? "Modify \(entry.label)" : "Connect \(entry.label)")
                     .font(NTypography.headlineMedium)
                     .foregroundStyle(theme.tokens.foreground)
                 Text("Stored privately in your Agent Server folder, never inside an agent file.")
@@ -506,6 +612,7 @@ struct ConnectServiceSheet: View {
         .padding(NSpacing.xl)
         .frame(width: 420)
         .background(theme.tokens.background)
+        .task { loadExistingValues() }
     }
 
     private var allFilled: Bool {
@@ -514,6 +621,16 @@ struct ConnectServiceSheet: View {
 
     private func binding(_ key: String) -> Binding<String> {
         Binding(get: { values[key] ?? "" }, set: { values[key] = $0 })
+    }
+
+    private func loadExistingValues() {
+        guard entry.envReady else { return }
+        let environmentFile = AgentServerWorkspaceStore.current().environmentFile
+        for key in entry.requiredEnv {
+            if let value = try? EnvFileStore.value(forKey: key, from: environmentFile) {
+                values[key] = value
+            }
+        }
     }
 
     private func save() {

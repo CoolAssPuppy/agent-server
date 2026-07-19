@@ -27,6 +27,7 @@ describe('consumer service registry', () => {
         name: 'Personal Notion',
         source: 'configured_api',
         status: 'connected',
+        required_env: ['NOTION_PERSONAL_API_KEY'],
       }),
       expect.objectContaining({
         service_id: 'notion',
@@ -37,7 +38,7 @@ describe('consumer service registry', () => {
     ]));
     expect(new Set(services.map((service) => service.id)).size).toBe(services.length);
     expect(JSON.stringify(services)).not.toContain('configured-secret');
-    expect(JSON.stringify(services)).not.toContain('NOTION_PERSONAL_API_KEY');
+    expect(JSON.stringify(services)).not.toContain('configured-secret');
 
     const registry = buildServiceRegistry({
       agents: [personal],

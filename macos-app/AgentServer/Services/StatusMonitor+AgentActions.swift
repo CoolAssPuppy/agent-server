@@ -76,6 +76,10 @@ extension StatusMonitor {
         (try? await client.capabilityCatalog()) ?? []
     }
 
+    func serviceConnections() async -> [GuidanceServiceConnection] {
+        (try? await client.services().connections) ?? []
+    }
+
     func connections() async -> ConnectionSnapshot {
         (try? await client.connections()) ?? .empty
     }

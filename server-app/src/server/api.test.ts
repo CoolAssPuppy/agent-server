@@ -166,11 +166,14 @@ describe('API routes', () => {
 
       expect(response.status).toBe(200);
       expect(body.connections).toEqual(expect.arrayContaining([
-        expect.objectContaining({ name: 'Personal Notion', source: 'configured_api' }),
+        expect.objectContaining({
+          name: 'Personal Notion',
+          source: 'configured_api',
+          required_env: ['NOTION_PERSONAL_API_KEY'],
+        }),
         expect.objectContaining({ name: 'Notion (Claude account)', source: 'account' }),
       ]));
       expect(JSON.stringify(body)).not.toContain('personal-secret');
-      expect(JSON.stringify(body)).not.toContain('NOTION_PERSONAL_API_KEY');
     });
   });
 
@@ -381,7 +384,7 @@ describe('API routes', () => {
 
       const body = await res.json();
       expect(body.status).toBe('ok');
-      expect(body.api_version).toBe(6);
+      expect(body.api_version).toBe(7);
     });
 
     it('returns started_at timestamp when provided', async () => {

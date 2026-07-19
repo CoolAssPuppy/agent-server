@@ -43,3 +43,4 @@
 - Consumer permission controls must write to the policy the runtime actually enforces. When an agent has a detailed permissions block, changing only legacy tool fields creates a switch that cannot persist its state.
 - Lossless configuration editing means byte preservation outside the exact changed nodes. Parsing and serializing a full YAML document can preserve meaning while still creating an unacceptable diff.
 - Long-running status should replace the result inside its existing card while surrounding navigation and lists stay put. Whole-view swaps make a background operation feel like a different screen.
+- Connection readiness must come from the named connection instance, not a generic service catalog entry. Preserve Personal, Work, and other account identities, and expose only the environment variable names required to edit them locally.

@@ -158,11 +158,48 @@ public struct GuidanceServiceConnection: Decodable, Equatable, Sendable, Identif
     public let status: String
     public let actions: [String]
     public let actionsKnown: Bool
+    public let requiredEnvironmentKeys: [String]
+
+    public init(
+        id: String,
+        serviceId: String,
+        name: String,
+        source: String,
+        status: String,
+        actions: [String],
+        actionsKnown: Bool,
+        requiredEnvironmentKeys: [String]
+    ) {
+        self.id = id
+        self.serviceId = serviceId
+        self.name = name
+        self.source = source
+        self.status = status
+        self.actions = actions
+        self.actionsKnown = actionsKnown
+        self.requiredEnvironmentKeys = requiredEnvironmentKeys
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, name, source, status, actions
         case serviceId = "service_id"
         case actionsKnown = "actions_known"
+        case requiredEnvironmentKeys = "required_env"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(String.self, forKey: .id)
+        serviceId = try values.decode(String.self, forKey: .serviceId)
+        name = try values.decode(String.self, forKey: .name)
+        source = try values.decode(String.self, forKey: .source)
+        status = try values.decode(String.self, forKey: .status)
+        actions = try values.decode([String].self, forKey: .actions)
+        actionsKnown = try values.decode(Bool.self, forKey: .actionsKnown)
+        requiredEnvironmentKeys = try values.decodeIfPresent(
+            [String].self,
+            forKey: .requiredEnvironmentKeys
+        ) ?? []
     }
 }
 
