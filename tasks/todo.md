@@ -1,5 +1,21 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Drawer navigation and Advanced settings correction
+
+- [x] Inspect Advanced settings grouping and place Agent Panel telemetry with the controls it affects.
+- [x] Add failing behavior coverage for Escape dismissal and sidebar-driven detail replacement.
+- [x] Let Escape close agent detail before closing its parent surface.
+- [x] Let sidebar selection close the current detail or replace it with the selected agent.
+- [x] Trace the latest Weekly Goals Report output to its exact local or connected destination.
+- [x] Run Swift behavior tests and an unsigned build, commit focused batches, simplify, and relaunch.
+
+### Drawer navigation and Advanced settings review
+
+- Agent Panel progress reporting now lives inside the Agent Panel card instead of appearing as an unrelated Advanced grid card.
+- Agent detail behaves like a macOS inspector. The sidebar remains interactive while the main pane stays inert. Escape closes settings, then history, then the detail drawer.
+- The latest Weekly Goals Report produced no document. It read from Notion and Slack, but never called a Notion page-creation tool, sent a Slack message through a tool, or wrote a local file. Agent Server recorded a clean model exit without verifying the required output contract.
+- Verification: 324 Swift behavior tests and the unsigned macOS build passed. UI automation was not run.
+
 ## Trigger timeout regression
 
 - [x] Add failing coverage for a trigger that outlives the ordinary five-second request timeout.

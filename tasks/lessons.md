@@ -58,3 +58,9 @@
 - Classify request timeouts as an uncertain operation result, then reconcile authoritative run state before offering Retry.
 - Every skipped run must retain and present a reason, especially lock contention caused by a duplicate action.
 - Never pass secret-bearing MCP configuration in child-process arguments. Use the runtime SDK's supported control stream, and hold the user prompt until connection setup succeeds.
+
+## Keep drawers spatially predictable
+
+- Escape should dismiss the deepest visible detail first.
+- A sidebar selection must never leave an unrelated detail panel stranded on screen. Selecting the current agent closes its detail; selecting another agent replaces the detail in one action.
+- Advanced telemetry controls belong beside the Agent Panel connection they configure, not in a visually unrelated column or card.
