@@ -46,3 +46,6 @@
 - Connection readiness must come from the named connection instance, not a generic service catalog entry. Preserve Personal, Work, and other account identities, and expose only the environment variable names required to edit them locally.
 - A connection label is presentation metadata, not a provider identifier, environment-variable convention, or tool namespace. Bind behavior to an opaque ID, reviewed transport, credential references, and discovered operations so users can name and group connections however they choose.
 - Design connection setup for a technical knowledge worker or tinkerer. Lead with a guided name and connection method, but keep environment variable names, endpoints, commands, credential targets, discovered operations, and exact grants visible and editable through progressive disclosure.
+- A visible toggle must own persistent product state. Bind framework settings to their real manager and local-server settings to the selected workspace environment, then explain when a restart is required.
+- Async detail requests must carry the identity of the selected object and request generation. Reject late logs or hydration data after the selection changes.
+- Safety is a primary agent state, not an icon-only utility. Show connection readiness, stale review state, scan failure, and risk in one visible row with a direct recovery action.

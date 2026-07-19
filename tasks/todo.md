@@ -48,6 +48,26 @@ Status: Native service integration and final release verification are complete.
 - [ ] Verify all Swift behavior tests and an unsigned macOS build without UI automation.
 - [ ] Document findings, implemented corrections, deferred items, and rationale.
 
+Implemented audit corrections:
+
+- [x] Preserve reviewed creation answers when editing a proposal.
+- [x] Observe safe-test and debugger retry runs through their exact terminal state.
+- [x] Stage agent capability edits until Save and discard them on Cancel.
+- [x] Prevent required missing connections from appearing ready to save.
+- [x] Lead proposals with outcome, schedule, missing setup, and risk.
+- [x] Explain Run now failures and offer the correct recovery action.
+- [x] Keep failed and pending agents visible in completed security results.
+- [x] Add progressive saved-connection detail panels with redacted references.
+- [x] Persist resume-after-wake and automatic-update settings.
+- [x] Reject stale logs and hydration responses after a run selection changes.
+- [x] Show Safety and readiness as a visible agent-detail row.
+
+Current verification:
+
+- 301 Swift behavior tests pass.
+- The unsigned macOS app builds successfully.
+- No UI automation was run.
+
 ## Utility navigation and drawer consistency
 
 - [x] Put Security check, Connections, and Settings in one bottom-right icon cluster in that order.
