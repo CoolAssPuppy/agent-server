@@ -85,6 +85,7 @@
 		B21F725CDF123FDED4325916 /* SecurityServerModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00F566E57973BAC7955CF89 /* SecurityServerModels.swift */; };
 		B5453300A1BD30D48C23D05C /* AgentRunsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 643CBD2E294E942C10398144 /* AgentRunsView.swift */; };
 		B843D0CF6ED1949F08B87FBE /* AgentSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DAF4A42E82017D2EA925043 /* AgentSettingsView.swift */; };
+		BD2DA0D3BE67E8155FF4AB7D /* ConnectionsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA442CD355C507032FB201DE /* ConnectionsComponents.swift */; };
 		C38C07E7F348955FDE9558C2 /* AgentDebuggerEntryShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1437F6871A840E2C1186B116 /* AgentDebuggerEntryShell.swift */; };
 		C471604134686030A7DE8D71 /* ServerProcessReliability.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEB4ABEDF791380EFF9F2DA7 /* ServerProcessReliability.swift */; };
 		C57F8443BD1AD312F39219D2 /* CronNextFire.swift in Sources */ = {isa = PBXBuildFile; fileRef = D885EDB8362181BEA390FCF9 /* CronNextFire.swift */; };
@@ -226,6 +227,7 @@
 		B66EAB07DB79E15BAC20F17E /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		B9BC93C3FF41E699B85E8B5A /* DrawerDragDismissal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrawerDragDismissal.swift; sourceTree = "<group>"; };
 		B9E3A0BC90A75E1C817A3238 /* Decision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Decision.swift; sourceTree = "<group>"; };
+		BA442CD355C507032FB201DE /* ConnectionsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionsComponents.swift; sourceTree = "<group>"; };
 		BA5E29A51EBB871CA9ED8BC1 /* SecurityBackgroundScanState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityBackgroundScanState.swift; sourceTree = "<group>"; };
 		BBF1B4A941CE9F9CD5925E4E /* LaunchAtLoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginManager.swift; sourceTree = "<group>"; };
 		BEB4ABEDF791380EFF9F2DA7 /* ServerProcessReliability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerProcessReliability.swift; sourceTree = "<group>"; };
@@ -391,6 +393,7 @@
 				157F358524BFC2F586756006 /* AgentSecurityAnalyzerView.swift */,
 				8DAF4A42E82017D2EA925043 /* AgentSettingsView.swift */,
 				60FF47B3068DE16B2285FC43 /* CapabilityIconView.swift */,
+				BA442CD355C507032FB201DE /* ConnectionsComponents.swift */,
 				34C199697B17F6960D44E0CC /* ConnectionsView.swift */,
 				6E2C4E1EAA344668143F8889 /* ConsumerFlowComponents.swift */,
 				27E1191870D2F850C4A974C1 /* ConsumerFlowPreviews.swift */,
@@ -720,6 +723,7 @@
 				F7610AB492A625DD114561E9 /* BoundedIdentifierHistory.swift in Sources */,
 				7811CF34DE952EEB05F3F917 /* CapabilityIconView.swift in Sources */,
 				EBF30BCA9AF757DC31E9E217 /* ConnectionCredentialsPresentation.swift in Sources */,
+				BD2DA0D3BE67E8155FF4AB7D /* ConnectionsComponents.swift in Sources */,
 				39740E464CDDEC9742EDB194 /* ConnectionsStore.swift in Sources */,
 				D7BBE379452C8EEA296069BF /* ConnectionsView.swift in Sources */,
 				DDB1591634A3DEBC338D69DB /* ConsumerAnalysisPresentation.swift in Sources */,

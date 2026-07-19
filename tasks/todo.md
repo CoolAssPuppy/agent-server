@@ -10,7 +10,7 @@ Status: Native service integration and final release verification are complete.
 - [x] Read configured connection readiness from the instance-aware service registry instead of generic catalog keys.
 - [x] Show each existing named connection separately and edit its exact environment references without exposing values through the API.
 - [x] Run affected server and Swift tests and build both targets without UI automation.
-- [ ] Commit this correction and complete its post-commit simplification pass.
+- [x] Commit this correction and complete its post-commit simplification pass.
 
 ### Existing key recognition review
 
@@ -18,6 +18,7 @@ Status: Native service integration and final release verification are complete.
 - The local API returns environment variable names needed by a connection, never their values. The edit sheet reads values directly from the local `.env` file.
 - Generic catalog readiness no longer overrides a named account's identity. `NOTION_PERSONAL_API_KEY` is not treated as an alias for `NOTION_API_KEY`.
 - Verification: 1,153 server tests, 246 Swift behavior tests, TypeScript type-check and build, and the unsigned macOS app build passed. UI automation was not run.
+- Post-commit simplification moved reusable connection rows and the key-editing sheet out of the main drawer view. The focused files are 335 and 303 lines, with the same 246 Swift tests and unsigned app build passing.
 
 ## Utility navigation and drawer consistency
 
