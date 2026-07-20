@@ -1,6 +1,6 @@
 import { watch, type FSWatcher } from 'fs';
 import type { AgentConfig } from '../agents/config.js';
-import { discoverAgents } from '../agents/discovery.js';
+import { discoverAgents, isAgentFile } from '../agents/discovery.js';
 import { getNextRun } from '../agents/scheduler.js';
 import { toErrorMessage } from '../util/errors.js';
 
@@ -175,7 +175,7 @@ export class ScheduleSync {
     try {
       this.watcher = watch(this.options.agentsDir, { recursive: false }, (_event, filename) => {
         if (!filename) return;
-        if (!this.isAgentFile(filename.toString())) return;
+        if (!isAgentFile(filename.toString())) return;
         this.scheduleDebouncedSync();
       });
       this.watcher.on('error', (err) => {
@@ -185,10 +185,6 @@ export class ScheduleSync {
       const message = toErrorMessage(err);
       console.warn(`[sync-schedule] Could not watch agents directory: ${message}`);
     }
-  }
-
-  private isAgentFile(filename: string): boolean {
-    return /\.(ya?ml|md)$/i.test(filename);
   }
 
   private scheduleDebouncedSync(): void {

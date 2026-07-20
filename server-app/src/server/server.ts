@@ -43,7 +43,7 @@ import { formatAgentListMessage, type NotificationData } from '../interaction/no
 import { routeMessage } from '../channels/router.js';
 import { randomUUID } from 'crypto';
 import { ProgressBroadcaster, type ProgressEvent } from './websocket.js';
-import { sanitizeProgressEvent, sanitizeText } from './security-utils.js';
+import { sanitizeText } from './security-utils.js';
 import { parseDuration } from '../agents/duration.js';
 import { toErrorMessage } from '../util/errors.js';
 import { createAnalysisRuntime } from '../analysis/runtime.js';
@@ -552,14 +552,14 @@ export function startServer(
     skipRecorder: new PreflightSkipRecorder(store),
     onAutomaticSkip: (agent, outcome, runId) => {
       console.warn(`[security] Skipped automatic run for ${agent.id}: ${outcome.message}`);
-      broadcaster.emit(sanitizeProgressEvent({
+      broadcaster.emit({
         type: 'run_failed',
         runId,
         agentId: agent.id,
         error: outcome.message,
         code: `security_preflight_${outcome.code}`,
         timestamp: new Date().toISOString(),
-      }));
+      });
     },
   });
 
@@ -641,7 +641,7 @@ export function startServer(
 
         wsClientCount += 1;
         listener = (progressEvent: ProgressEvent) => {
-          ws.send(JSON.stringify(sanitizeProgressEvent(progressEvent)));
+          ws.send(JSON.stringify(progressEvent));
         };
         broadcaster.subscribe(listener);
       },

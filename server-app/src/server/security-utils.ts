@@ -1,4 +1,3 @@
-import type { StoredRun } from '../reporting/store.js';
 import type { ProgressEvent } from './websocket.js';
 
 // eslint-disable-next-line no-control-regex -- intentionally strips control characters
@@ -79,22 +78,6 @@ export function sanitizeStructuredValue(value: unknown, depth = 0): unknown {
 
 export function sanitizeMetadata(metadata: Record<string, unknown>): Record<string, unknown> {
   return sanitizeStructuredValue(metadata) as Record<string, unknown>;
-}
-
-export function sanitizeStoredRun(run: StoredRun): StoredRun {
-  return {
-    ...run,
-    summary: run.summary ? sanitizeText(run.summary, 2_000) : undefined,
-    error: run.error ? sanitizeText(run.error, 1_000) : undefined,
-    code: run.code ? sanitizeText(run.code, 120) : undefined,
-    retryOfRunId: run.retryOfRunId ? sanitizeText(run.retryOfRunId, 128) : undefined,
-    repairId: run.repairId ? sanitizeText(run.repairId, 128) : undefined,
-    toolsUsed: run.toolsUsed.slice(0, 64).map((x) => sanitizeText(x, 120)),
-    filesRead: run.filesRead.slice(0, 128).map((x) => sanitizeText(x, 240)),
-    filesWritten: run.filesWritten.slice(0, 128).map((x) => sanitizeText(x, 240)),
-    commandsRun: run.commandsRun.slice(0, 128).map((x) => sanitizeText(x, 400)),
-    progressMessages: run.progressMessages.slice(-200).map((x) => sanitizeText(x, 400)),
-  };
 }
 
 export function sanitizeProgressEvent(event: ProgressEvent): ProgressEvent {

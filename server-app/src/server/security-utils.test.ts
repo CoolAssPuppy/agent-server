@@ -4,10 +4,8 @@ import {
   InMemoryRateLimiter,
   getClientIp,
   sanitizeProgressEvent,
-  sanitizeStoredRun,
   sanitizeText,
 } from './security-utils.js';
-import { makeStoredRun } from '../test-factories.js';
 
 describe('security-utils', () => {
   it('redacts secrets from text', () => {
@@ -26,21 +24,6 @@ describe('security-utils', () => {
 
     expect(text).toHaveLength(20);
     expect(text.endsWith('…')).toBe(true);
-  });
-
-  it('sanitizes stored run payload fields', () => {
-    const run = makeStoredRun({
-      summary: 'token=abc123',
-      commandsRun: ['echo Authorization: Bearer should-hide'],
-      retryOfRunId: 'failed-run-token="secret-value"',
-      repairId: 'repair-token="secret-value"',
-    });
-
-    const sanitized = sanitizeStoredRun(run);
-    expect(sanitized.summary).toContain('[REDACTED]');
-    expect(sanitized.commandsRun[0]).toContain('[REDACTED]');
-    expect(sanitized.retryOfRunId).not.toContain('secret-value');
-    expect(sanitized.repairId).not.toContain('secret-value');
   });
 
   it('removes tool-call payloads and redacts nested WebSocket metadata', () => {

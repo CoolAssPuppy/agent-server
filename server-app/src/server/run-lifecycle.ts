@@ -9,7 +9,6 @@ import type { NotificationData } from '../interaction/notification.js';
 import type { InteractionRequest } from '../interaction/schema.js';
 import type { RunStoreLike } from '../reporting/store.js';
 import { toErrorMessage } from '../util/errors.js';
-import { sanitizeProgressEvent } from './security-utils.js';
 import type { ProgressBroadcaster } from './websocket.js';
 import { createRunProgressReporter } from './run-progress-reporter.js';
 
@@ -124,12 +123,12 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
       retryOfRunId: options.retryOfRunId,
       repairId: options.repairId,
     });
-    dependencies.broadcaster.emit(sanitizeProgressEvent({
+    dependencies.broadcaster.emit({
       type: 'run_started',
       runId,
       agentId: agent.id,
       timestamp: startedAt.toISOString(),
-    }));
+    });
   }
 
   async function executeRun(
@@ -214,13 +213,13 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
       outputTokens: finiteNumber(usage.output_tokens),
       model: result.model,
     });
-    dependencies.broadcaster.emit(sanitizeProgressEvent({
+    dependencies.broadcaster.emit({
       type: 'run_completed',
       runId,
       agentId: agent.id,
       summary: result.summary,
       timestamp: new Date().toISOString(),
-    }));
+    });
     dependencies.notify(agent, runId, {
       status: 'completed',
       summary: result.summary,
@@ -263,14 +262,14 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
       error: reason,
       code: result.code,
     });
-    dependencies.broadcaster.emit(sanitizeProgressEvent({
+    dependencies.broadcaster.emit({
       type: 'run_skipped',
       runId,
       agentId: agent.id,
       error: reason,
       code: result.code,
       timestamp: new Date().toISOString(),
-    }));
+    });
     dependencies.notify(agent, runId, { status: 'skipped', error: reason });
     options.onDone?.({ status: 'skipped', error: reason });
     if ((options.mode ?? 'normal') !== 'safe_test') {
@@ -286,14 +285,14 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
     code?: string,
   ): Promise<void> {
     dependencies.store.update(runId, { status: 'failed', completedAt: new Date(), error, code });
-    dependencies.broadcaster.emit(sanitizeProgressEvent({
+    dependencies.broadcaster.emit({
       type: 'run_failed',
       runId,
       agentId: agent.id,
       error,
       code,
       timestamp: new Date().toISOString(),
-    }));
+    });
     dependencies.notify(agent, runId, { status: 'failed', error });
     options.onDone?.({ status: 'failed', error });
     if ((options.mode ?? 'normal') !== 'safe_test') {

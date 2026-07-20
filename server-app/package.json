@@ -16,8 +16,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint src",
-    "type-check": "tsc --noEmit"
+    "lint": "eslint src scripts",
+    "type-check": "tsc --noEmit && tsc --noEmit -p tsconfig.scripts.json"
   },
   "engines": {
     "node": ">=22.13"

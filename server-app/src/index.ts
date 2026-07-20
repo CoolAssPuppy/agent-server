@@ -4,7 +4,6 @@ export { matchesPattern, isToolAllowed, buildCanUseTool } from './execution/perm
 export {
   AgentDiscoveryError,
   discoverAgents,
-  type DiscoveryOptions,
 } from './agents/discovery.js';
 export {
   CAPABILITY_CATALOG,

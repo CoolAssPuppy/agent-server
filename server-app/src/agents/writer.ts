@@ -1,6 +1,6 @@
 import { readdir, readFile, writeFile, rename, mkdir } from 'fs/promises';
 import { toErrorMessage } from '../util/errors.js';
-import { join, extname } from 'path';
+import { join } from 'path';
 import { z } from 'zod';
 import { Document } from 'yaml';
 import { CronExpressionParser } from 'cron-parser';
@@ -10,7 +10,7 @@ import {
   ProviderConfigSchema,
   parseAgentFile,
 } from './config.js';
-import { AGENT_EXTENSIONS } from './discovery.js';
+import { isAgentFile } from './discovery.js';
 import { NotificationConfigSchema } from '../interaction/schema.js';
 import { loadEnvFile } from '../platform/config.js';
 import {
@@ -111,10 +111,6 @@ export type AgentWriter = {
 };
 
 type LocatedAgent = { path: string; content: string; config: AgentConfig };
-
-function isAgentFile(filename: string): boolean {
-  return AGENT_EXTENSIONS.has(extname(filename));
-}
 
 async function locateAgentFile(directory: string, id: string): Promise<LocatedAgent | null> {
   let entries: string[];

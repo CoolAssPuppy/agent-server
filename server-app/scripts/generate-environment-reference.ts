@@ -11,4 +11,4 @@ if (!tablePattern.test(readme)) {
 }
 
 const updated = readme.replace(tablePattern, renderEnvironmentReferenceTable());
-await writeFile(readmePath, updated, 'utf-8');
+if (updated !== readme) await writeFile(readmePath, updated, 'utf-8');

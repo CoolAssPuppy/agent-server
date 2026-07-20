@@ -148,13 +148,6 @@ function extractApiKeyHeader(request: Request): string | undefined {
   return token;
 }
 
-function setSecurityHeaders(headers: Headers): void {
-  headers.set('X-Content-Type-Options', 'nosniff');
-  headers.set('X-Frame-Options', 'DENY');
-  headers.set('Referrer-Policy', 'no-referrer');
-  headers.set('Cache-Control', 'no-store');
-}
-
 type NodeRequestInit = RequestInit & { duplex: 'half' };
 
 async function bufferRequestWithinLimit(request: Request, maxBytes: number): Promise<Request | null> {
@@ -175,12 +168,12 @@ async function bufferRequestWithinLimit(request: Request, maxBytes: number): Pro
     chunks.push(value);
   }
 
-  const body = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    body.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) controller.enqueue(chunk);
+      controller.close();
+    },
+  });
   const requestInit: NodeRequestInit = { body, duplex: 'half' };
   return new Request(request, requestInit);
 }
@@ -227,11 +220,15 @@ export function createApi(deps: ApiDependencies): Hono {
   const authFailures = new AuthFailureTracker(10, 10 * 60_000);
 
   app.use(async (c, next) => {
+    c.header('X-Content-Type-Options', 'nosniff');
+    c.header('X-Frame-Options', 'DENY');
+    c.header('Referrer-Policy', 'no-referrer');
+    c.header('Cache-Control', 'no-store');
+
     const isPublicHealthRequest = c.req.path === '/health'
       && (c.req.method === 'GET' || c.req.method === 'HEAD');
     if (isPublicHealthRequest) {
       await next();
-      if (c.res) setSecurityHeaders(c.res.headers);
       return c.res;
     }
 
@@ -246,17 +243,13 @@ export function createApi(deps: ApiDependencies): Hono {
     const throttle = generalLimiter.consume(ip);
     if (!throttle.allowed) {
       c.header('Retry-After', String(throttle.retryAfterSeconds ?? 60));
-      const response = c.json({ error: 'Too many requests' }, 429);
-      setSecurityHeaders(response.headers);
-      return response;
+      return c.json({ error: 'Too many requests' }, 429);
     }
 
     const isMutationRequest = c.req.method !== 'GET' && c.req.method !== 'HEAD' && c.req.method !== 'OPTIONS';
     if (isMutationRequest && !isSameOriginRequest(c.req.raw, deps.host)) {
       console.warn(`[api] Rejected cross-origin mutation from ${sanitizeText(c.req.raw.headers.get('origin') ?? 'unknown', 120)}`);
-      const response = c.json({ error: 'Cross-origin mutation blocked' }, 403);
-      setSecurityHeaders(response.headers);
-      return response;
+      return c.json({ error: 'Cross-origin mutation blocked' }, 403);
     }
 
     const requestKey = extractApiKeyHeader(c.req.raw);
@@ -264,9 +257,7 @@ export function createApi(deps: ApiDependencies): Hono {
       const blocked = authFailures.isBlocked(ip);
       if (!blocked.allowed) {
         c.header('Retry-After', String(blocked.retryAfterSeconds ?? 60));
-        const response = c.json({ error: 'Too many failed auth attempts' }, 429);
-        setSecurityHeaders(response.headers);
-        return response;
+        return c.json({ error: 'Too many failed auth attempts' }, 429);
       }
 
       const failure = authFailures.registerFailure(ip);
@@ -277,7 +268,6 @@ export function createApi(deps: ApiDependencies): Hono {
       const response = failure.allowed
         ? c.json({ error: 'Unauthorized' }, 401)
         : c.json({ error: 'Too many failed auth attempts' }, 429);
-      setSecurityHeaders(response.headers);
       return response;
     }
 
@@ -288,14 +278,11 @@ export function createApi(deps: ApiDependencies): Hono {
       : MAX_BODY_BYTES;
     const bufferedRequest = await bufferRequestWithinLimit(c.req.raw, bodyLimit);
     if (!bufferedRequest) {
-      const response = c.json({ error: 'Request body too large' }, 413);
-      setSecurityHeaders(response.headers);
-      return response;
+      return c.json({ error: 'Request body too large' }, 413);
     }
     c.req.raw = bufferedRequest;
 
     await next();
-    if (c.res) setSecurityHeaders(c.res.headers);
     return c.res;
   });
 

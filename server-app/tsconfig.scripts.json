@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "."
+  },
+  "include": [
+    "scripts/**/*.ts",
+    "src/platform/environment-reference.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
+}

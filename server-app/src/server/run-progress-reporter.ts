@@ -1,7 +1,6 @@
 import type { McpServerInfo } from '../execution/executor.js';
 import type { Reporter } from '../execution/runner.js';
 import type { RunStoreLike } from '../reporting/store.js';
-import { sanitizeProgressEvent } from './security-utils.js';
 import type { ProgressBroadcaster } from './websocket.js';
 
 type RunProgressReporterDependencies = {
@@ -33,14 +32,14 @@ export function createRunProgressReporter(
     progress: (message, metadata) => {
       dependencies.store.addProgress(dependencies.runId, message);
       updateProgressMetadata(dependencies.store, dependencies.runId, metadata);
-      dependencies.broadcaster.emit(sanitizeProgressEvent({
+      dependencies.broadcaster.emit({
         type: 'run_progress',
         runId: dependencies.runId,
         agentId: dependencies.agentId,
         message,
         metadata,
         timestamp: new Date().toISOString(),
-      }));
+      });
       lastNeedsAuthKey = emitMcpStatus(dependencies, metadata, lastNeedsAuthKey);
       return dependencies.reporter.progress(message, metadata);
     },
@@ -78,13 +77,13 @@ function emitMcpStatus(
   if (needsAuth.length === 0) return previousKey;
   const key = [...needsAuth].sort().join('|');
   if (key === previousKey) return previousKey;
-  dependencies.broadcaster.emit(sanitizeProgressEvent({
+  dependencies.broadcaster.emit({
     type: 'mcp_status',
     runId: dependencies.runId,
     agentId: dependencies.agentId,
     mcp_needs_auth_servers: needsAuth,
     timestamp: new Date().toISOString(),
-  }));
+  });
   return key;
 }
 
