@@ -1,5 +1,8 @@
 # Lessons
 
+- A transport or decoding failure after a write does not prove the write failed. Save flows must use an idempotency identity and reconcile authoritative state before telling the user nothing was saved or encouraging a duplicate retry.
+- Error recovery is one compact task, so its icon, title, explanation, primary action, and details action must stay in one narrow visual group. A disclosure pushed to the far edge of a wide card looks detached from the error it explains.
+
 - Navigation actions should represent navigation or primary work. Storage location belongs in Settings, and choosing a custom agents folder must move every companion lookup, including `.env`, authentication, editing, and server startup, as one coherent setting.
 - Shared runtime behavior needs shared presentation. Do not place a restart note beneath one of several controls when the requirement applies to all of them; show the consequence only after a relevant change and provide the action beside it.
 - Follow-up questions should be grouped by the consumer task, not emitted as a sequence of infrastructure fields. Connection setup should show every service named in the original request together, and file access should use one native selection surface without a redundant “Your answer” container.

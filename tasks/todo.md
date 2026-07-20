@@ -1,5 +1,23 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Saved-agent response reconciliation
+
+- [x] Capture the save-success/error mismatch without retaining agent content or secrets.
+- [x] Add a failing behavior test at the server or macOS boundary that reports failure after a successful write.
+- [x] Reconcile authoritative agent state before presenting a save failure and avoid duplicate files on retry.
+- [x] Preserve the created agent and route the user to it when the write succeeded.
+- [x] Run full server and Swift verification, commit, simplify, rebuild, and relaunch.
+
+Review:
+
+- The macOS app stopped waiting after five seconds while model-backed security checks could consume nearly that entire budget. The server then completed the write after the client had shown an error.
+- Guided saves now allow 30 seconds. One ambiguous timeout or lost connection retries with the same review identity.
+- The server coalesces concurrent saves and replays a minimal completed receipt for 30 minutes. It stores only agent ID, name, and safe-test metadata, caps receipts at 100, and never caches prompts, configuration, or credentials.
+- Two lost transport responses produce a truthful “Your agent may already be saved” state. Validated server errors are still shown as their real cause.
+- The recovery UI is one centered, borderless group. Retry and Details stay together; technical text expands beneath them. VoiceOver focus moves to the error title.
+- Local API version 10 replaces older daemons that lack the idempotent save contract.
+- Verification: 1,237 server tests, 333 Swift behavior tests, TypeScript type-check, ESLint, server build, and the unsigned macOS build passed. UI automation was not run.
+
 ## Answered-question regression hardening
 
 - [x] Capture the latest creation failure without retaining prompt text or secrets.
