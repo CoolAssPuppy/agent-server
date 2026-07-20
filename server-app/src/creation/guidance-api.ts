@@ -109,9 +109,21 @@ type ProposalSaveSuccess = Omit<SavedProposalReceipt, 'agent'> & {
   security_analysis?: SecurityAnalysis;
   preflight?: PreflightResult;
 };
+type StaleServiceSaveFailure = {
+  error: string;
+  saved: false;
+  refresh_services: true;
+};
+type SecuritySaveFailure = {
+  error: string;
+  saved: false;
+  security_analysis: SecurityAnalysis | undefined;
+  preflight: PreflightResult;
+};
 type ProposalSaveOutcome =
   | { status: 201; body: ProposalSaveSuccess }
-  | { status: 409 | 422; body: Record<string, unknown> };
+  | { status: 409; body: StaleServiceSaveFailure }
+  | { status: 422; body: SecuritySaveFailure };
 const PROPOSAL_TTL_MS = 30 * 60 * 1_000;
 const MAX_PENDING_PROPOSALS = 100;
 const COMPLETED_SAVE_TTL_MS = 30 * 60 * 1_000;
@@ -215,24 +227,40 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
     return registry.connections.filter((connection) => connection.status === 'connected');
   }
 
+  function currentServiceBindings(
+    proposal: CreationProposal,
+    pendingProposal: PendingProposal,
+    registry: ServiceRegistry,
+  ): ProposalServiceBinding[] | undefined {
+    const requiredIds = proposal.connections
+      .filter((connection) => connection.required)
+      .map((connection) => connection.id);
+    const connectedIds = new Set(registry.connections
+      .filter((connection) => connection.status === 'connected')
+      .map((connection) => connection.id));
+    const isCurrent = requiredIds.every((id) => (
+      pendingProposal.offeredServiceIds.has(id)
+      && connectedIds.has(id)
+      && registry.bindings.has(id)
+    ));
+    if (!isCurrent) return undefined;
+    const bindings: ProposalServiceBinding[] = [];
+    for (const id of requiredIds) {
+      const binding = registry.bindings.get(id);
+      if (!binding) return undefined;
+      bindings.push({ id, ...binding });
+    }
+    return bindings;
+  }
+
   async function savePendingProposal(
     proposalId: string,
     pendingProposal: PendingProposal,
   ): Promise<ProposalSaveOutcome> {
     const reviewed = CreationProposalSchema.parse(pendingProposal.proposal);
-    const requiredServiceIds = reviewed.connections
-      .filter((connection) => connection.required)
-      .map((connection) => connection.id);
     const registry = await currentServiceRegistry();
-    const connectedIds = new Set(registry.connections
-      .filter((connection) => connection.status === 'connected')
-      .map((connection) => connection.id));
-    const isCurrent = requiredServiceIds.every((id) => (
-      pendingProposal.offeredServiceIds.has(id)
-      && connectedIds.has(id)
-      && registry.bindings.has(id)
-    ));
-    if (!isCurrent) {
+    const serviceBindings = currentServiceBindings(reviewed, pendingProposal, registry);
+    if (!serviceBindings) {
       return {
         status: 409,
         body: {
@@ -241,11 +269,6 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
           refresh_services: true,
         },
       };
-    }
-    const serviceBindings: ProposalServiceBinding[] = [];
-    for (const id of requiredServiceIds) {
-      const binding = registry.bindings.get(id);
-      if (binding) serviceBindings.push({ id, ...binding });
     }
     const agent = proposalToAgentConfig(reviewed, deriveProposalAgentId(reviewed.name), { serviceBindings });
     const candidateContent = renderReviewedAgentFile(agent);
@@ -409,20 +432,15 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
       const completed = findCompletedSave(proposalId);
       if (completed) return context.json(completed, 201);
 
-      const active = activeSaves.get(proposalId);
-      if (active) {
-        const outcome = await active;
-        if (outcome.status === 201) return context.json(outcome.body, 201);
-        if (outcome.status === 409) return context.json(outcome.body, 409);
-        return context.json(outcome.body, 422);
+      let save = activeSaves.get(proposalId);
+      if (!save) {
+        const pendingProposal = findProposal(proposalId);
+        if (!pendingProposal) {
+          return context.json({ error: 'This proposal is no longer available for review.', saved: false }, 404);
+        }
+        save = savePendingProposal(proposalId, pendingProposal);
+        activeSaves.set(proposalId, save);
       }
-
-      const pendingProposal = findProposal(proposalId);
-      if (!pendingProposal) {
-        return context.json({ error: 'This proposal is no longer available for review.', saved: false }, 404);
-      }
-      const save = savePendingProposal(proposalId, pendingProposal);
-      activeSaves.set(proposalId, save);
       try {
         const outcome = await save;
         if (outcome.status === 201) return context.json(outcome.body, 201);

@@ -91,6 +91,7 @@ struct ConsumerFlowFailureView: View {
 
     @Environment(\.nTheme) private var theme
     @State private var showsDetails = false
+    @AccessibilityFocusState private var isFailureFocused: Bool
 
     var body: some View {
         VStack(spacing: NSpacing.md) {
@@ -101,6 +102,8 @@ struct ConsumerFlowFailureView: View {
             Text(failure.title)
                 .font(NTypography.headlineSmall)
                 .foregroundStyle(theme.tokens.foreground)
+                .multilineTextAlignment(.center)
+                .accessibilityFocused($isFailureFocused)
             Text(failure.conciseMessage)
                 .font(NTypography.bodyMedium)
                 .foregroundStyle(theme.tokens.mutedForeground)
@@ -116,17 +119,15 @@ struct ConsumerFlowFailureView: View {
                 if failure.canRetry, let retry {
                     Button("Try again", action: retry)
                         .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier(ConsumerFlowAccessibility.failureRetry)
                 }
                 Button {
                     showsDetails.toggle()
                 } label: {
-                    Label(
-                        showsDetails ? "Hide details" : "Details",
-                        systemImage: showsDetails ? "chevron.up" : "chevron.down"
-                    )
+                    Text(showsDetails ? "Hide details" : "Details")
                 }
                 .buttonStyle(.bordered)
-                .accessibilityIdentifier("consumerFailure.details")
+                .accessibilityIdentifier(ConsumerFlowAccessibility.failureDetails)
             }
             if showsDetails {
                 Text(failure.technicalDetails)
@@ -142,6 +143,7 @@ struct ConsumerFlowFailureView: View {
         .frame(maxWidth: 480)
         .frame(maxWidth: .infinity, minHeight: 340, alignment: .center)
         .accessibilityElement(children: .contain)
+        .onAppear { isFailureFocused = true }
     }
 }
 

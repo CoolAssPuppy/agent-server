@@ -17,4 +17,6 @@ public enum ConsumerFlowAccessibility {
     public static let settingsNavigation = "settings.navigation"
     public static let securityFindingPrefix = "security.finding."
     public static let debuggerOpen = "debugger.open"
+    public static let failureRetry = "consumerFailure.retry"
+    public static let failureDetails = "consumerFailure.details"
 }

@@ -229,8 +229,6 @@ final class GuidanceServerPayloadTests: XCTestCase {
         XCTAssertTrue(GuidanceSaveRetryPolicy.shouldRetry(URLError(.networkConnectionLost)))
         XCTAssertFalse(GuidanceSaveRetryPolicy.shouldRetry(URLError(.cancelled)))
         XCTAssertFalse(GuidanceSaveRetryPolicy.shouldRetry(TestFailure.rejectedByServer))
-        XCTAssertNotNil(GuidanceSaveRetryPolicy.confirmationError(after: URLError(.timedOut)))
-        XCTAssertNil(GuidanceSaveRetryPolicy.confirmationError(after: TestFailure.rejectedByServer))
     }
 
     func testSaveResponseDecodesTheServerAgentReceiptWithAdditionalAgentFields() throws {

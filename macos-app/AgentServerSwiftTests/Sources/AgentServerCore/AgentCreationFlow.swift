@@ -142,9 +142,6 @@ public struct ConsumerFlowFailure: Error, Equatable, Sendable {
         canRetry ? nil : recovery
     }
 
-    public var actionTitles: [String] {
-        canRetry ? ["Try again", "Details"] : ["Details"]
-    }
 }
 
 public struct SavedAgentPresentation: Equatable, Sendable {

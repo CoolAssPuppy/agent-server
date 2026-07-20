@@ -18,10 +18,9 @@ extension AgentServerClient {
         } catch where GuidanceSaveRetryPolicy.shouldRetry(error) {
             do {
                 return try await requestGuidedProposalSave(id: id)
+            } catch where GuidanceSaveRetryPolicy.shouldRetry(error) {
+                throw GuidanceSaveConfirmationError(technicalDetails: error.localizedDescription)
             } catch {
-                if let confirmationError = GuidanceSaveRetryPolicy.confirmationError(after: error) {
-                    throw confirmationError
-                }
                 throw error
             }
         }

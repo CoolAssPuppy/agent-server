@@ -232,14 +232,14 @@ final class ConsumerProductFlowTests: XCTestCase {
     func testUncertainSaveFailureDoesNotClaimTheAgentWasOrWasNotSaved() {
         let failure = ConsumerFlowFailure(
             title: "Could not confirm the save",
-            message: "The app lost the server response.",
+            message: "Your agent may already be saved.",
             recovery: "Check the agent list, then try again safely.",
             technicalDetails: "The request timed out twice.",
             didSave: nil,
             canRetry: true
         )
 
-        XCTAssertEqual(failure.conciseMessage, "The app lost the server response.")
+        XCTAssertEqual(failure.conciseMessage, "Your agent may already be saved.")
         XCTAssertNil(failure.didSave)
     }
 
@@ -257,19 +257,6 @@ final class ConsumerProductFlowTests: XCTestCase {
             failure.visibleRecovery,
             "Choose another folder or allow access in System Settings."
         )
-    }
-
-    func testFailureActionsKeepDetailsBesideThePrimaryRecoveryAction() {
-        let failure = ConsumerFlowFailure(
-            title: "Could not save your agent",
-            message: "The save could not be confirmed.",
-            recovery: "Try again.",
-            technicalDetails: "The request timed out.",
-            didSave: false,
-            canRetry: true
-        )
-
-        XCTAssertEqual(failure.actionTitles, ["Try again", "Details"])
     }
 
     func testCreationKeepsProposalReviewableBeforeSaving() {
@@ -647,6 +634,8 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(ConsumerFlowAccessibility.securityFindingPrefix, "security.finding.")
         XCTAssertEqual(ConsumerFlowAccessibility.securityNavigation, "security.navigation")
         XCTAssertEqual(ConsumerFlowAccessibility.debuggerOpen, "debugger.open")
+        XCTAssertEqual(ConsumerFlowAccessibility.failureRetry, "consumerFailure.retry")
+        XCTAssertEqual(ConsumerFlowAccessibility.failureDetails, "consumerFailure.details")
     }
 
     func testSidebarFooterKeepsStorageOutOfPrimaryNavigation() {

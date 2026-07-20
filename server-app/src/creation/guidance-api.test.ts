@@ -569,6 +569,35 @@ describe('consumer guidance API', () => {
     expect(writer.createReviewed).toHaveBeenCalledTimes(1);
   });
 
+  it('forgets completed save receipts after the reconciliation window', async () => {
+    let currentTime = 1_000;
+    const { app, writer } = createFixture({ now: () => currentTime });
+    const generated = await request(app, '/guidance/agent-proposals', {
+      method: 'POST',
+      body: JSON.stringify({
+        request: 'Summarize GitHub in Slack.',
+        timezone: 'Europe/Lisbon',
+        connected_services: [],
+        answers: [{ question_id: 'connection-slack', value: 'slack' }],
+      }),
+    }).then((response) => response.json());
+    const savePath = `/guidance/agent-proposals/${generated.proposal_id}/save`;
+
+    const first = await request(app, savePath, {
+      method: 'POST',
+      body: JSON.stringify({ confirmed: true }),
+    });
+    currentTime += 31 * 60 * 1_000;
+    const expiredRetry = await request(app, savePath, {
+      method: 'POST',
+      body: JSON.stringify({ confirmed: true }),
+    });
+
+    expect(first.status).toBe(201);
+    expect(expiredRetry.status).toBe(404);
+    expect(writer.createReviewed).toHaveBeenCalledTimes(1);
+  });
+
   it('does not apply a proposal that was not returned for review', async () => {
     const { app, writer } = createFixture();
     const response = await request(app, '/guidance/agent-proposals/unreviewed/save', {

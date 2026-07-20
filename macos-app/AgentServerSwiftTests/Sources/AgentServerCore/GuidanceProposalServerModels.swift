@@ -61,10 +61,6 @@ public enum GuidanceSaveRetryPolicy {
         }
     }
 
-    public static func confirmationError(after retryError: Error) -> GuidanceSaveConfirmationError? {
-        guard shouldRetry(retryError) else { return nil }
-        return GuidanceSaveConfirmationError(technicalDetails: retryError.localizedDescription)
-    }
 }
 
 public struct GuidanceSaveConfirmationError: LocalizedError, Equatable, Sendable {

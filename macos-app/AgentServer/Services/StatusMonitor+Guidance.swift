@@ -65,7 +65,7 @@ extension StatusMonitor {
         } catch let error as GuidanceSaveConfirmationError {
             return .failure(ConsumerFlowFailure(
                 title: "Could not confirm the save",
-                message: "The app lost the server response.",
+                message: "Your agent may already be saved.",
                 recovery: "Check the agent list, then try again safely.",
                 technicalDetails: error.localizedDescription,
                 didSave: nil,
