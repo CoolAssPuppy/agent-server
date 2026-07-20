@@ -1,5 +1,47 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Technical debt remediation loop
+
+- [ ] Commit the audit report and this remediation baseline.
+- [ ] Batch 1: Fix trigger direction and cycles, timeout ownership, telemetry deadlines and durability, conversation duplication, skipped terminals, interaction delivery, and shutdown handling. Cover TD-01 through TD-05 and TD-23 through TD-26.
+- [ ] Batch 1 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun all server gates, and commit refinements.
+- [ ] Batch 2: Fix evidence redaction, body limits, bounded security maps, cleanup errors, dynamic watches, glob parsing, discovery diagnostics, configuration documentation generation, duplicate normalization, and the unused Telegram decision path. Cover TD-06, TD-27 through TD-32, TD-40, TD-44, and TD-45.
+- [ ] Batch 2 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun all server gates, and commit refinements.
+- [ ] Batch 3: Upgrade vulnerable dependencies, add dependency auditing and native CI, make macOS build inputs reproducible, test the CLI, and ratchet coverage. Cover TD-07 through TD-11, TD-38, and TD-39.
+- [ ] Batch 3 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun server, Swift, and build gates, and commit refinements.
+- [ ] Batch 4: Fix owned-process shutdown, decision polling and resolution, and stable run identity. Cover TD-13 through TD-17.
+- [ ] Batch 4 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun Swift and integration gates, and commit refinements.
+- [ ] Batch 5: Fix environment-file safety, Markdown Unicode ranges, EventKit timeouts and pagination, helper decomposition, and native integration coverage. Cover TD-18 through TD-22, TD-41, and TD-42.
+- [ ] Batch 5 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun Swift and app-build gates, and commit refinements.
+- [ ] Batch 6: Make release publication verifiable and ordered, prevent stale feeds and unsafe interpolation, and replace obsolete build and release documentation. Cover TD-12, TD-33 through TD-37, and TD-46.
+- [ ] Batch 6 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun script, documentation, server, Swift, and build gates, and commit refinements.
+- [ ] Batch 7: Split the three large SwiftUI surfaces along tested state and action boundaries. Cover TD-43.
+- [ ] Batch 7 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun all repository gates, and commit refinements.
+- [ ] Re-run the technical debt audit, prove every finding closed or explicitly retired, and record the final review.
+
+### Remediation constraints
+
+- Add a failing behavior test before each production change.
+- Run focused tests while implementing and the full relevant test, lint, type-check, and build gates before each commit.
+- Keep fix commits separate from cleanup and simplification commits.
+- Preserve compatibility unless repository evidence establishes a documented migration.
+- Do not run focus-stealing macOS UI automation without a separate agreed window.
+
+### Review
+
+Pending remediation completion.
+
+## Tech debt audit
+
+- [x] Read the requested audit skill and orient to the repository architecture, history, size, and churn.
+- [x] Run server, macOS, dependency, configuration, security, and documentation checks.
+- [x] Rank and deduplicate concrete findings with exact file and line citations.
+- [x] Write and validate `TECH_DEBT_AUDIT.md`.
+
+### Review
+
+The audit covers all nine requested dimensions across the TypeScript server, native app, EventKit helper, dependencies, CI, release pipeline, and documentation. It records 46 ranked findings, five concrete refactor outlines, quick wins, rejected false positives, and open compatibility questions. Validation passed: strict TypeScript checking, ESLint, 1,267 active server tests, citation range checks for all 92 full file references, and Markdown whitespace checks. Production dependency auditing reports 2 high and 11 moderate advisories.
+
 ## Version 3.2.0 release
 
 - [x] Run the release pipeline for version 3.2.0 with release text “Now you can choose which LLM your agents use”.
