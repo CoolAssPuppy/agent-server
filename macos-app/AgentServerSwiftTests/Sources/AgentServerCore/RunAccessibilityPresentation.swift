@@ -84,10 +84,26 @@ enum RunNoticeKind: Equatable, Sendable {
     case error
 }
 
+enum RunNoticeSummaryTextStyle: Equatable, Sendable {
+    case body
+}
+
+enum RunDetailMetadataPlacement: Equatable, Sendable {
+    case header
+    case informationTab
+}
+
+enum RunDetailPresentation {
+    static let headerMetadataPlacement = RunDetailMetadataPlacement.informationTab
+    static var showsHeaderMetadata: Bool { headerMetadataPlacement == .header }
+}
+
 struct RunNoticePresentation: Equatable, Sendable {
     let kind: RunNoticeKind
     let title: String
     let message: String
+    let summaryTextStyle = RunNoticeSummaryTextStyle.body
+    let disclosesTechnicalDetails = true
 
     init(status: String, code: String?, technicalMessage: String) {
         if code == "output_contract_unmet" {

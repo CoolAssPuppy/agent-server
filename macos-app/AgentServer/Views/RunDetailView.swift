@@ -11,6 +11,7 @@ struct RunDetailView: View {
 
     @Environment(\.nTheme) private var theme
     @State private var selectedTab: RunDetailTabKind = .activity
+    @State private var showsNoticeDetails = false
     @FocusState private var focusedTab: RunDetailTabKind?
 
     private var runDecisionsViewModel: RunDecisionsViewModel {
@@ -69,28 +70,13 @@ struct RunDetailView: View {
                     StatusBadge(status: run.status)
                 }
 
-                HStack(spacing: NSpacing.md) {
+                if RunDetailPresentation.showsHeaderMetadata {
                     Text("Run \(run.runId.prefix(8))")
                         .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(theme.tokens.mutedForeground.opacity(0.6))
+                        .foregroundStyle(theme.tokens.mutedForeground)
                         .textSelection(.enabled)
-
-                    if let model = run.model {
-                        Text(model)
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.purple.opacity(0.8))
-                            .padding(.horizontal, NSpacing.xs)
-                            .padding(.vertical, NSpacing.xxxs)
-                            .background(.purple.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: NRadius.xs))
-                    }
-
-                    if let trigger = run.trigger {
-                        Text(trigger)
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(theme.tokens.mutedForeground)
-                    }
                 }
+
             }
 
             Spacer()
@@ -164,11 +150,6 @@ struct RunDetailView: View {
         var tooltip: String? = nil
     }
 
-    private var heartbeatCountDisplay: String {
-        guard !logs.isEmpty else { return "--" }
-        return "\(logs.filter { $0.isHeartbeat }.count)"
-    }
-
     private func buildStatItems() -> [StatItem] {
         let durationValue = run.status == .running
             ? formatDuration(liveElapsed)
@@ -177,7 +158,6 @@ struct RunDetailView: View {
             StatItem(icon: "clock", label: "Duration", value: durationValue),
             StatItem(icon: "arrow.trianglehead.2.counterclockwise", label: "Turns", value: "\(run.turnCount)"),
             StatItem(icon: "wrench", label: "Tools", value: "\(run.toolsUsed.count)"),
-            StatItem(icon: "waveform.path.ecg", label: "Heartbeats", value: heartbeatCountDisplay),
         ]
     }
 
@@ -209,7 +189,6 @@ struct RunDetailView: View {
         }
         .padding(.horizontal, NSpacing.lg)
         .padding(.vertical, NSpacing.md)
-        .background(.green.opacity(0.04))
     }
 
     private func runNoticeBanner(
@@ -219,24 +198,47 @@ struct RunDetailView: View {
         let isError = presentation.kind == .error
         let color: Color = isError ? .red : theme.tokens.mutedForeground
 
-        return HStack(spacing: NSpacing.md) {
-            Image(systemName: isError ? "exclamationmark.triangle.fill" : "info.circle.fill")
-                .foregroundStyle(color)
-            VStack(alignment: .leading, spacing: NSpacing.xxxs) {
-                Text(presentation.title)
-                    .font(NTypography.labelMedium)
+        return VStack(alignment: .leading, spacing: NSpacing.sm) {
+            HStack(alignment: .top, spacing: NSpacing.md) {
+                Image(systemName: isError ? "exclamationmark.triangle.fill" : "info.circle.fill")
                     .foregroundStyle(color)
-                Text(presentation.message)
-                    .font(isError ? .system(.subheadline, design: .monospaced) : NTypography.bodySmall)
-                    .foregroundStyle(color)
-                    .textSelection(.enabled)
+                VStack(alignment: .leading, spacing: NSpacing.xxxs) {
+                    Text(presentation.title)
+                        .font(NTypography.labelMedium)
+                        .foregroundStyle(theme.tokens.foreground)
+                    Text(presentation.message)
+                        .font(noticeSummaryFont(presentation.summaryTextStyle))
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                        .textSelection(.enabled)
+                }
+                Spacer()
+                if presentation.disclosesTechnicalDetails {
+                    Button(showsNoticeDetails ? "Hide details" : "Details") {
+                        showsNoticeDetails.toggle()
+                    }
+                    .buttonStyle(.plain)
+                    .font(NTypography.caption)
+                }
             }
-            Spacer()
-            CopyTextButton(text: technicalDetails, label: "Copy")
+            if showsNoticeDetails {
+                HStack(alignment: .top, spacing: NSpacing.sm) {
+                    Text(technicalDetails)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                        .textSelection(.enabled)
+                    Spacer()
+                    CopyTextButton(text: technicalDetails, label: "Copy")
+                }
+            }
         }
         .padding(NSpacing.md)
-        .background(isError ? Color.red.opacity(0.08) : theme.tokens.muted.opacity(0.5))
         .accessibilityElement(children: .combine)
+    }
+
+    private func noticeSummaryFont(_ style: RunNoticeSummaryTextStyle) -> Font {
+        switch style {
+        case .body: NTypography.bodySmall
+        }
     }
 
     // MARK: - Content: tabs

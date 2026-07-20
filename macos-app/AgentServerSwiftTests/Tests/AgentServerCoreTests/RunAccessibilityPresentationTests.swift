@@ -83,6 +83,10 @@ final class RunAccessibilityPresentationTests: XCTestCase {
         XCTAssertEqual(presentation.kind, .error)
         XCTAssertEqual(presentation.title, "Run failed")
         XCTAssertEqual(presentation.message, "Codex exited with status 1.")
+        XCTAssertEqual(presentation.summaryTextStyle, .body)
+        XCTAssertTrue(presentation.disclosesTechnicalDetails)
+        XCTAssertEqual(RunDetailPresentation.headerMetadataPlacement, .informationTab)
+        XCTAssertFalse(RunDetailPresentation.showsHeaderMetadata)
     }
 
     func testUnconfirmedOutputUsesTruthfulConsumerCopyForEveryContractFailure() {
