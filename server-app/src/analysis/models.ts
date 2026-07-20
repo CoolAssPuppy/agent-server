@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { sanitizeText } from '../server/security-utils.js';
 import { FileAccessSchema } from '../agents/config.js';
 import { NativeServicesSchema } from '../agents/native-services.js';
+import { EXECUTOR_NAMES } from '../agents/executor.js';
 
 export const RiskSeveritySchema = z.enum(['low', 'needs_review', 'high', 'critical']);
 export type RiskSeverity = z.infer<typeof RiskSeveritySchema>;
@@ -114,7 +115,7 @@ export const AgentProposalSchema = z.object({
     configured: z.boolean(),
   }).strict().nullable(),
   runtime: z.object({
-    executor: z.enum(['claude-code', 'codex']),
+    executor: z.enum(EXECUTOR_NAMES),
     model: z.string().trim().min(1).max(120).nullable(),
     reason: z.string().trim().min(1).max(500),
   }).strict().nullable(),

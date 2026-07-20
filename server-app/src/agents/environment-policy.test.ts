@@ -3,6 +3,7 @@ import { makeAgent } from '../test-factories.js';
 import {
   buildClaudeChildEnvironment,
   buildCodexChildEnvironment,
+  buildKimiChildEnvironment,
   resolveApprovedMcpValues,
   resolveApprovedProviderKey,
 } from './environment-policy.js';
@@ -44,6 +45,30 @@ describe('agent environment policy', () => {
     });
     expect(environment.AGENT_SERVER_API_KEY).toBeUndefined();
     expect(environment.OPENAI_API_KEY).toBeUndefined();
+  });
+
+  it('keeps Kimi Code login settings without passing server or provider secrets', () => {
+    const environment = buildKimiChildEnvironment({
+      KIMI_CODE_HOME: '/Users/tester/.kimi-code',
+      HOME: '/Users/tester',
+      LANG: 'en_US.UTF-8',
+      PATH: '/usr/bin',
+      TMPDIR: '/private/tmp',
+      AGENT_SERVER_API_KEY: 'server-secret',
+      KIMI_API_KEY: 'provider-secret',
+      MOONSHOT_API_KEY: 'moonshot-secret',
+      NOTION_API_KEY: 'notion-secret',
+      HTTPS_PROXY: 'https://proxy-user:proxy-secret@example.com',
+    });
+
+    expect(environment).toEqual({
+      HOME: '/Users/tester',
+      LANG: 'en_US.UTF-8',
+      PATH: '/usr/bin',
+      TMPDIR: '/private/tmp',
+      KIMI_CODE_HOME: '/Users/tester/.kimi-code',
+      KIMI_DISABLE_CRON: '1',
+    });
   });
 
   it('adds only an approved provider credential', () => {

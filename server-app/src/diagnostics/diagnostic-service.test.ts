@@ -313,6 +313,18 @@ describe('guided run diagnostics', () => {
     expect(guarded.rejected_reasons).toEqual([]);
   });
 
+  it('accepts Kimi Code as a reviewable runtime repair', () => {
+    const guarded = guardRepairProposal({
+      summary: 'Use the installed Kimi Code runtime.',
+      operations: [{ field: 'executor', value: 'kimi-code' }],
+      risk: 'low',
+      rerun_after_apply: true,
+    });
+
+    expect(guarded.operations).toEqual([{ field: 'executor', value: 'kimi-code' }]);
+    expect(guarded.can_automate).toBe(true);
+  });
+
   it('validates exact native grants and requires review before changing personal access', () => {
     const guarded = guardRepairProposal({
       summary: 'Read names from the selected Contacts group.',

@@ -39,7 +39,7 @@ describe('safe agent tests', () => {
 
   it('strips all write, command, web, message, and chained behavior', () => {
     const safe = prepareSafeTestAgent(makeAgent({
-      tools: ['Read', 'Glob', 'Write', 'Edit', 'Bash', 'WebFetch', 'WebSearch'],
+      tools: ['Read', 'Glob', 'Write', 'Edit', 'Bash', 'WebFetch', 'WebSearch', 'FetchURL'],
       permissions: { allow: ['Read', 'Glob', 'Write', 'Edit', 'Bash', 'WebFetch'], deny: [] },
       schedule: '0 17 * * 5',
       on_failure: [{ agent: 'alert' }],
@@ -48,7 +48,7 @@ describe('safe agent tests', () => {
 
     expect(safe.tools).toEqual(['Read', 'Glob']);
     expect(safe.permissions?.deny).toEqual(expect.arrayContaining([
-      'Write', 'Edit', 'Bash', 'WebFetch', 'WebSearch', 'web_search', 'mcp__*',
+      'Write', 'Edit', 'Bash', 'WebFetch', 'WebSearch', 'FetchURL', 'web_search', 'mcp__*',
     ]));
     expect(safe.schedule).toBeUndefined();
     expect(safe.on_failure).toBeUndefined();

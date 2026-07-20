@@ -17,7 +17,8 @@ struct Agent: Codable, Identifiable {
     let disallowedTools: [String]?
     let timezone: String?
     let model: String?
-    /// "claude-code" (default) or "codex". Optional so older servers decode.
+    /// "claude-code" (default), "codex", or "kimi-code".
+    /// Optional so older servers decode.
     let executor: String?
     /// Custom model provider (endpoint + ${VAR} key), when the agent runs on a
     /// non-default model. Optional so older servers decode.

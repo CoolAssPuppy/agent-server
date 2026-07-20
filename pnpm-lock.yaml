@@ -10,6 +10,9 @@ importers:
 
   server-app:
     dependencies:
+      '@agentclientprotocol/sdk':
+        specifier: 1.2.1
+        version: 1.2.1(zod@4.4.3)
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.2.71
         version: 0.2.138(zod@4.4.3)
@@ -88,6 +91,11 @@ importers:
         version: 4.1.5(@types/node@25.6.2)(@vitest/coverage-v8@4.1.5)(vite@8.0.12(@types/node@25.6.2)(esbuild@0.27.7)(tsx@4.21.0)(yaml@2.8.4))
 
 packages:
+
+  '@agentclientprotocol/sdk@1.2.1':
+    resolution: {integrity: sha512-jwYUdOQR7tc+Zfch53VL4JJyUNK/46q03uUTYb+PjECsmnNl94XFXOfYLJ8RBpMNidXd1rpOAVgb0vqD98xImA==}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
 
   '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.2.138':
     resolution: {integrity: sha512-aObxJ/GeJ5UxT9N8XypUHPYQKpwYsRT5THiJl5E2pKEUk/Xt42gT55N5GV0TOjtgxVAnDMWjxTAgGCGoDzjgpg==}
@@ -1795,6 +1803,10 @@ packages:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
 snapshots:
+
+  '@agentclientprotocol/sdk@1.2.1(zod@4.4.3)':
+    dependencies:
+      zod: 4.4.3
 
   '@anthropic-ai/claude-agent-sdk-darwin-arm64@0.2.138':
     optional: true

@@ -312,6 +312,17 @@ describe('AgentConfigSchema', () => {
     expect(result.codex_sandbox).toBe('read-only');
   });
 
+  it('accepts Kimi Code as an installed executor', () => {
+    const result = AgentConfigSchema.parse({
+      id: 'kimi-code-agent',
+      name: 'Kimi Code Agent',
+      prompt: 'Run with the installed Kimi Code runtime.',
+      executor: 'kimi-code',
+    });
+
+    expect(result.executor).toBe('kimi-code');
+  });
+
   it('rejects unknown executors during agent discovery', () => {
     const result = AgentConfigSchema.safeParse({
       id: 'unknown-provider',

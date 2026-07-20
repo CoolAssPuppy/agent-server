@@ -30,9 +30,11 @@ struct SettingsDrawer: View {
     @State private var savedResumeAfterWake: Bool = true
     @State private var useInstalledClaude: Bool = true
     @State private var useInstalledCodex: Bool = true
+    @State private var useInstalledKimi: Bool = true
     @State private var savedRuntimeSelection = RuntimeSelection(
         usesInstalledClaude: true,
-        usesInstalledCodex: true
+        usesInstalledCodex: true,
+        usesInstalledKimi: true
     )
     @State private var workspace = AgentServerWorkspaceStore.current()
     @State private var telemetryOptIn: Bool = Telemetry.isOptedIn
@@ -194,6 +196,11 @@ struct SettingsDrawer: View {
             SettingsToggleRow(label: "Use installed Codex", isOn: $useInstalledCodex)
                 .onChange(of: useInstalledCodex) { _, newValue in
                     persistRuntimeFlag(RuntimeEnvKey.useInstalledCodex, useInstalled: newValue)
+                }
+
+            SettingsToggleRow(label: "Use installed Kimi", isOn: $useInstalledKimi)
+                .onChange(of: useInstalledKimi) { _, newValue in
+                    persistRuntimeFlag(RuntimeEnvKey.useInstalledKimi, useInstalled: newValue)
                 }
 
             if currentRuntimeSelection.requiresRestart(comparedTo: savedRuntimeSelection) {
@@ -431,6 +438,7 @@ struct SettingsDrawer: View {
         // Absent means the default (on); only an explicit "false" turns it off.
         useInstalledClaude = lookup[RuntimeEnvKey.useInstalledClaude] != "false"
         useInstalledCodex = lookup[RuntimeEnvKey.useInstalledCodex] != "false"
+        useInstalledKimi = lookup[RuntimeEnvKey.useInstalledKimi] != "false"
         savedRuntimeSelection = currentRuntimeSelection
     }
 
@@ -528,7 +536,8 @@ struct SettingsDrawer: View {
     private var currentRuntimeSelection: RuntimeSelection {
         RuntimeSelection(
             usesInstalledClaude: useInstalledClaude,
-            usesInstalledCodex: useInstalledCodex
+            usesInstalledCodex: useInstalledCodex,
+            usesInstalledKimi: useInstalledKimi
         )
     }
 
@@ -604,6 +613,7 @@ enum TelemetryMode: String, Hashable {
 private enum RuntimeEnvKey {
     static let useInstalledClaude = "AGENT_SERVER_USE_INSTALLED_CLAUDE"
     static let useInstalledCodex = "AGENT_SERVER_USE_INSTALLED_CODEX"
+    static let useInstalledKimi = "AGENT_SERVER_USE_INSTALLED_KIMI"
 }
 
 private enum TelemetryEnvKey {

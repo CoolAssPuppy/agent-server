@@ -23,6 +23,8 @@ export type RuntimePaths = {
   claudeExecutablePath?: string;
   /** Resolved path to the user's Codex executable, or undefined for bundled. */
   codexExecutablePath?: string;
+  /** Resolved path to the user's installed Kimi Code executable. */
+  kimiExecutablePath?: string;
 };
 
 /** The default probe backed by the real filesystem, PATH, and environment. */
@@ -84,6 +86,23 @@ export function discoverCodexExecutable(probe: RuntimeProbe): string | undefined
   return onPath && probe.isExecutable(onPath) ? onPath : undefined;
 }
 
+/**
+ * Find the user's installed Kimi Code executable. Kimi Code has no bundled
+ * fallback, so an undefined result means the runtime is unavailable.
+ */
+export function discoverKimiExecutable(probe: RuntimeProbe): string | undefined {
+  if (probe.env.AGENT_SERVER_USE_INSTALLED_KIMI === 'false') return undefined;
+
+  const explicit = probe.env.AGENT_SERVER_KIMI_PATH;
+  if (explicit) return probe.isExecutable(explicit) ? explicit : undefined;
+
+  const localInstall = join(probe.home, '.kimi-code', 'bin', 'kimi');
+  if (probe.isExecutable(localInstall)) return localInstall;
+
+  const onPath = probe.which('kimi');
+  return onPath && probe.isExecutable(onPath) ? onPath : undefined;
+}
+
 /** Resolve both runtime paths at once (called once at server startup). */
 export function discoverRuntimePaths(
   probe: RuntimeProbe = createDefaultProbe(),
@@ -91,5 +110,6 @@ export function discoverRuntimePaths(
   return {
     claudeExecutablePath: discoverClaudeExecutable(probe),
     codexExecutablePath: discoverCodexExecutable(probe),
+    kimiExecutablePath: discoverKimiExecutable(probe),
   };
 }

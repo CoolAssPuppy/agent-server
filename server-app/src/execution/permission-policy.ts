@@ -4,7 +4,7 @@ import { isToolAllowed } from './permissions.js';
 
 export const WRITE_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'] as const;
 export const COMMAND_TOOLS = ['Bash'] as const;
-export const NETWORK_TOOLS = ['WebFetch', 'WebSearch', 'web_search'] as const;
+export const NETWORK_TOOLS = ['WebFetch', 'WebSearch', 'FetchURL', 'web_search'] as const;
 
 /** Apply the single effective tool policy used by runtimes and analyzers. */
 export function isToolPermitted(agent: AgentConfig, tool: string): boolean {

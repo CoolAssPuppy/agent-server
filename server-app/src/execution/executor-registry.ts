@@ -15,6 +15,8 @@ export type ExecutorFnOptions = {
   claudeExecutablePath?: string;
   /** Path to the user's installed Codex executable, or undefined for bundled. */
   codexExecutablePath?: string;
+  /** Path to the user's installed Kimi Code executable. */
+  kimiExecutablePath?: string;
   /** Disable user-level MCP configuration for a restricted safe test. */
   disableMcpServers?: boolean;
 };

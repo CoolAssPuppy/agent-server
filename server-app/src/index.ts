@@ -1,4 +1,5 @@
 export { AgentConfigSchema, ConnectionBindingsSchema, PermissionsSchema, ProviderConfigSchema, parseAgentYaml, parseAgentFile, resolveEnvVars, resolveEnvString, type AgentConfig, type ConnectionBindings, type McpServerConfig, type Permissions, type ProviderConfig } from './agents/config.js';
+export { EXECUTOR_NAMES, type AgentExecutor } from './agents/executor.js';
 export { matchesPattern, isToolAllowed, buildCanUseTool } from './execution/permissions.js';
 export { discoverAgents } from './agents/discovery.js';
 export {
@@ -56,6 +57,7 @@ export { TelemetryReporter, replayPendingTerminals, type StatusEvent, type Statu
 export { parseStreamEvent, summarizeTurn, extractToolMetadata, type ExecutionResult, type ClaudeStreamEvent } from './execution/executor.js';
 export { executeAgent } from './plugins/claude-code.js';
 export { executeCodexAgent } from './plugins/codex.js';
+export { executeKimiCodeAgent } from './plugins/kimi-code.js';
 export { runAgent, type RunResult, type Reporter } from './execution/runner.js';
 export { loadConfig, ServerConfigSchema, type ServerConfig } from './platform/config.js';
 export { runDueAgents, runSingleAgent, listAgents, startDaemon } from './server/daemon.js';
@@ -67,6 +69,7 @@ export {
   discoverRuntimePaths,
   discoverClaudeExecutable,
   discoverCodexExecutable,
+  discoverKimiExecutable,
   createDefaultProbe,
   type RuntimeProbe,
   type RuntimePaths,
@@ -126,6 +129,7 @@ export { startServer, type ServerInstance } from './server/server.js';
 export { evaluateTriggers } from './agents/triggers.js';
 export { FileWatcher, extractWatchConfigs, expandHome, type FileWatchConfig } from './agents/file-watcher.js';
 export { ExecutorRegistry, type ExecutorFn } from './execution/executor-registry.js';
+export { createDefaultExecutorRegistry } from './execution/default-executors.js';
 export { createReporter } from './reporting/reporter-factory.js';
 export { PanelClient, createPanelClient } from './reporting/panel-client.js';
 export { generatePlist, installLaunchAgent, uninstallLaunchAgent } from './platform/launchd.js';

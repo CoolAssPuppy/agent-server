@@ -16,6 +16,7 @@ import { renderLosslessAgentPatch } from '../agents/lossless-yaml-editor.js';
 import { ConversationConfigSchema } from '../conversation/schema.js';
 import { NETWORK_TOOLS } from '../execution/permission-policy.js';
 import { computeAgentContentHash } from './security-rules.js';
+import { EXECUTOR_NAMES } from '../agents/executor.js';
 
 const ContentHashSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/);
 const OptionalText = z.string().trim().min(1).max(1_024).nullable().optional();
@@ -41,7 +42,7 @@ export const ConfigurationChangesSchema = z.object({
   mcp_servers: z.record(z.string().trim().min(1).max(160), z.unknown()).nullable().optional(),
   connection_bindings: ConnectionBindingsSchema.nullable().optional(),
   model: z.string().trim().min(1).max(120).nullable().optional(),
-  executor: z.enum(['claude-code', 'codex']).nullable().optional(),
+  executor: z.enum(EXECUTOR_NAMES).nullable().optional(),
   provider: z.object({
     base_url: z.string().trim().url().max(1_024),
     api_key: z.string().trim().max(512).optional(),
@@ -255,7 +256,7 @@ function renderPatchedContent(content: string, changes: ConfigurationChanges): s
     if (permissions) {
       writes.permissions = {
         allow: permissions.allow,
-        deny: [...new Set([...permissions.deny, 'WebFetch', 'WebSearch', 'web_search'])],
+        deny: [...new Set([...permissions.deny, ...NETWORK_TOOLS])],
       };
     }
   }

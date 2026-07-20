@@ -97,3 +97,8 @@
 - Do not render title, error label, save status, recovery paragraph, action, and technical details as equal-weight rows.
 - Lead with a specific title, combine the outcome and save state into one short sentence, and let the primary button communicate the next action.
 - Keep raw errors behind one quiet disclosure and preserve text selection for people who need to copy them.
+
+## Distinguish model endpoints from installed agent runtimes
+
+- Do not assume a provider name refers only to an API-backed model. Probe the user's machine before deciding whether a local executable exists.
+- Kimi Code can be installed as a native `kimi` executable with non-interactive prompt output and an ACP server. Treat support for that executable as a runtime integration, separate from the Moonshot-backed Kimi K3 model preset.

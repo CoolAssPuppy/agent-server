@@ -151,6 +151,17 @@ custom_setting: keep-me
     expect(content).toContain('# Morning briefing agent'); // comment preserved
   });
 
+  it('selects Kimi Code without changing unrelated agent fields', async () => {
+    const { dir, writer } = await seededWriter({
+      'writer.md': `---\nid: writer\nname: Writer\ncustom_setting: keep-me\n---\n\nWrite clearly.\n`,
+    });
+
+    const updated = await writer.update('writer', { executor: 'kimi-code' });
+
+    expect(updated.executor).toBe('kimi-code');
+    expect(await readFile(join(dir, 'writer.md'), 'utf8')).toContain('custom_setting: keep-me');
+  });
+
   it('clears the provider and model when switching back to the default plan', async () => {
     const { dir, writer } = await seededWriter({
       'kimi.yaml': `id: kimi

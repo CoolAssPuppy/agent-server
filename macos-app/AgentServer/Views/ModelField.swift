@@ -1,105 +1,16 @@
 import SwiftUI
 import NerdsUI
 
-/// Editable state for an agent's model choice, mapping the plain-language
-/// picker to the underlying `executor` / `model` / `provider` fields. Mirrors
-/// `ScheduleDraft`: seed from an agent, edit through `ModelField`, then read the
-/// resolved values back into a patch. The picker hides the provider plumbing.
-struct ModelDraft: Equatable {
-    enum Choice: String, CaseIterable, Identifiable {
-        case claude = "Claude (your plan)"
-        case codex = "Codex (your ChatGPT)"
-        case kimi = "Kimi K3"
-        case custom = "Custom…"
-        var id: String { rawValue }
-    }
+typealias ModelDraft = AgentRuntimeDraft
 
-    var choice: Choice = .claude
-    var customEndpoint = ""
-    var customModel = ""
-    var customKeyVar = ""
-
-    init() {}
-
-    /// Derive the current choice from an agent's stored fields.
+extension AgentRuntimeDraft {
     init(agent: Agent) {
-        if let provider = agent.provider {
-            if KimiModelPreset.matches(model: agent.model, endpoint: provider.baseURL) {
-                choice = .kimi
-            } else {
-                choice = .custom
-                customEndpoint = provider.baseURL
-                customModel = agent.model ?? ""
-                customKeyVar = Self.variableName(from: provider.apiKey)
-            }
-        } else if agent.executor == "codex" {
-            choice = .codex
-        } else {
-            choice = .claude
-        }
-    }
-
-    // MARK: - Resolved fields (what a patch should persist)
-
-    /// `nil` means remove the field (Claude is the default executor).
-    var resolvedExecutor: String? {
-        switch choice {
-        case .claude: return nil
-        case .codex, .kimi, .custom: return "codex"
-        }
-    }
-
-    var resolvedModel: String? {
-        switch choice {
-        case .claude, .codex: return nil
-        case .kimi: return KimiModelPreset.model
-        case .custom:
-            let trimmed = customModel.trimmingCharacters(in: .whitespaces)
-            return trimmed.isEmpty ? nil : trimmed
-        }
-    }
-
-    var resolvedProvider: ProviderConfig? {
-        switch choice {
-        case .claude, .codex:
-            return nil
-        case .kimi:
-            return ProviderConfig(
-                baseURL: KimiModelPreset.endpoint,
-                apiKey: KimiModelPreset.keyReference
-            )
-        case .custom:
-            let endpoint = customEndpoint.trimmingCharacters(in: .whitespaces)
-            guard !endpoint.isEmpty else { return nil }
-            let keyVar = customKeyVar.trimmingCharacters(in: .whitespaces)
-            let apiKey = keyVar.isEmpty ? nil : "${\(keyVar)}"
-            return ProviderConfig(baseURL: endpoint, apiKey: apiKey)
-        }
-    }
-
-    /// Whether the current selection is complete enough to save.
-    var isValid: Bool {
-        guard choice == .custom else { return true }
-        return !customEndpoint.trimmingCharacters(in: .whitespaces).isEmpty
-    }
-
-    /// The environment variable a custom/Kimi key resolves from, for the hint.
-    var keyVariableHint: String? {
-        switch choice {
-        case .claude, .codex: return nil
-        case .kimi: return KimiModelPreset.keyVariable
-        case .custom:
-            let keyVar = customKeyVar.trimmingCharacters(in: .whitespaces)
-            return keyVar.isEmpty ? nil : keyVar
-        }
-    }
-
-    private static func variableName(from ref: String?) -> String {
-        guard let ref else { return "" }
-        if ref.hasPrefix("${") && ref.hasSuffix("}") {
-            return String(ref.dropFirst(2).dropLast())
-        }
-        return ref
+        self.init(
+            executor: agent.executor,
+            model: agent.model,
+            providerEndpoint: agent.provider?.baseURL,
+            providerKeyReference: agent.provider?.apiKey
+        )
     }
 }
 
@@ -113,20 +24,24 @@ struct ModelField: View {
     var body: some View {
         VStack(alignment: .leading, spacing: NSpacing.xs) {
             Picker("", selection: $draft.choice) {
-                ForEach(ModelDraft.Choice.allCases) { option in
-                    Text(option.rawValue).tag(option)
+                ForEach(AgentRuntimeChoice.allCases) { option in
+                    Text(option.displayName).tag(option)
                 }
             }
             .pickerStyle(.menu)
             .labelsHidden()
             .frame(width: 220, alignment: .leading)
+            .accessibilityLabel("Coding agent")
+            .accessibilityIdentifier("agent-settings-coding-agent")
 
             switch draft.choice {
-            case .claude:
+            case .claudeCode:
                 hint("Runs on your Claude subscription.")
             case .codex:
                 hint("Runs on your ChatGPT (Codex) subscription.")
-            case .kimi:
+            case .kimiCode:
+                hint("Runs with your installed Kimi Code.")
+            case .kimiK3:
                 hint("Uses \(KimiModelPreset.keyVariable) from Settings.")
             case .custom:
                 VStack(alignment: .leading, spacing: NSpacing.xs) {
@@ -135,7 +50,7 @@ struct ModelField: View {
                         .font(.system(.body, design: .monospaced))
                     TextField("Model name, e.g. llama-3.1-70b", text: $draft.customModel)
                         .textFieldStyle(.roundedBorder)
-                    TextField("API key variable, e.g. MY_API_KEY", text: $draft.customKeyVar)
+                    TextField("API key variable, e.g. MY_API_KEY", text: $draft.customKeyVariable)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
                     hint("The key value lives in Settings as this variable, not in the agent file.")

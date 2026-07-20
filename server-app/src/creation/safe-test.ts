@@ -1,5 +1,5 @@
 import type { AgentConfig } from '../agents/config.js';
-import { isToolPermitted } from '../execution/permission-policy.js';
+import { isToolPermitted, NETWORK_TOOLS } from '../execution/permission-policy.js';
 
 const READ_TOOLS = ['Read', 'Glob', 'Grep'] as const;
 const BLOCKED_TOOLS = [
@@ -8,9 +8,7 @@ const BLOCKED_TOOLS = [
   'MultiEdit',
   'NotebookEdit',
   'Bash',
-  'WebFetch',
-  'WebSearch',
-  'web_search',
+  ...NETWORK_TOOLS,
   'mcp__*',
 ] as const;
 

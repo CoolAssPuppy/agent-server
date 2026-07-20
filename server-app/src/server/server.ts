@@ -15,9 +15,8 @@ import type { RunStoreLike } from '../reporting/store.js';
 import { RunStore } from '../reporting/store.js';
 import { SqliteRunStore } from '../reporting/sqlite-store.js';
 import { failOrphanedLocalRuns } from '../reporting/local-reconcile.js';
-import { executeAgent, probeMcpServers } from '../plugins/claude-code.js';
-import { executeCodexAgent } from '../plugins/codex.js';
-import { ExecutorRegistry } from '../execution/executor-registry.js';
+import { probeMcpServers } from '../plugins/claude-code.js';
+import { createDefaultExecutorRegistry } from '../execution/default-executors.js';
 import { discoverRuntimePaths } from '../execution/runtime-discovery.js';
 import { createReporter } from '../reporting/reporter-factory.js';
 import { createPanelClient } from '../reporting/panel-client.js';
@@ -251,10 +250,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   const channelDispatcher = new ChannelDispatcher();
   const port = config.port;
 
-  const executorRegistry = new ExecutorRegistry();
-  executorRegistry.register('claude-code', executeAgent);
-  executorRegistry.register('codex', executeCodexAgent);
-  executorRegistry.setDefault('claude-code');
+  const executorRegistry = createDefaultExecutorRegistry();
   const connectionProfileStore = new ConnectionProfileStore(join(config.agentsDir, '..', 'connections.json'));
 
   // Discover the user's installed Claude / Codex binaries once at startup so
@@ -267,6 +263,9 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   }
   if (runtimePaths.codexExecutablePath) {
     console.log(`  Codex runtime: ${runtimePaths.codexExecutablePath} (installed)`);
+  }
+  if (runtimePaths.kimiExecutablePath) {
+    console.log(`  Kimi runtime: ${runtimePaths.kimiExecutablePath} (installed)`);
   }
 
   const broadcaster = new ProgressBroadcaster();
@@ -384,6 +383,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
         ...executorOptions,
         claudeExecutablePath: runtimePaths.claudeExecutablePath,
         codexExecutablePath: runtimePaths.codexExecutablePath,
+        kimiExecutablePath: runtimePaths.kimiExecutablePath,
         },
       ),
     ),

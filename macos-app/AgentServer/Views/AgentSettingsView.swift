@@ -354,8 +354,11 @@ struct AgentSettingsSheet: View {
             patch["model"] = modelDraft.resolvedModel ?? NSNull()
         }
 
-        if modelDraft.resolvedProvider != agent.provider {
-            if let provider = modelDraft.resolvedProvider {
+        let resolvedProvider = modelDraft.resolvedProviderEndpoint.map {
+            ProviderConfig(baseURL: $0, apiKey: modelDraft.resolvedProviderKeyReference)
+        }
+        if resolvedProvider != agent.provider {
+            if let provider = resolvedProvider {
                 var providerDict: [String: Any] = ["base_url": provider.baseURL]
                 if let apiKey = provider.apiKey { providerDict["api_key"] = apiKey }
                 patch["provider"] = providerDict

@@ -29,4 +29,15 @@ describe('effective permission policy', () => {
       mcp_servers: { remote: { type: 'http', url: 'https://mcp.example.com' } },
     }))).toBe(true);
   });
+
+  it('recognizes Kimi Code FetchURL as reviewed network access', () => {
+    expect(hasEffectiveNetworkAccess(makeAgent({
+      executor: 'kimi-code',
+      permissions: { allow: ['Read', 'FetchURL'], deny: [] },
+    }))).toBe(true);
+    expect(hasEffectiveNetworkAccess(makeAgent({
+      executor: 'kimi-code',
+      permissions: { allow: ['Read'], deny: ['FetchURL'] },
+    }))).toBe(false);
+  });
 });

@@ -24,7 +24,7 @@ const EXACT_ENV_REFERENCE = /^\$\{([A-Z][A-Z0-9_]*)}$/;
 const ENV_REFERENCE = /\$\{([A-Z][A-Z0-9_]*)}/g;
 const HAS_ENV_REFERENCE = /\$\{[A-Z][A-Z0-9_]*}/;
 
-const CLAUDE_RUNTIME_VARIABLES = [
+const SAFE_RUNTIME_VARIABLES = [
   'COLORTERM',
   'HOME',
   'LANG',
@@ -38,19 +38,16 @@ const CLAUDE_RUNTIME_VARIABLES = [
   'XDG_CONFIG_HOME',
 ] as const;
 
+const CLAUDE_RUNTIME_VARIABLES = SAFE_RUNTIME_VARIABLES;
+
 const CODEX_RUNTIME_VARIABLES = [
   'CODEX_HOME',
-  'COLORTERM',
-  'HOME',
-  'LANG',
-  'LC_ALL',
-  'LOGNAME',
-  'PATH',
-  'SHELL',
-  'TERM',
-  'TMPDIR',
-  'USER',
-  'XDG_CONFIG_HOME',
+  ...SAFE_RUNTIME_VARIABLES,
+] as const;
+
+const KIMI_RUNTIME_VARIABLES = [
+  ...SAFE_RUNTIME_VARIABLES,
+  'KIMI_CODE_HOME',
 ] as const;
 
 const PROVIDER_CREDENTIALS: Readonly<Record<string, ReadonlySet<string>>> = {
@@ -220,5 +217,20 @@ export function buildCodexChildEnvironment(
     const value = source[name];
     if (value !== undefined) environment[name] = value;
   }
+  return environment;
+}
+
+/** Build a Kimi Code child environment without inheriting server or provider secrets. */
+export function buildKimiChildEnvironment(
+  source: EnvironmentSource = process.env,
+): Record<string, string> {
+  const environment: Record<string, string> = {};
+  for (const name of KIMI_RUNTIME_VARIABLES) {
+    const value = source[name];
+    if (value !== undefined) environment[name] = value;
+  }
+  // Agent Server owns scheduling. Prevent a run from creating an independent
+  // Kimi schedule that would continue outside the agent's reviewed settings.
+  environment.KIMI_DISABLE_CRON = '1';
   return environment;
 }

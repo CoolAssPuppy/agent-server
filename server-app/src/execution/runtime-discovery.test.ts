@@ -3,6 +3,7 @@ import { join } from 'path';
 import {
   discoverClaudeExecutable,
   discoverCodexExecutable,
+  discoverKimiExecutable,
   discoverRuntimePaths,
   type RuntimeProbe,
 } from './runtime-discovery.js';
@@ -111,17 +112,72 @@ describe('discoverCodexExecutable', () => {
   });
 });
 
+describe('discoverKimiExecutable', () => {
+  it('prefers the standard Kimi Code installation', () => {
+    const local = join(HOME, '.kimi-code', 'bin', 'kimi');
+    const onPath = '/opt/homebrew/bin/kimi';
+    const probe = makeProbe({
+      isExecutable: (path) => path === local || path === onPath,
+      which: (command) => command === 'kimi' ? onPath : undefined,
+    });
+
+    expect(discoverKimiExecutable(probe)).toBe(local);
+  });
+
+  it('falls back to an executable on PATH', () => {
+    const onPath = '/opt/homebrew/bin/kimi';
+    const probe = makeProbe({
+      isExecutable: (path) => path === onPath,
+      which: (command) => command === 'kimi' ? onPath : undefined,
+    });
+
+    expect(discoverKimiExecutable(probe)).toBe(onPath);
+  });
+
+  it('honors an executable path override', () => {
+    const explicit = '/Applications/Kimi Code.app/Contents/MacOS/kimi';
+    const probe = makeProbe({
+      env: { AGENT_SERVER_KIMI_PATH: explicit },
+      isExecutable: (path) => path === explicit,
+    });
+
+    expect(discoverKimiExecutable(probe)).toBe(explicit);
+  });
+
+  it('returns unavailable for an invalid path override without falling back', () => {
+    const local = join(HOME, '.kimi-code', 'bin', 'kimi');
+    const probe = makeProbe({
+      env: { AGENT_SERVER_KIMI_PATH: '/missing/kimi' },
+      isExecutable: (path) => path === local,
+    });
+
+    expect(discoverKimiExecutable(probe)).toBeUndefined();
+  });
+
+  it('can be disabled even when Kimi Code is installed', () => {
+    const local = join(HOME, '.kimi-code', 'bin', 'kimi');
+    const probe = makeProbe({
+      env: { AGENT_SERVER_USE_INSTALLED_KIMI: 'false' },
+      isExecutable: (path) => path === local,
+    });
+
+    expect(discoverKimiExecutable(probe)).toBeUndefined();
+  });
+});
+
 describe('discoverRuntimePaths', () => {
-  it('resolves both runtimes from a single probe', () => {
+  it('resolves all runtimes from a single probe', () => {
     const claude = join(HOME, '.claude', 'local', 'claude');
     const codex = '/opt/homebrew/bin/codex';
+    const kimi = join(HOME, '.kimi-code', 'bin', 'kimi');
     const probe = makeProbe({
-      isExecutable: (p) => p === claude || p === codex,
+      isExecutable: (p) => p === claude || p === codex || p === kimi,
       which: (cmd) => (cmd === 'codex' ? codex : undefined),
     });
     expect(discoverRuntimePaths(probe)).toEqual({
       claudeExecutablePath: claude,
       codexExecutablePath: codex,
+      kimiExecutablePath: kimi,
     });
   });
 
@@ -129,6 +185,7 @@ describe('discoverRuntimePaths', () => {
     expect(discoverRuntimePaths(makeProbe())).toEqual({
       claudeExecutablePath: undefined,
       codexExecutablePath: undefined,
+      kimiExecutablePath: undefined,
     });
   });
 });

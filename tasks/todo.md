@@ -1,5 +1,22 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Kimi Code runtime
+
+- [x] Confirm the installed Kimi Code non-interactive protocol, cancellation behavior, permissions, authentication, and structured event format.
+- [x] Add failing server behavior tests for Kimi discovery, configuration, execution, cancellation, and safe environment handling.
+- [x] Implement `kimi-code` as a registered executor without changing existing Kimi K3 API-backed agents.
+- [x] Add failing macOS behavior tests for installed Kimi status and distinct Kimi Code versus Kimi K3 choices.
+- [x] Add Kimi Code to the Coding agents Settings card and agent editor using the existing card and picker patterns.
+- [ ] Document the two Kimi paths, update the API compatibility boundary, and preserve existing agent files.
+- [ ] Run full server and Swift verification, build, simplify, commit each consequential batch, and relaunch without UI automation.
+
+Assumptions and risks:
+
+- `kimi-code` will be a new executor value. `kimi-k3` remains a model/provider preset and will not be silently migrated.
+- The executor must use Kimi's supported structured output or ACP interface. Parsing decorative terminal text is not acceptable.
+- Kimi has no bundled fallback in this app. Missing or unauthenticated installations must remain visible and actionable instead of falling through to another runtime.
+- Exact permission enforcement must be proven before Kimi Code can run an agent with reviewed narrow file grants or a safe-test promise.
+
 ## Recent Activity conversation grouping
 
 - [x] Add failing server coverage for retaining a conversation's Slack or Telegram source.

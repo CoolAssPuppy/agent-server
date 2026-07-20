@@ -40,6 +40,16 @@ function safePatch(content = original) {
 }
 
 describe('structured configuration patches', () => {
+  it('accepts a reviewed change to the installed Kimi Code runtime', () => {
+    const patch = safePatch();
+    const parsed = ConfigurationPatchSchema.parse({
+      ...patch,
+      changes: { executor: 'kimi-code' },
+    });
+
+    expect(parsed.changes.executor).toBe('kimi-code');
+  });
+
   it('preserves unrelated frontmatter and body bytes in a reviewed patch', async () => {
     const formatted = `---
 # Keep this explanation
@@ -228,14 +238,14 @@ enabled: true
     expect(preview.result_content).toContain('WebFetch');
     expect(preview.result_content).not.toContain('network_access');
     expect(parseAgentFile(preview.result_content).permissions?.deny).toEqual(
-      expect.arrayContaining(['WebFetch', 'WebSearch', 'web_search']),
+      expect.arrayContaining(['WebFetch', 'WebSearch', 'FetchURL', 'web_search']),
     );
   });
 
   it('turns on network tools only after the reviewed high-risk preview is confirmed', async () => {
     const restricted = original.replace(
       'tools:\n  - Read',
-      'permissions:\n  allow: [Read]\n  deny: [WebFetch, WebSearch, web_search]',
+      'permissions:\n  allow: [Read]\n  deny: [WebFetch, WebSearch, FetchURL, web_search]',
     );
     const repository = new InMemoryAgentContentRepository({ reports: restricted });
     const service = new StructuredPatchService(repository);

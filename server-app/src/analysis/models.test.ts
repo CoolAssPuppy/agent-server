@@ -51,7 +51,11 @@ describe('analysis models', () => {
         can_send_messages: true,
       },
       notification_destination: { kind: 'slack', label: 'Slack', configured: false },
-      runtime: null,
+      runtime: {
+        executor: 'kimi-code',
+        model: null,
+        reason: 'Use the installed Kimi Code runtime.',
+      },
       risk: { level: 'needs_review', reasons: ['It sends information to Slack.'], finding_count: 1 },
       missing_information: [],
       questions: [],
@@ -60,6 +64,7 @@ describe('analysis models', () => {
 
     expect(proposal.permissions.can_run_commands).toBe(false);
     expect(proposal.trigger.human_description).toContain('Friday');
+    expect(proposal.runtime?.executor).toBe('kimi-code');
   });
 
   it('rejects uncontrolled proposal fields and incomplete permissions', () => {

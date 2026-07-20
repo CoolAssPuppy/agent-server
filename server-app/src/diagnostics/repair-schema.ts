@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { RiskSeveritySchema } from '../analysis/models.js';
 import { CalendarAccessSchema, FileAccessSchema, NativeServicesSchema } from '../agents/config.js';
 import { isUnsafeAutomatedFilePath } from '../analysis/patch.js';
+import { EXECUTOR_NAMES } from '../agents/executor.js';
 
 const RepairOperationSchema = z.discriminatedUnion('field', [
   z.object({ field: z.literal('schedule'), value: z.string().trim().min(1).max(120) }).strict(),
@@ -9,7 +10,7 @@ const RepairOperationSchema = z.discriminatedUnion('field', [
   z.object({ field: z.literal('file_access'), value: z.array(FileAccessSchema).max(32) }).strict(),
   z.object({ field: z.literal('calendar_access'), value: z.array(CalendarAccessSchema).max(128) }).strict(),
   z.object({ field: z.literal('native_services'), value: NativeServicesSchema }).strict(),
-  z.object({ field: z.literal('executor'), value: z.enum(['claude-code', 'codex']) }).strict(),
+  z.object({ field: z.literal('executor'), value: z.enum(EXECUTOR_NAMES) }).strict(),
   z.object({ field: z.literal('model'), value: z.string().trim().min(1).max(120) }).strict(),
   z.object({ field: z.literal('codex_sandbox'), value: z.enum(['read-only', 'workspace-write', 'danger-full-access']) }).strict(),
   z.object({ field: z.literal('permission_mode'), value: z.enum(['default', 'acceptEdits', 'dontAsk', 'plan', 'bypassPermissions']) }).strict(),
@@ -47,6 +48,7 @@ const REVIEW_ONLY_TOOLS = new Set([
   'NotebookEdit',
   'WebFetch',
   'WebSearch',
+  'FetchURL',
   'web_search',
 ]);
 

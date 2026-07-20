@@ -27,6 +27,7 @@ import {
   type ReviewedAgentWriteResult,
 } from './reviewed-agent-writer.js';
 import { renderLosslessAgentPatch } from './lossless-yaml-editor.js';
+import { EXECUTOR_NAMES } from './executor.js';
 
 /**
  * Structured writes to agent definition files. This module is the only
@@ -56,7 +57,7 @@ export const AgentPatchSchema = z
     enabled: z.boolean().optional(),
     max_turns: z.number().int().positive().optional(),
     model: z.string().trim().min(1).max(120).nullable().optional(),
-    executor: z.enum(['claude-code', 'codex']).nullable().optional(),
+    executor: z.enum(EXECUTOR_NAMES).nullable().optional(),
     provider: ProviderConfigSchema.nullable().optional(),
     timeout: z.string().trim().min(1).max(16).nullable().optional(),
     permission_mode: z.enum(PERMISSION_MODES).nullable().optional(),

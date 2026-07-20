@@ -4,9 +4,8 @@ import type { AgentConfig } from '../agents/config.js';
 import { discoverAgents } from '../agents/discovery.js';
 import { shouldRun } from '../agents/scheduler.js';
 import { runAgent, type RunResult } from '../execution/runner.js';
-import { executeAgent } from '../plugins/claude-code.js';
-import { executeCodexAgent } from '../plugins/codex.js';
-import { ExecutorRegistry } from '../execution/executor-registry.js';
+import { createDefaultExecutorRegistry } from '../execution/default-executors.js';
+import { discoverRuntimePaths } from '../execution/runtime-discovery.js';
 import { createReporter } from '../reporting/reporter-factory.js';
 import { replayPendingTerminals } from '../reporting/reporter.js';
 import { ScheduleSync } from '../reporting/sync-schedule.js';
@@ -20,22 +19,17 @@ import type { Reporter } from '../execution/runner.js';
 import { ConnectionProfileStore } from '../connections/profile-store.js';
 import { createConnectionResolvingExecutor } from '../connections/connection-executor.js';
 
-function createDefaultRegistry(): ExecutorRegistry {
-  const registry = new ExecutorRegistry();
-  registry.register('claude-code', executeAgent);
-  registry.register('codex', executeCodexAgent);
-  registry.setDefault('claude-code');
-  return registry;
-}
-
 type RunOptions = {
   promptSuffix?: string;
 };
 
 function runAgentWithConfig(config: ServerConfig, agent: AgentConfig, options: RunOptions = {}) {
-  const registry = createDefaultRegistry();
+  const registry = createDefaultExecutorRegistry();
+  const runtimePaths = discoverRuntimePaths();
   const profiles = new ConnectionProfileStore(join(config.agentsDir, '..', 'connections.json'));
-  const execute = createConnectionResolvingExecutor(profiles, (candidate) => registry.resolve(candidate));
+  const execute = createConnectionResolvingExecutor(profiles, (candidate) => async (resolved, reporter, extra) => (
+    registry.resolve(candidate)(resolved, reporter, { ...extra, ...runtimePaths })
+  ));
   return runAgent({
     agent,
     lockDir: config.lockDir,
@@ -189,9 +183,12 @@ export async function listAgents(config: ServerConfig): Promise<void> {
 }
 
 function createInvokeRun(config: ServerConfig): InvokeRun {
-  const registry = createDefaultRegistry();
+  const registry = createDefaultExecutorRegistry();
+  const runtimePaths = discoverRuntimePaths();
   const profiles = new ConnectionProfileStore(join(config.agentsDir, '..', 'connections.json'));
-  const execute = createConnectionResolvingExecutor(profiles, (candidate) => registry.resolve(candidate));
+  const execute = createConnectionResolvingExecutor(profiles, (candidate) => async (resolved, reporter, extra) => (
+    registry.resolve(candidate)(resolved, reporter, { ...extra, ...runtimePaths })
+  ));
   return async (options) => {
     return runAgent({
       agent: options.agent,

@@ -4,6 +4,7 @@ import { InteractionConfigSchema, NotificationConfigSchema } from '../interactio
 import { ConversationConfigSchema } from '../conversation/schema.js';
 import { areApprovedMcpReferences, isApprovedProviderReference, mcpCredentialOwner } from './environment-policy.js';
 import { NativeServicesSchema } from './native-services.js';
+import { EXECUTOR_NAMES } from './executor.js';
 export { NativeServicesSchema } from './native-services.js';
 
 const TriggerRefSchema = z.object({
@@ -254,7 +255,7 @@ export const AgentConfigSchema = z
     watch: z.array(FileWatchSchema).max(32).optional(),
     calendar_access: z.array(CalendarAccessSchema).max(128).optional(),
     native_services: NativeServicesSchema.optional(),
-    executor: z.enum(['claude-code', 'codex']).optional(),
+    executor: z.enum(EXECUTOR_NAMES).optional(),
     model: z.string().trim().min(1).max(120).optional(),
     provider: ProviderConfigSchema.optional(),
     codex_sandbox: z.enum(['read-only', 'workspace-write', 'danger-full-access']).optional(),
