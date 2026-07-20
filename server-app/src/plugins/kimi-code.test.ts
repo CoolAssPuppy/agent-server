@@ -108,9 +108,8 @@ describe('Kimi Code ACP execution', () => {
     async () => {
       const workspace = createTempDir('kimi-real-allow-write');
       const target = join(workspace, 'approved.txt');
-      const reporter = createReporter();
 
-      const result = await executeKimiCodeAgent(
+      await executeKimiCodeAgent(
         makeAgent({
           prompt: `Use the file writing tool, not a shell command, to create ${target} containing exactly approved.`,
           executor: 'kimi-code',
@@ -118,16 +117,11 @@ describe('Kimi Code ACP execution', () => {
           permissions: { allow: ['Read', 'Write', 'Edit'], deny: ['Bash', 'WebFetch', 'WebSearch'] },
           file_access: [{ path: target, kind: 'file', access: 'read_write' }],
         }),
-        reporter,
+        createReporter(),
         { kimiExecutablePath: '/Users/prashant/.kimi-code/bin/kimi' },
       );
 
-      expect({
-        exists: existsSync(target),
-        summary: result.summary,
-        tools: result.toolsUsed,
-        progress: vi.mocked(reporter.progress).mock.calls,
-      }).toEqual(expect.objectContaining({ exists: true }));
+      expect(existsSync(target)).toBe(true);
       expect(readFileSync(target, 'utf8').trim()).toBe('approved');
     },
     60_000,
@@ -201,6 +195,7 @@ describe('Kimi Code ACP execution', () => {
   it('allows an explicitly granted edit once and rejects a denied command', async () => {
     const [clientStream, agentStream] = createStreamPair();
     const outcomes: RequestPermissionResponse[] = [];
+    const reporter = createReporter();
     const fakeAgent = createAgent({ name: 'fake-kimi' })
       .onRequest(methods.agent.initialize, () => ({
         protocolVersion: PROTOCOL_VERSION,
@@ -233,13 +228,17 @@ describe('Kimi Code ACP execution', () => {
     await runKimiAcpSession(makeAgent({
       executor: 'kimi-code',
       permissions: { allow: ['Write'], deny: ['Bash'] },
-    }), createReporter(), clientStream);
+    }), reporter, clientStream);
     connection.close();
 
     expect(outcomes).toEqual([
       { outcome: { outcome: 'selected', optionId: 'yes-once' } },
       { outcome: { outcome: 'selected', optionId: 'no-once' } },
     ]);
+    expect(vi.mocked(reporter.progress).mock.calls).toEqual(expect.arrayContaining([
+      ['Allowed Kimi tool: Edit', { permission_granted: true, tool: 'Edit' }],
+      ['Blocked Kimi tool: Bash', { permission_granted: false, tool: 'Bash' }],
+    ]));
   });
 
   it('enforces reviewed read and write paths in filesystem callbacks', async () => {

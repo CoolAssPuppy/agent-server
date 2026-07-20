@@ -1,6 +1,4 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
-import { realpath, readFile, stat, writeFile } from 'fs/promises';
-import { basename, dirname, isAbsolute, relative, resolve } from 'path';
 import { Readable, Writable } from 'stream';
 import {
   client,
@@ -8,24 +6,29 @@ import {
   ndJsonStream,
   PROTOCOL_VERSION,
   type McpServer,
-  type RequestPermissionRequest,
-  type RequestPermissionResponse,
-  type SessionUpdate,
   type Stream,
-  type ToolCall,
-  type ToolCallUpdate,
-  type ToolKind,
 } from '@agentclientprotocol/sdk';
 import type { AgentConfig, McpServerConfig } from '../agents/config.js';
 import { buildKimiChildEnvironment } from '../agents/environment-policy.js';
-import { expandHome } from '../agents/file-watcher.js';
-import type { ExecutionResult, ToolCallTrace } from '../execution/executor.js';
-import { truncate } from '../execution/executor.js';
-import { isToolPermitted } from '../execution/permission-policy.js';
+import type { ExecutionResult } from '../execution/executor.js';
 import type { Reporter } from '../execution/runner.js';
 import { parseInteractionBlock } from '../interaction/parser.js';
+import {
+  assertKimiSafety,
+  createKimiFilePolicy,
+  kimiAdditionalDirectories,
+  kimiWorkingDirectory,
+} from './kimi-code-file-policy.js';
+import {
+  createKimiExecutionState,
+  handleKimiUpdate,
+  isKimiPermissionGranted,
+  kimiPermissionResponse,
+  kimiPermissionToolName,
+  kimiToolTraces,
+  kimiToolsUsed,
+} from './kimi-code-events.js';
 
-const MAX_FILE_BYTES = 2 * 1024 * 1024;
 const MAX_STDERR_LENGTH = 4_000;
 
 type KimiAcpOptions = {
@@ -37,27 +40,6 @@ type KimiProcessOptions = KimiAcpOptions & {
   kimiExecutablePath?: string;
 };
 
-type KimiState = {
-  assistantText: string;
-  tools: Map<string, TrackedTool>;
-  filesRead: Set<string>;
-  filesWritten: Set<string>;
-  commandsRun: string[];
-};
-
-type TrackedTool = {
-  name: string;
-  status: 'succeeded' | 'failed';
-  input?: unknown;
-  output?: unknown;
-};
-
-type FileGrant = {
-  path: string;
-  kind: 'file' | 'folder';
-  canWrite: boolean;
-};
-
 /** Run an agent through an already connected ACP stream. Exposed for protocol conformance tests. */
 export async function runKimiAcpSession(
   agent: AgentConfig,
@@ -67,40 +49,32 @@ export async function runKimiAcpSession(
 ): Promise<ExecutionResult> {
   assertKimiSafety(agent);
   const startedAt = performance.now();
-  const state = createState();
-  const filePolicy = await createFilePolicy(agent);
+  const state = createKimiExecutionState();
+  const filePolicy = await createKimiFilePolicy(agent);
   let negotiatedVersion: string | undefined;
 
   const app = client({ name: 'Agent Server' })
     .onRequest(methods.client.session.requestPermission, ({ params }) => {
-      const requestedTool = permissionToolName(params.toolCall, state);
-      const response = permissionResponse(
+      const requestedTool = kimiPermissionToolName(params.toolCall, state);
+      const response = kimiPermissionResponse(
         agent,
         params,
         requestedTool,
         options.abortController?.signal.aborted === true,
       );
-      void reporter.progress(`Reviewing Kimi tool: ${requestedTool}`, {
-        permission_options: params.options.map((option) => option.kind),
-        permission_outcome: response.outcome.outcome === 'selected'
-          ? response.outcome.optionId
-          : 'cancelled',
+      const isGranted = isKimiPermissionGranted(params, response);
+      void reporter.progress(`${isGranted ? 'Allowed' : 'Blocked'} Kimi tool: ${requestedTool}`, {
+        permission_granted: isGranted,
+        tool: requestedTool,
       });
       return response;
     })
     .onRequest(methods.client.fs.readTextFile, async ({ params }) => {
-      await filePolicy.assertReadable(params.path);
-      const file = await stat(params.path);
-      if (file.size > MAX_FILE_BYTES) throw new Error('The requested file is too large to read safely.');
-      const content = await readFile(params.path, 'utf8');
-      return { content: sliceLines(content, params.line, params.limit) };
+      const content = await filePolicy.readTextFile(params.path, params.line, params.limit);
+      return { content };
     })
     .onRequest(methods.client.fs.writeTextFile, async ({ params }) => {
-      if (Buffer.byteLength(params.content, 'utf8') > MAX_FILE_BYTES) {
-        throw new Error('The requested file is too large to write safely.');
-      }
-      await filePolicy.assertWritable(params.path);
-      await writeFile(params.path, params.content, 'utf8');
+      await filePolicy.writeTextFile(params.path, params.content);
       return {};
     });
 
@@ -119,8 +93,8 @@ export async function runKimiAcpSession(
     negotiatedVersion = initialized.agentInfo?.version ?? undefined;
 
     const builder = context.buildSession({
-      cwd: workingDirectory(agent),
-      additionalDirectories: additionalDirectories(agent),
+      cwd: kimiWorkingDirectory(agent),
+      additionalDirectories: kimiAdditionalDirectories(agent),
       mcpServers: options.disableMcpServers ? [] : kimiMcpServers(agent.mcp_servers ?? {}),
     });
     return builder.withSession(async (session) => {
@@ -141,7 +115,7 @@ export async function runKimiAcpSession(
         for (;;) {
           const message = await session.nextUpdate();
           if (message.kind === 'stop') return message.response;
-          handleUpdate(message.update, state, reporter);
+          handleKimiUpdate(message.update, state, reporter);
         }
       } finally {
         options.abortController?.signal.removeEventListener('abort', cancel);
@@ -150,12 +124,7 @@ export async function runKimiAcpSession(
   });
 
   const durationMs = Math.round(performance.now() - startedAt);
-  const toolCalls = [...state.tools.values()].map<ToolCallTrace>((tool) => ({
-    name: tool.name,
-    status: tool.status,
-    input: tool.input,
-    output: tool.output,
-  }));
+  const toolCalls = kimiToolTraces(state);
   return {
     summary: state.assistantText.trim() || 'Agent completed',
     output: {},
@@ -169,7 +138,7 @@ export async function runKimiAcpSession(
       kimi_version: negotiatedVersion,
     },
     turnCount: 1,
-    toolsUsed: [...new Set([...state.tools.values()].map((tool) => tool.name))],
+    toolsUsed: kimiToolsUsed(state),
     filesRead: [...state.filesRead],
     filesWritten: [...state.filesWritten],
     commandsRun: state.commandsRun,
@@ -191,7 +160,7 @@ export async function executeKimiCodeAgent(
   if (!executable) throw new Error('Kimi Code is not installed or is turned off in Settings.');
 
   const child = spawn(executable, ['acp'], {
-    cwd: workingDirectory(agent),
+    cwd: kimiWorkingDirectory(agent),
     env: buildKimiChildEnvironment(),
     stdio: ['pipe', 'pipe', 'pipe'],
   });
@@ -218,189 +187,6 @@ export async function executeKimiCodeAgent(
   }
 }
 
-function createState(): KimiState {
-  return {
-    assistantText: '',
-    tools: new Map(),
-    filesRead: new Set(),
-    filesWritten: new Set(),
-    commandsRun: [],
-  };
-}
-
-function handleUpdate(update: SessionUpdate, state: KimiState, reporter: Reporter): void {
-  if (update.sessionUpdate === 'agent_message_chunk' && update.content.type === 'text') {
-    state.assistantText += update.content.text;
-    void reporter.progress(truncate(update.content.text), progressMetadata(state));
-    return;
-  }
-  if (update.sessionUpdate === 'tool_call') {
-    trackTool(update, state);
-    void reporter.progress(`Using tool: ${toolName(update)}`, progressMetadata(state));
-    return;
-  }
-  if (update.sessionUpdate === 'tool_call_update') updateTrackedTool(update, state);
-}
-
-function trackTool(call: ToolCall, state: KimiState): void {
-  const name = toolName(call);
-  state.tools.set(call.toolCallId, {
-    name,
-    status: call.status === 'failed' ? 'failed' : 'succeeded',
-    input: call.rawInput,
-    output: call.rawOutput,
-  });
-  const paths = call.locations?.map((location) => location.path) ?? pathsFromInput(call.rawInput);
-  if (name === 'Read' || name === 'Grep') paths.forEach((path) => state.filesRead.add(path));
-  if (name === 'Write' || name === 'Edit') paths.forEach((path) => state.filesWritten.add(path));
-  if (name === 'Bash') {
-    const command = stringField(call.rawInput, 'command');
-    if (command) state.commandsRun.push(command);
-  }
-}
-
-function updateTrackedTool(update: ToolCallUpdate, state: KimiState): void {
-  const current = state.tools.get(update.toolCallId);
-  if (!current) return;
-  state.tools.set(update.toolCallId, {
-    ...current,
-    status: update.status === 'failed' ? 'failed' : current.status,
-    input: update.rawInput ?? current.input,
-    output: update.rawOutput ?? current.output,
-  });
-}
-
-function permissionResponse(
-  agent: AgentConfig,
-  request: RequestPermissionRequest,
-  requestedTool: string,
-  isCancelled: boolean,
-): RequestPermissionResponse {
-  if (isCancelled) return { outcome: { outcome: 'cancelled' } };
-  const permitted = permittedTool(agent, requestedTool);
-  const kind = permitted ? 'allow_once' : 'reject_once';
-  const option = request.options.find((candidate) => candidate.kind === kind)
-    ?? (!permitted ? request.options.find((candidate) => candidate.kind === 'reject_always') : undefined);
-  return option
-    ? { outcome: { outcome: 'selected', optionId: option.optionId } }
-    : { outcome: { outcome: 'cancelled' } };
-}
-
-function permittedTool(agent: AgentConfig, name: string): boolean {
-  if (name === 'Edit') return isToolPermitted(agent, 'Edit') || isToolPermitted(agent, 'Write');
-  if (name === 'Grep') return isToolPermitted(agent, 'Grep') || isToolPermitted(agent, 'Read');
-  if (name === 'Unknown') return false;
-  return isToolPermitted(agent, name);
-}
-
-function permissionToolName(call: ToolCallUpdate, state: KimiState): string {
-  const direct = toolName(call);
-  return direct === 'Unknown' ? state.tools.get(call.toolCallId)?.name ?? direct : direct;
-}
-
-function toolName(call: Pick<ToolCallUpdate, 'kind' | 'title' | 'rawInput' | '_meta'>): string {
-  const metadataName = stringField(call._meta, 'toolName') ?? stringField(call._meta, 'tool_name');
-  if (metadataName) return metadataName;
-  if (stringField(call.rawInput, 'command')) return 'Bash';
-  const byKind: Partial<Record<ToolKind, string>> = {
-    read: 'Read',
-    search: 'Grep',
-    edit: 'Edit',
-    delete: 'Write',
-    move: 'Write',
-    execute: 'Bash',
-    fetch: 'WebFetch',
-  };
-  if (call.kind && byKind[call.kind]) return byKind[call.kind] ?? 'Unknown';
-  const title = call.title?.trim();
-  if (title?.startsWith('mcp__')) return title.split(/\s/, 1)[0];
-  return 'Unknown';
-}
-
-function progressMetadata(state: KimiState): Record<string, unknown> {
-  return {
-    turns_completed: 1,
-    tools_used: [...new Set([...state.tools.values()].map((tool) => tool.name))],
-    files_written: [...state.filesWritten],
-    commands_run: state.commandsRun.length,
-  };
-}
-
-function assertKimiSafety(agent: AgentConfig): void {
-  if ((agent.file_access?.length ?? 0) > 0 && isToolPermitted(agent, 'Bash')) {
-    throw new Error('Kimi Code cannot enforce exact file access while command execution is allowed.');
-  }
-}
-
-async function createFilePolicy(agent: AgentConfig): Promise<{
-  assertReadable: (path: string) => Promise<void>;
-  assertWritable: (path: string) => Promise<void>;
-}> {
-  const configured = agent.file_access ?? [{
-    path: workingDirectory(agent),
-    kind: 'folder' as const,
-    access: 'read_write' as const,
-  }];
-  const grants = await Promise.all(configured.map(async (grant): Promise<FileGrant> => ({
-    path: await canonicalGrantPath(expandHome(grant.path), grant.kind),
-    kind: grant.kind,
-    canWrite: grant.access === 'read_write',
-  })));
-
-  return {
-    assertReadable: async (path) => {
-      if (!isToolPermitted(agent, 'Read')) throw new Error(`Reading ${path} is not permitted.`);
-      const target = await canonicalTargetPath(path, false);
-      if (!grants.some((grant) => contains(grant, target))) throw new Error(`Reading ${path} is not permitted.`);
-    },
-    assertWritable: async (path) => {
-      const canUseWrite = isToolPermitted(agent, 'Write') || isToolPermitted(agent, 'Edit');
-      if (!canUseWrite) throw new Error(`Writing ${path} is not permitted.`);
-      const target = await canonicalTargetPath(path, true);
-      if (!grants.some((grant) => grant.canWrite && contains(grant, target))) {
-        throw new Error(`Writing ${path} is not permitted.`);
-      }
-    },
-  };
-}
-
-async function canonicalGrantPath(path: string, kind: 'file' | 'folder'): Promise<string> {
-  try {
-    return await realpath(path);
-  } catch {
-    if (kind === 'folder') throw new Error(`Kimi Code cannot access missing folder ${path}.`);
-    return canonicalTargetPath(path, true);
-  }
-}
-
-async function canonicalTargetPath(path: string, mayNotExist: boolean): Promise<string> {
-  if (!isAbsolute(path)) throw new Error(`Path ${path} is not permitted.`);
-  try {
-    return await realpath(path);
-  } catch {
-    if (!mayNotExist) throw new Error(`Path ${path} is not permitted.`);
-    return resolve(await realpath(dirname(path)), basename(path));
-  }
-}
-
-function contains(grant: FileGrant, target: string): boolean {
-  if (grant.kind === 'file') return grant.path === target;
-  const child = relative(grant.path, target);
-  return child === '' || (!child.startsWith('..') && !isAbsolute(child));
-}
-
-function workingDirectory(agent: AgentConfig): string {
-  return resolve(expandHome(agent.working_directory ?? process.env.HOME ?? process.cwd()));
-}
-
-function additionalDirectories(agent: AgentConfig): string[] {
-  const cwd = workingDirectory(agent);
-  return [...new Set((agent.file_access ?? [])
-    .filter((grant) => grant.kind === 'folder')
-    .map((grant) => resolve(expandHome(grant.path)))
-    .filter((path) => path !== cwd))];
-}
-
 function kimiMcpServers(servers: Record<string, McpServerConfig>): McpServer[] {
   return Object.entries(servers).map(([name, config]) => {
     if ('command' in config) {
@@ -418,24 +204,6 @@ function kimiMcpServers(servers: Record<string, McpServerConfig>): McpServer[] {
       headers: Object.entries(config.headers ?? {}).map(([header, value]) => ({ name: header, value })),
     };
   });
-}
-
-function sliceLines(content: string, line?: number | null, limit?: number | null): string {
-  if (line === undefined && limit === undefined) return content;
-  const lines = content.split('\n');
-  const start = Math.max(0, (line ?? 1) - 1);
-  return lines.slice(start, limit ? start + limit : undefined).join('\n');
-}
-
-function pathsFromInput(value: unknown): string[] {
-  const path = stringField(value, 'path') ?? stringField(value, 'file_path');
-  return path ? [path] : [];
-}
-
-function stringField(value: unknown, key: string): string | undefined {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
-  const candidate = (value as Record<string, unknown>)[key];
-  return typeof candidate === 'string' ? candidate : undefined;
 }
 
 function stopChild(child: ChildProcessWithoutNullStreams): void {
