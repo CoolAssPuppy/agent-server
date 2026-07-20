@@ -109,7 +109,7 @@ struct AgentDebuggerView: View {
 
     private func diagnosisView(_ diagnosis: DiagnosticPresentation) -> some View {
         VStack(alignment: .leading, spacing: NSpacing.md) {
-            ConsumerSection("What went wrong", style: .flat) {
+            ConsumerSection("What went wrong", style: sectionStyle) {
                 Text(diagnosis.title)
                     .font(NTypography.bodyMedium)
                 Text(diagnosis.explanation)
@@ -118,7 +118,7 @@ struct AgentDebuggerView: View {
             }
             if diagnosis.hasEvidence {
                 Divider().opacity(0.3)
-                ConsumerSection("Evidence", style: .flat) {
+                ConsumerSection("Evidence", style: sectionStyle) {
                     ForEach(diagnosis.evidence.prefix(3), id: \.self) { fact in
                         Label(fact, systemImage: "info.circle")
                             .font(NTypography.bodyMedium)
@@ -127,7 +127,7 @@ struct AgentDebuggerView: View {
             }
             if let fix = diagnosis.recommendedFix {
                 Divider().opacity(0.3)
-                ConsumerSection("Recommended fix", style: .flat) {
+                ConsumerSection("Recommended fix", style: sectionStyle) {
                     Text(fix.title)
                         .font(NTypography.bodyMedium)
                     Text(fix.impact)
@@ -145,7 +145,9 @@ struct AgentDebuggerView: View {
                 }
             }
             actionsRow
-            technicalDetails(diagnosis.technicalDetails)
+            if AgentDebuggerPresentation.disclosesTechnicalDetails {
+                technicalDetails(diagnosis.technicalDetails)
+            }
         }
     }
 
@@ -177,24 +179,26 @@ struct AgentDebuggerView: View {
     private func fixReview(_ fix: ConfigurationFixPresentation) -> some View {
         VStack(alignment: .leading, spacing: NSpacing.md) {
             ConsumerFlowHeader(title: "Review fix", explanation: "Nothing changes until you approve this update.")
-            ConsumerSection("Changes", style: .flat) {
+            ConsumerSection("Changes", style: sectionStyle) {
                 ForEach(fix.changes, id: \.self) { change in
                     Label(change, systemImage: "arrow.right.circle")
                 }
             }
             Divider().opacity(0.3)
-            ConsumerSection("Safety impact", style: .flat) {
+            ConsumerSection("Safety impact", style: sectionStyle) {
                 HStack(alignment: .top) {
                     ConsumerRiskLabel(risk: fix.risk)
                     Text(fix.impact)
                         .foregroundStyle(theme.tokens.mutedForeground)
                 }
             }
-            DisclosureGroup("Advanced configuration diff", isExpanded: $showsTechnicalDetails) {
-                Text(fix.technicalDiff)
-                    .font(.system(.caption, design: .monospaced))
-                    .textSelection(.enabled)
-                    .padding(.top, NSpacing.xs)
+            if AgentDebuggerPresentation.disclosesTechnicalDetails {
+                DisclosureGroup("Advanced configuration diff", isExpanded: $showsTechnicalDetails) {
+                    Text(fix.technicalDiff)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .padding(.top, NSpacing.xs)
+                }
             }
             HStack {
                 Button("Cancel") { flow.cancelFixReview() }
@@ -209,7 +213,7 @@ struct AgentDebuggerView: View {
     }
 
     private var readyToRetry: some View {
-        ConsumerSection("Fix applied", style: .flat) {
+        ConsumerSection("Fix applied", style: sectionStyle) {
             Text("The approved change was saved. The original failed run is still available in run history.")
             Button("Retry now") { Task { await retryRun() } }
                 .buttonStyle(.borderedProminent)
@@ -230,7 +234,7 @@ struct AgentDebuggerView: View {
     }
 
     private var resolved: some View {
-        ConsumerSection("The fix worked", style: .flat) {
+        ConsumerSection("The fix worked", style: sectionStyle) {
             Label("The new run completed successfully.", systemImage: "checkmark.circle")
                 .font(NTypography.headlineSmall)
                 .foregroundStyle(theme.tokens.success)
@@ -256,6 +260,12 @@ struct AgentDebuggerView: View {
                 }
             }
             .padding(.top, NSpacing.xs)
+        }
+    }
+
+    private var sectionStyle: ConsumerSectionStyle {
+        switch AgentDebuggerPresentation.surfaceStyle {
+        case .flatSections: .flat
         }
     }
 

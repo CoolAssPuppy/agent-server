@@ -22,19 +22,19 @@ struct ConsumerFlowHeader: View {
     }
 }
 
-struct ConsumerSection<Content: View>: View {
-    enum Style {
-        case card
-        case flat
-    }
+enum ConsumerSectionStyle {
+    case card
+    case flat
+}
 
+struct ConsumerSection<Content: View>: View {
     let title: String
-    let style: Style
+    let style: ConsumerSectionStyle
     let content: Content
 
     @Environment(\.nTheme) private var theme
 
-    init(_ title: String, style: Style = .card, @ViewBuilder content: () -> Content) {
+    init(_ title: String, style: ConsumerSectionStyle = .card, @ViewBuilder content: () -> Content) {
         self.title = title
         self.style = style
         self.content = content()

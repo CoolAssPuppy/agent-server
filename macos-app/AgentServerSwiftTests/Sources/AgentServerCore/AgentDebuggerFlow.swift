@@ -4,16 +4,8 @@ public enum AgentDebuggerSurfaceStyle: Equatable, Sendable {
     case flatSections
 }
 
-public enum AgentDebuggerSection: Equatable, Sendable {
-    case problem
-    case evidence
-    case recommendedFix
-    case actions
-}
-
 public enum AgentDebuggerPresentation {
     public static let surfaceStyle = AgentDebuggerSurfaceStyle.flatSections
-    public static let sections: [AgentDebuggerSection] = [.problem, .evidence, .recommendedFix, .actions]
     public static let disclosesTechnicalDetails = true
 }
 

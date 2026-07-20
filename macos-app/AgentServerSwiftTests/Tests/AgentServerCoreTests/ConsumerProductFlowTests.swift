@@ -528,10 +528,6 @@ final class ConsumerProductFlowTests: XCTestCase {
 
     func testDebuggerUsesAFlatReadingFlowWithTechnicalContentDisclosed() {
         XCTAssertEqual(AgentDebuggerPresentation.surfaceStyle, .flatSections)
-        XCTAssertEqual(
-            AgentDebuggerPresentation.sections,
-            [.problem, .evidence, .recommendedFix, .actions]
-        )
         XCTAssertTrue(AgentDebuggerPresentation.disclosesTechnicalDetails)
     }
 
