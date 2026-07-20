@@ -1,5 +1,30 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Version 3.1 release
+
+- [x] Confirm the existing release workflow, signing prerequisites, current published feed, branch state, and version availability.
+- [x] Run the final non-interactive behavior, lint, type-check, production build, and macOS build gates without UI automation.
+- [x] Release version 3.1 with the text “Try the new Agent Creator. More to come.” through the existing signed, notarized Sparkle workflow.
+- [x] Verify the versioned download, latest download, appcast, signature metadata, notarization, and published release text.
+- [x] Commit the version and appcast, run the simplification check, merge `creation-experience` into `main`, and push `main`.
+
+Release constraints:
+
+- Preserve the exact requested customer-facing text.
+- Keep the monotonic build number and existing Sparkle signing identity.
+- Do not run UI automation.
+- Do not push until the uploaded release has passed the existing verification checks.
+
+### Release review
+
+- Released Agent Server 3.1, build 28, with the exact requested release note.
+- Apple accepted the app submission `309f73e2-2f9c-4c9b-a48f-18a559a97158` and DMG submission `bf921b24-e37b-4d52-946c-60ff1b4b7015` for notarization.
+- Verified the signed and stapled app and DMG with `codesign`, `spctl`, and `stapler`.
+- Verified the versioned and latest downloads return HTTP 200 with the signed 191,638,219-byte artifact.
+- Verified the local and public Sparkle feeds publish version 3.1, build 28, and the exact release note.
+- Removed duplicated release versions from the CLI and Kimi ACP client. Both now read the bundled package version, and the release script updates and builds that package before archiving.
+- Final gates passed: 1,255 server tests with 4 skipped, 363 Swift tests, TypeScript type-check, lint, server production build, and macOS release build.
+
 ## Kimi Code runtime
 
 - [x] Confirm the installed Kimi Code non-interactive protocol, cancellation behavior, permissions, authentication, and structured event format.

@@ -102,3 +102,4 @@
 
 - Do not assume a provider name refers only to an API-backed model. Probe the user's machine before deciding whether a local executable exists.
 - Kimi Code can be installed as a native `kimi` executable with non-interactive prompt output and an ACP server. Treat support for that executable as a runtime integration, separate from the Moonshot-backed Kimi K3 model preset.
+- Do not assume npm subcommands exist in pnpm. For release metadata, use the release script's existing portable Python step or prove the exact package-manager command during preflight before changing version files.

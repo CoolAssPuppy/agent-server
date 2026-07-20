@@ -9,6 +9,7 @@ import { startServer } from './server/server.js';
 import { initAgentServer } from './platform/init.js';
 import { installLaunchAgent, uninstallLaunchAgent } from './platform/launchd.js';
 import { createPanelClient } from './reporting/panel-client.js';
+import { AGENT_SERVER_VERSION } from './version.js';
 
 const baseDir = process.env.AGENT_SERVER_HOME || join(homedir(), '.agent-server');
 const fileEnv = loadEnvFile(baseDir, process.env);
@@ -22,7 +23,7 @@ const program = new Command();
 program
   .name('agent-server')
   .description('Lightweight agent orchestration server for Claude Code, Codex, and Kimi Code')
-  .version('3.0.2');
+  .version(AGENT_SERVER_VERSION);
 
 program
   .command('start')

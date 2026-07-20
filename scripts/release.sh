@@ -3,8 +3,8 @@
 # One-shot release automation for Agent Server.
 #
 # Does the whole thing:
-#   1. Bumps MARKETING_VERSION + CURRENT_PROJECT_VERSION in project.yml
-#   2. Regenerates Xcode project with xcodegen
+#   1. Bumps the macOS and bundled server versions
+#   2. Builds the server and regenerates the Xcode project
 #   3. Archives + exports Developer ID .app
 #   4. Notarizes + staples the .app
 #   5. Builds DMG, notarizes + staples DMG, Sparkle-signs it
@@ -99,14 +99,23 @@ echo "==> Bumping version to $VERSION"
 CURRENT_BUILD=$(awk -F'"' '/CURRENT_PROJECT_VERSION:/ {print $2}' "$MACOS_APP/project.yml")
 NEW_BUILD=$((CURRENT_BUILD + 1))
 python3 - <<PY
-import re, pathlib
+import json, re, pathlib
 p = pathlib.Path("$MACOS_APP/project.yml")
 text = p.read_text()
 text = re.sub(r'MARKETING_VERSION: "[^"]+"', 'MARKETING_VERSION: "$VERSION"', text)
 text = re.sub(r'CURRENT_PROJECT_VERSION: "[^"]+"', 'CURRENT_PROJECT_VERSION: "$NEW_BUILD"', text)
 p.write_text(text)
+
+package_path = pathlib.Path("$REPO_ROOT/server-app/package.json")
+package = json.loads(package_path.read_text())
+package["version"] = "$VERSION"
+package_path.write_text(json.dumps(package, indent=2) + "\n")
 PY
 echo "  MARKETING_VERSION=$VERSION CURRENT_PROJECT_VERSION=$NEW_BUILD"
+echo "  server-app/package.json version=$VERSION"
+
+echo "==> Building bundled server"
+(cd "$REPO_ROOT/server-app" && pnpm run build)
 
 #----------------------------------------------------------------------
 # 2. Regenerate project

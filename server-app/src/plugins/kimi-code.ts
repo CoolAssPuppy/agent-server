@@ -13,6 +13,7 @@ import { buildKimiChildEnvironment } from '../agents/environment-policy.js';
 import type { ExecutionResult } from '../execution/executor.js';
 import type { Reporter } from '../execution/runner.js';
 import { parseInteractionBlock } from '../interaction/parser.js';
+import { AGENT_SERVER_VERSION } from '../version.js';
 import {
   assertKimiSafety,
   createKimiFilePolicy,
@@ -85,7 +86,7 @@ export async function runKimiAcpSession(
         fs: { readTextFile: true, writeTextFile: true },
         terminal: false,
       },
-      clientInfo: { name: 'Agent Server', version: '3.0.2' },
+      clientInfo: { name: 'Agent Server', version: AGENT_SERVER_VERSION },
     });
     if (initialized.protocolVersion !== PROTOCOL_VERSION) {
       throw new Error(`Kimi Code uses unsupported ACP protocol ${initialized.protocolVersion}.`);
