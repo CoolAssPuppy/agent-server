@@ -35,36 +35,15 @@ struct MainPane: View {
     // MARK: - Hero
 
     private var hero: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: NSpacing.xs) {
-                Text(greetingCopy)
-                    .font(NTypography.displayMedium)
-                    .foregroundStyle(theme.tokens.foreground)
-                Text(subtitleCopy)
-                    .font(NTypography.bodyMedium)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-            }
-            Spacer()
-            watchingBadge
-        }
-    }
-
-    /// A quiet "N agents on watch" badge — conveys the app is alive without a
-    /// loud number tile.
-    private var watchingBadge: some View {
-        let count = monitor.agents.filter(\.enabled).count
-        return HStack(spacing: NSpacing.xs) {
-            Circle()
-                .fill(theme.tokens.success)
-                .frame(width: 6, height: 6)
-            Text("\(count) on watch")
-                .font(NTypography.labelSmall)
+        VStack(alignment: .leading, spacing: NSpacing.xs) {
+            Text(greetingCopy)
+                .font(NTypography.displayMedium)
+                .foregroundStyle(theme.tokens.foreground)
+            Text(subtitleCopy)
+                .font(NTypography.bodyMedium)
                 .foregroundStyle(theme.tokens.mutedForeground)
         }
-        .padding(.horizontal, NSpacing.sm)
-        .padding(.vertical, NSpacing.xs)
-        .background(theme.tokens.card, in: Capsule())
-        .overlay(Capsule().stroke(theme.tokens.border, lineWidth: 1))
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var greetingCopy: String {
@@ -145,7 +124,10 @@ struct MainPane: View {
     // MARK: - Activity
 
     private var activityColumn: some View {
-        let runs = Array(monitor.recentRuns.prefix(7))
+        let runs = MainPaneRecentActivityPolicy.visibleItems(
+            from: monitor.recentRuns,
+            conversationID: \.conversationId
+        )
         return VStack(alignment: .leading, spacing: NSpacing.sm) {
             eyebrow("Recent activity")
             if runs.isEmpty {

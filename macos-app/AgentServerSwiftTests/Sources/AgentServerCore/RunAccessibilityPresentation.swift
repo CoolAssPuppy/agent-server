@@ -1,5 +1,20 @@
 import Foundation
 
+enum MainPaneRecentActivityPolicy {
+    static let itemLimit = 7
+
+    static func visibleItems<Item>(
+        from items: [Item],
+        conversationID: KeyPath<Item, String?>
+    ) -> [Item] {
+        return Array(
+            items.lazy
+                .filter { $0[keyPath: conversationID] == nil }
+                .prefix(itemLimit)
+        )
+    }
+}
+
 struct RunRowAccessibilityPresentation: Equatable, Sendable {
     let label: String
 
