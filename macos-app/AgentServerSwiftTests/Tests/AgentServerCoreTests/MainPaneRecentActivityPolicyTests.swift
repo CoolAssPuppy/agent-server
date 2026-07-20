@@ -2,6 +2,11 @@ import XCTest
 @testable import AgentServerCore
 
 final class MainPaneRecentActivityPolicyTests: XCTestCase {
+    func testHomeReservesElevationForUpNextAndKeepsActivityFlat() {
+        XCTAssertEqual(MainPaneVisualPolicy.elevatedRegion, .upNext)
+        XCTAssertEqual(MainPaneVisualPolicy.activitySurface, .groupedRows)
+    }
+
     func testRecentActivityFiltersChatRunsBeforeTakingTheFirstSevenVisibleRuns() {
         let runs = [
             fixture("chat-1", conversationID: "conversation-1"),

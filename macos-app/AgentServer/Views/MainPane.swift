@@ -139,7 +139,8 @@ struct MainPane: View {
                         ActivityRow(run: run)
                     }
                 }
-                .modifier(ElevatedSurface())
+                .background(theme.tokens.card)
+                .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
             }
         }
     }
@@ -234,7 +235,8 @@ struct MainPane: View {
             .foregroundStyle(theme.tokens.mutedForeground)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(NSpacing.lg)
-            .modifier(ElevatedSurface())
+            .background(theme.tokens.card)
+            .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
     }
 
     private func relativeFuture(_ date: Date) -> String {
@@ -382,21 +384,5 @@ private struct ActivityRow: View {
         }
         .padding(.horizontal, NSpacing.lg)
         .padding(.vertical, NSpacing.md)
-    }
-}
-
-// MARK: - Elevated surface
-
-/// A clean card surface: the theme's card fill and a hairline border, no
-/// hardcoded highlights. Depth reads from spacing and the border, so it holds
-/// up in every theme (color is the theme's job, not the layout's).
-private struct ElevatedSurface: ViewModifier {
-    @Environment(\.nTheme) private var theme
-
-    func body(content: Content) -> some View {
-        content
-            .background(theme.tokens.card)
-            .overlay(RoundedRectangle(cornerRadius: NRadius.lg).stroke(theme.tokens.border, lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: NRadius.lg))
     }
 }

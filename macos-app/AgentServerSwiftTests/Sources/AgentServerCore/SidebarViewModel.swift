@@ -1,5 +1,11 @@
 import Foundation
 
+enum SidebarVisualPolicy {
+    static let showsAgentCount = false
+    static let selectedRowHasBorder = false
+    static let honorsReducedMotion = true
+}
+
 enum SidebarFooterAction: CaseIterable, Equatable {
     case newAgent
 

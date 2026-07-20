@@ -10,6 +10,7 @@ struct Sidebar: View {
     var onNewAgent: () -> Void
 
     @Environment(\.nTheme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     static let width: CGFloat = 240
 
     private var rows: [SidebarRow] {
@@ -61,13 +62,6 @@ struct Sidebar: View {
                 .font(NTypography.headlineLarge)
                 .foregroundStyle(theme.tokens.foreground)
             Spacer()
-            Text("\(rows.count)")
-                .font(NTypography.caption)
-                .foregroundStyle(theme.tokens.mutedForeground)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 2)
-                .background(theme.tokens.muted)
-                .clipShape(Capsule())
         }
         .padding(.horizontal, NSpacing.lg)
         .padding(.top, NSpacing.xxl)
@@ -92,12 +86,12 @@ struct Sidebar: View {
                             }
                             .accessibilityIdentifier(ConsumerFlowAccessibility.creationSimilar)
                         }
-                        .animation(.easeOut(duration: 0.28), value: row.state)
+                        .animation(reduceMotion ? nil : .easeOut(duration: 0.28), value: row.state)
                     }
                 }
                 .padding(.horizontal, NSpacing.xs)
                 .padding(.vertical, NSpacing.xs)
-                .animation(.easeOut(duration: 0.28), value: rows.map(\.id))
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.28), value: rows.map(\.id))
             }
         }
         .frame(maxHeight: .infinity)
@@ -286,7 +280,6 @@ private struct SidebarRowView: View {
             .padding(.horizontal, NSpacing.sm)
             .padding(.vertical, NSpacing.md)
             .background(rowBackground)
-            .overlay(rowBorder)
             .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
             .contentShape(Rectangle())
         }
@@ -348,13 +341,6 @@ private struct SidebarRowView: View {
         }
     }
 
-    @ViewBuilder
-    private var rowBorder: some View {
-        if isSelected {
-            RoundedRectangle(cornerRadius: NRadius.sm)
-                .stroke(theme.tokens.primary.opacity(0.35), lineWidth: 1)
-        }
-    }
 }
 
 // MARK: - Kind bridge

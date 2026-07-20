@@ -1,5 +1,18 @@
 import Foundation
 
+enum MainPaneElevatedRegion: Equatable, Sendable {
+    case upNext
+}
+
+enum MainPaneActivitySurface: Equatable, Sendable {
+    case groupedRows
+}
+
+enum MainPaneVisualPolicy {
+    static let elevatedRegion = MainPaneElevatedRegion.upNext
+    static let activitySurface = MainPaneActivitySurface.groupedRows
+}
+
 enum MainPaneRecentActivityPolicy {
     static let itemLimit = 7
 

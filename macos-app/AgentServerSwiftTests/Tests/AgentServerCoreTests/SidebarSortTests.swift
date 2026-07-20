@@ -2,6 +2,12 @@ import XCTest
 @testable import AgentServerCore
 
 final class SidebarSortTests: XCTestCase {
+    func testSidebarUsesOneSelectionFillWithoutDecorativeAgentCount() {
+        XCTAssertFalse(SidebarVisualPolicy.showsAgentCount)
+        XCTAssertFalse(SidebarVisualPolicy.selectedRowHasBorder)
+        XCTAssertTrue(SidebarVisualPolicy.honorsReducedMotion)
+    }
+
 
     private func agent(_ id: String, _ name: String, slug: String? = nil) -> SidebarAgent {
         SidebarAgent(
