@@ -4,21 +4,15 @@ import NerdsUI
 /// Editable state for an agent's model choice, mapping the plain-language
 /// picker to the underlying `executor` / `model` / `provider` fields. Mirrors
 /// `ScheduleDraft`: seed from an agent, edit through `ModelField`, then read the
-/// resolved values back into a patch. The picker hides the plumbing — a
-/// non-technical user picks "Kimi K2", not an OpenAI-compatible base URL.
+/// resolved values back into a patch. The picker hides the provider plumbing.
 struct ModelDraft: Equatable {
     enum Choice: String, CaseIterable, Identifiable {
         case claude = "Claude (your plan)"
         case codex = "Codex (your ChatGPT)"
-        case kimi = "Kimi K2"
+        case kimi = "Kimi K3"
         case custom = "Custom…"
         var id: String { rawValue }
     }
-
-    // Moonshot's OpenAI-compatible endpoint, used by the Kimi K2 preset.
-    static let kimiEndpoint = "https://api.moonshot.ai/v1"
-    static let kimiModel = "kimi-k2"
-    static let kimiKeyVar = "MOONSHOT_API_KEY"
 
     var choice: Choice = .claude
     var customEndpoint = ""
@@ -30,7 +24,7 @@ struct ModelDraft: Equatable {
     /// Derive the current choice from an agent's stored fields.
     init(agent: Agent) {
         if let provider = agent.provider {
-            if provider.baseURL == Self.kimiEndpoint && agent.model == Self.kimiModel {
+            if KimiModelPreset.matches(model: agent.model, endpoint: provider.baseURL) {
                 choice = .kimi
             } else {
                 choice = .custom
@@ -58,7 +52,7 @@ struct ModelDraft: Equatable {
     var resolvedModel: String? {
         switch choice {
         case .claude, .codex: return nil
-        case .kimi: return Self.kimiModel
+        case .kimi: return KimiModelPreset.model
         case .custom:
             let trimmed = customModel.trimmingCharacters(in: .whitespaces)
             return trimmed.isEmpty ? nil : trimmed
@@ -70,7 +64,10 @@ struct ModelDraft: Equatable {
         case .claude, .codex:
             return nil
         case .kimi:
-            return ProviderConfig(baseURL: Self.kimiEndpoint, apiKey: "${\(Self.kimiKeyVar)}")
+            return ProviderConfig(
+                baseURL: KimiModelPreset.endpoint,
+                apiKey: KimiModelPreset.keyReference
+            )
         case .custom:
             let endpoint = customEndpoint.trimmingCharacters(in: .whitespaces)
             guard !endpoint.isEmpty else { return nil }
@@ -90,7 +87,7 @@ struct ModelDraft: Equatable {
     var keyVariableHint: String? {
         switch choice {
         case .claude, .codex: return nil
-        case .kimi: return Self.kimiKeyVar
+        case .kimi: return KimiModelPreset.keyVariable
         case .custom:
             let keyVar = customKeyVar.trimmingCharacters(in: .whitespaces)
             return keyVar.isEmpty ? nil : keyVar
@@ -130,7 +127,7 @@ struct ModelField: View {
             case .codex:
                 hint("Runs on your ChatGPT (Codex) subscription.")
             case .kimi:
-                hint("Runs on Kimi K2 via Moonshot. Add \(ModelDraft.kimiKeyVar) in Settings if you have not already.")
+                hint("Uses \(KimiModelPreset.keyVariable) from Settings.")
             case .custom:
                 VStack(alignment: .leading, spacing: NSpacing.xs) {
                     TextField("Endpoint URL, e.g. https://api.example.com/v1", text: $draft.customEndpoint)

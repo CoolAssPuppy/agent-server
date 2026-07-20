@@ -160,7 +160,7 @@ describe('executeCodexAgent', () => {
 
       await executeCodexAgent(makeAgent({
         executor: 'codex',
-        model: 'kimi-k2',
+        model: 'kimi-k3',
         provider: { base_url: 'https://api.moonshot.ai/v1', api_key: '${MOONSHOT_API_KEY}' },
       }), createMockReporter());
 

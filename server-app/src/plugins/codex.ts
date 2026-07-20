@@ -49,7 +49,7 @@ export async function executeCodexAgent(
     // undefined falls back to the codex-sdk's bundled binary.
     codexPathOverride: extra?.codexExecutablePath,
     // A custom provider points Codex at an OpenAI-compatible endpoint (e.g.
-    // Moonshot for Kimi K2) instead of the ChatGPT subscription. Without a
+    // Moonshot for Kimi K3) instead of the ChatGPT subscription. Without a
     // provider these stay undefined and the ChatGPT login is used.
     ...getProviderOptions(agent),
   });

@@ -183,7 +183,7 @@ export function resolveEnvVars(
 
 /**
  * A custom model provider for an agent — an OpenAI-compatible endpoint for the
- * Codex runtime (e.g. Moonshot / Kimi K2) or an Anthropic-compatible endpoint
+ * Codex runtime (e.g. Moonshot / Kimi K3) or an Anthropic-compatible endpoint
  * for the Claude runtime. `base_url` is a literal URL; `api_key` holds a
  * `${VAR}` reference resolved from `.env` at run time, never a literal secret.
  */

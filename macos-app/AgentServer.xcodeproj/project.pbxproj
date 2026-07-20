@@ -74,6 +74,7 @@
 		866C6F8A4D433A5BF0E23958 /* StatusMonitor+Security.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99286B9B2EE90BE821F68FBA /* StatusMonitor+Security.swift */; };
 		86D7A78B13F445F9CB9D5754 /* SettingsPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36E7C28685605B900B56E4DA /* SettingsPresentation.swift */; };
 		8707E33B58D0101837C5D8D0 /* RunSelectionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25662F3E02815D79079DCF72 /* RunSelectionCoordinator.swift */; };
+		8787E90CF8D726CECAB5B10B /* KimiModelPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = E04CAB3FD1E0084912BCD6CA /* KimiModelPreset.swift */; };
 		884B4BB8E2CFD7879CB6F636 /* ConnectionProfilePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50CA8C247B1FCF3FA516F3D /* ConnectionProfilePresentation.swift */; };
 		894EC630BF1BB8BF843C0744 /* agent-server-success.aiff in Resources */ = {isa = PBXBuildFile; fileRef = CA355B69E6B62F0433B2647C /* agent-server-success.aiff */; };
 		8952BBEC6C2E7723B78B683A /* AgentModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE7640067645F8E1352BCE04 /* AgentModel.swift */; };
@@ -275,6 +276,7 @@
 		DE4F878AF0A0CA8113E65883 /* SavedConnectionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedConnectionViews.swift; sourceTree = "<group>"; };
 		DE79D9B93066560186CAA3DB /* SecurityFindingCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityFindingCard.swift; sourceTree = "<group>"; };
 		DF60949786F7149D9854AA42 /* ConnectionCredentialsPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionCredentialsPresentation.swift; sourceTree = "<group>"; };
+		E04CAB3FD1E0084912BCD6CA /* KimiModelPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KimiModelPreset.swift; sourceTree = "<group>"; };
 		E0885A392057C026891B6710 /* MenuBarPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPopover.swift; sourceTree = "<group>"; };
 		EAE9947D3E921908B8C043B8 /* RunModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunModel.swift; sourceTree = "<group>"; };
 		EBA361A75AD13345528DB75F /* AgentServerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentServerApp.swift; sourceTree = "<group>"; };
@@ -515,6 +517,7 @@
 				F0C5881B4E817C1D164D105A /* EnvironmentBooleanPreference.swift */,
 				58A8FB8AFBC635F63133224F /* GuidanceDiagnosticServerModels.swift */,
 				320DFB04CE4BF2487443296A /* GuidanceProposalServerModels.swift */,
+				E04CAB3FD1E0084912BCD6CA /* KimiModelPreset.swift */,
 				A8F58F7D3CBAE78227893670 /* LocalServerEndpoint.swift */,
 				2A0DD5054F6E523F22536A74 /* MainFooterUtilityDestination.swift */,
 				0FD3C4BF1D811F05450C0CF2 /* MenuBarDecisionsViewModel.swift */,
@@ -808,6 +811,7 @@
 				C8F1D0FD73B7C40F0A2EAF71 /* GuidedAgentCreationCopy.swift in Sources */,
 				EA2CE3675D53AF7C6C13C44E /* GuidedAgentCreationView.swift in Sources */,
 				73C2DE5F4E6148DE94C2F81C /* InfoTooltip.swift in Sources */,
+				8787E90CF8D726CECAB5B10B /* KimiModelPreset.swift in Sources */,
 				666BECD19A8137F064869C82 /* LaunchAtLoginManager.swift in Sources */,
 				365C560AC26B5543CB9C332A /* LocalServerEndpoint.swift in Sources */,
 				1195734A1AF3A169CE3AC328 /* MainFooterUtilityDestination.swift in Sources */,

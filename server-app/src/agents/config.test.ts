@@ -327,9 +327,9 @@ describe('AgentConfigSchema', () => {
     const result = AgentConfigSchema.parse({
       id: 'kimi-agent',
       name: 'Kimi Agent',
-      prompt: 'Run with Kimi K2.',
+      prompt: 'Run with Kimi K3.',
       executor: 'codex',
-      model: 'kimi-k2',
+      model: 'kimi-k3',
       provider: {
         base_url: 'https://api.moonshot.ai/v1',
         api_key: '${MOONSHOT_API_KEY}',

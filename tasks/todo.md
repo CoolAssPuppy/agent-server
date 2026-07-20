@@ -1,5 +1,20 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Kimi K3 preset
+
+- [x] Verify Moonshot's current K3 model ID and endpoint from official sources.
+- [x] Add failing behavior coverage for K3 configuration and version-aware run labels.
+- [x] Point the visible Kimi preset and sample agent at `kimi-k3` without embedding credentials.
+- [x] Keep existing K2 agents unchanged and label historical K2 and K3 runs accurately.
+- [x] Run full server and Swift verification, build the macOS app, simplify, commit, and relaunch.
+
+Review:
+
+- The Kimi preset now creates Codex-backed agents with model `kimi-k3`, Moonshot's existing API endpoint, and a `${MOONSHOT_API_KEY}` reference.
+- Existing K2 definitions are not rewritten. They remain editable as custom models, and run history distinguishes Kimi K2 from Kimi K3.
+- The server provider path already accepts arbitrary model IDs, so no new execution branch or credential path was added.
+- Verification: 1,237 server tests, 358 Swift behavior tests, TypeScript type-check, ESLint, server build, and the unsigned macOS build passed. One file-watch timing assertion failed once under the parallel run and passed with the full suite on immediate rerun.
+
 ## Interface copy restraint
 
 - [x] Add failing presentation coverage that forbids redundant instructional copy in agent settings.

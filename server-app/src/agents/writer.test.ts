@@ -135,12 +135,12 @@ custom_setting: keep-me
 
     const updated = await writer.update('briefing', {
       executor: 'codex',
-      model: 'kimi-k2',
+      model: 'kimi-k3',
       provider: { base_url: 'https://api.moonshot.ai/v1', api_key: '${MOONSHOT_API_KEY}' },
     });
 
     expect(updated.executor).toBe('codex');
-    expect(updated.model).toBe('kimi-k2');
+    expect(updated.model).toBe('kimi-k3');
     expect(updated.provider).toEqual({ base_url: 'https://api.moonshot.ai/v1', api_key: '${MOONSHOT_API_KEY}' });
 
     const content = await readFile(join(dir, 'briefing.yaml'), 'utf-8');
@@ -157,7 +157,7 @@ custom_setting: keep-me
 name: Kimi Agent
 prompt: Do the thing.
 executor: codex
-model: kimi-k2
+model: kimi-k3
 provider:
   base_url: https://api.moonshot.ai/v1
   api_key: \${MOONSHOT_API_KEY}

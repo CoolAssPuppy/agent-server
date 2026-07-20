@@ -468,7 +468,7 @@ struct AgentDetailDrawer: View {
         if lower.contains("opus") { return "Claude Opus" }
         if lower.contains("sonnet") { return "Claude Sonnet" }
         if lower.contains("haiku") { return "Claude Haiku" }
-        if lower.contains("kimi") { return "Kimi K2" }
+        if lower.contains("kimi") { return ModelDisplayName.format(model) }
         if lower.contains("gpt") || lower.contains("codex") { return "Codex" }
         return model
     }

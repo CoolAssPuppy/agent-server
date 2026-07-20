@@ -195,7 +195,7 @@ describe('executeAgent with Agent SDK', () => {
       ]));
 
       await executeAgent(createAgentConfig({
-        model: 'kimi-k2',
+        model: 'kimi-k3',
         provider: { base_url: 'https://api.moonshot.ai/anthropic', api_key: '${MOONSHOT_API_KEY}' },
       }), createMockReporter());
 
