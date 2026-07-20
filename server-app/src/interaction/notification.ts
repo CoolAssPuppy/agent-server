@@ -2,7 +2,7 @@ import type { AgentConfig } from '../agents/config.js';
 
 export type NotificationData = {
   agentName: string;
-  status: 'completed' | 'failed';
+  status: 'completed' | 'failed' | 'skipped';
   summary?: string;
   error?: string;
   turnCount?: number;
@@ -33,9 +33,17 @@ export function formatFailureNotification(agentName: string, error?: string): st
   return error ? `${base}\n\n${error}` : base;
 }
 
+export function formatSkippedNotification(agentName: string, reason?: string): string {
+  const base = `Agent "${agentName}" did not start.`;
+  return reason ? `${base}\n\n${reason}` : base;
+}
+
 export function formatPlainNotification(data: NotificationData): string {
   if (data.status === 'completed') {
     return formatCompletionNotification(data.agentName, data.summary);
+  }
+  if (data.status === 'skipped') {
+    return formatSkippedNotification(data.agentName, data.error);
   }
   return formatFailureNotification(data.agentName, data.error);
 }

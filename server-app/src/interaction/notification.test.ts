@@ -93,4 +93,15 @@ describe('formatPlainNotification', () => {
     expect(message).toContain('failed');
     expect(message).toContain('Timed out');
   });
+
+  it('describes skipped runs without calling them failures', () => {
+    const message = formatPlainNotification({
+      agentName: 'Daily Standup',
+      status: 'skipped',
+      error: 'Already running',
+    });
+    expect(message).toContain('did not start');
+    expect(message).toContain('Already running');
+    expect(message).not.toContain('failed');
+  });
 });

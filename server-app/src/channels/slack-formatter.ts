@@ -12,6 +12,8 @@ export function formatSlackNotification(data: NotificationData): string {
 
   if (data.status === 'completed') {
     lines.push(`✅ ${data.agentName} completed`);
+  } else if (data.status === 'skipped') {
+    lines.push(`${data.agentName} did not start`);
   } else {
     lines.push(`❌ ${data.agentName} failed`);
   }

@@ -2,6 +2,13 @@ import type { Channel } from './channel.js';
 import type { InteractionRequest } from '../interaction/schema.js';
 import type { NotificationData } from '../interaction/notification.js';
 
+export class ChannelUnavailableError extends Error {
+  constructor(channelName: string) {
+    super(`Channel not configured: ${channelName}`);
+    this.name = 'ChannelUnavailableError';
+  }
+}
+
 export class ChannelDispatcher {
   private channels = new Map<string, Channel>();
 
@@ -27,7 +34,7 @@ export class ChannelDispatcher {
     request: InteractionRequest,
   ): Promise<void> {
     const channel = this.resolveOrWarn(channelName, `interaction ${interactionId}`);
-    if (!channel) return;
+    if (!channel) throw new ChannelUnavailableError(channelName);
     await channel.send(interactionId, request);
   }
 

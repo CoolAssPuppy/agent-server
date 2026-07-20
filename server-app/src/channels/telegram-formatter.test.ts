@@ -124,6 +124,17 @@ describe('markdownToPlainText', () => {
 });
 
 describe('formatTelegramNotification', () => {
+  it('describes skipped runs without calling them failures', () => {
+    const result = formatTelegramNotification(makeNotification({
+      status: 'skipped',
+      error: 'Already running',
+    }));
+
+    expect(result).toContain('did not start');
+    expect(result).toContain('Already running');
+    expect(result).not.toContain('failed');
+  });
+
   describe('completed notifications', () => {
     it('includes a checkmark and the agent name', () => {
       const result = formatTelegramNotification(makeNotification());

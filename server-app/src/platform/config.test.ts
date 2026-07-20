@@ -23,6 +23,7 @@ describe('loadConfig', () => {
     expect(config.panelEnabled).toBe(true);
     expect(config.apiKey).toBeUndefined();
     expect(config.maxConcurrentRuns).toBe(8);
+    expect(config.maxTriggerDepth).toBe(10);
     expect(config.maxWebSocketClients).toBe(100);
     expect(config.runDbPath).toBe(join(homedir(), '.agent-server', 'runs.db'));
   });
@@ -57,6 +58,7 @@ describe('loadConfig', () => {
       AGENT_SERVER_PORT: '8080',
       AGENT_SERVER_HOST: '0.0.0.0',
       AGENT_SERVER_MAX_CONCURRENT_RUNS: '3',
+      AGENT_SERVER_MAX_TRIGGER_DEPTH: '4',
       AGENT_SERVER_MAX_WS_CLIENTS: '25',
       AGENT_SERVER_TELEMETRY_PROGRESS_MODE: 'batched',
       AGENT_SERVER_TELEMETRY_PROGRESS_SAMPLE_MS: '7000',
@@ -74,6 +76,7 @@ describe('loadConfig', () => {
     expect(config.port).toBe(8080);
     expect(config.host).toBe('0.0.0.0');
     expect(config.maxConcurrentRuns).toBe(3);
+    expect(config.maxTriggerDepth).toBe(4);
     expect(config.maxWebSocketClients).toBe(25);
     expect(config.telemetryProgressMode).toBe('batched');
     expect(config.telemetryProgressSampleMs).toBe(7000);

@@ -312,4 +312,31 @@ describe('ScheduleSync', () => {
     expect(fetchFn.mock.calls.length).toBeGreaterThanOrEqual(2);
     expect(fetchFn.mock.calls.length).toBeLessThanOrEqual(3);
   });
+
+  it('does not install timers or watchers after stop wins a pending startup', async () => {
+    writeAgent('a.yaml', 'id: x\nname: X\nprompt: p\n');
+    let finishFetch: ((response: Response) => void) | undefined;
+    const fetchFn = vi.fn<typeof fetch>(() => new Promise<Response>((resolve) => {
+      finishFetch = resolve;
+    }));
+    const sync = new ScheduleSync({
+      agentsDir: dir,
+      panelUrl: 'https://panel.example.com',
+      panelApiKey: 'test-key',
+      fetch: fetchFn,
+      fileChangeDebounceMs: 10,
+      hourlyIntervalMs: 10,
+    });
+
+    const startup = sync.start();
+    await vi.waitFor(() => expect(fetchFn).toHaveBeenCalledOnce());
+    sync.stop();
+    finishFetch?.(new Response('{}', { status: 200 }));
+    await startup;
+
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    sync.stop();
+
+    expect(fetchFn).toHaveBeenCalledOnce();
+  });
 });

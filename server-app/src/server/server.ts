@@ -26,12 +26,17 @@ import { RealtimeClient } from '../reporting/realtime-client.js';
 import { TriggerHandler } from '../execution/trigger-handler.js';
 import type { DecisionContext } from '../execution/decision-handler.js';
 import { shouldRun, hasMissedRun } from '../agents/scheduler.js';
-import { evaluateTriggers } from '../agents/triggers.js';
+import {
+  createTriggerChain,
+  evaluateSafeTriggers,
+  type TriggerChain,
+} from '../agents/triggers.js';
 import { FileWatcher, extractWatchConfigs } from '../agents/file-watcher.js';
 import { ChannelDispatcher } from '../channels/dispatcher.js';
 import { InteractionStore } from '../interaction/store.js';
 import { ConversationStore } from '../conversation/store.js';
 import { formatConversationHistory } from '../conversation/history-formatter.js';
+import type { ConversationMessage } from '../conversation/schema.js';
 import type { InteractionRequest } from '../interaction/schema.js';
 import { createTelegramChannel } from '../channels/telegram.js';
 import { createSlackChannel } from '../channels/slack.js';
@@ -54,9 +59,11 @@ import {
   type TriggerRunOptions,
 } from './run-lifecycle.js';
 import { buildServiceRegistry } from '../services/registry.js';
+import { startManagedServices, type ManagedService } from './managed-services.js';
 
 export type ServerInstance = {
-  stop: () => Promise<void> | void;
+  ready: Promise<void>;
+  stop: () => Promise<void>;
 };
 
 /**
@@ -70,6 +77,8 @@ const PENDING_REPLAY_INTERVAL_MS = 10 * 60 * 1000;
 const SHUTDOWN_DRAIN_TIMEOUT_MS = 10_000;
 /** Per-run wait inside the overall drain budget. */
 const SHUTDOWN_PER_RUN_TIMEOUT_MS = 3_000;
+const MANAGED_SERVICE_START_TIMEOUT_MS = 10_000;
+const MANAGED_SERVICE_STOP_TIMEOUT_MS = 10_000;
 
 const DEFAULT_INTERACTION_TIMEOUT_MS = 30 * 60 * 1000;
 const DEFAULT_CONVERSATION_TTL_MS = 30 * 60 * 1000;
@@ -134,9 +143,11 @@ export function validateNetworkExposure(host: string, apiKey?: string): void {
  */
 export function shouldSendChannelRunNotification(
   agent: AgentConfig,
-  status: 'completed' | 'failed',
+  status: 'completed' | 'failed' | 'skipped',
   channelName: string,
 ): boolean {
+  if (status === 'skipped') return true;
+
   const notification = agent.notification;
   if (!notification || notification.channel !== channelName) {
     return true;
@@ -151,7 +162,7 @@ export function shouldSendChannelRunNotification(
 
 export function shouldSendTelegramRunNotification(
   agent: AgentConfig,
-  status: 'completed' | 'failed',
+  status: 'completed' | 'failed' | 'skipped',
 ): boolean {
   return shouldSendChannelRunNotification(agent, status, 'telegram');
 }
@@ -167,6 +178,10 @@ export function chatKeyFromString(id: string): number {
     hash = ((hash << 5) + hash + id.charCodeAt(i)) | 0;
   }
   return Math.abs(hash);
+}
+
+export function buildConversationPromptSuffix(messages: ConversationMessage[]): string {
+  return formatConversationHistory(messages);
 }
 
 /**
@@ -192,6 +207,7 @@ export function shouldDispatchNotification(
   data: Pick<NotificationData, 'status' | 'summary'>,
 ): boolean {
   if (!agent.notification) return false;
+  if (data.status === 'skipped') return false;
 
   const shouldNotify = data.status === 'completed'
     ? agent.notification.on_complete
@@ -233,7 +249,10 @@ function createRunStore(runDbPath: string): RunStoreLike {
   }
 }
 
-export function startServer(config: ServerConfig, options?: StartServerOptions): ServerInstance {
+export function startServer(
+  config: ServerConfig,
+  options?: StartServerOptions,
+): ServerInstance {
   validateNetworkExposure(config.host, config.apiKey);
   const apiKey = config.apiKey?.trim();
   if (!apiKey) {
@@ -332,7 +351,12 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       expiresAt: new Date(Date.now() + timeoutMs),
     });
 
-    await channelDispatcher.dispatch(interactionId, agent.interaction.channel, interaction);
+    try {
+      await channelDispatcher.dispatch(interactionId, agent.interaction.channel, interaction);
+    } catch (error) {
+      interactionStore.remove(interactionId);
+      throw error;
+    }
   }
 
   function sendNotification(agent: AgentConfig, runId: string, data: Omit<NotificationData, 'agentName'>): void {
@@ -355,16 +379,29 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       .catch((err) => console.error(`[notification] Failed for ${agent.id}:`, err));
   }
 
-  async function fireDownstreamTriggers(sourceAgentId: string, status: 'completed' | 'failed'): Promise<void> {
+  async function fireDownstreamTriggers(
+    sourceAgent: AgentConfig,
+    status: 'completed' | 'failed' | 'skipped',
+    existingChain?: TriggerChain,
+  ): Promise<void> {
+    if (status === 'skipped') return;
+
     try {
       const agents = await discoverAgents(config.agentsDir);
-      const downstream = evaluateTriggers(agents, sourceAgentId, status);
-      for (const agent of downstream) {
-        console.log(`[triggers] ${status} ${sourceAgentId} -> triggering ${agent.id}`);
-        await checkedTriggerRunForAgent(agent, {}, 'chain');
+      const chain = existingChain ?? createTriggerChain(sourceAgent.id);
+      const downstream = evaluateSafeTriggers(
+        agents,
+        sourceAgent.id,
+        status,
+        chain,
+        config.maxTriggerDepth,
+      );
+      for (const target of downstream) {
+        console.log(`[triggers] ${status} ${sourceAgent.id} -> triggering ${target.agent.id}`);
+        await checkedTriggerRunForAgent(target.agent, { chain: target.chain }, 'chain');
       }
     } catch (err) {
-      console.error(`[triggers] Failed to evaluate triggers for ${sourceAgentId}:`, err);
+      console.error(`[triggers] Failed to evaluate triggers for ${sourceAgent.id}:`, err);
     }
   }
 
@@ -396,7 +433,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     resolveTimeoutMs: (agent) => resolveRunTimeoutMs(agent, config),
     notify: sendNotification,
     onInteraction: handleInteractionResult,
-    onTerminal: (agent, status) => fireDownstreamTriggers(agent.id, status),
+    onTerminal: fireDownstreamTriggers,
   });
 
   function triggerRunForAgent(agent: AgentConfig, options: TriggerRunOptions = {}): string {
@@ -699,19 +736,6 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       })
     : undefined;
 
-  // Run history lives in the durable local SQLite store, so there is nothing to
-  // seed from the panel on boot and no seed to wait on — the scheduler starts
-  // immediately. When a panel is configured, ScheduleSync / RealtimeClient /
-  // TriggerHandler still run as optional, config-gated integrations.
-  if (scheduleSync) void scheduleSync.start();
-  if (triggerHandler) triggerHandler.start();
-  if (realtimeClient) void realtimeClient.start();
-
-  void runDueAgents();
-  const interval: NodeJS.Timeout = setInterval(() => {
-    void runDueAgents();
-  }, config.checkIntervalMs);
-
   async function setupFileWatchers(): Promise<FileWatcher | null> {
     const agents = await discoverAgents(config.agentsDir);
     const watchConfigs = extractWatchConfigs(agents);
@@ -730,8 +754,6 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     watcher.start();
     return watcher;
   }
-
-  const fileWatcherPromise = setupFileWatchers();
 
   // Where a chat message routes to. Shared by Telegram and Slack so both drive
   // the same conversation/routing/notification flow; only the transport differs.
@@ -755,8 +777,8 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
         }
 
         conversationStore.addMessage(activeConv.id, 'user', text);
-        const history = formatConversationHistory(activeConv.messages.concat([{ role: 'user', content: text, createdAt: new Date() }]));
-        const contextSuffix = `${history}\n\nUser's latest message: ${text}`;
+        const updatedConversation = conversationStore.get(activeConv.id);
+        const contextSuffix = buildConversationPromptSuffix(updatedConversation?.messages ?? []);
 
         const runId = await checkedTriggerRunForAgent(agent, {
           promptSuffix: contextSuffix,
@@ -768,7 +790,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
             }
             const data: NotificationData = done.status === 'completed'
               ? { agentName: agent.name, status: 'completed', summary: done.summary }
-              : { agentName: agent.name, status: 'failed', error: done.error };
+              : { agentName: agent.name, status: done.status, error: done.error };
             if (shouldSendChannelRunNotification(agent, done.status, sink.channelName)) {
               void sink.notify(data);
             }
@@ -815,7 +837,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
           }
           const data: NotificationData = done.status === 'completed'
             ? { agentName: agent.name, status: 'completed', summary: done.summary }
-            : { agentName: agent.name, status: 'failed', error: done.error };
+            : { agentName: agent.name, status: done.status, error: done.error };
           if (shouldSendChannelRunNotification(agent, done.status, sink.channelName)) {
             void sink.notify(data);
           }
@@ -910,10 +932,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
     console.log('  Slack: connected');
   }
 
-  const telegramPromise = setupTelegram();
-  const slackPromise = setupSlack();
-
-  const expiryInterval = setInterval(() => {
+  const expireStaleState = (): void => {
     const expiredConvs = conversationStore.expireStale();
     if (expiredConvs.length > 0) {
       console.log(`[conversations] Expired ${expiredConvs.length} stale conversation(s)`);
@@ -931,27 +950,136 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
 
       void channelDispatcher.expireInteractions(expiredWithChannels);
     }
-  }, 60_000);
+  };
 
-  return {
-    stop: async () => {
-      if (interval) clearInterval(interval);
-      clearInterval(expiryInterval);
-      if (pendingReplayInterval) clearInterval(pendingReplayInterval);
-      scheduleSync?.stop();
-      triggerHandler?.stop();
-      realtimeClient?.stop();
-      await runLifecycle.drain({
-        overallTimeoutMs: SHUTDOWN_DRAIN_TIMEOUT_MS,
-        perRunTimeoutMs: SHUTDOWN_PER_RUN_TIMEOUT_MS,
+  let fileWatcher: FileWatcher | null = null;
+  const managedServices: ManagedService[] = [
+    ...(scheduleSync ? [{
+      name: 'schedule sync',
+      start: () => scheduleSync.start(),
+      stop: () => scheduleSync.stop(),
+    }] : []),
+    ...(triggerHandler ? [{
+      name: 'trigger handler',
+      start: () => triggerHandler.start(),
+      stop: () => triggerHandler.stop(),
+    }] : []),
+    ...(realtimeClient ? [{
+      name: 'realtime client',
+      start: () => realtimeClient.start(),
+      stop: () => realtimeClient.stop(),
+    }] : []),
+    {
+      name: 'file watcher',
+      start: async () => {
+        fileWatcher = await setupFileWatchers();
+      },
+      stop: () => fileWatcher?.stop(),
+    },
+    {
+      name: 'message channels',
+      start: async () => {
+        await setupTelegram();
+        await setupSlack();
+      },
+      stop: () => channelDispatcher.stopAll(),
+    },
+  ];
+
+  let stopManagedServices = async (): Promise<void> => {};
+  let interval: NodeJS.Timeout | undefined;
+  let expiryInterval: NodeJS.Timeout | undefined;
+  let isStopping = false;
+  let startupFailed = false;
+  let stopping: Promise<void> | undefined;
+
+  const ready = (async (): Promise<void> => {
+    try {
+      stopManagedServices = await startManagedServices(managedServices, {
+        startTimeoutMs: MANAGED_SERVICE_START_TIMEOUT_MS,
+        stopTimeoutMs: MANAGED_SERVICE_STOP_TIMEOUT_MS,
       });
-      httpServer.close();
-      void fileWatcherPromise.then((w) => w?.stop());
-      // Wait for both channel setups to finish registering before stopping all.
-      void Promise.allSettled([telegramPromise, slackPromise]).then(() => channelDispatcher.stopAll());
+      if (isStopping) {
+        await stopManagedServices();
+        return;
+      }
+
+      void runDueAgents().catch((error) => {
+        console.error(`[scheduler] Initial schedule check failed: ${toErrorMessage(error)}`);
+      });
+      interval = setInterval(() => {
+        void runDueAgents().catch((error) => {
+          console.error(`[scheduler] Schedule check failed: ${toErrorMessage(error)}`);
+        });
+      }, config.checkIntervalMs);
+      expiryInterval = setInterval(expireStaleState, 60_000);
+    } catch (error) {
+      startupFailed = true;
+      if (pendingReplayInterval) clearInterval(pendingReplayInterval);
+      await closeHttpServer(httpServer).catch(() => {});
       store.close();
       analysisRuntime.close();
+      throw error;
+    }
+  })();
+  // Preserve the synchronous API for existing library callers. Consumers that
+  // need readiness can await this same promise without risking an unhandled
+  // rejection when an older caller only uses stop().
+  void ready.catch(() => {});
+
+  const stop = async (): Promise<void> => {
+    if (stopping) return stopping;
+    stopping = (async () => {
+      isStopping = true;
+      await ready.catch(() => {});
+      if (startupFailed) return;
+
+      if (interval) clearInterval(interval);
+      if (expiryInterval) clearInterval(expiryInterval);
+      if (pendingReplayInterval) clearInterval(pendingReplayInterval);
+
+      const shutdownErrors: Error[] = [];
+      const attempt = async (operation: () => Promise<void> | void): Promise<void> => {
+        try {
+          await operation();
+        } catch (error) {
+          shutdownErrors.push(new Error(toErrorMessage(error)));
+        }
+      };
+
+      await attempt(() => closeHttpServer(httpServer));
+      await attempt(stopManagedServices);
+      await attempt(() => triggerHandler?.drain());
+      await attempt(() => runLifecycle.drain({
+        overallTimeoutMs: SHUTDOWN_DRAIN_TIMEOUT_MS,
+        perRunTimeoutMs: SHUTDOWN_PER_RUN_TIMEOUT_MS,
+      }));
+      await attempt(() => store.close());
+      await attempt(() => analysisRuntime.close());
+
       console.log('Agent Server stopped.');
-    },
+      if (shutdownErrors.length === 1) throw shutdownErrors[0];
+      if (shutdownErrors.length > 1) {
+        throw new AggregateError(shutdownErrors, 'Multiple server resources failed to stop');
+      }
+    })();
+    return stopping;
   };
+
+  return {
+    ready,
+    stop,
+  };
+}
+
+function closeHttpServer(server: ReturnType<typeof serve>): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.close((error?: Error) => {
+      if (error && (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
 }

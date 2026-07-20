@@ -4,6 +4,7 @@ import { makeAgent } from '../test-factories.js';
 import type { AgentConfig } from '../agents/config.js';
 import {
   chatKeyFromString,
+  buildConversationPromptSuffix,
   extractMcpNeedsAuthServers,
   shouldDispatchNotification,
   shouldSendChannelRunNotification,
@@ -29,9 +30,9 @@ describe('fireDownstreamTriggers', () => {
   }
 
   it('triggers downstream agents on completion', async () => {
-    const downstream = makeAgent({ id: 'downstream', on_complete: [{ agent: 'source' }] });
+    const downstream = makeAgent({ id: 'downstream' });
     const discover = vi.fn().mockResolvedValue([
-      makeAgent({ id: 'source' }),
+      makeAgent({ id: 'source', on_complete: [{ agent: 'downstream' }] }),
       downstream,
       makeAgent({ id: 'unrelated' }),
     ]);
@@ -44,9 +45,9 @@ describe('fireDownstreamTriggers', () => {
   });
 
   it('triggers on_failure agents when run fails', async () => {
-    const alerter = makeAgent({ id: 'alerter', on_failure: [{ agent: 'source' }] });
+    const alerter = makeAgent({ id: 'alerter' });
     const discover = vi.fn().mockResolvedValue([
-      makeAgent({ id: 'source' }),
+      makeAgent({ id: 'source', on_failure: [{ agent: 'alerter' }] }),
       alerter,
     ]);
     const trigger = vi.fn();
@@ -85,10 +86,13 @@ describe('fireDownstreamTriggers', () => {
   });
 
   it('triggers multiple downstream agents', async () => {
-    const d1 = makeAgent({ id: 'notifier', on_complete: [{ agent: 'source' }] });
-    const d2 = makeAgent({ id: 'reporter', on_complete: [{ agent: 'source' }] });
+    const d1 = makeAgent({ id: 'notifier' });
+    const d2 = makeAgent({ id: 'reporter' });
     const discover = vi.fn().mockResolvedValue([
-      makeAgent({ id: 'source' }),
+      makeAgent({
+        id: 'source',
+        on_complete: [{ agent: 'notifier' }, { agent: 'reporter' }],
+      }),
       d1,
       d2,
     ]);
@@ -150,6 +154,14 @@ describe('shouldSendChannelRunNotification', () => {
     // A different channel is unaffected.
     expect(shouldSendChannelRunNotification(agent, 'completed', 'telegram')).toBe(true);
   });
+
+  it('always closes the originating channel when a run is skipped', () => {
+    const agent = makeAgent({
+      notification: { channel: 'slack', on_complete: true, on_failure: true },
+    });
+
+    expect(shouldSendChannelRunNotification(agent, 'skipped', 'slack')).toBe(true);
+  });
 });
 
 describe('chatKeyFromString', () => {
@@ -160,6 +172,19 @@ describe('chatKeyFromString', () => {
 
   it('separates distinct channel ids', () => {
     expect(chatKeyFromString('D123')).not.toBe(chatKeyFromString('D999'));
+  });
+});
+
+describe('buildConversationPromptSuffix', () => {
+  it('includes the latest user message exactly once', () => {
+    const suffix = buildConversationPromptSuffix([
+      { role: 'user', content: 'First question', createdAt: new Date() },
+      { role: 'assistant', content: 'First answer', createdAt: new Date() },
+      { role: 'user', content: 'Latest question', createdAt: new Date() },
+    ]);
+
+    expect(suffix.match(/Latest question/g)).toHaveLength(1);
+    expect(suffix).toContain('[User]\nLatest question');
   });
 });
 
@@ -209,6 +234,13 @@ describe('shouldDispatchNotification', () => {
         summary: 'Found work.',
       }),
     ).toBe(false);
+  });
+
+  it('does not send configured failure notifications for a skipped overlap', () => {
+    expect(shouldDispatchNotification(notifyingAgent, {
+      status: 'skipped',
+      summary: 'Already running',
+    })).toBe(false);
   });
 
   it('returns false when on_complete is disabled even for real content', () => {

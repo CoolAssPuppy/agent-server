@@ -57,6 +57,7 @@ export const ServerConfigSchema = z.object({
   apiKey: z.string().min(16).optional(),
   catchUp: z.boolean().default(false),
   maxConcurrentRuns: z.number().int().positive().default(8),
+  maxTriggerDepth: z.number().int().positive().default(10),
   maxWebSocketClients: z.number().int().positive().default(100),
   // Default wall-clock timeout applied to every run that does not declare its
   // own `timeout` field. 30 minutes covers every sample agent; agents with
@@ -111,6 +112,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     catchUp: env.AGENT_SERVER_CATCH_UP === 'true',
     maxConcurrentRuns: env.AGENT_SERVER_MAX_CONCURRENT_RUNS
       ? Number(env.AGENT_SERVER_MAX_CONCURRENT_RUNS)
+      : undefined,
+    maxTriggerDepth: env.AGENT_SERVER_MAX_TRIGGER_DEPTH
+      ? Number(env.AGENT_SERVER_MAX_TRIGGER_DEPTH)
       : undefined,
     maxWebSocketClients: env.AGENT_SERVER_MAX_WS_CLIENTS
       ? Number(env.AGENT_SERVER_MAX_WS_CLIENTS)

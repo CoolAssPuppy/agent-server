@@ -36,6 +36,10 @@ export class InteractionStore {
     }
   }
 
+  remove(id: string): void {
+    this.interactions.delete(id);
+  }
+
   expireStale(): string[] {
     return sweepExpired(this.interactions, new Date(), {
       isActive: (i) => i.status === 'pending',

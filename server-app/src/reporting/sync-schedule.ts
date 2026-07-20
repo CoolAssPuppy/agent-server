@@ -146,6 +146,7 @@ export class ScheduleSync {
   async start(): Promise<void> {
     this.stopped = false;
     await this.runSync();
+    if (this.stopped) return;
     this.startFileWatcher();
     this.startHourlyFallback();
   }

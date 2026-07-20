@@ -46,6 +46,8 @@ type ReporterConfig = {
   progressSampleMs?: number;
   maxProgressEntries?: number;
   includeProgressMetadata?: boolean;
+  /** Maximum duration for one panel HTTP request. */
+  requestTimeoutMs?: number;
   serverId?: string;
   conversationId?: string;
   /** Override the pending-terminals directory (tests only). */
@@ -55,6 +57,7 @@ type ReporterConfig = {
 const DEFAULT_HEARTBEAT_MS = 60_000;
 const DEFAULT_PROGRESS_SAMPLE_MS = 5_000;
 const DEFAULT_MAX_PROGRESS_ENTRIES = 50;
+const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 const TERMINAL_STATES: ReadonlySet<string> = new Set(['completed', 'failed', 'canceled', 'rejected']);
 const TERMINAL_RETRY_COUNT = 3;
 const TERMINAL_RETRY_BASE_MS = 500;
@@ -70,6 +73,34 @@ function isTerminalAcceptedStatus(response: { ok: boolean; status: number }): bo
   return response.ok || response.status === 409;
 }
 
+async function fetchWithTimeout(
+  fetchImpl: typeof globalThis.fetch,
+  input: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  if (timeoutMs <= 0) return fetchImpl(input, init);
+
+  const controller = new AbortController();
+  let handle: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    handle = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`Panel request exceeded timeout of ${timeoutMs}ms`));
+    }, timeoutMs);
+    handle.unref?.();
+  });
+
+  try {
+    return await Promise.race([
+      fetchImpl(input, { ...init, signal: controller.signal }),
+      timeout,
+    ]);
+  } finally {
+    if (handle) clearTimeout(handle);
+  }
+}
+
 export class TelemetryReporter {
   private readonly config: Required<Omit<ReporterConfig, 'fetch' | 'heartbeatMs' | 'serverId' | 'conversationId' | 'pendingTerminalsDir'>> & {
     fetch: typeof globalThis.fetch;
@@ -78,6 +109,7 @@ export class TelemetryReporter {
     progressSampleMs: number;
     maxProgressEntries: number;
     includeProgressMetadata: boolean;
+    requestTimeoutMs: number;
     serverId?: string;
     conversationId?: string;
     pendingTerminalsDir?: string;
@@ -100,6 +132,7 @@ export class TelemetryReporter {
       progressSampleMs: config.progressSampleMs ?? DEFAULT_PROGRESS_SAMPLE_MS,
       maxProgressEntries: config.maxProgressEntries ?? DEFAULT_MAX_PROGRESS_ENTRIES,
       includeProgressMetadata: config.includeProgressMetadata ?? false,
+      requestTimeoutMs: config.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
     };
   }
 
@@ -316,15 +349,18 @@ export class TelemetryReporter {
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        const response = await this.config.fetch(this.config.endpoint, {
+        const response = await fetchWithTimeout(this.config.fetch, this.config.endpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${this.config.apiKey}`,
           },
           body: JSON.stringify(body),
-        });
+        }, this.config.requestTimeoutMs);
         if (isTerminalAcceptedStatus(response)) {
+          if (TERMINAL_STATES.has(event.state)) {
+            await removePendingTerminal(this.config.runId, this.config.pendingTerminalsDir);
+          }
           console.log(`[telemetry] Successfully sent ${event.state} event for "${this.config.agentName}" (${response.status})`);
           return;
         }
@@ -348,6 +384,11 @@ export class TelemetryReporter {
     }
 
     if (TERMINAL_STATES.has(event.state)) {
+      await persistPendingTerminal({
+        runId: this.config.runId,
+        endpoint: this.config.endpoint,
+        body,
+      }, this.config.pendingTerminalsDir);
       this.scheduleDeferredRetry(body);
     }
   }
@@ -370,15 +411,18 @@ export class TelemetryReporter {
       this.deferredRetryTimer = null;
       if (this.stopped) return;
       try {
-        const response = await this.config.fetch(this.config.endpoint, {
+        const response = await fetchWithTimeout(this.config.fetch, this.config.endpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${this.config.apiKey}`,
           },
           body: JSON.stringify(body),
-        });
-        if (isTerminalAcceptedStatus(response)) return;
+        }, this.config.requestTimeoutMs);
+        if (isTerminalAcceptedStatus(response)) {
+          await removePendingTerminal(this.config.runId, this.config.pendingTerminalsDir);
+          return;
+        }
         console.error(
           `[telemetry] Deferred retry ${attempt}/${DEFERRED_RETRY_COUNT} for ` +
           `${body.state} "${this.config.agentName}": HTTP ${response.status}`
@@ -394,7 +438,7 @@ export class TelemetryReporter {
     }, delayMs);
 
     // Don't block process exit on deferred retries. The pending-terminal file
-    // (written when all retries exhaust) is the durable fallback.
+    // was written before this timer was scheduled and is the durable fallback.
     if (typeof timer.unref === 'function') timer.unref();
     this.deferredRetryTimer = timer;
   }
@@ -456,6 +500,16 @@ async function persistPendingTerminal(entry: PendingTerminal, dir?: string): Pro
   }
 }
 
+async function removePendingTerminal(runId: string, dir?: string): Promise<void> {
+  try {
+    await unlink(join(dir ?? PENDING_TERMINALS_DIR, `${runId}.json`));
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      console.error(`[telemetry] Failed to remove pending terminal for ${runId}: ${toErrorMessage(err)}`);
+    }
+  }
+}
+
 export type ReplayOptions = {
   fetchImpl?: typeof globalThis.fetch;
   /** Resolve the current panel API key. Required; replay is a no-op if it returns undefined. */
@@ -465,6 +519,8 @@ export type ReplayOptions = {
    * that share the same origin and match the expected run-status route.
    */
   panelUrl?: string;
+  /** Maximum duration for one replay HTTP request. */
+  requestTimeoutMs?: number;
 };
 
 function isValidReplayEndpoint(endpoint: string, panelUrl?: string): boolean {
@@ -515,14 +571,14 @@ export async function replayPendingTerminals(
         console.error(`[telemetry] Cannot replay ${entry.runId}: no API key available (set AGENT_SERVER_PANEL_API_KEY)`);
         continue;
       }
-      const response = await fetchImpl(entry.endpoint, {
+      const response = await fetchWithTimeout(fetchImpl, entry.endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify(entry.body),
-      });
+      }, options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS);
       if (isTerminalAcceptedStatus(response)) {
         await unlink(path);
         console.log(`[telemetry] Replayed pending terminal ${entry.runId} (${response.status})`);

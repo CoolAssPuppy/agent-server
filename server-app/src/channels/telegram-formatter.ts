@@ -107,6 +107,8 @@ export function formatTelegramNotification(data: NotificationData): string {
 
   if (data.status === 'completed') {
     lines.push(`\u2705 ${data.agentName} completed`);
+  } else if (data.status === 'skipped') {
+    lines.push(`${data.agentName} did not start`);
   } else {
     lines.push(`\u274C ${data.agentName} failed`);
   }

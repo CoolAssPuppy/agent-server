@@ -499,6 +499,8 @@ final class StatusMonitor: ObservableObject {
                     )
                 }
                 poll()
+            case .runSkipped:
+                poll()
             case .mcpStatus:
                 let needsAuth = event.mcpNeedsAuthServers ?? []
                 if !needsAuth.isEmpty {
@@ -553,6 +555,7 @@ enum ProgressEventType: String, Decodable {
     case runProgress = "run_progress"
     case runCompleted = "run_completed"
     case runFailed = "run_failed"
+    case runSkipped = "run_skipped"
     case mcpStatus = "mcp_status"
     case unknown
 

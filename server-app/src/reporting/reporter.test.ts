@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
-import { mkdtempSync, rmSync } from 'fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { TelemetryReporter, type StatusEvent } from './reporter.js';
@@ -18,6 +18,7 @@ function makeReporter(overrides: {
   heartbeatMs?: number;
   progressMode?: 'live' | 'batched';
   progressSampleMs?: number;
+  requestTimeoutMs?: number;
 } = {}) {
   return new TelemetryReporter({
     runId: 'run-123',
@@ -28,6 +29,7 @@ function makeReporter(overrides: {
     heartbeatMs: overrides.heartbeatMs ?? 0,
     progressMode: overrides.progressMode,
     progressSampleMs: overrides.progressSampleMs,
+    requestTimeoutMs: overrides.requestTimeoutMs,
     pendingTerminalsDir: testPendingDir,
   });
 }
@@ -62,6 +64,18 @@ describe('TelemetryReporter', () => {
     const body = JSON.parse(options.body) as StatusEvent;
     expect(body.state).toBe('working');
     expect(body.agent).toBe('Test Agent');
+  });
+
+  it('bounds a panel request that never settles', async () => {
+    const mockFetch = vi.fn(() => new Promise<Response>(() => {}));
+    const reporter = makeReporter({ fetch: mockFetch as typeof fetch, requestTimeoutMs: 100 });
+
+    const startPromise = reporter.start();
+    await vi.advanceTimersByTimeAsync(100);
+    await expect(startPromise).resolves.toBeUndefined();
+
+    const options = mockFetch.mock.calls[0]?.[1];
+    expect(options?.signal?.aborted).toBe(true);
   });
 
   it('sends a completed event with full execution data', async () => {
@@ -614,6 +628,34 @@ describe('TelemetryReporter', () => {
 
     await vi.advanceTimersByTimeAsync(200_000);
     expect(mockFetch).toHaveBeenCalledTimes(4);
+  });
+
+  it('persists a terminal event before stop cancels deferred retries', async () => {
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 200 })
+      .mockRejectedValue(new Error('panel unavailable'));
+    const reporter = makeReporter({ fetch: mockFetch });
+    await reporter.start();
+
+    const completePromise = reporter.complete({
+      summary: 'Durable result',
+      output: {},
+      usage: {},
+      turnCount: 1,
+      toolsUsed: [],
+      filesRead: [],
+      filesWritten: [],
+      commandsRun: [],
+    });
+    await vi.advanceTimersByTimeAsync(3_000);
+    await completePromise;
+    reporter.stop();
+
+    const pendingFile = join(testPendingDir, 'run-123.json');
+    expect(existsSync(pendingFile)).toBe(true);
+    const pending = JSON.parse(readFileSync(pendingFile, 'utf8')) as { body: StatusEvent };
+    expect(pending.body.state).toBe('completed');
+    expect(pending.body.result?.summary).toBe('Durable result');
   });
 
   it('stops heartbeat when stop is called', async () => {

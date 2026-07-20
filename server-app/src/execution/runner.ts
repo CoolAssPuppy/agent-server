@@ -53,8 +53,9 @@ type RunAgentOptions = {
   buildDecisionContext?: (runId: string) => DecisionContext | undefined;
   /**
    * Maximum wall-clock duration for the run in milliseconds. When elapsed,
-   * the run is aborted, marked failed with code `run_timeout`, and the lock
-   * is released. Undefined disables the timer (back-compat default).
+   * the run is aborted and marked failed with code `run_timeout`. The lock is
+   * retained until an in-flight executor actually terminates. Undefined
+   * disables the timer (back-compat default).
    */
   timeoutMs?: number;
   /**
@@ -124,31 +125,56 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
     ? { ...agent, prompt: `${agent.prompt}\n\nUser context (sanitized):\n${contextualSuffix}` }
     : agent;
 
+  let executionPromise: Promise<ExecutionResult> | undefined;
+  let isExecutionSettled = true;
+  let isTimedOut = false;
+  let shouldReleaseLock = true;
+
   try {
-    await reporter.start();
+    const runWork = (async (): Promise<ExecutionResult> => {
+      await reporter.start();
+      if (isTimedOut) throw createTimeoutError(timeoutMs ?? 0);
 
-    if (injectionAssessment?.suspicious) {
-      await reporter.progress(
-        `Security warning: suspicious user context detected (${injectionAssessment.reasons.join(', ')})`,
-        {
-          security_event: 'prompt_injection_suspected',
-          score: injectionAssessment.score,
-          reasons: injectionAssessment.reasons,
-        },
-      );
+      if (injectionAssessment?.suspicious) {
+        await reporter.progress(
+          `Security warning: suspicious user context detected (${injectionAssessment.reasons.join(', ')})`,
+          {
+            security_event: 'prompt_injection_suspected',
+            score: injectionAssessment.score,
+            reasons: injectionAssessment.reasons,
+          },
+        );
+        if (isTimedOut) throw createTimeoutError(timeoutMs ?? 0);
 
-      if (strictPromptInput) {
-        throw new Error('Rejected suspicious prompt suffix by AGENT_SERVER_PROMPT_INJECTION_STRICT');
+        if (strictPromptInput) {
+          throw new Error('Rejected suspicious prompt suffix by AGENT_SERVER_PROMPT_INJECTION_STRICT');
+        }
       }
-    }
 
-    const decisionContext = buildDecisionContext?.(runId);
+      const decisionContext = buildDecisionContext?.(runId);
+      isExecutionSettled = false;
+      executionPromise = execute(effectiveAgent, reporter, { runId, decisionContext });
+      let result: ExecutionResult;
+      try {
+        result = await executionPromise;
+      } finally {
+        isExecutionSettled = true;
+      }
+
+      // The timeout path already emitted its terminal state. An executor that
+      // honored cancellation late must not emit a second terminal event.
+      if (isTimedOut) return result;
+
+      assertRequiredOutput(agent, result, { mode: options.mode });
+      return result;
+    })();
+
     const result = await raceWithTimeout(
-      execute(effectiveAgent, reporter, { runId, decisionContext }),
+      runWork,
       timeoutMs,
       abortController,
+      () => { isTimedOut = true; },
     );
-    assertRequiredOutput(agent, result, { mode: options.mode });
     await reporter.complete(result);
     reporter.stop();
     return { runId, status: 'completed', result };
@@ -161,6 +187,14 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
         await reporter.fail(error);
       }
       reporter.stop();
+
+      if (executionPromise && !isExecutionSettled) {
+        shouldReleaseLock = false;
+        void executionPromise.then(
+          () => releaseLock(lockDir, agent.id),
+          () => releaseLock(lockDir, agent.id),
+        );
+      }
       return { runId, status: 'failed', error: error.message, code: RUN_TIMEOUT_CODE };
     }
     if (isAbortError(error)) {
@@ -181,7 +215,7 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
       code: error instanceof OutputContractError ? error.code : undefined,
     };
   } finally {
-    releaseLock(lockDir, agent.id);
+    if (shouldReleaseLock) releaseLock(lockDir, agent.id);
   }
 }
 
@@ -189,6 +223,7 @@ async function raceWithTimeout<T>(
   work: Promise<T>,
   timeoutMs: number | undefined,
   abortController: AbortController | undefined,
+  onTimeout?: () => void,
 ): Promise<T> {
   if (!timeoutMs || timeoutMs <= 0) return work;
 
@@ -196,6 +231,7 @@ async function raceWithTimeout<T>(
   const timeoutPromise = new Promise<never>((_, reject) => {
     handle = setTimeout(() => {
       const error = createTimeoutError(timeoutMs);
+      onTimeout?.();
       try {
         abortController?.abort(error);
       } catch {

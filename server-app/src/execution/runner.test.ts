@@ -620,6 +620,106 @@ describe('runAgent', () => {
     expect(stop).toHaveBeenCalledOnce();
   });
 
+  it('keeps the agent locked after timeout until the executor has terminated', async () => {
+    const lockDir = createTempDir('runner');
+    dirs.push(lockDir);
+    const { isLocked } = await import('./lockfile.js');
+
+    let finishExecution: ((result: ReturnType<typeof makeExecutionResult>) => void) | undefined;
+    const execute = vi.fn().mockImplementation(() => new Promise((resolve) => {
+      finishExecution = resolve;
+    }));
+
+    const result = await runAgent({
+      agent: makeAgent(),
+      lockDir,
+      timeoutMs: 25,
+      execute,
+      createReporter: () => ({
+        start: noop,
+        progress: noop,
+        complete: noop,
+        fail: noop,
+        cancel: noop,
+        stop: () => {},
+      }),
+    });
+
+    expect(result.code).toBe('run_timeout');
+    expect(isLocked(lockDir, 'test-agent')).toBe(true);
+
+    const overlappingRun = await runAgent({
+      agent: makeAgent(),
+      lockDir,
+      execute: async () => makeExecutionResult(),
+      createReporter: () => ({
+        start: noop,
+        progress: noop,
+        complete: noop,
+        fail: noop,
+        cancel: noop,
+        stop: () => {},
+      }),
+    });
+    expect(overlappingRun.code).toBe('lock_contention');
+
+    finishExecution?.(makeExecutionResult());
+    await vi.waitFor(() => expect(isLocked(lockDir, 'test-agent')).toBe(false));
+  });
+
+  it('applies the run timeout while reporter startup is pending', async () => {
+    const lockDir = createTempDir('runner');
+    dirs.push(lockDir);
+    const cancel = vi.fn();
+    const execute = vi.fn();
+    let finishStartup: (() => void) | undefined;
+
+    const result = await runAgent({
+      agent: makeAgent(),
+      lockDir,
+      timeoutMs: 25,
+      execute,
+      createReporter: () => ({
+        start: () => new Promise<void>((resolve) => { finishStartup = resolve; }),
+        progress: noop,
+        complete: noop,
+        fail: noop,
+        cancel,
+        stop: () => {},
+      }),
+    });
+
+    expect(result.code).toBe('run_timeout');
+    expect(execute).not.toHaveBeenCalled();
+    expect(cancel).toHaveBeenCalledWith(expect.stringMatching(/timeout/i), 'run_timeout');
+
+    finishStartup?.();
+    await Promise.resolve();
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('does not relabel accepted execution when completion reporting outlasts the run timeout', async () => {
+    const lockDir = createTempDir('runner');
+    dirs.push(lockDir);
+
+    const result = await runAgent({
+      agent: makeAgent(),
+      lockDir,
+      timeoutMs: 25,
+      execute: async () => makeExecutionResult({ summary: 'Accepted result' }),
+      createReporter: () => ({
+        start: noop,
+        progress: noop,
+        complete: () => new Promise<void>((resolve) => setTimeout(resolve, 50)),
+        fail: noop,
+        cancel: noop,
+        stop: noop,
+      }),
+    });
+
+    expect(result).toMatchObject({ status: 'completed' });
+  });
+
   it('aborts the provided AbortController when timeout fires', async () => {
     const lockDir = createTempDir('runner');
     dirs.push(lockDir);

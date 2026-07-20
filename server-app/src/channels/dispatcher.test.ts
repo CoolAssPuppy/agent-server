@@ -56,7 +56,7 @@ describe('ChannelDispatcher', () => {
     expect(channel.sendCalls[0].request).toBe(request);
   });
 
-  it('logs warning for unknown channel', async () => {
+  it('rejects interaction delivery for an unknown channel', async () => {
     const dispatcher = new ChannelDispatcher();
     const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
@@ -65,7 +65,8 @@ describe('ChannelDispatcher', () => {
       freeText: true,
     };
 
-    await dispatcher.dispatch('int-1', 'unknown', request);
+    await expect(dispatcher.dispatch('int-1', 'unknown', request))
+      .rejects.toThrow('Channel not configured: unknown');
     expect(spy).toHaveBeenCalledWith(expect.stringContaining('unknown'));
     spy.mockRestore();
   });

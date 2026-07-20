@@ -705,6 +705,7 @@ The CLI loads `~/.agent-server/.env` at startup. Shell environment variables tak
 | `AGENT_SERVER_LOCATION` | | Path to the agent-server repo root. Used by the macOS app to find the server. |
 | `AGENT_SERVER_CATCH_UP` | `false` | Resume missed scheduled agents after sleep/wake |
 | `AGENT_SERVER_MAX_CONCURRENT_RUNS` | `8` | Maximum concurrent running agents before new triggers are rejected |
+| `AGENT_SERVER_MAX_TRIGGER_DEPTH` | `10` | Maximum number of outgoing agent-to-agent trigger edges in one branch |
 | `AGENT_SERVER_MAX_WS_CLIENTS` | `100` | Maximum simultaneous WebSocket clients |
 | `AGENT_SERVER_DEFAULT_MAX_TURNS` | `20` | Default `max_turns` used when an agent omits `max_turns` |
 | `AGENT_SERVER_PROMPT_INJECTION_GUARD` | `true` | Wrap untrusted user context in guarded delimiters and policy instructions before execution |

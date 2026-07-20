@@ -28,7 +28,7 @@ program
 program
   .command('start')
   .description('Start the server with HTTP API and agent scheduler')
-  .action(() => {
+  .action(async () => {
     // Self-heal on every launch: idempotently ensure ~/.agent-server/
     // has its directories, .env scaffold, and sample agents. This makes
     // the macOS app work out of the box on first install without the
@@ -67,6 +67,13 @@ program
 
     process.on('SIGINT', () => { void shutdown(); });
     process.on('SIGTERM', () => { void shutdown(); });
+
+    try {
+      await server.ready;
+    } catch (error) {
+      await server.stop();
+      throw error;
+    }
   });
 
 program

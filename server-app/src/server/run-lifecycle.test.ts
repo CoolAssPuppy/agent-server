@@ -19,6 +19,7 @@ function createHarness(
     summary: 'Created report',
     filesWritten: ['/tmp/report.md'],
   }),
+  onInteraction = vi.fn(),
 ) {
   const store = new RunStore();
   const broadcaster = new ProgressBroadcaster();
@@ -54,11 +55,20 @@ function createHarness(
       return { runId: options.runId, status: 'completed', result };
     }),
     notify,
-    onInteraction: vi.fn(),
+    onInteraction,
     onTerminal,
   });
 
-  return { lifecycle, store, events, notify, onTerminal, createReporter, executionResult };
+  return {
+    lifecycle,
+    store,
+    events,
+    notify,
+    onTerminal,
+    onInteraction,
+    createReporter,
+    executionResult,
+  };
 }
 
 describe('run lifecycle', () => {
@@ -79,7 +89,7 @@ describe('run lifecycle', () => {
       status: 'completed',
       summary: 'Created report',
     }));
-    expect(onTerminal).toHaveBeenCalledWith(agent, 'completed');
+    expect(onTerminal).toHaveBeenCalledWith(agent, 'completed', undefined);
   });
 
   it('keeps safe tests isolated from downstream triggers', async () => {
@@ -128,7 +138,22 @@ describe('run lifecycle', () => {
       status: 'failed',
       error: 'Connection unavailable',
     });
-    expect(onTerminal).toHaveBeenCalledWith(agent, 'failed');
+    expect(onTerminal).toHaveBeenCalledWith(agent, 'failed', undefined);
+  });
+
+  it('forwards trigger ancestry through the terminal hook', async () => {
+    const { lifecycle, onTerminal } = createHarness();
+    const agent = makeAgent({ id: 'downstream' });
+    const chain = {
+      id: 'chain-1',
+      visitedAgentIds: ['source', 'downstream'],
+      depth: 1,
+    };
+
+    const runId = lifecycle.trigger(agent, { chain });
+    await lifecycle.waitForTerminal(runId);
+
+    expect(onTerminal).toHaveBeenCalledWith(agent, 'completed', chain);
   });
 
   it('does not record executor completion until the runner accepts the result', async () => {
@@ -151,15 +176,17 @@ describe('run lifecycle', () => {
     );
   });
 
-  it('records why a concurrent run was skipped', async () => {
+  it('closes every lifecycle hook when a concurrent run is skipped', async () => {
     const skipped: RunResult = {
       status: 'skipped',
       code: 'lock_contention',
       error: 'This run was skipped because Test Agent is already running.',
     };
-    const { lifecycle, store } = createHarness(skipped);
+    const { lifecycle, store, events, notify, onTerminal } = createHarness(skipped);
+    const onDone = vi.fn();
+    const agent = makeAgent();
 
-    const runId = lifecycle.trigger(makeAgent());
+    const runId = lifecycle.trigger(agent, { onDone });
     await lifecycle.waitForTerminal(runId);
 
     expect(store.get(runId)).toMatchObject({
@@ -168,6 +195,75 @@ describe('run lifecycle', () => {
       summary: 'This run was skipped because Test Agent is already running.',
       error: 'This run was skipped because Test Agent is already running.',
     });
+    expect(events).toContainEqual(expect.objectContaining({
+      type: 'run_skipped',
+      runId,
+      code: 'lock_contention',
+    }));
+    expect(notify).toHaveBeenCalledWith(agent, runId, {
+      status: 'skipped',
+      error: 'This run was skipped because Test Agent is already running.',
+    });
+    expect(onDone).toHaveBeenCalledWith({
+      status: 'skipped',
+      error: 'This run was skipped because Test Agent is already running.',
+    });
+    expect(onTerminal).toHaveBeenCalledWith(agent, 'skipped', undefined);
+  });
+
+  it('waits for interaction delivery before marking a run complete', async () => {
+    let finishDelivery: (() => void) | undefined;
+    const onInteraction = vi.fn(() => new Promise<void>((resolve) => {
+      finishDelivery = resolve;
+    }));
+    const result = makeExecutionResult({
+      interaction: { message: 'Choose a time', options: [], freeText: true },
+    });
+    const { lifecycle, store, events } = createHarness(undefined, result, onInteraction);
+    const agent = makeAgent({
+      interaction: { channel: 'telegram', on_reply: 'reply-agent', timeout: '30m' },
+    });
+
+    const runId = lifecycle.trigger(agent);
+    await vi.waitFor(() => expect(onInteraction).toHaveBeenCalled());
+
+    expect(store.get(runId)?.status).toBe('running');
+    expect(events.map((event) => event.type)).toEqual(['run_started']);
+
+    finishDelivery?.();
+    await lifecycle.waitForTerminal(runId);
+
+    expect(store.get(runId)?.status).toBe('completed');
+    expect(events.map((event) => event.type)).toEqual(['run_started', 'run_completed']);
+  });
+
+  it('records interaction delivery rejection as a terminal failure', async () => {
+    const onInteraction = vi.fn().mockRejectedValue(new Error('Telegram unavailable'));
+    const result = makeExecutionResult({
+      interaction: { message: 'Choose a time', options: [], freeText: true },
+    });
+    const { lifecycle, store, events, notify, onTerminal } = createHarness(
+      undefined,
+      result,
+      onInteraction,
+    );
+    const agent = makeAgent({
+      interaction: { channel: 'telegram', on_reply: 'reply-agent', timeout: '30m' },
+    });
+
+    const runId = lifecycle.trigger(agent);
+    await lifecycle.waitForTerminal(runId);
+
+    expect(store.get(runId)).toMatchObject({
+      status: 'failed',
+      error: 'Telegram unavailable',
+    });
+    expect(events.map((event) => event.type)).toEqual(['run_started', 'run_failed']);
+    expect(notify).toHaveBeenCalledWith(agent, runId, {
+      status: 'failed',
+      error: 'Telegram unavailable',
+    });
+    expect(onTerminal).toHaveBeenCalledWith(agent, 'failed', undefined);
   });
 
   it('preserves agent telemetry context for reporter creation', async () => {

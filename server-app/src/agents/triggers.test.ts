@@ -1,63 +1,149 @@
-import { describe, it, expect } from 'vitest';
-import { evaluateTriggers } from './triggers.js';
+import { describe, expect, it } from 'vitest';
 import { makeAgent } from '../test-factories.js';
+import {
+  createTriggerChain,
+  evaluateSafeTriggers,
+  evaluateTriggers,
+} from './triggers.js';
 
-describe('evaluateTriggers', () => {
-  it('returns agents triggered by on_complete of source agent', () => {
+describe('outgoing agent triggers', () => {
+  it('resolves the targets declared by the completed source agent', () => {
     const agents = [
-      makeAgent({ id: 'source' }),
-      makeAgent({ id: 'downstream', on_complete: [{ agent: 'source' }] }),
+      makeAgent({ id: 'source', on_complete: [{ agent: 'downstream' }] }),
+      makeAgent({ id: 'downstream' }),
       makeAgent({ id: 'unrelated' }),
     ];
 
-    const triggered = evaluateTriggers(agents, 'source', 'completed');
-    expect(triggered.map((a) => a.id)).toEqual(['downstream']);
+    expect(evaluateTriggers(agents, 'source', 'completed').map((agent) => agent.id))
+      .toEqual(['downstream']);
   });
 
-  it('returns empty array when no triggers match', () => {
+  it('uses the source agent failure targets only after failure', () => {
     const agents = [
-      makeAgent({ id: 'source' }),
-      makeAgent({ id: 'other' }),
+      makeAgent({
+        id: 'source',
+        on_complete: [{ agent: 'success-handler' }],
+        on_failure: [{ agent: 'failure-handler' }],
+      }),
+      makeAgent({ id: 'success-handler' }),
+      makeAgent({ id: 'failure-handler' }),
     ];
 
-    const triggered = evaluateTriggers(agents, 'source', 'completed');
-    expect(triggered).toEqual([]);
+    expect(evaluateTriggers(agents, 'source', 'failed').map((agent) => agent.id))
+      .toEqual(['failure-handler']);
   });
 
-  it('does not trigger on failure by default', () => {
+  it('ignores missing and disabled targets', () => {
     const agents = [
-      makeAgent({ id: 'downstream', on_complete: [{ agent: 'source' }] }),
+      makeAgent({
+        id: 'source',
+        on_complete: [{ agent: 'missing' }, { agent: 'disabled' }],
+      }),
+      makeAgent({ id: 'disabled', enabled: false }),
     ];
 
-    const triggered = evaluateTriggers(agents, 'source', 'failed');
-    expect(triggered).toEqual([]);
+    expect(evaluateTriggers(agents, 'source', 'completed')).toEqual([]);
   });
 
-  it('triggers on failure when on_failure is specified', () => {
-    const agents = [
-      makeAgent({ id: 'alerter', on_failure: [{ agent: 'source' }] }),
-    ];
-
-    const triggered = evaluateTriggers(agents, 'source', 'failed');
-    expect(triggered.map((a) => a.id)).toEqual(['alerter']);
+  it('returns no targets when the source agent cannot be found', () => {
+    expect(evaluateTriggers([makeAgent({ id: 'other' })], 'missing', 'completed'))
+      .toEqual([]);
   });
 
-  it('supports multiple trigger sources', () => {
+  it('deduplicates repeated target references while preserving declaration order', () => {
     const agents = [
-      makeAgent({ id: 'aggregator', on_complete: [{ agent: 'source-a' }, { agent: 'source-b' }] }),
+      makeAgent({
+        id: 'source',
+        on_complete: [
+          { agent: 'second' },
+          { agent: 'first' },
+          { agent: 'second' },
+        ],
+      }),
+      makeAgent({ id: 'first' }),
+      makeAgent({ id: 'second' }),
     ];
 
-    expect(evaluateTriggers(agents, 'source-a', 'completed').map((a) => a.id)).toEqual(['aggregator']);
-    expect(evaluateTriggers(agents, 'source-b', 'completed').map((a) => a.id)).toEqual(['aggregator']);
-    expect(evaluateTriggers(agents, 'source-c', 'completed')).toEqual([]);
+    expect(evaluateTriggers(agents, 'source', 'completed').map((agent) => agent.id))
+      .toEqual(['second', 'first']);
+  });
+});
+
+describe('safe trigger chains', () => {
+  it('creates child contexts with a stable chain ID and accumulated ancestry', () => {
+    const sourceChain = createTriggerChain('source', 'chain-1');
+    const agents = [
+      makeAgent({ id: 'source', on_complete: [{ agent: 'downstream' }] }),
+      makeAgent({ id: 'downstream' }),
+    ];
+
+    expect(evaluateSafeTriggers(agents, 'source', 'completed', sourceChain, 5))
+      .toEqual([{
+        agent: agents[1],
+        chain: {
+          id: 'chain-1',
+          visitedAgentIds: ['source', 'downstream'],
+          depth: 1,
+        },
+      }]);
   });
 
-  it('does not trigger disabled agents', () => {
-    const agents = [
-      makeAgent({ id: 'downstream', enabled: false, on_complete: [{ agent: 'source' }] }),
-    ];
+  it('rejects a self-trigger', () => {
+    const source = makeAgent({ id: 'source', on_complete: [{ agent: 'source' }] });
 
-    const triggered = evaluateTriggers(agents, 'source', 'completed');
-    expect(triggered).toEqual([]);
+    expect(evaluateSafeTriggers(
+      [source],
+      source.id,
+      'completed',
+      createTriggerChain(source.id, 'chain-1'),
+      5,
+    )).toEqual([]);
+  });
+
+  it('rejects a target already visited by the current branch', () => {
+    const agents = [
+      makeAgent({ id: 'agent-b', on_complete: [{ agent: 'agent-a' }] }),
+      makeAgent({ id: 'agent-a' }),
+    ];
+    const chain = {
+      id: 'chain-1',
+      visitedAgentIds: ['agent-a', 'agent-b'],
+      depth: 1,
+    };
+
+    expect(evaluateSafeTriggers(agents, 'agent-b', 'completed', chain, 5)).toEqual([]);
+  });
+
+  it('stops before launching an edge beyond the maximum depth', () => {
+    const agents = [
+      makeAgent({ id: 'agent-b', on_complete: [{ agent: 'agent-c' }] }),
+      makeAgent({ id: 'agent-c' }),
+    ];
+    const chain = {
+      id: 'chain-1',
+      visitedAgentIds: ['agent-a', 'agent-b'],
+      depth: 1,
+    };
+
+    expect(evaluateSafeTriggers(agents, 'agent-b', 'completed', chain, 1)).toEqual([]);
+  });
+
+  it('allows the edge that reaches the configured maximum depth', () => {
+    const agents = [
+      makeAgent({ id: 'agent-b', on_complete: [{ agent: 'agent-c' }] }),
+      makeAgent({ id: 'agent-c' }),
+    ];
+    const chain = {
+      id: 'chain-1',
+      visitedAgentIds: ['agent-a', 'agent-b'],
+      depth: 1,
+    };
+
+    expect(evaluateSafeTriggers(agents, 'agent-b', 'completed', chain, 2)[0]?.chain)
+      .toEqual({
+        id: 'chain-1',
+        visitedAgentIds: ['agent-a', 'agent-b', 'agent-c'],
+        depth: 2,
+      });
   });
 });

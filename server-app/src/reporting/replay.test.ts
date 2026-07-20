@@ -30,6 +30,7 @@ describe('replayPendingTerminals', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     rmSync(tmp, { recursive: true, force: true });
   });
 
@@ -91,6 +92,26 @@ describe('replayPendingTerminals', () => {
       panelUrl: 'https://panel.example',
     }, tmp);
 
+    expect(existsSync(file)).toBe(true);
+  });
+
+  it('bounds replay requests and keeps the file for a later attempt', async () => {
+    const file = writePendingFile(tmp, {
+      runId: 'run-timeout',
+      endpoint: 'https://panel.example/api/runs/run-timeout/status',
+      body: { agent: 'A', state: 'completed' },
+    });
+    const fetchImpl = vi.fn(() => new Promise<Response>(() => {}));
+
+    const replay = replayPendingTerminals({
+      fetchImpl: fetchImpl as typeof fetch,
+      getApiKey: () => 'ap_live_secret',
+      panelUrl: 'https://panel.example',
+      requestTimeoutMs: 10,
+    }, tmp);
+    await replay;
+
+    expect(fetchImpl.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
     expect(existsSync(file)).toBe(true);
   });
 

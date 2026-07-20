@@ -1,28 +1,80 @@
+import { randomUUID } from 'crypto';
 import type { AgentConfig, TriggerRef } from './config.js';
 
 type CompletionStatus = 'completed' | 'failed';
 
-function matchesTrigger(triggers: TriggerRef[] | undefined, sourceAgentId: string): boolean {
-  if (!triggers) return false;
-  return triggers.some((t) => t.agent === sourceAgentId);
+export type TriggerChain = {
+  id: string;
+  visitedAgentIds: readonly string[];
+  depth: number;
+};
+
+export type SafeTrigger = {
+  agent: AgentConfig;
+  chain: TriggerChain;
+};
+
+/** Start ancestry tracking for a manually or externally launched agent. */
+export function createTriggerChain(sourceAgentId: string, id: string = randomUUID()): TriggerChain {
+  return {
+    id,
+    visitedAgentIds: [sourceAgentId],
+    depth: 0,
+  };
 }
 
+function refsForStatus(source: AgentConfig, status: CompletionStatus): TriggerRef[] {
+  return (status === 'completed' ? source.on_complete : source.on_failure) ?? [];
+}
+
+/** Resolve trigger references as outgoing edges declared by the source agent. */
 export function evaluateTriggers(
   agents: AgentConfig[],
   sourceAgentId: string,
   status: CompletionStatus,
 ): AgentConfig[] {
-  return agents.filter((agent) => {
-    if (!agent.enabled) return false;
+  const source = agents.find((agent) => agent.id === sourceAgentId);
+  if (!source) return [];
 
-    if (status === 'completed') {
-      return matchesTrigger(agent.on_complete, sourceAgentId);
-    }
+  const agentsById = new Map(agents.map((agent) => [agent.id, agent]));
+  const seenTargetIds = new Set<string>();
 
-    if (status === 'failed') {
-      return matchesTrigger(agent.on_failure, sourceAgentId);
-    }
+  return refsForStatus(source, status).flatMap((reference) => {
+    if (seenTargetIds.has(reference.agent)) return [];
+    seenTargetIds.add(reference.agent);
 
-    return false;
+    const target = agentsById.get(reference.agent);
+    return target?.enabled ? [target] : [];
+  });
+}
+
+function childChain(
+  chain: TriggerChain,
+  targetAgentId: string,
+  maxDepth: number,
+): TriggerChain | undefined {
+  const childDepth = chain.depth + 1;
+  if (childDepth > maxDepth || chain.visitedAgentIds.includes(targetAgentId)) {
+    return undefined;
+  }
+
+  return {
+    id: chain.id,
+    visitedAgentIds: [...chain.visitedAgentIds, targetAgentId],
+    depth: childDepth,
+  };
+}
+
+/** Resolve outgoing edges and attach branch-local ancestry to safe targets. */
+export function evaluateSafeTriggers(
+  agents: AgentConfig[],
+  sourceAgentId: string,
+  status: CompletionStatus,
+  chain: TriggerChain,
+  maxDepth: number,
+): SafeTrigger[] {
+  return evaluateTriggers(agents, sourceAgentId, status).flatMap((agent) => {
+    const nextChain = childChain(chain, agent.id, maxDepth);
+    return nextChain ? [{ agent, chain: nextChain }] : [];
   });
 }

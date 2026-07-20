@@ -2,8 +2,8 @@
 
 ## Technical debt remediation loop
 
-- [ ] Commit the audit report and this remediation baseline.
-- [ ] Batch 1: Fix trigger direction and cycles, timeout ownership, telemetry deadlines and durability, conversation duplication, skipped terminals, interaction delivery, and shutdown handling. Cover TD-01 through TD-05 and TD-23 through TD-26.
+- [x] Commit the audit report and this remediation baseline.
+- [x] Batch 1: Fix trigger direction and cycles, timeout ownership, telemetry deadlines and durability, conversation duplication, skipped terminals, interaction delivery, and shutdown handling. Cover TD-01 through TD-05 and TD-23 through TD-26.
 - [ ] Batch 1 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun all server gates, and commit refinements.
 - [ ] Batch 2: Fix evidence redaction, body limits, bounded security maps, cleanup errors, dynamic watches, glob parsing, discovery diagnostics, configuration documentation generation, duplicate normalization, and the unused Telegram decision path. Cover TD-06, TD-27 through TD-32, TD-40, TD-44, and TD-45.
 - [ ] Batch 2 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun all server gates, and commit refinements.

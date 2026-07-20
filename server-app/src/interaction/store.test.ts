@@ -51,6 +51,24 @@ describe('InteractionStore', () => {
     expect(store.get('int-1')!.status).toBe('acted');
   });
 
+  it('removes an interaction when delivery fails', () => {
+    const store = new InteractionStore();
+    store.add({
+      id: 'int-1',
+      runId: 'run-1',
+      agentId: 'checker',
+      replyAgentId: 'booker',
+      request: makeRequest(),
+      channel: 'console',
+      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    store.remove('int-1');
+
+    expect(store.get('int-1')).toBeUndefined();
+  });
+
   it('expires stale interactions', () => {
     const store = new InteractionStore();
     const pastDate = new Date(Date.now() - 1000);

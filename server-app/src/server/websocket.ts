@@ -1,5 +1,5 @@
 export type ProgressEvent = {
-  type: 'run_started' | 'run_progress' | 'run_completed' | 'run_failed' | 'mcp_status';
+  type: 'run_started' | 'run_progress' | 'run_completed' | 'run_failed' | 'run_skipped' | 'mcp_status';
   runId: string;
   agentId: string;
   timestamp: string;

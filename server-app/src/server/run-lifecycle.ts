@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { AgentConfig } from '../agents/config.js';
+import type { TriggerChain } from '../agents/triggers.js';
 import type { DecisionContext } from '../execution/decision-handler.js';
 import type { ExecutorFn } from '../execution/executor-registry.js';
 import type { ExecutionResult } from '../execution/executor.js';
@@ -15,7 +16,7 @@ import { createRunProgressReporter } from './run-progress-reporter.js';
 export { extractMcpNeedsAuthServers } from './run-progress-reporter.js';
 
 export type RunDoneCallback = (
-  result: { status: 'completed' | 'failed'; summary?: string; error?: string },
+  result: { status: 'completed' | 'failed' | 'skipped'; summary?: string; error?: string },
 ) => void;
 
 export type TriggerRunOptions = {
@@ -26,6 +27,7 @@ export type TriggerRunOptions = {
   mode?: 'normal' | 'safe_test';
   retryOfRunId?: string;
   repairId?: string;
+  chain?: TriggerChain;
 };
 
 export type RunLifecycle = {
@@ -61,7 +63,11 @@ type RunLifecycleDependencies = {
     agent: AgentConfig,
     interaction: InteractionRequest,
   ) => Promise<void> | void;
-  onTerminal: (agent: AgentConfig, status: 'completed' | 'failed') => Promise<void> | void;
+  onTerminal: (
+    agent: AgentConfig,
+    status: 'completed' | 'failed' | 'skipped',
+    chain: TriggerChain | undefined,
+  ) => Promise<void> | void;
   createRunId?: () => string;
 };
 
@@ -155,9 +161,9 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
           (dependencies.runTimeoutMs > 0 ? dependencies.runTimeoutMs : undefined),
         abortController,
       });
-      handleRunResult(runId, agent, options, result);
+      await handleRunResult(runId, agent, options, result);
     } catch (error) {
-      emitFailure(runId, agent, options, toErrorMessage(error));
+      await emitFailure(runId, agent, options, toErrorMessage(error));
     }
   }
 
@@ -180,15 +186,18 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
       abortController,
       disableMcpServers: (options.mode ?? 'normal') === 'safe_test',
     });
+    if (result.interaction && originalAgent.interaction) {
+      await dependencies.onInteraction(runId, originalAgent, result.interaction);
+    }
     return result;
   }
 
-  function recordCompletion(
+  async function recordCompletion(
     runId: string,
     agent: AgentConfig,
     options: TriggerRunOptions,
     result: ExecutionResult,
-  ): void {
+  ): Promise<void> {
     const usage = result.usage ?? {};
     dependencies.store.update(runId, {
       status: 'completed',
@@ -205,9 +214,6 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
       outputTokens: finiteNumber(usage.output_tokens),
       model: result.model,
     });
-    if (result.interaction && agent.interaction) {
-      void dependencies.onInteraction(runId, agent, result.interaction);
-    }
     dependencies.broadcaster.emit(sanitizeProgressEvent({
       type: 'run_completed',
       runId,
@@ -224,39 +230,61 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
     });
     options.onDone?.({ status: 'completed', summary: result.summary });
     if ((options.mode ?? 'normal') !== 'safe_test') {
-      void dependencies.onTerminal(agent, 'completed');
+      await invokeTerminalHook(agent, 'completed', options.chain);
     }
   }
 
-  function handleRunResult(
+  async function handleRunResult(
     runId: string,
     agent: AgentConfig,
     options: TriggerRunOptions,
     result: RunResult,
-  ): void {
+  ): Promise<void> {
     if (result.status === 'completed' && result.result) {
-      recordCompletion(runId, agent, options, result.result);
+      await recordCompletion(runId, agent, options, result.result);
     } else if (result.status === 'skipped') {
-      const reason = result.error ?? 'This run was skipped.';
-      dependencies.store.update(runId, {
-        status: 'skipped',
-        completedAt: new Date(),
-        summary: reason,
-        error: reason,
-        code: result.code,
-      });
+      await recordSkipped(runId, agent, options, result);
     } else if (result.status === 'failed') {
-      emitFailure(runId, agent, options, result.error ?? 'Unknown error', result.code);
+      await emitFailure(runId, agent, options, result.error ?? 'Unknown error', result.code);
     }
   }
 
-  function emitFailure(
+  async function recordSkipped(
+    runId: string,
+    agent: AgentConfig,
+    options: TriggerRunOptions,
+    result: RunResult,
+  ): Promise<void> {
+    const reason = result.error ?? 'This run was skipped.';
+    dependencies.store.update(runId, {
+      status: 'skipped',
+      completedAt: new Date(),
+      summary: reason,
+      error: reason,
+      code: result.code,
+    });
+    dependencies.broadcaster.emit(sanitizeProgressEvent({
+      type: 'run_skipped',
+      runId,
+      agentId: agent.id,
+      error: reason,
+      code: result.code,
+      timestamp: new Date().toISOString(),
+    }));
+    dependencies.notify(agent, runId, { status: 'skipped', error: reason });
+    options.onDone?.({ status: 'skipped', error: reason });
+    if ((options.mode ?? 'normal') !== 'safe_test') {
+      await invokeTerminalHook(agent, 'skipped', options.chain);
+    }
+  }
+
+  async function emitFailure(
     runId: string,
     agent: AgentConfig,
     options: TriggerRunOptions,
     error: string,
     code?: string,
-  ): void {
+  ): Promise<void> {
     dependencies.store.update(runId, { status: 'failed', completedAt: new Date(), error, code });
     dependencies.broadcaster.emit(sanitizeProgressEvent({
       type: 'run_failed',
@@ -269,7 +297,19 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
     dependencies.notify(agent, runId, { status: 'failed', error });
     options.onDone?.({ status: 'failed', error });
     if ((options.mode ?? 'normal') !== 'safe_test') {
-      void dependencies.onTerminal(agent, 'failed');
+      await invokeTerminalHook(agent, 'failed', options.chain);
+    }
+  }
+
+  async function invokeTerminalHook(
+    agent: AgentConfig,
+    status: 'completed' | 'failed' | 'skipped',
+    chain: TriggerChain | undefined,
+  ): Promise<void> {
+    try {
+      await dependencies.onTerminal(agent, status, chain);
+    } catch (error) {
+      console.error(`[lifecycle] Terminal hook failed for ${agent.id}: ${toErrorMessage(error)}`);
     }
   }
 
