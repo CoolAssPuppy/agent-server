@@ -2,6 +2,14 @@ import XCTest
 @testable import AgentServerCore
 
 final class AgentSafetyReadinessTests: XCTestCase {
+    func testAgentDetailUsesSentenceCaseSectionsAndPlainCapabilityRows() {
+        XCTAssertEqual(AgentDetailPresentation.lastRunTitle, "Last run")
+        XCTAssertEqual(AgentDetailPresentation.producedTitle, "Produced")
+        XCTAssertEqual(AgentDetailPresentation.notesTitle, "Agent notes")
+        XCTAssertEqual(AgentDetailPresentation.capabilitiesTitle, "This agent can")
+        XCTAssertEqual(AgentDetailPresentation.capabilityStyle, .iconText)
+    }
+
     func testMissingConnectionsTakePriorityBecauseTheAgentCannotRunYet() {
         let presentation = AgentSafetyReadinessPresentation(
             securityResult: .checked(risk: .low, findingCount: 0, isStale: false),

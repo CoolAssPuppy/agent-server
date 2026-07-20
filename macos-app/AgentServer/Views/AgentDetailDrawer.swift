@@ -13,6 +13,7 @@ struct AgentDetailDrawer: View {
     let agentId: String
 
     @Environment(\.nTheme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var dragOffset: CGFloat = 0
     @State private var showHistory = false
     @State private var showSettings = false
@@ -82,11 +83,11 @@ struct AgentDetailDrawer: View {
     }
 
     private func openSettings() {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) { showSettings = true }
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: Self.slideDuration)) { showSettings = true }
     }
 
     private func closeSettings() {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.9)) { showSettings = false }
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: Self.slideDuration)) { showSettings = false }
     }
 
     private func dismissDeepestDetail() {
@@ -148,12 +149,12 @@ struct AgentDetailDrawer: View {
                     threshold: Self.dismissThreshold,
                     axis: .horizontalLeading
                 ) {
-                    withAnimation(.easeOut(duration: Self.slideDuration)) {
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: Self.slideDuration)) {
                         dragOffset = -Self.width
                     }
                     router.close()
                 } else {
-                    withAnimation(.easeOut(duration: 0.18)) {
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) {
                         dragOffset = 0
                     }
                 }
@@ -334,7 +335,7 @@ struct AgentDetailDrawer: View {
     private func lastRunCard(for agent: Agent) -> some View {
         VStack(alignment: .leading, spacing: NSpacing.sm) {
             HStack(spacing: NSpacing.sm) {
-                Text("LAST RUN")
+                Text(AgentDetailPresentation.lastRunTitle)
                     .font(NTypography.labelSmall)
                     .foregroundStyle(theme.tokens.mutedForeground)
                 Spacer()
@@ -381,7 +382,7 @@ struct AgentDetailDrawer: View {
 
                     if let summary = run.summary, !summary.isEmpty {
                         VStack(alignment: .leading, spacing: NSpacing.xxs) {
-                            Text("THE AGENT'S NOTES")
+                            Text(AgentDetailPresentation.notesTitle)
                                 .font(NTypography.labelSmall)
                                 .foregroundStyle(theme.tokens.mutedForeground.opacity(0.8))
                             ScrollView {
@@ -480,7 +481,7 @@ struct AgentDetailDrawer: View {
     /// What the run actually produced — the concrete deliverable, named plainly.
     private func producedList(_ files: [String]) -> some View {
         VStack(alignment: .leading, spacing: NSpacing.xxs) {
-            Text("PRODUCED")
+            Text(AgentDetailPresentation.producedTitle)
                 .font(NTypography.labelSmall)
                 .foregroundStyle(theme.tokens.mutedForeground.opacity(0.8))
             ForEach(files.prefix(6), id: \.self) { file in
@@ -507,7 +508,7 @@ struct AgentDetailDrawer: View {
         let offCount = capabilities.count - enabled.count
 
         VStack(alignment: .leading, spacing: NSpacing.xs) {
-            Text("THIS AGENT CAN")
+            Text(AgentDetailPresentation.capabilitiesTitle)
                 .font(NTypography.labelSmall)
                 .foregroundStyle(theme.tokens.mutedForeground)
 
@@ -516,7 +517,7 @@ struct AgentDetailDrawer: View {
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
             } else {
-                FlowChips(
+                CapabilitySummary(
                     capabilities: enabled,
                     trailing: offCount > 0 ? "+\(offCount) off" : nil
                 )
@@ -525,9 +526,8 @@ struct AgentDetailDrawer: View {
     }
 }
 
-/// Simple wrapping chip row for capability labels. A plain HStack inside a
-/// horizontal scroll keeps this dependency-free; the list is short.
-private struct FlowChips: View {
+/// Compact icon-and-text summary. Exact permissions stay in agent settings.
+private struct CapabilitySummary: View {
     let capabilities: [AgentCapability]
     let trailing: String?
 
@@ -543,10 +543,11 @@ private struct FlowChips: View {
                             .font(NTypography.caption)
                     }
                     .foregroundStyle(theme.tokens.foreground)
-                    .padding(.horizontal, NSpacing.sm)
                     .padding(.vertical, NSpacing.xxs)
-                    .background(theme.tokens.muted)
-                    .clipShape(Capsule())
+                    if capability.id != capabilities.last?.id {
+                        Divider()
+                            .frame(height: 14)
+                    }
                 }
                 if let trailing {
                     Text(trailing)

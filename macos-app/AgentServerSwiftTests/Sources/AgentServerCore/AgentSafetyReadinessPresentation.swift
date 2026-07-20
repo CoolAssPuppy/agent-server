@@ -1,3 +1,15 @@
+public enum AgentDetailCapabilityStyle: Equatable, Sendable {
+    case iconText
+}
+
+public enum AgentDetailPresentation {
+    public static let lastRunTitle = "Last run"
+    public static let producedTitle = "Produced"
+    public static let notesTitle = "Agent notes"
+    public static let capabilitiesTitle = "This agent can"
+    public static let capabilityStyle = AgentDetailCapabilityStyle.iconText
+}
+
 public enum AgentSafetyReadinessAction: Equatable, Sendable {
     case openSettings
     case reviewSecurity
