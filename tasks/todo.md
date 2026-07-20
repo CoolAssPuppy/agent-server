@@ -1,5 +1,16 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Version 3.1.3 release
+
+- [x] Run the release pipeline for version 3.1.3 with release text “Bug fixes”.
+- [x] Verify tests, type checking, linting, signing, notarization, and Sparkle metadata.
+- [x] Verify the versioned DMG and live update feed.
+- [x] Commit the release metadata, simplify, and push `main`.
+
+### Review
+
+Agent Server 3.1.3 build 31 passed 1,257 server tests and 375 Swift behavior tests, strict TypeScript checking, ESLint, server compilation, and the signed Release archive build. Apple accepted the app bundle and DMG, and both notarization tickets were stapled and validated. The versioned DMG, latest alias, and appcast were uploaded successfully. The live update feed reports Version 3.1.3 with the release text “Bug fixes”.
+
 ## Settings Updates placement regression
 
 - [x] Identify why the Updates card could return to the left column.
