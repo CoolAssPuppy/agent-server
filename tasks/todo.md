@@ -6,8 +6,16 @@
 - [x] Add failing behavior tests for the update/runtime failure and the bouncy theme picker regression.
 - [x] Restore the existing bouncy theme picker without changing the user's saved theme.
 - [x] Fix agent discovery and server startup after an in-place app update.
-- [ ] Verify an installed upgrade, agent loading, server health, theme behavior, and all non-interactive test gates.
-- [ ] Commit each verified repair, run a simplification pass, release the corrected build, merge, and push.
+- [x] Verify an installed upgrade, agent loading, server health, theme behavior, and all non-interactive test gates.
+- [x] Commit each verified repair, run a simplification pass, release the corrected build, merge, and push.
+
+Review:
+
+- Restored the direct colored-dot theme picker with hover expansion, spring motion, keyboard access, and Reduced Motion support. The replacement palette menu was removed.
+- GUI-launched apps now find Homebrew or `/usr/local` Node even when Sparkle relaunches with the system-only path. Child processes also receive a usable command path.
+- A replacement server is fully prepared before an older healthy server is stopped, so a failed preflight cannot empty the app.
+- The signed and notarized 3.1.1 app launched through Launch Services without the temporary Node override, started API version 11, and loaded all seven existing agents.
+- Verification: 1,256 server tests, 370 Swift tests, TypeScript type-check, lint, server build, signed app validation, notarization validation, and live download checks passed. UI automation was not run.
 
 ## Version 3.1 release
 
