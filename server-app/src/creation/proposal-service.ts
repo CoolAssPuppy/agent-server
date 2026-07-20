@@ -4,6 +4,7 @@ import { CronExpressionParser } from 'cron-parser';
 import { AgentProposalSchema } from '../analysis/models.js';
 import { analyzeAgentSecurity } from '../analysis/security-rules.js';
 import { CAPABILITY_CATALOG } from '../agents/capabilities.js';
+import { EXECUTOR_NAMES, type AgentExecutor } from '../agents/executor.js';
 import { renderReviewedAgentFile } from '../agents/reviewed-agent-writer.js';
 import { sanitizeText } from '../server/security-utils.js';
 import { buildAgentProposalPrompt } from './proposal-prompt.js';
@@ -94,9 +95,53 @@ function applyConfirmedFileAccess(
       ...proposal.permissions,
       can_modify_files: grants.some((grant) => grant.access === 'read_write'),
     },
-    ...(grants.length > 0
-      ? { runtime: { executor: 'claude-code' as const, model: null, reason: 'Enforces access to the selected files and folders.' } }
-      : {}),
+  } : proposal;
+  const parsed = AgentProposalSchema.safeParse(candidate);
+  return parsed.success ? parsed.data : undefined;
+}
+
+function requestsCommandAccess(intent: string): boolean {
+  return /\b(?:bash|shell|terminal|command line)\b/.test(intent)
+    || /\b(?:run|execute)\b.{0,40}\b(?:commands?|scripts?)\b/.test(intent);
+}
+
+function runtimeChoices(request: ProposalRequest): NonNullable<ProposalFallbackQuestion['choices']> {
+  const hasFileAccess = (confirmedFileAccess(request)?.length ?? 0) > 0;
+  return [
+    { label: 'Codex', value: 'codex' },
+    { label: 'Claude Code', value: 'claude-code' },
+    {
+      label: 'Kimi Code',
+      value: 'kimi-code',
+      ...(hasFileAccess && requestsCommandAccess(request.request.toLowerCase())
+        ? { disabled_reason: "Can't enforce file access." }
+        : {}),
+    },
+  ];
+}
+
+function confirmedRuntime(request: ProposalRequest): AgentExecutor | null | undefined {
+  const answer = request.answers.find((candidate) => candidate.question_id === 'runtime');
+  if (!answer || typeof answer.value !== 'string') return undefined;
+  if (answer.value === '') return null;
+  const executor = EXECUTOR_NAMES.find((candidate) => candidate === answer.value);
+  if (!executor) return undefined;
+  const choice = runtimeChoices(request).find((candidate) => candidate.value === executor);
+  return choice?.disabled_reason ? undefined : executor;
+}
+
+function applyConfirmedRuntime(
+  proposal: CreationProposal,
+  request: ProposalRequest,
+): CreationProposal | undefined {
+  const executor = confirmedRuntime(request);
+  const candidate = executor ? {
+    ...proposal,
+    runtime: {
+      executor,
+      model: null,
+      reason: 'Uses the coding agent selected during setup.',
+    },
   } : proposal;
   const parsed = AgentProposalSchema.safeParse(candidate);
   return parsed.success ? parsed.data : undefined;
@@ -387,9 +432,7 @@ function localProposal(request: ProposalRequest): CreationProposal | undefined {
       can_send_messages: false,
     },
     notification_destination: null,
-    runtime: fileAccess.length > 0
-      ? { executor: 'claude-code', model: null, reason: 'Enforces access to the selected files and folders.' }
-      : null,
+    runtime: null,
     risk: {
       level: canModifyFiles ? 'high' : usesServices ? 'needs_review' : 'low',
       reasons: [
@@ -407,7 +450,8 @@ function localProposal(request: ProposalRequest): CreationProposal | undefined {
       + 'Never expose secrets or perform destructive actions.',
   });
   if (!proposal.success) return undefined;
-  const withNative = applyConfirmedNativeAccess(proposal.data, request);
+  const withRuntime = applyConfirmedRuntime(proposal.data, request);
+  const withNative = withRuntime ? applyConfirmedNativeAccess(withRuntime, request) : undefined;
   return withNative ? applyDeterministicRisk(withNative) : undefined;
 }
 
@@ -612,6 +656,15 @@ function unansweredScopeQuestion(request: ProposalRequest): ProposalFallbackQues
       };
     }
   }
+  if (confirmedRuntime(request) === undefined) {
+    return {
+      id: 'runtime',
+      question: 'Which LLM should this agent use?',
+      control: 'runtime',
+      required: true,
+      choices: runtimeChoices(request),
+    };
+  }
   if (needsCalendarAccess(intent)) {
     const selectedId = request.answers.find((answer) => answer.question_id === 'calendar-id')?.value;
     const selected = request.availableCalendars.find((calendar) => calendar.id === selectedId);
@@ -689,7 +742,8 @@ export async function createAgentProposal(input: CreateProposalInput): Promise<P
       const value = await input.model.generate(prompt, outputSchema, { requestKey: 'agent-proposal' });
       const parsedProposal = parseModelValue(value);
       const withFiles = parsedProposal ? applyConfirmedFileAccess(parsedProposal, request) : undefined;
-      const withNativeAccess = withFiles ? applyConfirmedNativeAccess(withFiles, request) : undefined;
+      const withRuntime = withFiles ? applyConfirmedRuntime(withFiles, request) : undefined;
+      const withNativeAccess = withRuntime ? applyConfirmedNativeAccess(withRuntime, request) : undefined;
       let resolvedProposal = withNativeAccess;
       if (resolvedProposal && (resolvedProposal.missing_information.length > 0
         || resolvedProposal.questions.some((question) => question.required))) {

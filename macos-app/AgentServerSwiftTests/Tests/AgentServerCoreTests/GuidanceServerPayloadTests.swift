@@ -74,6 +74,21 @@ final class GuidanceServerPayloadTests: XCTestCase {
         ])
     }
 
+    func testRuntimeQuestionKeepsDisabledChoiceReasons() throws {
+        let data = Data(#"{"status":"needs_information","questions":[{"id":"runtime","question":"Which LLM should this agent use?","control":"runtime","required":true,"choices":[{"label":"Codex","value":"codex","disabled_reason":"Can't enforce file access."},{"label":"Claude Code","value":"claude-code"},{"label":"Kimi Code","value":"kimi-code"}]}],"explanation":"Choose a runtime."}"#.utf8)
+
+        let response = try JSONDecoder().decode(GuidanceProposalResponse.self, from: data)
+
+        guard case .needsInformation(let questions, _) = response else {
+            return XCTFail("Expected a runtime question")
+        }
+        XCTAssertEqual(questions.first?.kind, .runtime([
+            CreationRuntimeOption(label: "Codex", value: "codex", disabledReason: "Can't enforce file access."),
+            CreationRuntimeOption(label: "Claude Code", value: "claude-code"),
+            CreationRuntimeOption(label: "Kimi Code", value: "kimi-code"),
+        ]))
+    }
+
     func testGenericServiceQuestionDoesNotBecomeNotionSpecific() throws {
         let data = Data(#"{"status":"needs_information","questions":[{"id":"destination","question":"Where should the result be sent?","control":"service","required":true,"choices":[{"label":"Slack","value":"slack"}]}],"explanation":"Choose a destination."}"#.utf8)
 

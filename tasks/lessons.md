@@ -1,5 +1,7 @@
 # Lessons
 
+- Validate runtime safety claims against the installed runtime, its current official documentation, and an enforcement probe before encoding them as disabled product choices. A wrapper's current limitation does not prove the underlying runtime lacks the capability.
+
 - Approved desktop card placement is a product contract, not an adaptive suggestion. At a fixed minimum window width, keep primary Settings cards in explicit columns and limit responsive reflow to surfaces that truly support narrower geometry.
 - Visual restraint does not mean flattening a useful information architecture. When a user likes an established grouping pattern, preserve it and improve the typography, spacing, and density inside it instead of replacing the composition.
 - A model-family preset must bind to an exact versioned model ID, while historical runs and existing agent files retain their configured version. Never relabel or silently migrate older provider configurations when a new preset replaces them.

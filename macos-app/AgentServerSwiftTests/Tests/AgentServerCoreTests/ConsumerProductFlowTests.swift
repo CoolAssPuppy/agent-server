@@ -282,6 +282,56 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertTrue(flow.canRequestProposal)
     }
 
+    func testRuntimeChoiceAdvancesAndSurvivesBackNavigationAndReissue() {
+        let runtime = CreationQuestion(
+            id: "runtime",
+            prompt: "Which LLM should this agent use?",
+            kind: .runtime([
+                CreationRuntimeOption(label: "Codex", value: "codex"),
+                CreationRuntimeOption(label: "Claude Code", value: "claude-code"),
+                CreationRuntimeOption(label: "Kimi Code", value: "kimi-code"),
+            ]),
+            isRequired: true
+        )
+        let calendar = CreationQuestion(
+            id: "calendar-id",
+            prompt: "Which calendar may this agent use?",
+            kind: .choice(["Work"]),
+            isRequired: true,
+            choiceValues: ["work-id"]
+        )
+        var flow = AgentCreationFlow(request: "Summarize my calendar")
+
+        flow.receiveQuestions([runtime])
+        flow.answer(questionId: runtime.id, value: "kimi-code")
+        XCTAssertNil(flow.nextQuestion)
+
+        flow.receiveQuestions([calendar])
+        flow.goBack()
+        XCTAssertEqual(flow.nextQuestion?.id, runtime.id)
+        XCTAssertEqual(flow.answers[runtime.id], .string("kimi-code"))
+
+        flow.receiveQuestions([runtime])
+        XCTAssertEqual(flow.answers[runtime.id], .string("kimi-code"))
+        XCTAssertNil(flow.nextQuestion)
+    }
+
+    func testSkippingRuntimeCountsAsAnExplicitAnswer() {
+        let question = CreationQuestion(
+            id: "runtime",
+            prompt: "Which LLM should this agent use?",
+            kind: .runtime([]),
+            isRequired: true
+        )
+        var flow = AgentCreationFlow(request: "Summarize my calendar")
+        flow.receiveQuestions([question])
+
+        flow.answer(questionId: question.id, value: "")
+
+        XCTAssertNil(flow.nextQuestion)
+        XCTAssertTrue(flow.canRequestProposal)
+    }
+
     func testRetryableFailureUsesOneConciseVisibleMessage() {
         let failure = ConsumerFlowFailure(
             title: "Could not prepare your agent",
@@ -746,6 +796,7 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(ConsumerFlowAccessibility.creationReview, "creation.review")
         XCTAssertEqual(ConsumerFlowAccessibility.creationSimilar, "creation.similar")
         XCTAssertEqual(ConsumerFlowAccessibility.creationConnectionSetup, "creation.connectionSetup")
+        XCTAssertEqual(ConsumerFlowAccessibility.creationRuntimePrefix, "creation.runtime.")
         XCTAssertEqual(ConsumerFlowAccessibility.debuggerApplyFix, "debugger.applyFix")
         XCTAssertEqual(ConsumerFlowAccessibility.securityScanAll, "security.scanAll")
         XCTAssertEqual(ConsumerFlowAccessibility.securityFindingPrefix, "security.finding.")

@@ -67,6 +67,11 @@ function canonicalPath(path: string): string {
   }
 }
 
+/** Resolve a reviewed path without following a later symlink outside its grant. */
+export function canonicalFileAccessPath(path: string, cwd: string): string {
+  return canonicalPath(expandedPath(path, cwd));
+}
+
 function grantContains(root: string, kind: 'file' | 'folder', requested: string): boolean {
   if (kind === 'file') return requested === root;
   const child = relative(root, requested);
@@ -99,7 +104,7 @@ export function buildCanUseTool(permissions: Permissions, fileOptions?: FileAcce
   const canonicalFileOptions = fileOptions ? {
     cwd: fileOptions.cwd,
     grants: fileOptions.fileAccess.map((grant) => ({
-      root: canonicalPath(expandedPath(grant.path, fileOptions.cwd)),
+      root: canonicalFileAccessPath(grant.path, fileOptions.cwd),
       kind: grant.kind,
       access: grant.access,
     })),

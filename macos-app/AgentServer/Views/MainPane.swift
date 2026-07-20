@@ -1,6 +1,15 @@
 import SwiftUI
 import NerdsUI
 
+/// The sidebar and main-pane footers sit side by side along the bottom of the
+/// window, so their dividers read as one continuous line. Both panes size their
+/// footer from here rather than from their own content, which would otherwise
+/// drift apart as the content in either one changes.
+enum WindowFooterMetrics {
+    static let height: CGFloat = 46
+    static let dividerOpacity: Double = 0.4
+}
+
 /// Home pane. The app's soul is agents quietly working on a schedule, so the
 /// home leads with a warm greeting and a single signature — "Up next", the very
 /// next thing an agent will do — then recent activity and the day ahead. No
@@ -194,8 +203,8 @@ struct MainPane: View {
             }
         }
         .padding(.horizontal, NSpacing.lg)
-        .padding(.vertical, NSpacing.sm)
-        .overlay(alignment: .top) { Divider().opacity(0.4) }
+        .frame(height: WindowFooterMetrics.height)
+        .overlay(alignment: .top) { Divider().opacity(WindowFooterMetrics.dividerOpacity) }
     }
 
     @ViewBuilder

@@ -216,6 +216,8 @@ struct GuidedAgentCreationView: View {
             }
         case .fileAccess:
             fileAccessPicker
+        case .runtime(let options):
+            RuntimeChoicePicker(options: options, selection: $answer)
         case .schedule:
             ScheduleField(draft: $scheduleAnswer)
                 .accessibilityElement(children: .contain)
@@ -491,6 +493,7 @@ struct GuidedAgentCreationView: View {
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(!(flow.nextQuestion?.isAnswered(by: currentAnswerValue) ?? false))
+                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationContinue)
             }
         case .proposal:
             if let proposal = flow.proposal, !proposal.readiness.canSave {

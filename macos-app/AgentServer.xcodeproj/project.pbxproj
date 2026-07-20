@@ -104,6 +104,7 @@
 		BD2DA0D3BE67E8155FF4AB7D /* ConnectionsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA442CD355C507032FB201DE /* ConnectionsComponents.swift */; };
 		C38C07E7F348955FDE9558C2 /* AgentDebuggerEntryShell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1437F6871A840E2C1186B116 /* AgentDebuggerEntryShell.swift */; };
 		C471604134686030A7DE8D71 /* ServerProcessReliability.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEB4ABEDF791380EFF9F2DA7 /* ServerProcessReliability.swift */; };
+		C50620A0100222E11C258596 /* RuntimeChoicePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 330BE644298A2E224EF2C3D8 /* RuntimeChoicePicker.swift */; };
 		C50ED87A117F8CE8F29EB004 /* EnvironmentBooleanPreference.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0C5881B4E817C1D164D105A /* EnvironmentBooleanPreference.swift */; };
 		C57F8443BD1AD312F39219D2 /* CronNextFire.swift in Sources */ = {isa = PBXBuildFile; fileRef = D885EDB8362181BEA390FCF9 /* CronNextFire.swift */; };
 		C877D7CD7E77223DE35B0A71 /* ApplicationMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 784AD265CBA4DB4DB19753E4 /* ApplicationMenu.swift */; };
@@ -188,6 +189,7 @@
 		3041189F9765AF060231C8FA /* BoundedIdentifierHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoundedIdentifierHistory.swift; sourceTree = "<group>"; };
 		320DFB04CE4BF2487443296A /* GuidanceProposalServerModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidanceProposalServerModels.swift; sourceTree = "<group>"; };
 		325C74DAF7BB5F1C25B3A733 /* SidebarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarViewModel.swift; sourceTree = "<group>"; };
+		330BE644298A2E224EF2C3D8 /* RuntimeChoicePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeChoicePicker.swift; sourceTree = "<group>"; };
 		34998C870C76F29FD6B67745 /* package.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = package.json; sourceTree = "<group>"; };
 		34C199697B17F6960D44E0CC /* ConnectionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionsView.swift; sourceTree = "<group>"; };
 		36E7C28685605B900B56E4DA /* SettingsPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPresentation.swift; sourceTree = "<group>"; };
@@ -455,6 +457,7 @@
 				4A98A3C8D660F909083764E1 /* RunDetailTabs.swift */,
 				A520B1763B663153CBBA3F1B /* RunDetailView.swift */,
 				BF167864F821C8B9892C0849 /* RunHelpers.swift */,
+				330BE644298A2E224EF2C3D8 /* RuntimeChoicePicker.swift */,
 				DE4F878AF0A0CA8113E65883 /* SavedConnectionViews.swift */,
 				52C77FD0BA1F5F49A3D94CDF /* SecurityCenterView.swift */,
 				817E918060B661BA51609EBB /* SecurityDashboardView.swift */,
@@ -844,6 +847,7 @@
 				C982B2D86AD2BE30FB8DAC66 /* RunModel.swift in Sources */,
 				8707E33B58D0101837C5D8D0 /* RunSelectionCoordinator.swift in Sources */,
 				A55C7F63C0315E1535A8BF38 /* RunTerminalObserver.swift in Sources */,
+				C50620A0100222E11C258596 /* RuntimeChoicePicker.swift in Sources */,
 				58A7C69B96F0E2B1A99A3C2E /* RuntimeSelection.swift in Sources */,
 				134D0A988B4274AF600D12CF /* SavedConnectionViews.swift in Sources */,
 				7AAC1C6BFDD7C4318C4E8FCB /* SchedulePreset.swift in Sources */,
@@ -894,7 +898,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = AgentServer/AgentServer.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 31;
+				CURRENT_PROJECT_VERSION = 32;
 				INFOPLIST_FILE = AgentServer/Info.plist;
 				INFOPLIST_KEY_NSContactsUsageDescription = "Agent Server reads only the contact groups and details you choose for an agent.";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -902,7 +906,7 @@
 					"@executable_path/../Frameworks",
 				);
 				LS_MINIMUM_SYSTEM_VERSION = 14.0;
-				MARKETING_VERSION = 3.1.3;
+				MARKETING_VERSION = 3.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.strategicnerds.agent-server";
 				PRODUCT_NAME = "Agent Server";
 				SDKROOT = macosx;
@@ -985,7 +989,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = AgentServer/AgentServer.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 31;
+				CURRENT_PROJECT_VERSION = 32;
 				INFOPLIST_FILE = AgentServer/Info.plist;
 				INFOPLIST_KEY_NSContactsUsageDescription = "Agent Server reads only the contact groups and details you choose for an agent.";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -993,7 +997,7 @@
 					"@executable_path/../Frameworks",
 				);
 				LS_MINIMUM_SYSTEM_VERSION = 14.0;
-				MARKETING_VERSION = 3.1.3;
+				MARKETING_VERSION = 3.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.strategicnerds.agent-server";
 				PRODUCT_NAME = "Agent Server";
 				SDKROOT = macosx;

@@ -88,6 +88,28 @@ final class ConsumerFlowsUITests: XCTestCase {
         XCTAssertTrue(element("creation.saveAndTest").exists)
     }
 
+    func testSelectsCodexFromTheRuntimeCardsBeforeReview() {
+        launch(scenario: "runtime-creation")
+
+        let request = element("creation.request")
+        XCTAssertTrue(request.waitForExistence(timeout: 5))
+        request.click()
+        request.typeText("Review my selected files.")
+        element("creation.continue").click()
+
+        let codex = element("creation.runtime.codex")
+        XCTAssertTrue(codex.waitForExistence(timeout: 5))
+        XCTAssertTrue(element("creation.runtime.claude-code").exists)
+        XCTAssertTrue(element("creation.runtime.kimi-code").exists)
+        XCTAssertFalse(element("creation.runtime.kimi-code").isEnabled)
+
+        codex.click()
+        XCTAssertEqual(codex.value as? String, "Selected")
+        element("creation.continue").click()
+
+        XCTAssertTrue(element("creation.review").waitForExistence(timeout: 5))
+    }
+
     private func launch(scenario: String) {
         app.launchEnvironment["AGENT_SERVER_UI_TEST_SCENARIO"] = scenario
         app.launch()

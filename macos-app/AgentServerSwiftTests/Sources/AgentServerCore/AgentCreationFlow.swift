@@ -47,6 +47,21 @@ public enum CreationAnswerValue: Equatable, Sendable {
     }
 }
 
+public struct CreationRuntimeOption: Equatable, Sendable, Identifiable {
+    public let label: String
+    public let value: String
+    public let disabledReason: String?
+
+    public var id: String { value }
+    public var isDisabled: Bool { disabledReason != nil }
+
+    public init(label: String, value: String, disabledReason: String? = nil) {
+        self.label = label
+        self.value = value
+        self.disabledReason = disabledReason
+    }
+}
+
 public struct CreationQuestion: Identifiable, Equatable, Sendable {
     public enum NativeResource: Equatable, Sendable {
         case calendar
@@ -58,6 +73,7 @@ public struct CreationQuestion: Identifiable, Equatable, Sendable {
         case text
         case folder
         case fileAccess
+        case runtime([CreationRuntimeOption])
         case schedule
         case choice([String])
         case service(name: String?, choices: [String])
@@ -104,6 +120,9 @@ public struct CreationQuestion: Identifiable, Equatable, Sendable {
     public func isAnswered(by answer: CreationAnswerValue?) -> Bool {
         guard let answer else { return false }
         if case .fileAccess = kind, case .fileGrants = answer {
+            return true
+        }
+        if case .runtime = kind, case .string = answer {
             return true
         }
         return !answer.isEmpty
@@ -258,6 +277,10 @@ public struct AgentCreationFlow: Equatable, Sendable {
             if case .string(let existing)? = answers[question.id] {
                 if case .service = question.kind,
                    question.choiceValues.contains(existing) {
+                    continue
+                }
+                if case .runtime(let options) = question.kind,
+                   existing.isEmpty || options.contains(where: { $0.value == existing && !$0.isDisabled }) {
                     continue
                 }
                 answers.removeValue(forKey: question.id)

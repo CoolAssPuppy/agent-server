@@ -128,10 +128,10 @@ export type CreationProposal = z.infer<typeof CreationProposalSchema>;
 export const ProposalAnswerSchema = z.object({
   question_id: z.string().trim().min(1).max(120),
   value: z.union([
-    z.string().trim().min(1).max(2_000),
+    z.string().trim().max(2_000),
     z.boolean(),
     z.array(z.string().trim().min(1).max(500)).max(20),
-    z.array(FileAccessSchema).min(1).max(32),
+    z.array(FileAccessSchema).max(32),
   ]),
 }).strict();
 export type ProposalAnswer = z.infer<typeof ProposalAnswerSchema>;
@@ -185,13 +185,14 @@ export type ProposalRequestInput = z.input<typeof ProposalRequestSchema>;
 export const ProposalFallbackQuestionSchema = z.object({
   id: z.string().trim().min(1).max(120),
   question: z.string().trim().min(1).max(500),
-  control: z.enum(['text', 'single_choice', 'schedule', 'path', 'file_access', 'permission', 'service', 'unavailable']),
+  control: z.enum(['text', 'single_choice', 'schedule', 'path', 'file_access', 'runtime', 'permission', 'service', 'unavailable']),
   service_name: z.string().trim().min(1).max(120).optional(),
   unavailable_message: z.string().trim().min(1).max(500).optional(),
   required: z.boolean(),
   choices: z.array(z.object({
     label: z.string().trim().min(1).max(160),
     value: z.string().trim().min(1).max(300),
+    disabled_reason: z.string().trim().min(1).max(300).optional(),
   }).strict()).max(128).optional(),
 }).strict();
 export type ProposalFallbackQuestion = z.infer<typeof ProposalFallbackQuestionSchema>;

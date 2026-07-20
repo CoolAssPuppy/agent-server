@@ -131,11 +131,13 @@ describe('executeCodexAgent', () => {
     expect(runStreamed).toHaveBeenCalledWith('Summarize the repo', { signal: abortController.signal });
   });
 
-  it('refuses scoped file access instead of widening it beyond reviewed paths', async () => {
+  it('runs scoped file access through the exact Codex permission profile', async () => {
     const { executeCodexAgent } = await import('./codex.js');
     runStreamed.mockResolvedValue({ events: streamEvents([]) });
+    const scopedEventStream = vi.fn(() => streamEvents([]));
+    const sdkCallsBefore = startThread.mock.calls.length;
 
-    await expect(executeCodexAgent(makeAgent({
+    await executeCodexAgent(makeAgent({
       executor: 'codex',
       working_directory: '/Users/test/Book',
       file_access: [
@@ -144,7 +146,20 @@ describe('executeCodexAgent', () => {
         { path: '/Users/test/Output', kind: 'folder', access: 'read_write' },
       ],
       codex_sandbox: 'workspace-write',
-    }), createMockReporter())).rejects.toThrow(/exact file access/i);
+    }), createMockReporter(), { scopedEventStream });
+
+    expect(startThread).toHaveBeenCalledTimes(sdkCallsBefore);
+    expect(scopedEventStream).toHaveBeenCalledWith(
+      expect.objectContaining({
+        arguments: expect.arrayContaining([
+          '--ignore-user-config',
+          '--config',
+          expect.stringContaining('permissions.agent-server.filesystem='),
+        ]),
+      }),
+      expect.any(String),
+      undefined,
+    );
   });
 
   it('points Codex at a custom provider, resolving the api key from env', async () => {

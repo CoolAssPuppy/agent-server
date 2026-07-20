@@ -1,5 +1,36 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Version 3.2.0 release
+
+- [x] Run the release pipeline for version 3.2.0 with release text “Now you can choose which LLM your agents use”.
+- [x] Verify tests, type checking, linting, signing, notarization, and Sparkle metadata.
+- [x] Verify the versioned DMG, latest alias, and live update feed.
+- [x] Review the release diff, commit the release, and push `main`.
+
+### Review
+
+Agent Server 3.2.0 build 32 passed 1,267 server tests and 378 Swift behavior tests, strict TypeScript checking, ESLint, server compilation, and the signed Release archive build. Apple accepted both the app bundle and DMG, and both notarization tickets were stapled and validated. The versioned DMG, latest alias, and appcast were uploaded successfully. The live update feed reports Version 3.2.0 with the release text “Now you can choose which LLM your agents use”.
+
+## Guided creation LLM picker
+
+- [x] Validate the handoff's runtime restriction claims against the installed Codex CLI, SDK surface, official documentation, and a local sandbox probe.
+- [x] Decide whether to add Codex permission-profile execution now or keep Codex disabled for file-scoped agents until that prerequisite lands.
+- [x] Add failing server tests for question order, skip behavior, runtime persistence, precedence, and incompatible file-access choices.
+- [x] Add failing Swift decoding and flow tests for the runtime picker, back navigation, reissued questions, and explicit skip.
+- [x] Implement the deterministic runtime question and apply the selected executor to both model and fallback proposals.
+- [x] Implement the three-card macOS picker with brand marks, disabled-reason copy, selection state, and accessibility identifiers.
+- [x] Add UI automation coverage without running the focus-stealing UI test suite in this session.
+- [x] Run focused tests, full server tests, Swift behavior tests, type-check, lint, server build, and macOS build.
+- [x] Perform a simplification pass and document the verified result here.
+
+### Review
+
+Codex file-scoped agents now run through the Codex CLI permission-profile path because the TypeScript SDK cannot serialize the required inline filesystem table. The profile defaults to minimal read access, grants only the reviewed paths as read or write, disables user configuration that could install a conflicting legacy sandbox mode, and retains reviewed agent MCP configuration. Unscoped Codex agents continue to use the SDK path.
+
+Guided creation asks which coding agent to use after file access, preserves skip and back-navigation behavior, and writes the confirmed executor into both model-generated and local fallback proposals. The macOS picker presents Codex, Claude Code, and Kimi Code as equal cards with selection, unavailable-reason, and accessibility states.
+
+Verification passed: 1,267 server tests with 4 skipped, TypeScript strict check, ESLint, server build, 378 Swift tests, an unsigned native macOS build, and a real bundled Codex macOS sandbox probe covering selected reads, denied outside reads, denied writes to read-only paths, and allowed writes to read-write paths. UI automation coverage was added but not launched because it takes over the active desktop.
+
 ## Version 3.1.3 release
 
 - [x] Run the release pipeline for version 3.1.3 with release text “Bug fixes”.

@@ -48,7 +48,6 @@ struct Sidebar: View {
                 Divider().opacity(0.3)
             }
             list
-            Divider().opacity(0.3)
             footer
         }
         .frame(width: Self.width)
@@ -185,7 +184,9 @@ struct Sidebar: View {
             .accessibilityLabel(SidebarFooterAction.newAgent.title)
             .accessibilityIdentifier(ConsumerFlowAccessibility.sidebarCreateAgent)
         }
-        .padding(NSpacing.xs)
+        .padding(.horizontal, NSpacing.xs)
+        .frame(height: WindowFooterMetrics.height)
+        .overlay(alignment: .top) { Divider().opacity(WindowFooterMetrics.dividerOpacity) }
     }
 
     private func footerButton(

@@ -175,7 +175,7 @@ describe('consumer guidance API', () => {
         request: 'Every Friday, summarize GitHub activity in Slack.',
         timezone: 'Europe/Lisbon',
         connected_services: ['github'],
-        answers: [{ question_id: 'connection-slack', value: 'slack' }],
+        answers: [{ question_id: 'connection-slack', value: 'slack' }, { question_id: 'runtime', value: '' }],
       }),
     });
     const body = await response.json();
@@ -233,7 +233,7 @@ describe('consumer guidance API', () => {
           actions: ['delete'],
           actions_known: true,
         }],
-        answers: [{ question_id: 'connection-notion', value: 'mcp:notion-personal:abc123' }],
+        answers: [{ question_id: 'connection-notion', value: 'mcp:notion-personal:abc123' }, { question_id: 'runtime', value: '' }],
       }),
     });
 
@@ -277,6 +277,7 @@ describe('consumer guidance API', () => {
       method: 'POST',
       body: JSON.stringify({
         request: 'Create a manual summary.', timezone: 'Europe/Lisbon', connected_services: [],
+        answers: [{ question_id: 'runtime', value: '' }],
       }),
     });
 
@@ -306,6 +307,7 @@ describe('consumer guidance API', () => {
       method: 'POST',
       body: JSON.stringify({
         request: 'Create a manual summary.', timezone: 'Europe/Lisbon', connected_services: [],
+        answers: [{ question_id: 'runtime', value: '' }],
       }),
     }).then((response) => response.json());
     isRegistryAvailable = false;
@@ -367,7 +369,7 @@ describe('consumer guidance API', () => {
           actions: ['read', 'write'],
           actions_known: true,
         }],
-        answers: [{ question_id: 'connection-notion', value: connectionId }],
+        answers: [{ question_id: 'connection-notion', value: connectionId }, { question_id: 'runtime', value: '' }],
       }),
     }).then((response) => response.json());
     expect(generated.status, JSON.stringify(generated)).toBe('proposal');
@@ -488,7 +490,7 @@ describe('consumer guidance API', () => {
         request: 'Summarize GitHub in Slack.',
         timezone: 'Europe/Lisbon',
         connected_services: [],
-        answers: [{ question_id: 'connection-slack', value: 'slack' }],
+        answers: [{ question_id: 'connection-slack', value: 'slack' }, { question_id: 'runtime', value: '' }],
       }),
     }).then((response) => response.json());
 
@@ -519,7 +521,7 @@ describe('consumer guidance API', () => {
         request: 'Summarize GitHub in Slack.',
         timezone: 'Europe/Lisbon',
         connected_services: [],
-        answers: [{ question_id: 'connection-slack', value: 'slack' }],
+        answers: [{ question_id: 'connection-slack', value: 'slack' }, { question_id: 'runtime', value: '' }],
       }),
     }).then((response) => response.json());
     const savePath = `/guidance/agent-proposals/${generated.proposal_id}/save`;
@@ -553,7 +555,7 @@ describe('consumer guidance API', () => {
         request: 'Summarize GitHub in Slack.',
         timezone: 'Europe/Lisbon',
         connected_services: [],
-        answers: [{ question_id: 'connection-slack', value: 'slack' }],
+        answers: [{ question_id: 'connection-slack', value: 'slack' }, { question_id: 'runtime', value: '' }],
       }),
     }).then((response) => response.json());
     const savePath = `/guidance/agent-proposals/${generated.proposal_id}/save`;
@@ -578,7 +580,7 @@ describe('consumer guidance API', () => {
         request: 'Summarize GitHub in Slack.',
         timezone: 'Europe/Lisbon',
         connected_services: [],
-        answers: [{ question_id: 'connection-slack', value: 'slack' }],
+        answers: [{ question_id: 'connection-slack', value: 'slack' }, { question_id: 'runtime', value: '' }],
       }),
     }).then((response) => response.json());
     const savePath = `/guidance/agent-proposals/${generated.proposal_id}/save`;
@@ -620,7 +622,7 @@ describe('consumer guidance API', () => {
         request: 'Summarize GitHub in Slack.',
         timezone: 'Europe/Lisbon',
         connected_services: [],
-        answers: [{ question_id: 'connection-slack', value: 'slack' }],
+        answers: [{ question_id: 'connection-slack', value: 'slack' }, { question_id: 'runtime', value: '' }],
       }),
     }).then((response) => response.json());
     const response = await request(fixture.app, `/guidance/agent-proposals/${generated.proposal_id}/save`, {
@@ -770,6 +772,7 @@ describe('consumer guidance API', () => {
         request: 'Run it Monday morning and keep the result private.',
         timezone: 'Europe/Lisbon',
         connected_services: [],
+        answers: [{ question_id: 'runtime', value: '' }],
       }),
     });
     const body = await response.json();

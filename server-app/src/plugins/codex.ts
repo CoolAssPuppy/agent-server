@@ -9,6 +9,11 @@ import type { Reporter } from '../execution/runner.js';
 import { parseInteractionBlock } from '../interaction/parser.js';
 import { nativeServiceGrantEnvironment } from '../agents/native-services.js';
 import { resolveSavedConnectionValues } from '../connections/runtime-resolution.js';
+import {
+  buildScopedCodexInvocation,
+  streamScopedCodex,
+  type ScopedCodexInvocation,
+} from './codex-cli.js';
 
 type ExecuteCodexExtra = {
   abortController?: AbortController;
@@ -18,6 +23,11 @@ type ExecuteCodexExtra = {
    */
   codexExecutablePath?: string;
   disableMcpServers?: boolean;
+  scopedEventStream?: (
+    invocation: ScopedCodexInvocation,
+    prompt: string,
+    signal?: AbortSignal,
+  ) => AsyncIterable<ThreadEvent>;
 };
 
 type CodexState = {
@@ -42,16 +52,33 @@ export async function executeCodexAgent(
 ): Promise<ExecutionResult> {
   const startedAt = performance.now();
   const state = createState();
+  const environment = buildCodexChildEnvironment();
+  const config = extra?.disableMcpServers ? { mcp_servers: {} } : getCodexConfig(agent);
+  const provider = getProviderOptions(agent);
+  if ((agent.file_access?.length ?? 0) > 0) {
+    const invocation = buildScopedCodexInvocation({
+      agent,
+      environment,
+      config,
+      codexExecutablePath: extra?.codexExecutablePath,
+      ...provider,
+    });
+    const eventStream = extra?.scopedEventStream ?? streamScopedCodex;
+    for await (const event of eventStream(invocation, agent.prompt, extra?.abortController?.signal)) {
+      handleEvent(event, state, reporter);
+    }
+    return buildResult(state, performance.now() - startedAt, getStringField(agent, 'model'));
+  }
   const codex = new Codex({
-    env: buildCodexChildEnvironment(),
-    config: extra?.disableMcpServers ? { mcp_servers: {} } : getCodexConfig(agent),
+    env: environment,
+    config,
     // Use the user's installed Codex binary when discovery found one;
     // undefined falls back to the codex-sdk's bundled binary.
     codexPathOverride: extra?.codexExecutablePath,
     // A custom provider points Codex at an OpenAI-compatible endpoint (e.g.
     // Moonshot for Kimi K3) instead of the ChatGPT subscription. Without a
     // provider these stay undefined and the ChatGPT login is used.
-    ...getProviderOptions(agent),
+    ...provider,
   });
   const thread = codex.startThread(getThreadOptions(agent));
   const { events } = await thread.runStreamed(agent.prompt, {
@@ -72,10 +99,6 @@ function getThreadOptions(agent: AgentConfig): ThreadOptions {
   // explicit web-tool grant. This keeps the toggles meaningful on Codex.
   const sandboxMode = deriveCodexSandbox(agent);
   const networkAccessEnabled = deriveCodexNetworkAccess(agent);
-  if ((agent.file_access?.length ?? 0) > 0) {
-    throw new Error('Codex cannot enforce exact file access. Use the Claude Code runtime for this agent.');
-  }
-
   const workingDirectory = agent.working_directory
     ? expandHome(agent.working_directory)
     : process.env.HOME ?? process.cwd();

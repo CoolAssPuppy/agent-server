@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildAgentProposalPrompt,
-  createAgentProposal,
+  createAgentProposal as createAgentProposalService,
   servicesRelevantToRequest,
   type ProposalModel,
 } from './proposal-service.js';
@@ -72,6 +72,16 @@ function modelReturning(...responses: unknown[]): { model: ProposalModel; calls:
     },
     calls: () => callCount,
   };
+}
+
+function createAgentProposal(input: Parameters<typeof createAgentProposalService>[0]) {
+  const answers = input.answers ?? [];
+  return createAgentProposalService({
+    ...input,
+    answers: answers.some((answer) => answer.question_id === 'runtime')
+      ? answers
+      : [...answers, { question_id: 'runtime', value: '' }],
+  });
 }
 
 describe('guided agent proposal creation', () => {
@@ -310,6 +320,180 @@ describe('guided agent proposal creation', () => {
     });
     expect(ready.status).toBe('proposal');
     expect(fake.calls()).toBe(1);
+  });
+
+  it('asks for the runtime after file access and before calendar access', async () => {
+    const base = {
+      request: 'Review a file and compare it with my calendar.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      availableCalendars: [
+        { id: 'work-id', name: 'Work', account: 'iCloud', canModify: true },
+      ],
+      model: modelReturning(completeProposal()).model,
+    };
+
+    const fileAccess = await createAgentProposalService({ ...base, answers: [] });
+    const runtime = await createAgentProposalService({
+      ...base,
+      answers: [{ question_id: 'file-access', value: [] }],
+    });
+    const calendar = await createAgentProposalService({
+      ...base,
+      answers: [
+        { question_id: 'file-access', value: [] },
+        { question_id: 'runtime', value: '' },
+      ],
+    });
+
+    expect(fileAccess).toMatchObject({
+      status: 'needs_information',
+      questions: [{ id: 'file-access', control: 'file_access' }],
+    });
+    expect(runtime).toMatchObject({
+      status: 'needs_information',
+      questions: [{
+        id: 'runtime',
+        control: 'runtime',
+        choices: [
+          { label: 'Codex', value: 'codex' },
+          { label: 'Claude Code', value: 'claude-code' },
+          { label: 'Kimi Code', value: 'kimi-code' },
+        ],
+      }],
+    });
+    expect(calendar).toMatchObject({
+      status: 'needs_information',
+      questions: [{ id: 'calendar-id', control: 'single_choice' }],
+    });
+  });
+
+  it('applies an explicit runtime choice after file access is confirmed', async () => {
+    const reviewed = completeProposal();
+    reviewed.connections = [];
+    reviewed.notification_destination = null;
+    reviewed.permissions.can_use_connected_apps = false;
+    reviewed.permissions.can_send_messages = false;
+    reviewed.file_access = [{
+      path: '~/Documents/Research', kind: 'folder', access: 'read_only',
+      is_suggestion: false, reason: 'Reads the selected research folder.',
+    }];
+    reviewed.runtime = {
+      executor: 'claude-code', model: null, reason: 'The model chose the default runtime.',
+    };
+
+    const result = await createAgentProposal({
+      request: 'Summarize files in a folder.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      answers: [
+        {
+          question_id: 'file-access',
+          value: [{ path: '~/Documents/Research', kind: 'folder', access: 'read_only' }],
+        },
+        { question_id: 'runtime', value: 'kimi-code' },
+      ],
+      model: modelReturning(reviewed).model,
+    });
+
+    expect(result).toMatchObject({
+      status: 'proposal',
+      proposal: {
+        runtime: {
+          executor: 'kimi-code',
+          model: null,
+          reason: 'Uses the coding agent selected during setup.',
+        },
+      },
+    });
+  });
+
+  it('keeps Codex selected in a fallback proposal with reviewed file access', async () => {
+    const result = await createAgentProposalService({
+      request: 'Summarize files in a folder.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      answers: [
+        {
+          question_id: 'file-access',
+          value: [{ path: '~/Documents/Research', kind: 'folder', access: 'read_only' }],
+        },
+        { question_id: 'runtime', value: 'codex' },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      status: 'proposal',
+      usedFallback: true,
+      proposal: { runtime: { executor: 'codex', model: null } },
+    });
+  });
+
+  it('marks runtimes that cannot enforce the reviewed access as unavailable', async () => {
+    const fileGrant = {
+      question_id: 'file-access',
+      value: [{ path: '~/Documents/Research', kind: 'folder' as const, access: 'read_only' as const }],
+    };
+    const fileOnly = await createAgentProposalService({
+      request: 'Summarize files in a folder.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      answers: [fileGrant],
+    });
+    const withCommands = await createAgentProposalService({
+      request: 'Run a Bash command to summarize files in a folder.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      answers: [fileGrant],
+    });
+
+    expect(fileOnly).toMatchObject({
+      status: 'needs_information',
+      questions: [{
+        id: 'runtime',
+        choices: [
+          { value: 'codex' },
+          { value: 'claude-code' },
+          { value: 'kimi-code' },
+        ],
+      }],
+    });
+    expect(withCommands).toMatchObject({
+      status: 'needs_information',
+      questions: [{
+        id: 'runtime',
+        choices: [
+          { value: 'codex' },
+          { value: 'claude-code' },
+          { value: 'kimi-code', disabled_reason: "Can't enforce file access." },
+        ],
+      }],
+    });
+  });
+
+  it('rejects a crafted answer that selects a disabled runtime', async () => {
+    const result = await createAgentProposalService({
+      request: 'Run a Bash command to summarize files in a folder.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [],
+      answers: [
+        {
+          question_id: 'file-access',
+          value: [{ path: '~/Documents/Research', kind: 'folder', access: 'read_only' }],
+        },
+        { question_id: 'runtime', value: 'kimi-code' },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      status: 'needs_information',
+      questions: [{
+        id: 'runtime',
+        choices: [{ value: 'codex' }, { value: 'claude-code' }, {
+          value: 'kimi-code', disabled_reason: "Can't enforce file access.",
+        }],
+      }],
+    });
   });
 
   it('asks which available calendar and whether it may change events', async () => {

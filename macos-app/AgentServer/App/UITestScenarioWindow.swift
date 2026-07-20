@@ -8,6 +8,7 @@ enum UITestScenario: String {
     case debugger
     case security
     case highRiskCreation = "high-risk-creation"
+    case runtimeCreation = "runtime-creation"
 
     static var current: UITestScenario? {
         ProcessInfo.processInfo.environment["AGENT_SERVER_UI_TEST_SCENARIO"]
@@ -55,11 +56,31 @@ private struct UITestScenarioRoot: View {
             creationView(proposal: Self.readOnlyProposal)
         case .highRiskCreation:
             creationView(proposal: Self.highRiskProposal)
+        case .runtimeCreation:
+            runtimeCreationView
         case .debugger:
             debuggerView
         case .security:
             SecurityScenarioView()
         }
+    }
+
+    private var runtimeCreationView: some View {
+        GuidedAgentCreationView(
+            actions: GuidedAgentCreationActions(
+                prepare: { _, answers in
+                    guard answers["runtime"] != nil else {
+                        return .success(.questions([Self.runtimeQuestion]))
+                    }
+                    return .success(.proposal(Self.readOnlyProposal))
+                },
+                save: { _, _ in
+                    .success(SavedAgentPresentation(agentId: "runtime-agent", safeTestRunId: nil))
+                }
+            ),
+            onCancel: {},
+            onCreated: { _ in }
+        )
     }
 
     private func creationView(proposal: AgentProposalPresentation) -> some View {
@@ -122,6 +143,21 @@ private struct UITestScenarioRoot: View {
         instructions: "Run the approved command. Show a preview before sending any output.",
         risk: .high,
         riskReason: "Command execution and internet access together can expose information from this Mac."
+    )
+
+    private static let runtimeQuestion = CreationQuestion(
+        id: "runtime",
+        prompt: "Which LLM should this agent use?",
+        kind: .runtime([
+            CreationRuntimeOption(label: "Codex", value: "codex"),
+            CreationRuntimeOption(label: "Claude Code", value: "claude-code"),
+            CreationRuntimeOption(
+                label: "Kimi Code",
+                value: "kimi-code",
+                disabledReason: "Can't enforce file access."
+            ),
+        ]),
+        isRequired: true
     )
 
     private static let diagnosis = DiagnosticPresentation(

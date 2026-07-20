@@ -331,6 +331,12 @@ private struct GuidanceQuestionPayload: Decodable, Equatable, Sendable {
     struct Choice: Decodable, Equatable, Sendable {
         let label: String
         let value: String
+        let disabledReason: String?
+
+        enum CodingKeys: String, CodingKey {
+            case label, value
+            case disabledReason = "disabled_reason"
+        }
     }
     let id: String
     let question: String
@@ -360,6 +366,9 @@ private struct GuidanceQuestionPayload: Decodable, Equatable, Sendable {
         switch control {
         case "path": return .folder
         case "file_access": return .fileAccess
+        case "runtime": return .runtime(choices?.map {
+            CreationRuntimeOption(label: $0.label, value: $0.value, disabledReason: $0.disabledReason)
+        } ?? [])
         case "schedule": return .schedule
         case "permission": return .confirmation
         case "single_choice": return .choice(choices?.map(\.label) ?? [])
