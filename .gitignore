@@ -18,10 +18,6 @@ dist/*.sparkle.txt
 .env
 .env.*
 
-# Info.plist holds the PostHog write-key for anonymous app telemetry.
-# Copy Info.plist.example → Info.plist on first clone and paste the key.
-macos-app/AgentServer/Info.plist
-
 .vscode/*
 !.vscode/settings.json
 .idea/
@@ -49,5 +45,6 @@ xcuserdata/
 # Swift package build artifacts (Chunk 10 test harness)
 macos-app/AgentServerSwiftTests/.build/
 macos-app/AgentServerSwiftTests/.swiftpm/
+macos-app/Vendor/NerdsUI/.build/
 .worktrees/
 .wrangler/

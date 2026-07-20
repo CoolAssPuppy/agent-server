@@ -26,11 +26,6 @@ import { RealtimeClient } from '../reporting/realtime-client.js';
 import { TriggerHandler } from '../execution/trigger-handler.js';
 import type { DecisionContext } from '../execution/decision-handler.js';
 import { shouldRun, hasMissedRun } from '../agents/scheduler.js';
-import {
-  createTriggerChain,
-  evaluateSafeTriggers,
-  type TriggerChain,
-} from '../agents/triggers.js';
 import { AgentFileWatchManager } from '../agents/file-watcher.js';
 import { ChannelDispatcher } from '../channels/dispatcher.js';
 import { InteractionStore } from '../interaction/store.js';
@@ -60,6 +55,7 @@ import {
 } from './run-lifecycle.js';
 import { buildServiceRegistry } from '../services/registry.js';
 import { startManagedServices, type ManagedService } from './managed-services.js';
+import { createDownstreamTriggerHandler } from './downstream-triggers.js';
 
 export type ServerInstance = {
   ready: Promise<void>;
@@ -375,31 +371,13 @@ export function startServer(
       .catch((err) => console.error(`[notification] Failed for ${agent.id}:`, err));
   }
 
-  async function fireDownstreamTriggers(
-    sourceAgent: AgentConfig,
-    status: 'completed' | 'failed' | 'skipped',
-    existingChain?: TriggerChain,
-  ): Promise<void> {
-    if (status === 'skipped') return;
-
-    try {
-      const agents = await discoverAgents(config.agentsDir);
-      const chain = existingChain ?? createTriggerChain(sourceAgent.id);
-      const downstream = evaluateSafeTriggers(
-        agents,
-        sourceAgent.id,
-        status,
-        chain,
-        config.maxTriggerDepth,
-      );
-      for (const target of downstream) {
-        console.log(`[triggers] ${status} ${sourceAgent.id} -> triggering ${target.agent.id}`);
-        await checkedTriggerRunForAgent(target.agent, { chain: target.chain }, 'chain');
-      }
-    } catch (err) {
-      console.error(`[triggers] Failed to evaluate triggers for ${sourceAgent.id}:`, err);
-    }
-  }
+  const fireDownstreamTriggers = createDownstreamTriggerHandler({
+    discover: () => discoverAgents(config.agentsDir),
+    trigger: async (agent, chain) => {
+      await checkedTriggerRunForAgent(agent, { chain }, 'chain');
+    },
+    maxDepth: config.maxTriggerDepth,
+  });
 
   const runLifecycle = createRunLifecycle({
     maxConcurrentRuns: config.maxConcurrentRuns,
@@ -659,6 +637,7 @@ export function startServer(
   }));
 
   const httpServer = serve({ fetch: app.fetch, port, hostname: config.host });
+  const httpServerReady = waitForHttpServer(httpServer);
   injectWebSocket(httpServer);
   console.log(`Agent Server API listening on http://${config.host}:${port}`);
 
@@ -987,6 +966,7 @@ export function startServer(
 
   const ready = (async (): Promise<void> => {
     try {
+      await httpServerReady;
       stopManagedServices = await startManagedServices(managedServices, {
         startTimeoutMs: MANAGED_SERVICE_START_TIMEOUT_MS,
         stopTimeoutMs: MANAGED_SERVICE_STOP_TIMEOUT_MS,
@@ -1062,6 +1042,28 @@ export function startServer(
     ready,
     stop,
   };
+}
+
+function waitForHttpServer(server: ReturnType<typeof serve>): Promise<void> {
+  if (server.listening) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    const removeListeners = (): void => {
+      server.off('listening', handleListening);
+      server.off('error', handleError);
+    };
+    const handleListening = (): void => {
+      removeListeners();
+      resolve();
+    };
+    const handleError = (error: Error): void => {
+      removeListeners();
+      reject(error);
+    };
+
+    server.once('listening', handleListening);
+    server.once('error', handleError);
+  });
 }
 
 function closeHttpServer(server: ReturnType<typeof serve>): Promise<void> {

@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { evaluateTriggers } from '../agents/triggers.js';
 import { makeAgent } from '../test-factories.js';
-import type { AgentConfig } from '../agents/config.js';
+import { createDownstreamTriggerHandler } from './downstream-triggers.js';
 import {
   chatKeyFromString,
   extractMcpNeedsAuthServers,
@@ -11,23 +10,6 @@ import {
 } from './server.js';
 
 describe('fireDownstreamTriggers', () => {
-  async function fireDownstreamTriggers(
-    sourceAgentId: string,
-    status: 'completed' | 'failed',
-    discover: () => Promise<AgentConfig[]>,
-    trigger: (agent: AgentConfig) => void,
-  ): Promise<void> {
-    try {
-      const agents = await discover();
-      const downstream = evaluateTriggers(agents, sourceAgentId, status);
-      for (const agent of downstream) {
-        trigger(agent);
-      }
-    } catch (err) {
-      console.error(`[triggers] Failed to evaluate triggers for ${sourceAgentId}:`, err);
-    }
-  }
-
   it('triggers downstream agents on completion', async () => {
     const downstream = makeAgent({ id: 'downstream' });
     const discover = vi.fn().mockResolvedValue([
@@ -36,11 +18,22 @@ describe('fireDownstreamTriggers', () => {
       makeAgent({ id: 'unrelated' }),
     ]);
     const trigger = vi.fn();
+    const fireDownstreamTriggers = createDownstreamTriggerHandler({
+      discover,
+      trigger,
+      maxDepth: 10,
+    });
 
-    await fireDownstreamTriggers('source', 'completed', discover, trigger);
+    await fireDownstreamTriggers(makeAgent({
+      id: 'source',
+      on_complete: [{ agent: 'downstream' }],
+    }), 'completed');
 
     expect(trigger).toHaveBeenCalledTimes(1);
-    expect(trigger).toHaveBeenCalledWith(downstream);
+    expect(trigger).toHaveBeenCalledWith(
+      downstream,
+      expect.objectContaining({ visitedAgentIds: ['source', 'downstream'] }),
+    );
   });
 
   it('triggers on_failure agents when run fails', async () => {
@@ -50,11 +43,15 @@ describe('fireDownstreamTriggers', () => {
       alerter,
     ]);
     const trigger = vi.fn();
+    const fireDownstreamTriggers = createDownstreamTriggerHandler({ discover, trigger, maxDepth: 10 });
 
-    await fireDownstreamTriggers('source', 'failed', discover, trigger);
+    await fireDownstreamTriggers(makeAgent({
+      id: 'source',
+      on_failure: [{ agent: 'alerter' }],
+    }), 'failed');
 
     expect(trigger).toHaveBeenCalledTimes(1);
-    expect(trigger).toHaveBeenCalledWith(alerter);
+    expect(trigger).toHaveBeenCalledWith(alerter, expect.any(Object));
   });
 
   it('does not trigger when no downstream agents match', async () => {
@@ -63,8 +60,9 @@ describe('fireDownstreamTriggers', () => {
       makeAgent({ id: 'other' }),
     ]);
     const trigger = vi.fn();
+    const fireDownstreamTriggers = createDownstreamTriggerHandler({ discover, trigger, maxDepth: 10 });
 
-    await fireDownstreamTriggers('source', 'completed', discover, trigger);
+    await fireDownstreamTriggers(makeAgent({ id: 'source' }), 'completed');
 
     expect(trigger).not.toHaveBeenCalled();
   });
@@ -73,8 +71,9 @@ describe('fireDownstreamTriggers', () => {
     const discover = vi.fn().mockRejectedValue(new Error('disk failure'));
     const trigger = vi.fn();
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const fireDownstreamTriggers = createDownstreamTriggerHandler({ discover, trigger, maxDepth: 10 });
 
-    await fireDownstreamTriggers('source', 'completed', discover, trigger);
+    await fireDownstreamTriggers(makeAgent({ id: 'source' }), 'completed');
 
     expect(trigger).not.toHaveBeenCalled();
     expect(consoleSpy).toHaveBeenCalledWith(
@@ -96,12 +95,16 @@ describe('fireDownstreamTriggers', () => {
       d2,
     ]);
     const trigger = vi.fn();
+    const fireDownstreamTriggers = createDownstreamTriggerHandler({ discover, trigger, maxDepth: 10 });
 
-    await fireDownstreamTriggers('source', 'completed', discover, trigger);
+    await fireDownstreamTriggers(makeAgent({
+      id: 'source',
+      on_complete: [{ agent: 'notifier' }, { agent: 'reporter' }],
+    }), 'completed');
 
     expect(trigger).toHaveBeenCalledTimes(2);
-    expect(trigger).toHaveBeenCalledWith(d1);
-    expect(trigger).toHaveBeenCalledWith(d2);
+    expect(trigger).toHaveBeenCalledWith(d1, expect.any(Object));
+    expect(trigger).toHaveBeenCalledWith(d2, expect.any(Object));
   });
 });
 

@@ -10,16 +10,16 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text-summary', 'json-summary', 'html'],
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.test.ts', 'src/cli.ts'],
-      // Coverage floor. Set a couple points below the current baseline
-      // (~75% lines / 68% branches) so trivial CI-vs-local v8 variance can't
-      // fail the build; raise it as coverage climbs. autoUpdate is off because
-      // pinning the floor to the exact local number is brittle across runners.
+      exclude: ['src/**/*.test.ts'],
+      // Ratcheted from the verified 2026-07-21 baseline after direct CLI and
+      // startServer composition coverage: 84.89 lines, 84.68 functions,
+      // 77.54 branches, and 83.13 statements.
+      // Roughly one point of headroom absorbs minor V8 differences across CI.
       thresholds: {
-        lines: 74,
-        functions: 72,
-        branches: 67,
-        statements: 73,
+        lines: 83.5,
+        functions: 83.5,
+        branches: 76.5,
+        statements: 82,
       },
     },
   },

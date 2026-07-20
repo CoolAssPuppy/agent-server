@@ -18,7 +18,8 @@
     "test": "pnpm --filter @agent-server/core run test",
     "lint": "pnpm --filter @agent-server/core run lint",
     "type-check": "pnpm --filter @agent-server/core run type-check",
-    "test:coverage": "pnpm --filter @agent-server/core run test:coverage"
+    "test:coverage": "pnpm --filter @agent-server/core run test:coverage",
+    "audit:prod": "pnpm audit --prod --audit-level high"
   },
   "license": "MIT"
 }

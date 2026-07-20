@@ -1,6 +1,20 @@
 packages:
   - 'server-app'
 
+# Delay new package releases for seven days so compromised versions have time
+# to be detected before they can enter the lockfile. Pnpm reads this policy
+# from the workspace settings file, not .npmrc.
+minimumReleaseAge: 10080
+minimumReleaseAgeStrict: true
+
+overrides:
+  # GHSA-88fw-hqm2-52qc affected Hono's optional CORS middleware. This server
+  # uses its own same-origin mutation guard, but the floor prevents future use
+  # of the vulnerable middleware and keeps the production audit clean at high.
+  hono: 4.12.30
+  # GHSA-96hv-2xvq-fx4p applies to the /ws endpoint through @hono/node-ws.
+  ws: 8.21.0
+
 allowBuilds:
   # esbuild's postinstall fetches the platform-specific binary used by
   # vitest and tsx.

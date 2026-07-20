@@ -44,7 +44,6 @@
 		470120920161412825893DBC /* StatusMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DF962BADEAC09F5A5F46093 /* StatusMonitor.swift */; };
 		4B39C03414ADB3FF5BE48D71 /* SecurityCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C77FD0BA1F5F49A3D94CDF /* SecurityCenterView.swift */; };
 		519B2C93BA543F3811D53C8E /* AgentServerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBA361A75AD13345528DB75F /* AgentServerApp.swift */; };
-		5566EB106B664A891B221E52 /* Info.plist.example in Resources */ = {isa = PBXBuildFile; fileRef = 8820C4A9F5B4B9595EDFC80C /* Info.plist.example */; };
 		562ED07346B6E89D04398BDB /* ConnectionSaveTransaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1115C08331436A1971A252D0 /* ConnectionSaveTransaction.swift */; };
 		583A9241EFF2D90D211E6822 /* StatusMonitor+AgentActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F7E8ED97EF202B704E9E0AC /* StatusMonitor+AgentActions.swift */; };
 		58A7C69B96F0E2B1A99A3C2E /* RuntimeSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C69CBD9DEF52B8367E593F5 /* RuntimeSelection.swift */; };
@@ -196,7 +195,6 @@
 		3933DD1F151D51274EA54DDA /* AgentServerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AgentServerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B0EE1DB6BF41B4EA3CC6310 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		3FA7DF74260188E7ABD701D6 /* ServerProcessManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerProcessManager.swift; sourceTree = "<group>"; };
-		41C82F59F5DF4F52A592AD3F /* swift */ = {isa = PBXFileReference; lastKnownFileType = folder; name = swift; path = ../../../../nerdsui/swift; sourceTree = SOURCE_ROOT; };
 		41CFA48506BD54A97A2F80E7 /* AgentDebuggerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentDebuggerView.swift; sourceTree = "<group>"; };
 		42AE2865DBF8536678D90CBE /* ConsumerAnalysisPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsumerAnalysisPresentation.swift; sourceTree = "<group>"; };
 		4809143EC5D2EAB2A2978E1C /* AgentPromptEditorModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPromptEditorModel.swift; sourceTree = "<group>"; };
@@ -236,7 +234,6 @@
 		817E918060B661BA51609EBB /* SecurityDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityDashboardView.swift; sourceTree = "<group>"; };
 		83F246615EB2840C0AAD020A /* AgentRunControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRunControl.swift; sourceTree = "<group>"; };
 		84D0610682024FD2CFA94E8A /* TopDrawerSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopDrawerSurface.swift; sourceTree = "<group>"; };
-		8820C4A9F5B4B9595EDFC80C /* Info.plist.example */ = {isa = PBXFileReference; path = Info.plist.example; sourceTree = "<group>"; };
 		8A39F8EC44F73E7FD02BB9B6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		8ADE39E580F94F63F2070A8B /* AgentFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentFile.swift; sourceTree = "<group>"; };
 		8CD2991794E26E02A4901DE9 /* ThemePickerPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemePickerPresentation.swift; sourceTree = "<group>"; };
@@ -292,6 +289,7 @@
 		F0C5881B4E817C1D164D105A /* EnvironmentBooleanPreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentBooleanPreference.swift; sourceTree = "<group>"; };
 		F1BCFCE737011048F3DAC1E5 /* AgentEnabledFileEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentEnabledFileEditor.swift; sourceTree = "<group>"; };
 		F23C1CA4CDE204047AD9448D /* RunDetailGutter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailGutter.swift; sourceTree = "<group>"; };
+		F4A5236DE0C162216D9FBD50 /* NerdsUI */ = {isa = PBXFileReference; lastKnownFileType = folder; name = NerdsUI; path = Vendor/NerdsUI; sourceTree = SOURCE_ROOT; };
 		F50CA8C247B1FCF3FA516F3D /* ConnectionProfilePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionProfilePresentation.swift; sourceTree = "<group>"; };
 		FD0F9CC8F36CEDDEA44E1D44 /* NotificationPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreferences.swift; sourceTree = "<group>"; };
 		FDB22418EF86F5F4F13FAF67 /* SchedulePreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchedulePreset.swift; sourceTree = "<group>"; };
@@ -412,7 +410,6 @@
 				4ADB33D19CFCCCE6AC45B049 /* AgentServer.entitlements */,
 				ED303774162FECB5D22909C1 /* Assets.xcassets */,
 				2AEC874CD4B98C234CA70908 /* Info.plist */,
-				8820C4A9F5B4B9595EDFC80C /* Info.plist.example */,
 				652CC27383D083CB6A53C94C /* App */,
 				0483F380937FFF8BB5772090 /* Models */,
 				960E985C8AB4B30338500BAB /* Resources */,
@@ -483,7 +480,7 @@
 		CDBA99D8972601D447FD2331 /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				41C82F59F5DF4F52A592AD3F /* swift */,
+				F4A5236DE0C162216D9FBD50 /* NerdsUI */,
 			);
 			name = Packages;
 			sourceTree = "<group>";
@@ -659,7 +656,7 @@
 			packageReferences = (
 				C841370E8698BA4281C2B22F /* XCRemoteSwiftPackageReference "posthog-ios" */,
 				0793D742AA9538F857ADBE9E /* XCRemoteSwiftPackageReference "Sparkle" */,
-				36DFF1AE84418537001A2BBE /* XCLocalSwiftPackageReference "../../../../nerdsui/swift" */,
+				DA7C6D33637035F1956DC6AA /* XCLocalSwiftPackageReference "Vendor/NerdsUI" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C7AF683C4FC612BD0C84F3B0 /* Products */;
@@ -679,7 +676,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				A3AD8E3C9F02AE053611EE52 /* Assets.xcassets in Resources */,
-				5566EB106B664A891B221E52 /* Info.plist.example in Resources */,
 				335C9C3ED26B1D305D2C02EE /* agent-server-failure.aiff in Resources */,
 				F229F4BC6A49E9AA94083970 /* agent-server-notification.aiff in Resources */,
 				894EC630BF1BB8BF843C0744 /* agent-server-success.aiff in Resources */,
@@ -907,6 +903,7 @@
 				);
 				LS_MINIMUM_SYSTEM_VERSION = 14.0;
 				MARKETING_VERSION = 3.2.0;
+				POSTHOG_API_KEY = "";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.strategicnerds.agent-server";
 				PRODUCT_NAME = "Agent Server";
 				SDKROOT = macosx;
@@ -998,6 +995,7 @@
 				);
 				LS_MINIMUM_SYSTEM_VERSION = 14.0;
 				MARKETING_VERSION = 3.2.0;
+				POSTHOG_API_KEY = "";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.strategicnerds.agent-server";
 				PRODUCT_NAME = "Agent Server";
 				SDKROOT = macosx;
@@ -1171,9 +1169,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		36DFF1AE84418537001A2BBE /* XCLocalSwiftPackageReference "../../../../nerdsui/swift" */ = {
+		DA7C6D33637035F1956DC6AA /* XCLocalSwiftPackageReference "Vendor/NerdsUI" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = ../../../../nerdsui/swift;
+			relativePath = Vendor/NerdsUI;
 		};
 /* End XCLocalSwiftPackageReference section */
 

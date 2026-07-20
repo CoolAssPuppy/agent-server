@@ -5,17 +5,25 @@ on:
     branches: [main]
     paths:
       - 'server-app/**'
+      - 'macos-app/**'
+      - '.npmrc'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
+      - 'scripts/**'
+      - 'dist/appcast.xml'
       - '.github/workflows/**'
   pull_request:
     branches: [main]
     paths:
       - 'server-app/**'
+      - 'macos-app/**'
+      - '.npmrc'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
+      - 'scripts/**'
+      - 'dist/appcast.xml'
       - '.github/workflows/**'
 
 concurrency:
@@ -27,11 +35,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: 'pnpm'
@@ -49,3 +57,38 @@ jobs:
 
       - name: Build
         run: pnpm run build
+
+      - name: Audit production dependencies
+        run: pnpm run audit:prod
+
+  macos-test-and-build:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build bundled server
+        run: pnpm run build
+
+      - name: Test Swift package
+        run: swift test --package-path macos-app/AgentServerSwiftTests
+
+      - name: Build unsigned macOS app
+        run: >-
+          xcodebuild
+          -project macos-app/AgentServer.xcodeproj
+          -scheme AgentServer
+          -configuration Debug
+          -destination 'platform=macOS'
+          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_REQUIRED=NO
+          build

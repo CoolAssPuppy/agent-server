@@ -26,7 +26,6 @@
   "devDependencies": {
     "@eslint/js": "9.39.0",
     "@types/node": "^25.3.5",
-    "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "4.1.5",
     "eslint": "9.39.0",
     "tsx": "^4.21.0",
@@ -48,8 +47,7 @@
     "cron-parser": "^5.5.0",
     "dotenv": "^17.3.1",
     "grammy": "^1.41.1",
-    "hono": "^4.12.5",
-    "ws": "^8.19.0",
+    "hono": "^4.12.30",
     "yaml": "^2.8.2",
     "zod": "^4.3.6"
   }

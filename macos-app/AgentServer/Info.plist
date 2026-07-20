@@ -36,6 +36,8 @@
 	<string>Agent Server reads and writes calendar events on behalf of agents you configure.</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
 	<string>Agent Server reads and writes reminders on behalf of agents you configure.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>Agent Server reads only the contact groups and details you choose for an agent.</string>
 	<key>SUFeedURL</key>
 	<string>https://coolasspuppy.com/agent-server-updates</string>
 	<key>SUPublicEDKey</key>
@@ -45,7 +47,7 @@
 	<key>SUScheduledCheckInterval</key>
 	<integer>86400</integer>
 	<key>POSTHOG_API_KEY</key>
-	<string></string>
+	<string>$(POSTHOG_API_KEY)</string>
 	<key>POSTHOG_HOST</key>
 	<string>https://us.i.posthog.com</string>
 </dict>

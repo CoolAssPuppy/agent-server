@@ -5,9 +5,9 @@ import PostHog
 /// in UserDefaults as the distinctId, so one person across reinstalls/multiple
 /// Macs appears as multiple users. No PII is ever captured.
 ///
-/// The write-key lives in Info.plist under POSTHOG_API_KEY. Contributors who
-/// clone the repo won't have a key (Info.plist is gitignored); in that case
-/// `setup()` quietly disables capture so dev builds don't spam the project.
+/// The release build injects the write-key into Info.plist through the
+/// POSTHOG_API_KEY build setting. Contributor builds leave that setting empty,
+/// so `setup()` quietly disables capture and does not send development events.
 enum Telemetry {
     private static let distinctIdKey = "com.strategicnerds.agent-server.distinctId"
     /// Surfaced to the user as "Help improve Agent Server" in Settings. Opt-out,

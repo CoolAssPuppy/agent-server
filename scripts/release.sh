@@ -133,6 +133,14 @@ echo "==> Building bundled server"
 echo "==> Regenerating Xcode project"
 (cd "$MACOS_APP" && xcodegen generate)
 
+echo "==> Loading the public PostHog project key"
+POSTHOG_PUBLIC_KEY=$(doppler secrets get POSTHOG_PUBLIC_KEY \
+  --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" --plain 2>/dev/null || true)
+if [ -z "$POSTHOG_PUBLIC_KEY" ]; then
+  echo "Error: missing POSTHOG_PUBLIC_KEY in Doppler $DOPPLER_PROJECT/$DOPPLER_CONFIG"
+  exit 1
+fi
+
 #----------------------------------------------------------------------
 # 3. Archive
 #----------------------------------------------------------------------
@@ -143,11 +151,13 @@ xcodebuild -project "$MACOS_APP/AgentServer.xcodeproj" \
   -scheme AgentServer \
   -configuration Release \
   -archivePath "$ARCHIVE" \
+  POSTHOG_API_KEY="$POSTHOG_PUBLIC_KEY" \
   archive | xcpretty 2>/dev/null || \
 xcodebuild -project "$MACOS_APP/AgentServer.xcodeproj" \
   -scheme AgentServer \
   -configuration Release \
   -archivePath "$ARCHIVE" \
+  POSTHOG_API_KEY="$POSTHOG_PUBLIC_KEY" \
   archive >/dev/null
 
 #----------------------------------------------------------------------
