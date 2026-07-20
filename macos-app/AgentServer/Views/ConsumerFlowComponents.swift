@@ -3,7 +3,12 @@ import NerdsUI
 
 struct ConsumerFlowHeader: View {
     let title: String
-    let explanation: String
+    let explanation: String?
+
+    init(title: String, explanation: String? = nil) {
+        self.title = title
+        self.explanation = explanation
+    }
 
     @Environment(\.nTheme) private var theme
 
@@ -12,10 +17,12 @@ struct ConsumerFlowHeader: View {
             Text(title)
                 .font(NTypography.headlineLarge)
                 .foregroundStyle(theme.tokens.foreground)
-            Text(explanation)
-                .font(NTypography.bodyLarge)
-                .foregroundStyle(theme.tokens.mutedForeground)
-                .fixedSize(horizontal: false, vertical: true)
+            if let explanation, !explanation.isEmpty {
+                Text(explanation)
+                    .font(NTypography.bodyLarge)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
@@ -165,7 +172,12 @@ struct ConsumerFlowFailureView: View {
 
 struct ConsumerProgressView: View {
     let title: String
-    let message: String
+    let message: String?
+
+    init(title: String, message: String? = nil) {
+        self.title = title
+        self.message = message
+    }
 
     @Environment(\.nTheme) private var theme
 
@@ -175,10 +187,12 @@ struct ConsumerProgressView: View {
                 .controlSize(.large)
             Text(title)
                 .font(NTypography.headlineSmall)
-            Text(message)
-                .font(NTypography.bodyLarge)
-                .foregroundStyle(theme.tokens.mutedForeground)
-                .multilineTextAlignment(.center)
+            if let message, !message.isEmpty {
+                Text(message)
+                    .font(NTypography.bodyLarge)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .multilineTextAlignment(.center)
+            }
         }
         .frame(maxWidth: .infinity, minHeight: 240)
         .accessibilityElement(children: .combine)

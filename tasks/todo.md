@@ -1,5 +1,22 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Interface copy restraint
+
+- [x] Add failing presentation coverage that forbids redundant instructional copy in agent settings.
+- [x] Remove copy that only narrates visible controls from agent settings and nearby primary surfaces.
+- [x] Replace the Advanced raw-file disclosure with an Open raw file action in the Instructions header.
+- [x] Give the agent description a full-width multi-line editor in Basics.
+- [x] Preserve explanations that communicate consequences, safety, privacy, unfamiliar concepts, or recovery.
+- [x] Run the Swift behavior suite and unsigned build, simplify, commit, and relaunch without UI automation.
+
+Review:
+
+- Agent settings no longer tells people to review controls and press Save. The Advanced disclosure and its explanatory paragraph are gone.
+- Open raw file is a trailing Instructions action. Description is a full-width, three-to-six-line native text field.
+- Repetitive progress, creation review, debugger success, runtime, Agent Panel, home, and agent-detail narration was removed or reduced to the state itself.
+- Copy that explains file consent, secret handling, destructive-action recovery, retry risk, and safety consequences remains.
+- Verification: 358 Swift behavior tests and the unsigned macOS build passed. UI automation was not run.
+
 ## Application-wide native macOS visual audit
 
 - [x] Re-audit every primary screen, drawer, sheet, sidebar, toolbar, error, loading, and empty state as one product.

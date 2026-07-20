@@ -87,7 +87,7 @@ struct AgentDebuggerView: View {
     private var content: some View {
         switch flow.phase {
         case .idle, .diagnosing:
-            ConsumerProgressView(title: "Checking what went wrong", message: "Reviewing this run and the agent's current settings.")
+            ConsumerProgressView(title: "Checking what went wrong")
         case .diagnosis:
             if let diagnosis = flow.diagnosis { diagnosisView(diagnosis) }
         case .fixReview:
@@ -240,9 +240,6 @@ struct AgentDebuggerView: View {
 
     private var resolved: some View {
         ConsumerSection("The fix worked", style: sectionStyle) {
-            Label("The new run completed successfully.", systemImage: "checkmark.circle")
-                .font(NTypography.headlineSmall)
-                .foregroundStyle(theme.tokens.success)
             if let tip = flow.diagnosis?.preventionTip {
                 Text("To prevent this next time: \(tip)")
                     .foregroundStyle(theme.tokens.mutedForeground)

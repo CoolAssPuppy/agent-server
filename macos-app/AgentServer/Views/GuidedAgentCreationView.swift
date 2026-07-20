@@ -128,7 +128,7 @@ struct GuidedAgentCreationView: View {
         case .saving:
             ConsumerProgressView(title: "Saving your agent", message: "Your reviewed settings are being saved locally.")
         case .testing:
-            ConsumerProgressView(title: "Running a safe test", message: "Watching this run until it finishes.")
+            ConsumerProgressView(title: "Running a safe test")
         case .complete:
             completionStep
         case .failed:
@@ -169,7 +169,7 @@ struct GuidedAgentCreationView: View {
                 title: question.prompt,
                 explanation: question.kind == .fileAccess
                     ? CreationFileAccessStepCopy.explanation
-                    : "This detail is needed before the agent can be saved."
+                    : nil
             )
             questionControl(question)
         }
@@ -422,7 +422,7 @@ struct GuidedAgentCreationView: View {
 
     private func proposalStep(_ proposal: AgentProposalPresentation) -> some View {
         VStack(alignment: .leading, spacing: NSpacing.lg) {
-            ConsumerFlowHeader(title: "Review your agent", explanation: "Check what it will do and what it can access before saving.")
+            ConsumerFlowHeader(title: "Review your agent")
             AgentProposalView(
                 proposal: proposal
             )

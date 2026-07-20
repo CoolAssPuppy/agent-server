@@ -44,7 +44,6 @@ public enum AgentSettingsSection: Equatable, Sendable {
     case model
     case instructions
     case capabilities
-    case advanced
     case delete
 }
 
@@ -56,18 +55,24 @@ public enum AgentSettingsCustomIndicator: Equatable, Sendable {
     case secondaryText
 }
 
-public enum AgentSettingsAdvancedStyle: Equatable, Sendable {
-    case disclosure
+public enum AgentSettingsRawFileActionPlacement: Equatable, Sendable {
+    case instructionsHeaderTrailing
+}
+
+public enum AgentSettingsDescriptionFieldStyle: Equatable, Sendable {
+    case multilineFullWidth
 }
 
 public struct AgentSettingsSupportingSurfacePresentation: Equatable, Sendable {
     public let containerStyle = AgentSettingsContainerStyle.nativeForm
     public let sections: [AgentSettingsSection] = [
-        .basics, .model, .instructions, .capabilities, .advanced, .delete,
+        .basics, .model, .instructions, .capabilities, .delete,
     ]
     public let capabilityRowStyle = AgentSettingsCapabilityRowStyle.plain
     public let customCapabilityIndicator = AgentSettingsCustomIndicator.secondaryText
-    public let advancedStyle = AgentSettingsAdvancedStyle.disclosure
+    public let descriptionFieldStyle = AgentSettingsDescriptionFieldStyle.multilineFullWidth
+    public let rawFileActionPlacement = AgentSettingsRawFileActionPlacement.instructionsHeaderTrailing
+    public let capabilityFooter: String? = nil
     public let areErrorsSelectable = true
 
     public init() {}

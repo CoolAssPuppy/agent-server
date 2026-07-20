@@ -393,20 +393,15 @@ struct AgentDetailDrawer: View {
                             .frame(maxHeight: .infinity)
                         }
                     } else if run.status == .running {
-                        Text("Working on it — results will appear here.")
+                        Text("Running")
                             .font(NTypography.caption)
                             .foregroundStyle(theme.tokens.mutedForeground)
                     }
                 }
             } else {
-                VStack(alignment: .leading, spacing: NSpacing.xs) {
-                    Text("This agent hasn't run yet.")
-                        .font(NTypography.bodySmall)
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                    Text("Press Run now to try it, or wait for its schedule.")
-                        .font(NTypography.caption)
-                        .foregroundStyle(theme.tokens.mutedForeground.opacity(0.8))
-                }
+                Text("This agent hasn't run yet.")
+                    .font(NTypography.bodySmall)
+                    .foregroundStyle(theme.tokens.mutedForeground)
             }
         }
         .padding(NSpacing.md)
@@ -513,7 +508,7 @@ struct AgentDetailDrawer: View {
                 .foregroundStyle(theme.tokens.mutedForeground)
 
             if enabled.isEmpty {
-                Text("Nothing is enabled yet — open the gear to give it capabilities.")
+                Text("No capabilities enabled")
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
             } else {

@@ -8,6 +8,7 @@ public enum AgentDetailPresentation {
     public static let notesTitle = "Agent notes"
     public static let capabilitiesTitle = "This agent can"
     public static let capabilityStyle = AgentDetailCapabilityStyle.iconText
+    public static let emptyStateSupportingCopy: String? = nil
 }
 
 public enum AgentSafetyReadinessAction: Equatable, Sendable {

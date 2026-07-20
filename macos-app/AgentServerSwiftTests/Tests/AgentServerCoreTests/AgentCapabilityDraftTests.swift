@@ -2,17 +2,19 @@ import XCTest
 @testable import AgentServerCore
 
 final class AgentCapabilityDraftTests: XCTestCase {
-    func testAgentSettingsUseOneFormWithFlatCapabilityRowsAndAdvancedDisclosure() {
+    func testAgentSettingsUseOneFormWithFocusedEditingControls() {
         let presentation = AgentSettingsSupportingSurfacePresentation()
 
         XCTAssertEqual(presentation.containerStyle, .nativeForm)
         XCTAssertEqual(
             presentation.sections,
-            [.basics, .model, .instructions, .capabilities, .advanced, .delete]
+            [.basics, .model, .instructions, .capabilities, .delete]
         )
         XCTAssertEqual(presentation.capabilityRowStyle, .plain)
         XCTAssertEqual(presentation.customCapabilityIndicator, .secondaryText)
-        XCTAssertEqual(presentation.advancedStyle, .disclosure)
+        XCTAssertEqual(presentation.descriptionFieldStyle, .multilineFullWidth)
+        XCTAssertEqual(presentation.rawFileActionPlacement, .instructionsHeaderTrailing)
+        XCTAssertNil(presentation.capabilityFooter)
         XCTAssertTrue(presentation.areErrorsSelectable)
     }
 

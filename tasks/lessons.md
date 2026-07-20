@@ -1,5 +1,6 @@
 # Lessons
 
+- Interface copy must earn its space. Remove sentences that restate a heading, describe a visible control, or tell people to press the obvious primary action. Keep copy that explains consequences, safety, privacy, unfamiliar concepts, or recovery.
 - An application-wide visual standard needs shared composition rules and behavior tests, not a sequence of unrelated cosmetic fixes. Define the hierarchy for chrome, sections, rows, status, actions, and disclosures first, then make each screen conform while preserving its task-specific controls.
 - Reusing design tokens does not guarantee a coherent Apple-style screen. A drawer should have one surface hierarchy and a small, deliberate set of type roles; nested cards, tinted blocks, capsules, and competing font sizes create visual noise even when each component is individually valid.
 

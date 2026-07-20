@@ -194,7 +194,7 @@ struct AgentProposalView: View {
             }
             .buttonStyle(.borderless)
             DisclosureGroup("Advanced configuration", isExpanded: $showsAdvanced) {
-                Text("The generated agent file will remain compatible with Agent Server. Secrets are stored as secure references and are never shown here.")
+                Text("Secrets never appear in the agent file.")
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
                     .padding(.top, NSpacing.xs)

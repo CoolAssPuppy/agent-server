@@ -171,10 +171,6 @@ struct SettingsDrawer: View {
 
     private var runtimeSection: some View {
         SettingsGroup(title: SettingsSection.runtimes.title) {
-            Text("Use the versions already installed on this Mac.")
-                .font(NTypography.captionSmall)
-                .foregroundStyle(theme.tokens.mutedForeground)
-
             SettingsToggleRow(label: "Use installed Claude", isOn: $useInstalledClaude)
                 .onChange(of: useInstalledClaude) { _, newValue in
                     persistRuntimeFlag(RuntimeEnvKey.useInstalledClaude, useInstalled: newValue)
@@ -301,16 +297,9 @@ struct SettingsDrawer: View {
         Divider()
             .padding(.vertical, NSpacing.xs)
 
-        VStack(alignment: .leading, spacing: NSpacing.xxs) {
-            Text("Progress reporting")
-                .font(NTypography.labelMedium)
-                .foregroundStyle(theme.tokens.foreground)
-
-            Text("Choose how run progress is sent to Agent Panel.")
-                .font(NTypography.captionSmall)
-                .foregroundStyle(theme.tokens.mutedForeground)
-                .fixedSize(horizontal: false, vertical: true)
-        }
+        Text("Progress reporting")
+            .font(NTypography.labelMedium)
+            .foregroundStyle(theme.tokens.foreground)
 
         SettingsValueRow(label: "Progress mode") {
             Picker("Progress mode", selection: $telemetryMode) {

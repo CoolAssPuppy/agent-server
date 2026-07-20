@@ -15,8 +15,6 @@ struct AgentSettingsSheet: View {
     var onDeleted: () -> Void = {}
 
     @Environment(\.nTheme) private var theme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
     @State private var didSeed = false
     @State private var seededAgentId: String?
     @State private var name = ""
@@ -30,7 +28,6 @@ struct AgentSettingsSheet: View {
     @State private var errorMessage: String?
     @State private var capabilityDraft = AgentCapabilityDraft(initialValues: [:])
     @State private var connectTarget: ConnectTarget?
-    @State private var showAdvanced = false
     @State private var confirmingDelete = false
 
     private var agent: Agent? {
@@ -46,7 +43,6 @@ struct AgentSettingsSheet: View {
                 modelSection
                 instructionsSection
                 capabilitiesSection
-                advancedSection
                 deleteSection
             }
             .formStyle(.grouped)
@@ -137,7 +133,22 @@ struct AgentSettingsSheet: View {
     private var basicsSection: some View {
         Section("Basics") {
             TextField("Name", text: $name, prompt: Text("Agent name"))
-            TextField("Description", text: $descriptionText, prompt: Text("What does this agent do?"))
+            VStack(alignment: .leading, spacing: NSpacing.xs) {
+                Text("Description")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                TextField(
+                    "What does this agent do?",
+                    text: $descriptionText,
+                    axis: .vertical
+                )
+                .labelsHidden()
+                .lineLimit(3...6)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityLabel("Description")
+                .accessibilityIdentifier("agent-settings-description")
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
             LabeledContent("Schedule") {
                 ScheduleField(draft: $scheduleDraft)
             }
@@ -147,12 +158,8 @@ struct AgentSettingsSheet: View {
     // MARK: - Model
 
     private var modelSection: some View {
-        Section {
+        Section("AI model") {
             ModelField(draft: $modelDraft)
-        } header: {
-            Text("Model")
-        } footer: {
-            Text("Which AI runs this agent.")
         }
     }
 
@@ -172,9 +179,17 @@ struct AgentSettingsSheet: View {
                         )
                 )
         } header: {
-            Text("Instructions")
-        } footer: {
-            Text("Tell the agent what to do in plain language.")
+            HStack {
+                Text("Instructions")
+                Spacer()
+                if let fileURL = AgentFile.find(agentId: agentId)?.url {
+                    Button("Open raw file") {
+                        NSWorkspace.shared.open(fileURL)
+                    }
+                    .buttonStyle(.link)
+                    .accessibilityIdentifier("agent-settings-open-raw-file")
+                }
+            }
         }
     }
 
@@ -199,8 +214,6 @@ struct AgentSettingsSheet: View {
             }
         } header: {
             Text("What this agent can do")
-        } footer: {
-            Text("Review your choices, then choose Save to update the agent.")
         }
     }
 
@@ -214,37 +227,6 @@ struct AgentSettingsSheet: View {
 
         capabilityDraft.set(capability.id, enabled: newValue)
         errorMessage = nil
-    }
-
-    // MARK: - Advanced
-
-    private var advancedSection: some View {
-        Section {
-            DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
-                if let fileURL = AgentFile.find(agentId: agentId)?.url {
-                    // The fields above already cover the prompt (Instructions),
-                    // schedule, model, and capabilities. For anything the UI
-                    // doesn't model, open the raw file — no duplicated editor.
-                    Text("Everything above is saved to this agent's file. Open it to hand-edit fields the app doesn't show.")
-                        .font(NTypography.caption)
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Button {
-                        NSWorkspace.shared.open(fileURL)
-                    } label: {
-                        Label("Open raw file (\(fileURL.lastPathComponent))", systemImage: "doc.text")
-                            .font(NTypography.caption)
-                            .foregroundStyle(theme.tokens.primary)
-                    }
-                    .buttonStyle(.plain)
-                } else {
-                    Text("Could not locate the agent's file on disk.")
-                        .font(NTypography.caption)
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                }
-            }
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: showAdvanced)
-        }
     }
 
     // MARK: - Delete

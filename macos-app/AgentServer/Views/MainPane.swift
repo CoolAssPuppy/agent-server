@@ -39,9 +39,11 @@ struct MainPane: View {
             Text(greetingCopy)
                 .font(NTypography.displayMedium)
                 .foregroundStyle(theme.tokens.foreground)
-            Text(subtitleCopy)
-                .font(NTypography.bodyMedium)
-                .foregroundStyle(theme.tokens.mutedForeground)
+            if let subtitleCopy {
+                Text(subtitleCopy)
+                    .font(NTypography.bodyMedium)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -56,7 +58,7 @@ struct MainPane: View {
         }
     }
 
-    private var subtitleCopy: String {
+    private var subtitleCopy: String? {
         let decisions = monitor.pendingDecisions.filter(\.isPending).count
         if decisions > 0 {
             return "\(decisions) decision\(decisions == 1 ? "" : "s") need your call."
@@ -65,7 +67,7 @@ struct MainPane: View {
             return "\(run.agentName) is working right now."
         }
         if monitor.agents.contains(where: { $0.enabled }) {
-            return "Your agents are watching over the day."
+            return nil
         }
         return "Create an agent and it will get to work."
     }

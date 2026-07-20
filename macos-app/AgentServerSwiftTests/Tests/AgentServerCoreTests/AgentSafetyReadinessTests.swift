@@ -16,6 +16,7 @@ final class AgentSafetyReadinessTests: XCTestCase {
         XCTAssertEqual(AgentDetailPresentation.notesTitle, "Agent notes")
         XCTAssertEqual(AgentDetailPresentation.capabilitiesTitle, "This agent can")
         XCTAssertEqual(AgentDetailPresentation.capabilityStyle, .iconText)
+        XCTAssertNil(AgentDetailPresentation.emptyStateSupportingCopy)
     }
 
     func testMissingConnectionsTakePriorityBecauseTheAgentCannotRunYet() {
