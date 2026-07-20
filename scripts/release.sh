@@ -3,13 +3,14 @@
 # One-shot release automation for Agent Server.
 #
 # Does the whole thing:
-#   1. Bumps the macOS and bundled server versions
-#   2. Builds the server and regenerates the Xcode project
-#   3. Archives + exports Developer ID .app
-#   4. Notarizes + staples the .app
-#   5. Builds DMG, notarizes + staples DMG, Sparkle-signs it
-#   6. Uploads DMG + appcast.xml to Cloudflare R2 (strategic-nerds-downloads)
-#   7. Verifies everything is live
+#   1. Runs server and macOS behavior checks
+#   2. Bumps the macOS and bundled server versions
+#   3. Builds the server and regenerates the Xcode project
+#   4. Archives + exports Developer ID .app
+#   5. Notarizes + staples the .app
+#   6. Builds DMG, notarizes + staples DMG, Sparkle-signs it
+#   7. Uploads DMG + appcast.xml to Cloudflare R2 (strategic-nerds-downloads)
+#   8. Verifies everything is live
 #
 # Prerequisites:
 #   - notarytool keychain profile "agent-server" (see SPARKLE.md step 6c)
@@ -93,7 +94,16 @@ fi
 mkdir -p "$DIST"
 
 #----------------------------------------------------------------------
-# 1. Bump version in project.yml
+# 1. Verify behavior before changing release metadata
+#----------------------------------------------------------------------
+echo "==> Running server checks"
+(cd "$REPO_ROOT/server-app" && pnpm test && pnpm run type-check && pnpm run lint)
+
+echo "==> Running macOS behavior checks"
+(cd "$MACOS_APP/AgentServerSwiftTests" && swift test)
+
+#----------------------------------------------------------------------
+# 2. Bump version in project.yml
 #----------------------------------------------------------------------
 echo "==> Bumping version to $VERSION"
 CURRENT_BUILD=$(awk -F'"' '/CURRENT_PROJECT_VERSION:/ {print $2}' "$MACOS_APP/project.yml")
