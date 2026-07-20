@@ -1,5 +1,37 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Answered-question regression hardening
+
+- [x] Capture the latest creation failure without retaining prompt text or secrets.
+- [x] Add a failing regression fixture for model questions already satisfied by structured answers.
+- [x] Normalize repeated questions without discarding a valid proposal or user selections.
+- [x] Preserve the entered description, selected connections, and resource grants through retry.
+- [x] Run full server and Swift verification, commit, simplify, rebuild, and relaunch.
+
+Review:
+
+- The reported technical message was false. It came from a `needs_information` response with zero questions, not from repeated questions.
+- Selected connection identities now come from authoritative app state when a valid model draft omits them. Unknown and duplicate model connections remain rejected.
+- Invalid time zones fail request validation with a clear 400 response. Proposal fallback can no longer return an empty question set and instead returns a typed retryable service error.
+- Exact-bound text sanitization no longer produces a value one character beyond the schema limit.
+- The macOS recovery card now uses one title, one outcome sentence, one primary action, and a quiet technical-details disclosure. Empty answers no longer count as completed questions.
+- Verification: 1,234 server tests, 330 Swift behavior tests, TypeScript type-check, ESLint, server build, and the unsigned macOS build passed. UI automation was not run.
+
+## Home activity simplification
+
+- [x] Remove the decorative “on watch” count from the home hero.
+- [x] Remove redundant Notion account exclusion copy from creation setup.
+- [x] Add failing behavior coverage that keeps conversational turns out of Recent Activity.
+- [x] Preserve chat runs in full agent history and run detail.
+- [x] Run Swift behavior tests and an unsigned build, commit, simplify, and relaunch.
+
+Review:
+
+- Home no longer shows the decorative agent-count claim.
+- Recent Activity excludes conversation-linked turns before applying its seven-item limit. Chats remain available in agent history and run detail.
+- Service selection no longer explains that unselected Notion accounts will not be added.
+- Verification is included in the regression review above. UI automation was not run.
+
 ## Required output contract enforcement
 
 - [x] Audit existing agent `output` declarations and captured tool-call evidence.

@@ -70,3 +70,21 @@
 - A clean model or SDK exit proves only that execution stopped without a transport error.
 - When an agent declares a required output, validate the observed tool call, destination, and successful result before recording completion or sending a success notification.
 - Unknown passthrough configuration must never look enforceable. Model supported contracts explicitly in the schema and fail closed when they are unmet.
+
+## Keep the home feed about agent work
+
+- Decorative agent-count claims such as “on watch” add noise without helping the user decide or act.
+- Repeated conversational turns can overwhelm operational activity. Keep chats in full history while excluding them from the concise home feed.
+- Do not explain exclusions the selection UI already makes obvious, such as stating that unselected service accounts will not be added.
+
+## Repeated model questions are normal input noise
+
+- A model may return a follow-up question whose answer already exists in structured state. Normalize it away instead of failing the entire creation flow.
+- Progression must be based on validated proposal readiness after answer normalization, not on whether the raw model response repeated a question.
+- Preserve every user-entered description, selected connection, and resource grant across retries and fallback paths.
+
+## Recovery states need one visual hierarchy
+
+- Do not render title, error label, save status, recovery paragraph, action, and technical details as equal-weight rows.
+- Lead with a specific title, combine the outcome and save state into one short sentence, and let the primary button communicate the next action.
+- Keep raw errors behind one quiet disclosure and preserve text selection for people who need to copy them.

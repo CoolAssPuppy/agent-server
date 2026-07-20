@@ -41,6 +41,7 @@ coverage/
 # macOS app build artifacts
 macos-app/AgentServer.xcodeproj/
 macos-app/DerivedData/
+macos-app/.derived-data/
 macos-app/.build-cache/
 *.xcuserstate
 xcuserdata/
