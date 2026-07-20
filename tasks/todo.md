@@ -1,5 +1,26 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Application-wide native macOS visual audit
+
+- [x] Re-audit every primary screen, drawer, sheet, sidebar, toolbar, error, loading, and empty state as one product.
+- [x] Inventory every typography role, nested background, border, capsule, custom control, and spacing rule now visible in the app.
+- [x] Define and document one native hierarchy for window chrome, drawers, sections, rows, details, actions, and technical disclosures.
+- [ ] Add failing behavior coverage for reusable presentation policies before changing production views.
+- [ ] Correct Security Check first, then apply the same hierarchy to creation, details, activity, connections, settings, and errors.
+- [ ] Verify keyboard navigation, VoiceOver labels, Reduce Motion, and light and dark appearance without focus-stealing UI automation.
+- [ ] Commit each consequential screen family, run a simplification pass after every commit, and keep the app buildable throughout.
+
+This re-audit supersedes the earlier audit sign-off. Passing behavior tests did not prove visual coherence, and the live product still has too many competing fonts, nested surfaces, borders, and badges.
+
+## Security Check visual hierarchy
+
+- [x] Audit every font, background, nested card, badge, divider, and action in the Security Check drawer.
+- [x] Add failing presentation tests for one restrained summary, list, and detail hierarchy.
+- [x] Replace stacked card backgrounds with native rows, sections, spacing, and selection states.
+- [x] Standardize typography roles and keep severity understandable without color.
+- [x] Preserve progressive panels, keyboard navigation, VoiceOver, and reduced motion.
+- [ ] Run full Swift verification and unsigned build, commit, simplify, and relaunch without UI automation.
+
 ## Saved-agent response reconciliation
 
 - [x] Capture the save-success/error mismatch without retaining agent content or secrets.

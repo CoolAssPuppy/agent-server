@@ -1,5 +1,7 @@
 # Lessons
 
+- Reusing design tokens does not guarantee a coherent Apple-style screen. A drawer should have one surface hierarchy and a small, deliberate set of type roles; nested cards, tinted blocks, capsules, and competing font sizes create visual noise even when each component is individually valid.
+
 - A transport or decoding failure after a write does not prove the write failed. Save flows must use an idempotency identity and reconcile authoritative state before telling the user nothing was saved or encouraging a duplicate retry.
 - Error recovery is one compact task, so its icon, title, explanation, primary action, and details action must stay in one narrow visual group. A disclosure pushed to the far edge of a wide card looks detached from the error it explains.
 

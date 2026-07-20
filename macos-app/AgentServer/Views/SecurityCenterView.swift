@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 import NerdsUI
 
 private enum SecurityPanelStyle {
-    static let listWidth: CGFloat = 360
+    static let listWidth: CGFloat = 400
     static let transitionDuration = 0.22
 }
 
@@ -89,10 +89,13 @@ struct SecurityCenterView: View {
                 Button {
                     _ = navigation.stepBack()
                 } label: {
-                    Label("All agents", systemImage: "chevron.left")
+                    Image(systemName: "chevron.left")
+                        .frame(width: 24, height: 24)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Back to all agents")
+                Text(monitor.agents.first(where: { $0.id == agentId })?.name ?? agentId)
+                    .font(.system(size: 13, weight: .semibold))
                 Spacer()
             }
             .padding(.horizontal, NSpacing.xl)
@@ -101,10 +104,22 @@ struct SecurityCenterView: View {
             AgentSecurityAnalyzerView(
                 agentName: monitor.agents.first(where: { $0.id == agentId })?.name ?? agentId,
                 actions: agentActions(agentId: agentId),
-                showsHeading: false
+                showsHeading: false,
+                selectedFindingId: Binding(
+                    get: { navigation.selectedFindingId },
+                    set: updateSelectedFinding
+                )
             )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func updateSelectedFinding(_ findingId: String?) {
+        if let findingId {
+            navigation.selectFinding(findingId)
+        } else if navigation.selectedFindingId != nil {
+            _ = navigation.stepBack()
+        }
     }
 
     private func stepBackOrClose() {
@@ -130,7 +145,7 @@ struct SecurityCenterView: View {
     }
 
     private var headerActions: some View {
-        HStack(spacing: NSpacing.sm) {
+        HStack(spacing: NSpacing.xs) {
             ForEach(panelPresentation.headerActions, id: \.self) { action in
                 headerActionButton(action)
             }
