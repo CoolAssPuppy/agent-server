@@ -833,6 +833,71 @@ describe('guided agent proposal creation', () => {
     expect(result.proposal.missing_information).toEqual([]);
   });
 
+  it('keeps answered connection and file choices when the model repeats both questions', async () => {
+    const stale = completeProposal();
+    stale.connections = [];
+    stale.notification_destination = null;
+    stale.permissions = {
+      can_modify_files: false,
+      can_run_commands: false,
+      requires_network: true,
+      can_use_connected_apps: true,
+      can_send_messages: false,
+    };
+    stale.missing_information = ['Choose the Notion connection and manuscript folder.'];
+    stale.questions = [
+      {
+        id: 'connection-notion',
+        question: 'Which Notion connection should this agent use?',
+        control: 'service',
+        required: true,
+      },
+      {
+        id: 'file-access',
+        question: 'Which manuscript folder should this agent use?',
+        control: 'path',
+        required: true,
+      },
+    ];
+
+    const result = await createAgentProposal({
+      request: 'Review a manuscript folder and save the result in Notion.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [{
+        id: 'notion-personal',
+        service_id: 'notion',
+        name: 'Personal Notion',
+        source: 'configured_api',
+        actions: ['read', 'write'],
+        actions_known: true,
+      }],
+      answers: [
+        { question_id: 'connection-notion', value: 'notion-personal' },
+        {
+          question_id: 'file-access',
+          value: [{ path: '~/Books', kind: 'folder', access: 'read_only' }],
+        },
+      ],
+      model: modelReturning(stale, stale).model,
+    });
+
+    expect(result).toMatchObject({ status: 'proposal', usedFallback: false });
+    if (result.status !== 'proposal') throw new Error('Expected proposal');
+    expect(result.proposal.connections).toEqual([expect.objectContaining({
+      id: 'notion-personal',
+      name: 'Personal Notion',
+      status: 'connected',
+      required: true,
+    })]);
+    expect(result.proposal.file_access).toEqual([expect.objectContaining({
+      path: '~/Books',
+      access: 'read_only',
+      is_suggestion: false,
+    })]);
+    expect(result.proposal.questions).toEqual([]);
+    expect(result.proposal.missing_information).toEqual([]);
+  });
+
   it('redacts secrets and tells the model to use narrow permissions', () => {
     const prompt = buildAgentProposalPrompt({
       request: 'Use api_key="sk-ant-secretvalue123456" to send a report.',

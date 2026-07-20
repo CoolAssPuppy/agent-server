@@ -171,9 +171,8 @@ function applyAuthoritativeConnections(
   const available = new Map(servicesRelevantToRequest(request).map((service) => [service.id, service]));
   const selectedIds = explicitlySelectedServiceIds(request);
   const proposalIds = proposal.connections.map((connection) => connection.id);
-  if (new Set(proposalIds).size !== proposalIds.length
-    || [...selectedIds].some((id) => !proposalIds.includes(id))) return undefined;
-  const connections = proposal.connections.map((connection) => {
+  if (new Set(proposalIds).size !== proposalIds.length) return undefined;
+  const proposedConnections = proposal.connections.map((connection) => {
     const service = available.get(connection.id);
     if (!service) return undefined;
     return {
@@ -183,8 +182,28 @@ function applyAuthoritativeConnections(
       required: selectedIds.has(connection.id) ? true : connection.required,
     };
   });
-  if (connections.some((connection) => connection === undefined)) return undefined;
-  return { ...proposal, connections: connections.filter((connection) => connection !== undefined) };
+  if (proposedConnections.some((connection) => connection === undefined)) return undefined;
+  const missingSelectedConnections = [...selectedIds]
+    .filter((id) => !proposalIds.includes(id))
+    .map((id) => {
+      const service = available.get(id);
+      if (!service) return undefined;
+      return {
+        id: service.id,
+        name: service.name,
+        required: true,
+        status: 'connected' as const,
+        reason: 'You selected this service for the agent.',
+      };
+    });
+  if (missingSelectedConnections.some((connection) => connection === undefined)) return undefined;
+  return {
+    ...proposal,
+    connections: [
+      ...proposedConnections.filter((connection) => connection !== undefined),
+      ...missingSelectedConnections.filter((connection) => connection !== undefined),
+    ],
+  };
 }
 
 const RISK_ORDER = { low: 0, needs_review: 1, high: 2, critical: 3 } as const;
