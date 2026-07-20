@@ -196,7 +196,7 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertTrue(flow.canRequestProposal)
     }
 
-    func testEmptyFileSelectionDoesNotCountAsAnAnsweredQuestion() {
+    func testChoosingNoFileAccessCountsAsAnExplicitAnswer() {
         let question = CreationQuestion(
             id: "file-access",
             prompt: "Which files or folders may this agent use?",
@@ -208,8 +208,8 @@ final class ConsumerProductFlowTests: XCTestCase {
 
         flow.answer(questionId: question.id, value: .fileGrants([]))
 
-        XCTAssertEqual(flow.nextQuestion, question)
-        XCTAssertFalse(flow.canRequestProposal)
+        XCTAssertNil(flow.nextQuestion)
+        XCTAssertTrue(flow.canRequestProposal)
     }
 
     func testRetryableFailureUsesOneConciseVisibleMessage() {

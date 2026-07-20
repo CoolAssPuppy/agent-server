@@ -99,6 +99,14 @@ public struct CreationQuestion: Identifiable, Equatable, Sendable {
         }
     }
 
+    public func isAnswered(by answer: CreationAnswerValue?) -> Bool {
+        guard let answer else { return false }
+        if case .fileAccess = kind, case .fileGrants = answer {
+            return true
+        }
+        return !answer.isEmpty
+    }
+
     public init(id: String, prompt: String, kind: Kind, isRequired: Bool, choiceValues: [String] = []) {
         self.id = id
         self.prompt = prompt
@@ -203,8 +211,7 @@ public struct AgentCreationFlow: Equatable, Sendable {
     public var nextQuestion: CreationQuestion? {
         questions.first { question in
             guard question.isRequired else { return false }
-            guard let answer = answers[question.id] else { return true }
-            return answer.isEmpty
+            return !question.isAnswered(by: answers[question.id])
         }
     }
 

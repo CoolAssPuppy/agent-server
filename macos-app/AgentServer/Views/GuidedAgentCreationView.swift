@@ -478,7 +478,7 @@ struct GuidedAgentCreationView: View {
                 Button("Continue", action: answerQuestion)
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
-                    .disabled(currentAnswerValue?.isEmpty ?? true)
+                    .disabled(!(flow.nextQuestion?.isAnswered(by: currentAnswerValue) ?? false))
             }
         case .proposal:
             Button("Edit details") { flow.returnToRequest() }

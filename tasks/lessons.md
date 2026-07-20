@@ -108,3 +108,4 @@
 - When verification intentionally replaces or restarts the installed server, tell the user before doing it and account for the resulting system notification. Do not leave an expected maintenance restart looking like a new unexplained failure.
 - A hidden context menu on selectable text is not a working macOS interaction. When a heading owns a contextual action, prevent text selection on that target and verify the menu wins.
 - Responsive grids can change the intended semantic columns as cards are added or removed. Preserve explicit left and right card groupings when their placement matters to the user.
+- An empty file-access selection is an explicit least-privilege choice, not an unanswered creation question. Creation must allow agents that only use services, schedules, or native apps to continue without local file access.

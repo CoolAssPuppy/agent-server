@@ -1264,3 +1264,13 @@ Review:
 - Risk counts align to the leading edge of their labels, and the status card has clear separation from the agent list.
 - The obsolete whole-drawer scan view was removed.
 - Verification: 242 Swift behavior tests and the unsigned macOS build passed. UI automation was not run.
+## Optional file access in agent creation
+
+- [x] Add a failing behavior test that treats no local file access as an explicit choice.
+- [x] Allow Continue with no selected files while preserving required validation for other questions.
+- [x] Verify the Swift behavior suite and rebuild the local app for testing.
+- [ ] Commit the focused repair and run a simplification pass.
+
+### Review
+
+Selecting no files now counts as an explicit least-privilege answer to the file-access question. Other required answers still reject empty values. The focused test failed before the change and passes afterward; all 373 Swift behavior tests and the local Debug app build pass.
