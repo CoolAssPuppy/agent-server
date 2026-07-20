@@ -5,12 +5,19 @@
 - [x] Re-audit every primary screen, drawer, sheet, sidebar, toolbar, error, loading, and empty state as one product.
 - [x] Inventory every typography role, nested background, border, capsule, custom control, and spacing rule now visible in the app.
 - [x] Define and document one native hierarchy for window chrome, drawers, sections, rows, details, actions, and technical disclosures.
-- [ ] Add failing behavior coverage for reusable presentation policies before changing production views.
-- [ ] Correct Security Check first, then apply the same hierarchy to creation, details, activity, connections, settings, and errors.
-- [ ] Verify keyboard navigation, VoiceOver labels, Reduce Motion, and light and dark appearance without focus-stealing UI automation.
-- [ ] Commit each consequential screen family, run a simplification pass after every commit, and keep the app buildable throughout.
+- [x] Add failing behavior coverage for reusable presentation policies before changing production views.
+- [x] Correct Security Check first, then apply the same hierarchy to creation, details, activity, connections, settings, and errors.
+- [x] Verify keyboard navigation, VoiceOver labels, Reduce Motion, and theme-aware presentation without focus-stealing UI automation.
+- [x] Commit each consequential screen family, run a simplification pass after every commit, and keep the app buildable throughout.
 
 This re-audit supersedes the earlier audit sign-off. Passing behavior tests did not prove visual coherence, and the live product still has too many competing fonts, nested surfaces, borders, and badges.
+
+Review:
+
+- The app now follows one documented visual hierarchy for window chrome, drawers, sections, rows, details, actions, status, and technical disclosures. See `specs/macos-visual-system.md`.
+- Security Check, creation, home, agent details, run details, debugger, Connections, Settings, agent settings, the menu bar, and shared drawer chrome now use restrained native surfaces and semantic text roles.
+- Progressive detail panels, keyboard dismissal, VoiceOver labels, selectable technical text, non-color status descriptions, and Reduce Motion behavior remain available.
+- Verification: 1,237 server tests across 91 files, 355 Swift behavior tests, TypeScript type-check, ESLint, server build, and the unsigned macOS build passed. UI automation was not run.
 
 ## Security Check visual hierarchy
 
@@ -19,7 +26,7 @@ This re-audit supersedes the earlier audit sign-off. Passing behavior tests did 
 - [x] Replace stacked card backgrounds with native rows, sections, spacing, and selection states.
 - [x] Standardize typography roles and keep severity understandable without color.
 - [x] Preserve progressive panels, keyboard navigation, VoiceOver, and reduced motion.
-- [ ] Run full Swift verification and unsigned build, commit, simplify, and relaunch without UI automation.
+- [x] Run full Swift verification and unsigned build, commit, simplify, and relaunch without UI automation.
 
 ## Saved-agent response reconciliation
 

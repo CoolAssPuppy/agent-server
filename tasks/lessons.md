@@ -1,5 +1,6 @@
 # Lessons
 
+- An application-wide visual standard needs shared composition rules and behavior tests, not a sequence of unrelated cosmetic fixes. Define the hierarchy for chrome, sections, rows, status, actions, and disclosures first, then make each screen conform while preserving its task-specific controls.
 - Reusing design tokens does not guarantee a coherent Apple-style screen. A drawer should have one surface hierarchy and a small, deliberate set of type roles; nested cards, tinted blocks, capsules, and competing font sizes create visual noise even when each component is individually valid.
 
 - A transport or decoding failure after a write does not prove the write failed. Save flows must use an idempotency identity and reconcile authoritative state before telling the user nothing was saved or encouraging a duplicate retry.
