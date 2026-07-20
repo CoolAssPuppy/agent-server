@@ -20,7 +20,13 @@ public enum SettingsSection: String, CaseIterable, Equatable, Sendable {
     }
 }
 
+public enum SettingsSectionStyle: Equatable, Sendable {
+    case card
+}
+
 public enum SettingsPresentation {
+    public static let sectionStyle = SettingsSectionStyle.card
+
     public static let primarySections: [SettingsSection] = [
         .general,
         .runtimes,
@@ -34,4 +40,7 @@ public enum SettingsPresentation {
         .environment,
     ]
 
+    public static func columnCount(availableWidth: Double) -> Int {
+        availableWidth >= 640 ? 2 : 1
+    }
 }

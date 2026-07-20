@@ -3,16 +3,16 @@ import NerdsUI
 import AppKit
 import UserNotifications
 
-/// Settings drawer that pulls down over the main pane. Everyday controls lead
-/// in a flat, single-column form. Infrastructure controls stay behind Advanced,
-/// and the whole surface scrolls when the window is short.
+/// Settings drawer that pulls down over the main pane. Everyday controls use
+/// an adaptive card grid. Infrastructure controls stay behind Advanced, and
+/// the whole surface scrolls when the window is short.
 ///
 /// Visual rules:
 ///  - Overlay, not push. The drawer layers on top of the content; the main
 ///    pane stays put. The host is responsible for dimming the content behind.
 ///  - Inset from the window chrome (`NSpacing.xxl` on left and right).
 ///  - Rounded bottom corners only.
-///  - Sections share the drawer surface instead of introducing nested cards.
+///  - Settings remain grouped in cards that collapse to one column when narrow.
 ///  - Close affordance pinned upper-right of the drawer inside a muted circle.
 struct SettingsDrawer: View {
     @ObservedObject var monitor: StatusMonitor
@@ -74,43 +74,58 @@ struct SettingsDrawer: View {
     }
 
     private var content: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                sectionGroup(SettingsPresentation.primarySections)
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: NSpacing.lg) {
+                    sectionGrid(
+                        SettingsPresentation.primarySections,
+                        availableWidth: proxy.size.width
+                    )
 
-                Divider()
-                    .opacity(0.3)
-                    .padding(.vertical, NSpacing.lg)
+                    SettingsAdvancedDisclosure(isExpanded: $showAdvancedSettings)
 
-                SettingsAdvancedDisclosure(isExpanded: $showAdvancedSettings)
-
-                if showAdvancedSettings {
-                    Divider()
-                        .opacity(0.3)
-                        .padding(.vertical, NSpacing.lg)
-                    sectionGroup(SettingsPresentation.advancedSections)
+                    if showAdvancedSettings {
+                        sectionGrid(
+                            SettingsPresentation.advancedSections,
+                            availableWidth: proxy.size.width
+                        )
                         .accessibilityIdentifier("settings.advancedContent")
+                    }
                 }
+                .padding(.horizontal, NSpacing.xxl)
+                .padding(.bottom, NSpacing.xxl)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .frame(maxWidth: 760, alignment: .leading)
-            .padding(.horizontal, NSpacing.xxl)
-            .padding(.bottom, NSpacing.xxl)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .scrollBounceBehavior(.basedOnSize)
         }
-        .scrollBounceBehavior(.basedOnSize)
     }
 
-    private func sectionGroup(_ sections: [SettingsSection]) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(sections.enumerated()), id: \.element) { index, section in
-                if index > 0 {
-                    Divider()
-                        .opacity(0.2)
-                        .padding(.vertical, NSpacing.lg)
-                }
+    private func sectionGrid(
+        _ sections: [SettingsSection],
+        availableWidth: CGFloat
+    ) -> some View {
+        LazyVGrid(
+            columns: gridColumns(for: availableWidth),
+            alignment: .leading,
+            spacing: NSpacing.lg
+        ) {
+            ForEach(sections, id: \.self) { section in
                 sectionView(for: section)
             }
         }
+    }
+
+    private func gridColumns(for availableWidth: CGFloat) -> [GridItem] {
+        let contentWidth = max(0, availableWidth - (NSpacing.xxl * 2))
+        let count = SettingsPresentation.columnCount(availableWidth: Double(contentWidth))
+        return Array(
+            repeating: GridItem(
+                .flexible(minimum: 280),
+                spacing: NSpacing.lg,
+                alignment: .top
+            ),
+            count: count
+        )
     }
 
     // MARK: - Sections

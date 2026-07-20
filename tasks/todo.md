@@ -1,5 +1,19 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Settings card layout restoration
+
+- [x] Add failing coverage for responsive arranged Settings cards.
+- [x] Restore the two-column card grid while preserving current settings behavior and section order.
+- [x] Keep sentence-case typography, Advanced grouping, keyboard access, and narrow-window fallback.
+- [x] Run Swift verification and the unsigned app build, simplify, commit, and relaunch without UI automation.
+
+Review:
+
+- Settings again uses the arranged card composition the user preferred. Wide drawers show two columns; narrow drawers show one.
+- Current section order, persistence, restart notices, Agent Panel placement, environment editing, demo-mode context action, and Advanced disclosure remain unchanged.
+- The restored cards keep the newer sentence-case headings and semantic type roles instead of restoring the older uppercase treatment.
+- Verification: 359 Swift behavior tests and the unsigned macOS build passed. UI automation was not run.
+
 ## Kimi K3 preset
 
 - [x] Verify Moonshot's current K3 model ID and endpoint from official sources.

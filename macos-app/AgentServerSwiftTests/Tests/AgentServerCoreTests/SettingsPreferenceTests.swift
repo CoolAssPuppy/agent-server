@@ -28,6 +28,12 @@ final class SettingsPreferenceTests: XCTestCase {
         )
     }
 
+    func testSettingsUseResponsiveArrangedCards() {
+        XCTAssertEqual(SettingsPresentation.sectionStyle, .card)
+        XCTAssertEqual(SettingsPresentation.columnCount(availableWidth: 900), 2)
+        XCTAssertEqual(SettingsPresentation.columnCount(availableWidth: 620), 1)
+    }
+
     func testAbsentEnvironmentFlagUsesItsConsumerDefault() {
         let preference = EnvironmentBooleanPreference(
             key: "AGENT_SERVER_CATCH_UP",

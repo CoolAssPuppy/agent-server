@@ -1,5 +1,6 @@
 # Lessons
 
+- Visual restraint does not mean flattening a useful information architecture. When a user likes an established grouping pattern, preserve it and improve the typography, spacing, and density inside it instead of replacing the composition.
 - A model-family preset must bind to an exact versioned model ID, while historical runs and existing agent files retain their configured version. Never relabel or silently migrate older provider configurations when a new preset replaces them.
 - Interface copy must earn its space. Remove sentences that restate a heading, describe a visible control, or tell people to press the obvious primary action. Keep copy that explains consequences, safety, privacy, unfamiliar concepts, or recovery.
 - An application-wide visual standard needs shared composition rules and behavior tests, not a sequence of unrelated cosmetic fixes. Define the hierarchy for chrome, sections, rows, status, actions, and disclosures first, then make each screen conform while preserving its task-specific controls.

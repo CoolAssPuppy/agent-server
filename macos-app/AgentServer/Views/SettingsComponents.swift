@@ -35,7 +35,14 @@ struct SettingsGroup<Content: View>: View {
                 content()
             }
         }
+        .padding(NSpacing.lg)
         .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(theme.tokens.card)
+        .overlay {
+            RoundedRectangle(cornerRadius: NRadius.md)
+                .stroke(theme.tokens.border, lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
     }
 }
 
