@@ -4,9 +4,26 @@ public enum AgentDebuggerSurfaceStyle: Equatable, Sendable {
     case flatSections
 }
 
+public struct AgentDebuggerUnavailableState: Equatable, Sendable {
+    public let title: String
+    public let message: String
+    public let actionTitle: String
+
+    public init(title: String, message: String, actionTitle: String) {
+        self.title = title
+        self.message = message
+        self.actionTitle = actionTitle
+    }
+}
+
 public enum AgentDebuggerPresentation {
     public static let surfaceStyle = AgentDebuggerSurfaceStyle.flatSections
     public static let disclosesTechnicalDetails = true
+    public static let unavailableState = AgentDebuggerUnavailableState(
+        title: "This run cannot be diagnosed",
+        message: "The run is still available in history. You can review the agent's settings now.",
+        actionTitle: "Open agent settings"
+    )
 }
 
 public struct AgentDebuggerFlow: Equatable, Sendable {

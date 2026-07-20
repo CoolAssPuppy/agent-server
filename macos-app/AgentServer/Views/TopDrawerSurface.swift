@@ -50,7 +50,9 @@ struct TopDrawerSurface<HeaderActions: View, Content: View>: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            if showsDivider { Divider().opacity(0.3) }
+            if showsDivider {
+                Divider().opacity(TopDrawerPresentation.dividerOpacity)
+            }
             content
         }
         .frame(maxWidth: .infinity)
@@ -66,37 +68,56 @@ struct TopDrawerSurface<HeaderActions: View, Content: View>: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top) {
+        HStack(alignment: .center, spacing: NSpacing.sm) {
             if let titleIcon {
                 titleStatusIcon(titleIcon)
                     .frame(width: 20, height: 20)
-                    .padding(.top, NSpacing.xs)
                     .accessibilityHidden(true)
             }
             Text(title)
                 .font(NTypography.headlineLarge)
                 .foregroundStyle(theme.tokens.foreground)
-                .padding(.top, NSpacing.xs)
+                .accessibilityAddTraits(.isHeader)
             Spacer()
             headerActions
-            Button(action: onClose) {
-                ZStack {
-                    Circle()
-                        .fill(theme.tokens.muted)
-                        .overlay(Circle().stroke(theme.tokens.border, lineWidth: 1))
-                    Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                }
-                .frame(width: 28, height: 28)
-                .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(closeLabel)
+            toolbarButton(
+                systemImage: "xmark",
+                accessibilityLabel: closeLabel,
+                action: onClose
+            )
+            .keyboardShortcut("w", modifiers: .command)
         }
         .padding(.horizontal, NSpacing.xxl)
         .padding(.top, 28)
         .padding(.bottom, NSpacing.md)
+    }
+
+    private func toolbarButton(
+        systemImage: String,
+        accessibilityLabel: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            ZStack {
+                Circle()
+                    .fill(theme.tokens.muted)
+                    .overlay(Circle().stroke(theme.tokens.border, lineWidth: 1))
+                Image(systemName: systemImage)
+                    .font(.system(
+                        size: TopDrawerPresentation.toolbarIconSize,
+                        weight: .semibold
+                    ))
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            }
+            .frame(
+                width: TopDrawerPresentation.toolbarButtonSize,
+                height: TopDrawerPresentation.toolbarButtonSize
+            )
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help(accessibilityLabel)
+        .accessibilityLabel(accessibilityLabel)
     }
 
     @ViewBuilder

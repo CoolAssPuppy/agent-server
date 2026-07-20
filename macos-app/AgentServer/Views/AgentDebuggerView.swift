@@ -29,6 +29,7 @@ struct AgentDebuggerView: View {
     let actions: AgentDebuggerActions
     let openAgentSettings: () -> Void
     let openRun: (String) -> Void
+    let showsHeading: Bool
 
     @Environment(\.nTheme) private var theme
     @State private var flow: AgentDebuggerFlow
@@ -40,22 +41,26 @@ struct AgentDebuggerView: View {
         failedRunId: String,
         actions: AgentDebuggerActions,
         openAgentSettings: @escaping () -> Void,
-        openRun: @escaping (String) -> Void
+        openRun: @escaping (String) -> Void,
+        showsHeading: Bool = true
     ) {
         self.failedRunId = failedRunId
         self.actions = actions
         self.openAgentSettings = openAgentSettings
         self.openRun = openRun
+        self.showsHeading = showsHeading
         _flow = State(initialValue: AgentDebuggerFlow(failedRunId: failedRunId))
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: NSpacing.lg) {
-                ConsumerFlowHeader(
-                    title: "Agent debugger",
-                    explanation: "Understand what went wrong and review a safe fix before anything changes."
-                )
+                if showsHeading {
+                    ConsumerFlowHeader(
+                        title: "Agent debugger",
+                        explanation: "Understand what went wrong and review a safe fix before anything changes."
+                    )
+                }
                 content
             }
             .frame(maxWidth: 760)

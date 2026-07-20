@@ -3,6 +3,12 @@ import XCTest
 
 final class DrawerRouterTests: XCTestCase {
 
+    func testTopDrawersUseOneNativeToolbarHierarchy() {
+        XCTAssertEqual(TopDrawerPresentation.toolbarButtonSize, 28)
+        XCTAssertEqual(TopDrawerPresentation.toolbarIconSize, 11)
+        XCTAssertEqual(TopDrawerPresentation.dividerOpacity, 0.3)
+    }
+
     func testFooterUtilitiesAreIconOnlyAndOrderedByIncreasingScope() {
         XCTAssertEqual(
             MainFooterUtilityDestination.allCases,

@@ -529,6 +529,14 @@ final class ConsumerProductFlowTests: XCTestCase {
     func testDebuggerUsesAFlatReadingFlowWithTechnicalContentDisclosed() {
         XCTAssertEqual(AgentDebuggerPresentation.surfaceStyle, .flatSections)
         XCTAssertTrue(AgentDebuggerPresentation.disclosesTechnicalDetails)
+        XCTAssertEqual(
+            AgentDebuggerPresentation.unavailableState,
+            .init(
+                title: "This run cannot be diagnosed",
+                message: "The run is still available in history. You can review the agent's settings now.",
+                actionTitle: "Open agent settings"
+            )
+        )
     }
 
     func testDebuggerPreservesFailedRunWhileRetrying() {

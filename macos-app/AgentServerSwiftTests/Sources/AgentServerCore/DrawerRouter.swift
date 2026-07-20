@@ -1,5 +1,11 @@
 import Foundation
 
+enum TopDrawerPresentation {
+    static let toolbarButtonSize: CGFloat = 28
+    static let toolbarIconSize: CGFloat = 11
+    static let dividerOpacity = 0.3
+}
+
 // MARK: - Drawer state
 
 enum Drawer: Equatable {
