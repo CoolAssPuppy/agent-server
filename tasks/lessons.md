@@ -105,3 +105,4 @@
 - Do not assume npm subcommands exist in pnpm. For release metadata, use the release script's existing portable Python step or prove the exact package-manager command during preflight before changing version files.
 - Preserve interaction details the user explicitly values. A compact icon is not an acceptable substitute for a playful, direct theme picker unless the user asks for that tradeoff.
 - A signed archive passing build, notarization, and feed checks does not prove an in-place Sparkle update works. Before publishing, test the installed app's relaunch, workspace resolution, server startup, and agent discovery from the upgraded bundle.
+- When verification intentionally replaces or restarts the installed server, tell the user before doing it and account for the resulting system notification. Do not leave an expected maintenance restart looking like a new unexplained failure.
