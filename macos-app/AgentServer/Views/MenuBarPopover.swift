@@ -1,5 +1,5 @@
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 
 /// Menu bar popover (mock 1EL-0). Layout: header → optional Needs-you →
 /// Running / Up next / Recent / All agents lists → bottom bar.

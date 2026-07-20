@@ -1,5 +1,5 @@
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 
 struct InformationTabView: View {
     let run: Run

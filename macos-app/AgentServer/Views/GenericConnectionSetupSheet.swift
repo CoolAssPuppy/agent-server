@@ -1,5 +1,5 @@
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 
 struct GenericConnectionSetupSheet: View {
     @ObservedObject var monitor: StatusMonitor

@@ -1,5 +1,5 @@
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 
 struct AgentSecurityActions {
     let scan: () async -> Result<SecurityScanPresentation, ConsumerFlowFailure>

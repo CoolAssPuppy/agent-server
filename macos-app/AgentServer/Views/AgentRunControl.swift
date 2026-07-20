@@ -1,5 +1,5 @@
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 
 struct AgentRunControl: View {
     let agent: Agent

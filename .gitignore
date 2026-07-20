@@ -45,6 +45,6 @@ xcuserdata/
 # Swift package build artifacts (Chunk 10 test harness)
 macos-app/AgentServerSwiftTests/.build/
 macos-app/AgentServerSwiftTests/.swiftpm/
-macos-app/Vendor/NerdsUI/.build/
+macos-app/AgentServerDesignSystem/.build/
 .worktrees/
 .wrangler/

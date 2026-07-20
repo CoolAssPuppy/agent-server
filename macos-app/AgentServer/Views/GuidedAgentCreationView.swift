@@ -1,5 +1,5 @@
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 import AppKit
 
 private extension CreationQuestion.NativeResource {

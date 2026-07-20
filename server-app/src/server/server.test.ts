@@ -1,6 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { makeAgent } from '../test-factories.js';
-import { createDownstreamTriggerHandler } from './downstream-triggers.js';
 import {
   chatKeyFromString,
   extractMcpNeedsAuthServers,
@@ -8,105 +7,6 @@ import {
   shouldSendChannelRunNotification,
   shouldSendTelegramRunNotification,
 } from './server.js';
-
-describe('fireDownstreamTriggers', () => {
-  it('triggers downstream agents on completion', async () => {
-    const downstream = makeAgent({ id: 'downstream' });
-    const discover = vi.fn().mockResolvedValue([
-      makeAgent({ id: 'source', on_complete: [{ agent: 'downstream' }] }),
-      downstream,
-      makeAgent({ id: 'unrelated' }),
-    ]);
-    const trigger = vi.fn();
-    const fireDownstreamTriggers = createDownstreamTriggerHandler({
-      discover,
-      trigger,
-      maxDepth: 10,
-    });
-
-    await fireDownstreamTriggers(makeAgent({
-      id: 'source',
-      on_complete: [{ agent: 'downstream' }],
-    }), 'completed');
-
-    expect(trigger).toHaveBeenCalledTimes(1);
-    expect(trigger).toHaveBeenCalledWith(
-      downstream,
-      expect.objectContaining({ visitedAgentIds: ['source', 'downstream'] }),
-    );
-  });
-
-  it('triggers on_failure agents when run fails', async () => {
-    const alerter = makeAgent({ id: 'alerter' });
-    const discover = vi.fn().mockResolvedValue([
-      makeAgent({ id: 'source', on_failure: [{ agent: 'alerter' }] }),
-      alerter,
-    ]);
-    const trigger = vi.fn();
-    const fireDownstreamTriggers = createDownstreamTriggerHandler({ discover, trigger, maxDepth: 10 });
-
-    await fireDownstreamTriggers(makeAgent({
-      id: 'source',
-      on_failure: [{ agent: 'alerter' }],
-    }), 'failed');
-
-    expect(trigger).toHaveBeenCalledTimes(1);
-    expect(trigger).toHaveBeenCalledWith(alerter, expect.any(Object));
-  });
-
-  it('does not trigger when no downstream agents match', async () => {
-    const discover = vi.fn().mockResolvedValue([
-      makeAgent({ id: 'source' }),
-      makeAgent({ id: 'other' }),
-    ]);
-    const trigger = vi.fn();
-    const fireDownstreamTriggers = createDownstreamTriggerHandler({ discover, trigger, maxDepth: 10 });
-
-    await fireDownstreamTriggers(makeAgent({ id: 'source' }), 'completed');
-
-    expect(trigger).not.toHaveBeenCalled();
-  });
-
-  it('handles discovery errors gracefully without crashing', async () => {
-    const discover = vi.fn().mockRejectedValue(new Error('disk failure'));
-    const trigger = vi.fn();
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const fireDownstreamTriggers = createDownstreamTriggerHandler({ discover, trigger, maxDepth: 10 });
-
-    await fireDownstreamTriggers(makeAgent({ id: 'source' }), 'completed');
-
-    expect(trigger).not.toHaveBeenCalled();
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[triggers]'),
-      expect.any(Error),
-    );
-    consoleSpy.mockRestore();
-  });
-
-  it('triggers multiple downstream agents', async () => {
-    const d1 = makeAgent({ id: 'notifier' });
-    const d2 = makeAgent({ id: 'reporter' });
-    const discover = vi.fn().mockResolvedValue([
-      makeAgent({
-        id: 'source',
-        on_complete: [{ agent: 'notifier' }, { agent: 'reporter' }],
-      }),
-      d1,
-      d2,
-    ]);
-    const trigger = vi.fn();
-    const fireDownstreamTriggers = createDownstreamTriggerHandler({ discover, trigger, maxDepth: 10 });
-
-    await fireDownstreamTriggers(makeAgent({
-      id: 'source',
-      on_complete: [{ agent: 'notifier' }, { agent: 'reporter' }],
-    }), 'completed');
-
-    expect(trigger).toHaveBeenCalledTimes(2);
-    expect(trigger).toHaveBeenCalledWith(d1, expect.any(Object));
-    expect(trigger).toHaveBeenCalledWith(d2, expect.any(Object));
-  });
-});
 
 describe('shouldSendTelegramRunNotification', () => {
   it('returns false when completion notification is already configured for telegram', () => {

@@ -1,5 +1,5 @@
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 
 enum TopDrawerStyle {
     static let height: CGFloat = 640

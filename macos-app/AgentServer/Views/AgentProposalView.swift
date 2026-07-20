@@ -1,5 +1,5 @@
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 
 struct AgentProposalView: View {
     let proposal: AgentProposalPresentation

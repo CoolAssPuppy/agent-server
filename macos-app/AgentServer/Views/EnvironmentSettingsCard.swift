@@ -1,5 +1,5 @@
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 
 struct EnvironmentSettingsCard: View {
     @Binding var pairs: [EnvPair]

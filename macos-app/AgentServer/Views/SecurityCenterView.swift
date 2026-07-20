@@ -1,6 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
-import NerdsUI
+import AgentServerDesignSystem
 
 private enum SecurityPanelStyle {
     static let listWidth: CGFloat = 400

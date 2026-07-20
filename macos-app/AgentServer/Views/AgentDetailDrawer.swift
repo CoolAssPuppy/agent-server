@@ -1,5 +1,5 @@
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 import AppKit
 
 /// Slide-in drawer that overlays the main pane from the left edge of the main

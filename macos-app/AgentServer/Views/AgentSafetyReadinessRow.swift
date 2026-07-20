@@ -1,5 +1,5 @@
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 
 struct AgentSafetyReadinessRow: View {
     let presentation: AgentSafetyReadinessPresentation

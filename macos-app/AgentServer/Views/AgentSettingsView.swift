@@ -1,5 +1,5 @@
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 
 /// Consumer-facing agent editor presented from the gear button in the agent
 /// detail drawer. Basics (name, description, schedule), the agent's

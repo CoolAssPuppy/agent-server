@@ -1,5 +1,5 @@
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 
 struct SecurityDashboardActions {
     let scanAll: () async -> Result<SecurityDashboardPresentation, ConsumerFlowFailure>

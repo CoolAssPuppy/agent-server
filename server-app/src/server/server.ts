@@ -639,7 +639,6 @@ export function startServer(
   const httpServer = serve({ fetch: app.fetch, port, hostname: config.host });
   const httpServerReady = waitForHttpServer(httpServer);
   injectWebSocket(httpServer);
-  console.log(`Agent Server API listening on http://${config.host}:${port}`);
 
   // Local ghost-run cleanup. A fresh process owns no in-flight runs, so any run
   // left `running` in the durable store belongs to a previous instance that was
@@ -967,6 +966,7 @@ export function startServer(
   const ready = (async (): Promise<void> => {
     try {
       await httpServerReady;
+      console.log(`Agent Server API listening on http://${config.host}:${port}`);
       stopManagedServices = await startManagedServices(managedServices, {
         startTimeoutMs: MANAGED_SERVICE_START_TIMEOUT_MS,
         stopTimeoutMs: MANAGED_SERVICE_STOP_TIMEOUT_MS,

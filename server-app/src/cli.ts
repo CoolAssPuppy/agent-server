@@ -71,12 +71,14 @@ export function createCli(dependencies: CliDependencies): Command {
       const shutdown = async (): Promise<void> => {
         if (isShuttingDown) return;
         isShuttingDown = true;
+        let exitCode = 0;
         try {
           await server.stop();
         } catch (error) {
+          exitCode = 1;
           dependencies.output.error(`[shutdown] error: ${toErrorMessage(error)}`);
         } finally {
-          dependencies.exit(0);
+          dependencies.exit(exitCode);
         }
       };
 
@@ -86,7 +88,13 @@ export function createCli(dependencies: CliDependencies): Command {
       try {
         await server.ready;
       } catch (error) {
-        await server.stop();
+        try {
+          await server.stop();
+        } catch (cleanupError) {
+          dependencies.output.error(
+            `[startup] cleanup error: ${toErrorMessage(cleanupError)}`,
+          );
+        }
         throw error;
       }
     });
@@ -196,7 +204,7 @@ function createProductionDependencies(): CliDependencies {
   };
 }
 
-export async function runCli(argv: string[] = process.argv): Promise<void> {
+async function runCli(argv: string[] = process.argv): Promise<void> {
   const dependencies = createProductionDependencies();
   await createCli({ ...dependencies, argv }).parseAsync(argv);
 }

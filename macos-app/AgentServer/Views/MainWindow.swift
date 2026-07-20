@@ -1,5 +1,5 @@
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 import AppKit
 
 /// Two-pane main window shell: left sidebar (240px) + main pane (flex).

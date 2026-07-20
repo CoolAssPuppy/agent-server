@@ -13,7 +13,7 @@ type DownstreamTriggerDependencies = {
   logError?: (message: string, error: unknown) => void;
 };
 
-export type DownstreamTriggerHandler = (
+type DownstreamTriggerHandler = (
   sourceAgent: AgentConfig,
   status: 'completed' | 'failed' | 'skipped',
   existingChain?: TriggerChain,
@@ -29,22 +29,32 @@ export function createDownstreamTriggerHandler(
   return async (sourceAgent, status, existingChain) => {
     if (status === 'skipped') return;
 
+    let targets: ReturnType<typeof evaluateSafeTriggers>;
     try {
       const agents = await dependencies.discover();
       const chain = existingChain ?? createTriggerChain(sourceAgent.id);
-      const targets = evaluateSafeTriggers(
+      targets = evaluateSafeTriggers(
         agents,
         sourceAgent.id,
         status,
         chain,
         dependencies.maxDepth,
       );
-      for (const target of targets) {
-        log(`[triggers] ${status} ${sourceAgent.id} -> triggering ${target.agent.id}`);
-        await dependencies.trigger(target.agent, target.chain);
-      }
     } catch (error) {
       logError(`[triggers] Failed to evaluate triggers for ${sourceAgent.id}:`, error);
+      return;
+    }
+
+    for (const target of targets) {
+      log(`[triggers] ${status} ${sourceAgent.id} -> triggering ${target.agent.id}`);
+      try {
+        await dependencies.trigger(target.agent, target.chain);
+      } catch (error) {
+        logError(
+          `[triggers] Failed to trigger ${target.agent.id} from ${sourceAgent.id}:`,
+          error,
+        );
+      }
     }
   };
 }

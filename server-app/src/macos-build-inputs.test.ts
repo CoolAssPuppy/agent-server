@@ -8,24 +8,39 @@ async function readRepositoryFile(relativePath: string): Promise<string> {
 }
 
 describe('macOS build inputs', () => {
-  it('uses an independently authored local design compatibility package', async () => {
+  it('uses an independently authored Agent Server design-system package', async () => {
     const project = await readRepositoryFile('macos-app/project.yml');
-    const packageManifest = await readRepositoryFile('macos-app/Vendor/NerdsUI/Package.swift');
-    const readme = await readRepositoryFile('macos-app/Vendor/NerdsUI/README.md');
+    const packageManifest = await readRepositoryFile('macos-app/AgentServerDesignSystem/Package.swift');
+    const readme = await readRepositoryFile('macos-app/AgentServerDesignSystem/README.md');
     const sourceFiles = await readdir(
-      new URL('macos-app/Vendor/NerdsUI/Sources/NerdsUI/', repositoryRoot),
+      new URL('macos-app/AgentServerDesignSystem/Sources/AgentServerDesignSystem/', repositoryRoot),
       { recursive: true },
     );
 
-    expect(project).toContain('path: Vendor/NerdsUI');
+    expect(project).toContain('path: AgentServerDesignSystem');
     expect(project).not.toContain('../../../../nerdsui');
-    expect(packageManifest).toContain('name: "NerdsUI"');
+    expect(project).not.toContain('NerdsUI');
+    expect(packageManifest).toContain('name: "AgentServerDesignSystem"');
     expect(readme).toContain('implemented from Agent Server public call sites');
     expect(sourceFiles.filter((file) => file.endsWith('.swift')).sort()).toEqual([
       'Color+Hex.swift',
       'DesignTokens.swift',
       'Theme.swift',
     ]);
+  });
+
+  it('keeps the design-system theme contract limited to values the app reads', async () => {
+    const theme = await readRepositoryFile(
+      'macos-app/AgentServerDesignSystem/Sources/AgentServerDesignSystem/Theme.swift',
+    );
+    const palettes = await readRepositoryFile('macos-app/AgentServer/Theme/AgentServerPalettes.swift');
+
+    for (const unusedProperty of ['displayName', 'cardForeground', 'accentForeground']) {
+      expect(theme).not.toContain(unusedProperty);
+      expect(palettes).not.toContain(unusedProperty);
+    }
+    expect(theme).not.toContain('var id:');
+    expect(palettes).not.toContain('let id =');
   });
 
   it('uses a tracked plist template with an injected telemetry build setting', async () => {

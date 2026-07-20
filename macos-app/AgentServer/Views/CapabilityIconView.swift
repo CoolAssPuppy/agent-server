@@ -1,5 +1,5 @@
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 
 /// Renders a capability's icon: the real product logo (a bundled brand mark) for
 /// a recognized service, or an SF Symbol for a generic action (read files, run

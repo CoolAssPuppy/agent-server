@@ -1,5 +1,5 @@
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 
 /// The sidebar and main-pane footers sit side by side along the bottom of the
 /// window, so their dividers read as one continuous line. Both panes size their

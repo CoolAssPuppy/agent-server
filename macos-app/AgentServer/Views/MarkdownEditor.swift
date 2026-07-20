@@ -12,7 +12,7 @@ struct MarkdownEditor: NSViewRepresentable {
     }
 
     /// Pushes the current SwiftUI colorScheme into the shared EditorTheme
-    /// so syntax colors follow the app's NerdsUI palette instead of the
+    /// so syntax colors follow the app's Agent Server palette instead of the
     /// system appearance. Called on make + update.
     private func syncThemeAppearance() {
         EditorTheme.shared.isDarkOverride = (colorScheme == .dark)
@@ -168,10 +168,10 @@ final class EditorTheme {
     let h2Font = NSFont.monospacedSystemFont(ofSize: 15, weight: .bold)
     let h3Font = NSFont.monospacedSystemFont(ofSize: 14, weight: .semibold)
 
-    /// Explicitly set from SwiftUI via the NerdsUI palette. Falls back to
+    /// Explicitly set from SwiftUI via the Agent Server palette. Falls back to
     /// NSApp.effectiveAppearance if no override exists so existing callers
     /// still get a sensible default. The override is critical when the app
-    /// runs a NerdsUI palette whose dark/light mode doesn't match the
+    /// runs a Agent Server palette whose dark/light mode doesn't match the
     /// system appearance (e.g. Nerds dark running under macOS Light Mode).
     var isDarkOverride: Bool? = nil
 

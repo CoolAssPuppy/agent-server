@@ -6,8 +6,8 @@ options:
   xcodeVersion: "15.0"
 
 packages:
-  NerdsUI:
-    path: Vendor/NerdsUI
+  AgentServerDesignSystem:
+    path: AgentServerDesignSystem
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
     from: "2.6.0"
@@ -43,7 +43,7 @@ targets:
         buildPhase: resources
         type: folder
     dependencies:
-      - package: NerdsUI
+      - package: AgentServerDesignSystem
       - package: Sparkle
       - package: PostHog
       - target: AgentServerEventKit

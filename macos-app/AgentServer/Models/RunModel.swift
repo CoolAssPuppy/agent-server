@@ -1,6 +1,6 @@
 import Foundation
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 
 struct Run: Codable, Identifiable {
     var id: String { runId }

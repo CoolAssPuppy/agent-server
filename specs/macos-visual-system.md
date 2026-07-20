@@ -4,7 +4,7 @@
 
 Agent Server should feel calm, precise, and trustworthy before it feels technical. The app serves knowledge workers and tinkerers, so common decisions must be clear while exact configuration remains available on request.
 
-The app keeps its existing NerdsUI palettes, spacing tokens, progressive panels, native controls, and local-first architecture. This specification removes decorative containment and inconsistent typography. It does not add a second design system.
+The app keeps its existing Agent Server palettes, spacing tokens, progressive panels, native controls, and local-first architecture. This specification removes decorative containment and inconsistent typography. It does not add a second design system.
 
 ## Audit baseline
 

@@ -6,7 +6,6 @@ on:
     paths:
       - 'server-app/**'
       - 'macos-app/**'
-      - '.npmrc'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -18,7 +17,6 @@ on:
     paths:
       - 'server-app/**'
       - 'macos-app/**'
-      - '.npmrc'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
@@ -81,6 +79,9 @@ jobs:
 
       - name: Test Swift package
         run: swift test --package-path macos-app/AgentServerSwiftTests
+
+      - name: Test design compatibility package
+        run: swift test --package-path macos-app/AgentServerDesignSystem
 
       - name: Build unsigned macOS app
         run: >-

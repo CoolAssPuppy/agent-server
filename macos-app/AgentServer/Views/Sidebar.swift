@@ -1,5 +1,5 @@
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 
 /// Left-hand agent list for the main window. Width 240. Rows show the three-
 /// state dot, agent name, a 3-line clamped description, and a pending-decision

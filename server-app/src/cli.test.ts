@@ -69,6 +69,28 @@ describe('createCli', () => {
     expect(dependencies.exit).toHaveBeenCalledWith(0);
   });
 
+  it('reports a failed signal shutdown with a nonzero exit', async () => {
+    const signalHandlers = new Map<string, () => void>();
+    const server = {
+      ready: Promise.resolve(),
+      stop: vi.fn().mockRejectedValue(new Error('cleanup failed')),
+    };
+    const { dependencies } = createHarness({
+      startServer: vi.fn().mockReturnValue(server),
+      onSignal: vi.fn((signal: string, listener: () => void) => {
+        signalHandlers.set(signal, listener);
+      }),
+    });
+    await parse(dependencies, ['start']);
+
+    signalHandlers.get('SIGTERM')?.();
+
+    await vi.waitFor(() => expect(dependencies.exit).toHaveBeenCalledWith(1));
+    expect(dependencies.output.error).toHaveBeenCalledWith(
+      '[shutdown] error: cleanup failed',
+    );
+  });
+
   it('stops and surfaces a startup readiness failure', async () => {
     const startupError = new Error('startup failed');
     const server = {
@@ -81,6 +103,21 @@ describe('createCli', () => {
 
     await expect(parse(dependencies, ['start'])).rejects.toThrow('startup failed');
     expect(server.stop).toHaveBeenCalledOnce();
+  });
+
+  it('preserves the startup error when startup cleanup also fails', async () => {
+    const server = {
+      ready: Promise.reject(new Error('startup failed')),
+      stop: vi.fn().mockRejectedValue(new Error('cleanup failed')),
+    };
+    const { dependencies } = createHarness({
+      startServer: vi.fn().mockReturnValue(server),
+    });
+
+    await expect(parse(dependencies, ['start'])).rejects.toThrow('startup failed');
+    expect(dependencies.output.error).toHaveBeenCalledWith(
+      '[startup] cleanup error: cleanup failed',
+    );
   });
 
   it('passes run arguments and optional context to the runtime', async () => {

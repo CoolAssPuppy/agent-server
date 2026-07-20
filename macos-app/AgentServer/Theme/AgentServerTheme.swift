@@ -1,5 +1,5 @@
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 
 enum AgentServerThemeId: String, CaseIterable, Identifiable {
     case nerds

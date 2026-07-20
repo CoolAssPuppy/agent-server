@@ -1,6 +1,6 @@
 import SwiftUI
 import AppKit
-import NerdsUI
+import AgentServerDesignSystem
 
 struct AgentDebuggerActions {
     let diagnose: () async -> Result<DiagnosticPresentation, ConsumerFlowFailure>

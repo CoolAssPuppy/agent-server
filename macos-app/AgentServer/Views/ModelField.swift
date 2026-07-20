@@ -1,5 +1,5 @@
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 
 typealias ModelDraft = AgentRuntimeDraft
 

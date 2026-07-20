@@ -1,5 +1,5 @@
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 
 struct RuntimeChoicePicker: View {
     let options: [CreationRuntimeOption]

@@ -1,5 +1,5 @@
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 
 private enum ConnectionPanelStyle {
     static let listWidth: CGFloat = 400

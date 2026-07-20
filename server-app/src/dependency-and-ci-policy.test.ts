@@ -81,9 +81,9 @@ describe('continuous integration policy', () => {
     expect(workflow).toContain("- 'macos-app/**'");
     expect(workflow).toContain("- 'scripts/**'");
     expect(workflow).toContain("- 'dist/appcast.xml'");
-    expect(workflow).toContain("- '.npmrc'");
     expect(workflow).toContain('run: pnpm run audit:prod');
     expect(workflow).toContain('run: swift test --package-path macos-app/AgentServerSwiftTests');
+    expect(workflow).toContain('run: swift test --package-path macos-app/AgentServerDesignSystem');
     expect(workflow).toContain('CODE_SIGNING_ALLOWED=NO');
     expect(workflow).toContain('CODE_SIGNING_REQUIRED=NO');
     expect(actionReferences.length).toBeGreaterThan(0);

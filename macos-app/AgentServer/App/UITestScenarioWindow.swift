@@ -1,6 +1,6 @@
 import AppKit
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 
 #if DEBUG
 enum UITestScenario: String {

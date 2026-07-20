@@ -1,5 +1,5 @@
 import SwiftUI
-import NerdsUI
+import AgentServerDesignSystem
 
 /// Small info.circle icon that reveals a popover with explanatory copy when
 /// tapped. Anchored to the trigger; popover is capped at 280pt wide with
