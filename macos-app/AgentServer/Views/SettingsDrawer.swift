@@ -79,7 +79,7 @@ struct SettingsDrawer: View {
         GeometryReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: NSpacing.lg) {
-                    primarySectionColumns(availableWidth: proxy.size.width)
+                    primarySectionColumns
 
                     SettingsAdvancedDisclosure(isExpanded: $showAdvancedSettings)
 
@@ -99,10 +99,8 @@ struct SettingsDrawer: View {
         }
     }
 
-    private func primarySectionColumns(availableWidth: CGFloat) -> some View {
-        let contentWidth = max(0, availableWidth - (NSpacing.xxl * 2))
-        let columnCount = SettingsPresentation.columnCount(availableWidth: Double(contentWidth))
-        let columns = SettingsPresentation.primaryColumns(columnCount: columnCount)
+    private var primarySectionColumns: some View {
+        let columns = SettingsPresentation.primaryColumns
 
         return HStack(alignment: .top, spacing: NSpacing.lg) {
             ForEach(columns.indices, id: \.self) { columnIndex in

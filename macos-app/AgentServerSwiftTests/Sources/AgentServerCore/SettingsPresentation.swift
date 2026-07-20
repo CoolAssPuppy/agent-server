@@ -56,11 +56,8 @@ public enum SettingsPresentation {
         availableWidth >= 640 ? 2 : 1
     }
 
-    public static func primaryColumns(columnCount: Int) -> [[SettingsSection]] {
-        guard columnCount > 1 else { return [primarySections] }
-        return [
-            [.general, .runtimes, .notifications],
-            [.storage, .updates],
-        ]
-    }
+    public static let primaryColumns: [[SettingsSection]] = [
+        [.general, .runtimes, .notifications],
+        [.storage, .updates],
+    ]
 }

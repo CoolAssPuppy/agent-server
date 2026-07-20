@@ -1,5 +1,17 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Settings Updates placement regression
+
+- [x] Identify why the Updates card could return to the left column.
+- [x] Add a failing behavior test for stable primary Settings columns.
+- [x] Make the two-column primary card arrangement independent of transient drawer geometry.
+- [x] Run Swift behavior tests and build the macOS app without UI automation.
+- [x] Commit, simplify, and verify the repair.
+
+### Review
+
+Primary Settings cards now use an explicit two-column assignment at every supported main-window size. General, Coding agents, and Notifications stay in the left column. Agent Server folder and Updates stay in the right column. Advanced content keeps its responsive layout. Verification: the regression test failed before the fix, all 375 Swift behavior tests pass, and a disposable unsigned Debug build succeeded. The disposable build and all prior Debug app bundles were removed and deregistered so Spotlight cannot surface them.
+
 ## Demo Mode context menu and Settings columns
 
 - [x] Reproduce the selectable-text menu intercepting the General heading's Demo Mode action.

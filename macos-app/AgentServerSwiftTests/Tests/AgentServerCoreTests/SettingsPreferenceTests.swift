@@ -34,20 +34,13 @@ final class SettingsPreferenceTests: XCTestCase {
         XCTAssertEqual(SettingsPresentation.columnCount(availableWidth: 620), 1)
     }
 
-    func testWideSettingsKeepUpdatesInTheRightColumn() {
+    func testPrimarySettingsKeepUpdatesInTheRightColumn() {
         XCTAssertEqual(
-            SettingsPresentation.primaryColumns(columnCount: 2),
+            SettingsPresentation.primaryColumns,
             [
                 [.general, .runtimes, .notifications],
                 [.storage, .updates],
             ]
-        )
-    }
-
-    func testNarrowSettingsPreserveTheReadingOrderInOneColumn() {
-        XCTAssertEqual(
-            SettingsPresentation.primaryColumns(columnCount: 1),
-            [[.general, .runtimes, .notifications, .storage, .updates]]
         )
     }
 
