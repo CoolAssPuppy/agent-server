@@ -34,6 +34,23 @@ final class SettingsPreferenceTests: XCTestCase {
         XCTAssertEqual(SettingsPresentation.columnCount(availableWidth: 620), 1)
     }
 
+    func testWideSettingsKeepUpdatesInTheRightColumn() {
+        XCTAssertEqual(
+            SettingsPresentation.primaryColumns(columnCount: 2),
+            [
+                [.general, .runtimes, .notifications],
+                [.storage, .updates],
+            ]
+        )
+    }
+
+    func testNarrowSettingsPreserveTheReadingOrderInOneColumn() {
+        XCTAssertEqual(
+            SettingsPresentation.primaryColumns(columnCount: 1),
+            [[.general, .runtimes, .notifications, .storage, .updates]]
+        )
+    }
+
     func testAbsentEnvironmentFlagUsesItsConsumerDefault() {
         let preference = EnvironmentBooleanPreference(
             key: "AGENT_SERVER_CATCH_UP",

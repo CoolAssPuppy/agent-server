@@ -79,10 +79,7 @@ struct SettingsDrawer: View {
         GeometryReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: NSpacing.lg) {
-                    sectionGrid(
-                        SettingsPresentation.primarySections,
-                        availableWidth: proxy.size.width
-                    )
+                    primarySectionColumns(availableWidth: proxy.size.width)
 
                     SettingsAdvancedDisclosure(isExpanded: $showAdvancedSettings)
 
@@ -99,6 +96,23 @@ struct SettingsDrawer: View {
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
             .scrollBounceBehavior(.basedOnSize)
+        }
+    }
+
+    private func primarySectionColumns(availableWidth: CGFloat) -> some View {
+        let contentWidth = max(0, availableWidth - (NSpacing.xxl * 2))
+        let columnCount = SettingsPresentation.columnCount(availableWidth: Double(contentWidth))
+        let columns = SettingsPresentation.primaryColumns(columnCount: columnCount)
+
+        return HStack(alignment: .top, spacing: NSpacing.lg) {
+            ForEach(columns.indices, id: \.self) { columnIndex in
+                VStack(alignment: .leading, spacing: NSpacing.lg) {
+                    ForEach(columns[columnIndex], id: \.self) { section in
+                        sectionView(for: section)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
         }
     }
 

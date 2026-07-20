@@ -7,6 +7,11 @@ final class DemoModeTests: XCTestCase {
         XCTAssertEqual(DemoModeState(isEnabled: true).contextMenuTitle, "Disable Demo Mode")
     }
 
+    func testContextualSettingsHeadingDoesNotOfferTextSelectionInsteadOfItsAction() {
+        XCTAssertFalse(SettingsGroupTitleInteraction(hasContextAction: true).allowsTextSelection)
+        XCTAssertTrue(SettingsGroupTitleInteraction(hasContextAction: false).allowsTextSelection)
+    }
+
     func testPreferenceStaysLocalToTheSelectedDefaultsStore() {
         let suiteName = "DemoModeTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

@@ -1,5 +1,20 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Demo Mode context menu and Settings columns
+
+- [x] Reproduce the selectable-text menu intercepting the General heading's Demo Mode action.
+- [x] Add failing behavior tests for contextual heading selection and primary card columns.
+- [x] Make contextual headings direct context-menu targets without disabling ordinary text selection.
+- [x] Restore Updates to the right settings column at wide window sizes.
+- [x] Run Swift tests and a macOS build without UI automation.
+- [ ] Commit, simplify, install, verify, and push the repair.
+
+Review:
+
+- The General heading disables inherited text selection only when it owns the hidden Demo Mode action, allowing its native context menu to receive right-clicks.
+- Wide Settings restores the approved explicit columns: General, Coding agents, and Notifications on the left; Agent Server folder and Updates on the right. Narrow windows retain one readable column.
+- Verification: 373 Swift behavior tests and the unsigned macOS Debug build passed. UI automation was not run.
+
 ## Version 3.1 update regressions
 
 - [x] Reproduce the installed 3.1 crash during Sparkle relaunch and the empty agent list from local evidence.

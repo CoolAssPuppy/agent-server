@@ -23,7 +23,13 @@ struct SettingsGroup<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: NSpacing.md) {
-            Text(title)
+            Group {
+                if titleInteraction.allowsTextSelection {
+                    Text(title).textSelection(.enabled)
+                } else {
+                    Text(title).textSelection(.disabled)
+                }
+            }
                 .font(NTypography.headlineSmall)
                 .foregroundStyle(theme.tokens.foreground)
                 .contextMenu {
@@ -43,6 +49,10 @@ struct SettingsGroup<Content: View>: View {
                 .stroke(theme.tokens.border, lineWidth: 1)
         }
         .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
+    }
+
+    private var titleInteraction: SettingsGroupTitleInteraction {
+        SettingsGroupTitleInteraction(hasContextAction: onTitleContextAction != nil)
     }
 }
 

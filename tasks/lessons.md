@@ -106,3 +106,5 @@
 - Preserve interaction details the user explicitly values. A compact icon is not an acceptable substitute for a playful, direct theme picker unless the user asks for that tradeoff.
 - A signed archive passing build, notarization, and feed checks does not prove an in-place Sparkle update works. Before publishing, test the installed app's relaunch, workspace resolution, server startup, and agent discovery from the upgraded bundle.
 - When verification intentionally replaces or restarts the installed server, tell the user before doing it and account for the resulting system notification. Do not leave an expected maintenance restart looking like a new unexplained failure.
+- A hidden context menu on selectable text is not a working macOS interaction. When a heading owns a contextual action, prevent text selection on that target and verify the menu wins.
+- Responsive grids can change the intended semantic columns as cards are added or removed. Preserve explicit left and right card groupings when their placement matters to the user.
