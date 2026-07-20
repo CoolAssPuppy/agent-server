@@ -400,6 +400,26 @@ describe('consumer guidance API', () => {
     expect(body).not.toHaveProperty('proposal_id');
   });
 
+  it('rejects an invalid time zone instead of returning an empty question list', async () => {
+    const { app } = createFixture({ model: { generate: vi.fn(async () => ({ invalid: true })) } });
+    const response = await request(app, '/guidance/agent-proposals', {
+      method: 'POST',
+      body: JSON.stringify({
+        request: 'Send a short daily note.',
+        timezone: 'Invalid/Timezone',
+        connected_services: [],
+      }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body).toMatchObject({
+      error: 'The selected time zone is invalid.',
+      saved: false,
+    });
+    expect(body).not.toHaveProperty('questions');
+  });
+
   it('does not issue a review identifier while required answers remain', async () => {
     const { app } = createFixture({ model: { generate: vi.fn(async () => validProposal()) } });
     const response = await request(app, '/guidance/agent-proposals', {

@@ -12,7 +12,12 @@ import { redactAgentSecrets } from '../agents/capabilities.js';
 import type { RunStoreLike } from '../reporting/store.js';
 import { analyzeRunFailure, type DiagnosticReadiness } from '../diagnostics/diagnostic-service.js';
 import { buildDiagnosticResolution } from '../diagnostics/resolution.js';
-import { createAgentProposal, servicesRelevantToRequest, type ProposalModel } from './proposal-service.js';
+import {
+  createAgentProposal,
+  ProposalGenerationUnavailableError,
+  servicesRelevantToRequest,
+  type ProposalModel,
+} from './proposal-service.js';
 import {
   deriveProposalAgentId,
   proposalToAgentConfig,
@@ -60,6 +65,14 @@ const RetryRequestSchema = z.object({
   repair_id: LinkIdSchema.optional(),
   confirmed_content_hash: ContentHashSchema.optional(),
 }).strict();
+
+function proposalRequestErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof z.ZodError
+    && error.issues.some((issue) => issue.path[0] === 'timezone')) {
+    return 'The selected time zone is invalid.';
+  }
+  return error instanceof TypeError ? error.message : fallback;
+}
 
 export type GuidanceRetryMetadata = {
   retryOfRunId: string;
@@ -198,6 +211,9 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
         proposal_id: remember(result.proposal, servicesRelevantToRequest(proposalRequest)),
       });
     } catch (error) {
+      if (error instanceof ProposalGenerationUnavailableError) {
+        return context.json({ error: error.message, saved: false, retryable: true }, 503);
+      }
       if (error instanceof ServiceRegistryUnavailableError) {
         return context.json({
           error: 'Apps and services could not be checked. Nothing was saved.',
@@ -206,7 +222,7 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
         }, 503);
       }
       return context.json({
-        error: error instanceof TypeError ? error.message : 'The agent request is invalid.',
+        error: proposalRequestErrorMessage(error, 'The agent request is invalid.'),
         saved: false,
       }, 400);
     }
@@ -251,6 +267,9 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
         proposal_id: remember(result.proposal, servicesRelevantToRequest(proposalRequest)),
       });
     } catch (error) {
+      if (error instanceof ProposalGenerationUnavailableError) {
+        return context.json({ error: error.message, saved: false, retryable: true }, 503);
+      }
       if (error instanceof ServiceRegistryUnavailableError) {
         return context.json({
           error: 'Apps and services could not be checked. Nothing was saved.',
@@ -259,7 +278,7 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
         }, 503);
       }
       return context.json({
-        error: error instanceof TypeError ? error.message : 'The similar agent request is invalid.',
+        error: proposalRequestErrorMessage(error, 'The similar agent request is invalid.'),
         saved: false,
       }, 400);
     }

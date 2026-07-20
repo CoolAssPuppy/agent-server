@@ -30,6 +30,13 @@ export type ProposalModel = {
 
 export type CreateProposalInput = ProposalRequestInput & { model?: ProposalModel };
 
+export class ProposalGenerationUnavailableError extends Error {
+  constructor(readonly modelStatus: 'unavailable' | 'invalid') {
+    super('The local creation service could not verify the proposal. Nothing was saved.');
+    this.name = 'ProposalGenerationUnavailableError';
+  }
+}
+
 export type ProposalServiceResult =
   | { status: 'proposal'; proposal: CreationProposal; usedFallback: boolean }
   | {
@@ -385,15 +392,7 @@ function localProposal(request: ProposalRequest): CreationProposal | undefined {
 function fallback(request: ProposalRequest, modelStatus: 'unavailable' | 'invalid'): ProposalServiceResult {
   const proposal = localProposal(request);
   if (proposal) return { status: 'proposal', proposal, usedFallback: true };
-  return {
-    status: 'needs_information',
-    questions: [],
-    explanation: modelStatus === 'unavailable'
-      ? 'Agent suggestions are unavailable right now. Nothing was saved.'
-      : 'The suggestion could not be verified. Nothing was saved.',
-    usedFallback: true,
-    modelStatus,
-  };
+  throw new ProposalGenerationUnavailableError(modelStatus);
 }
 
 const CONNECTION_SERVICES = CAPABILITY_CATALOG

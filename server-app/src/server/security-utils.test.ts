@@ -21,6 +21,13 @@ describe('security-utils', () => {
     expect(sanitizeText(`Use ${secret} for access`)).not.toContain(secret);
   });
 
+  it('keeps truncated text within the requested character limit', () => {
+    const text = sanitizeText('A detailed description that exceeds its field.', 20);
+
+    expect(text).toHaveLength(20);
+    expect(text.endsWith('…')).toBe(true);
+  });
+
   it('sanitizes stored run payload fields', () => {
     const run = makeStoredRun({
       summary: 'token=abc123',

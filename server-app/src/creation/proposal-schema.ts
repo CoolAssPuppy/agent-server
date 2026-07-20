@@ -3,6 +3,15 @@ import { CronExpressionParser } from 'cron-parser';
 import { AgentProposalSchema } from '../analysis/models.js';
 import { FileAccessSchema } from '../agents/config.js';
 
+function isValidTimeZone(timezone: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: timezone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function validateProposal(value: z.infer<typeof AgentProposalSchema>, ctx: z.RefinementCtx): void {
   const hasWritablePath = value.file_access.some((entry) => entry.access === 'read_write');
   if (value.file_access.length > 0 && value.permissions.can_run_commands) {
@@ -54,9 +63,7 @@ function validateProposal(value: z.infer<typeof AgentProposalSchema>, ctx: z.Ref
   if (value.trigger.type !== 'watch' && value.trigger.watched_path) {
     ctx.addIssue({ code: 'custom', path: ['trigger', 'watched_path'], message: 'Only folder triggers may include a watched path' });
   }
-  try {
-    new Intl.DateTimeFormat('en', { timeZone: value.timezone });
-  } catch {
+  if (!isValidTimeZone(value.timezone)) {
     ctx.addIssue({ code: 'custom', path: ['timezone'], message: 'The time zone is invalid' });
   }
   if (value.questions.some((question) => question.required) && value.missing_information.length === 0) {
@@ -150,7 +157,8 @@ export const ConnectedServiceInputSchema = z.union([
 
 export const ProposalRequestSchema = z.object({
   request: z.string().trim().min(1).max(8_000),
-  timezone: z.string().trim().min(1).max(120),
+  timezone: z.string().trim().min(1).max(120)
+    .refine(isValidTimeZone, 'The time zone is invalid'),
   connectedServices: z.array(ConnectedServiceInputSchema).max(64),
   availableCalendars: z.array(z.object({
     id: z.string().trim().min(1).max(512),

@@ -46,7 +46,8 @@ export function sanitizeText(input: string, maxLength = 512): string {
 
   const redacted = replaceSecrets(cleaned);
   if (redacted.length <= maxLength) return redacted;
-  return `${redacted.slice(0, maxLength)}…`;
+  if (maxLength <= 0) return '';
+  return `${redacted.slice(0, maxLength - 1)}…`;
 }
 
 export function sanitizePromptSuffix(input: string): string {
