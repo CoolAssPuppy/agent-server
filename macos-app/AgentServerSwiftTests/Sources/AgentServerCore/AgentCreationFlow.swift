@@ -113,7 +113,7 @@ public struct ConsumerFlowFailure: Error, Equatable, Sendable {
     public let message: String
     public let recovery: String
     public let technicalDetails: String
-    public let didSave: Bool
+    public let didSave: Bool?
     public let canRetry: Bool
 
     public init(
@@ -121,7 +121,7 @@ public struct ConsumerFlowFailure: Error, Equatable, Sendable {
         message: String,
         recovery: String,
         technicalDetails: String,
-        didSave: Bool,
+        didSave: Bool?,
         canRetry: Bool
     ) {
         self.title = title
@@ -133,12 +133,17 @@ public struct ConsumerFlowFailure: Error, Equatable, Sendable {
     }
 
     public var conciseMessage: String {
+        guard let didSave else { return message }
         let saveStatus = didSave ? "Your changes were saved." : "Nothing was saved."
         return "\(message) \(saveStatus)"
     }
 
     public var visibleRecovery: String? {
         canRetry ? nil : recovery
+    }
+
+    public var actionTitles: [String] {
+        canRetry ? ["Try again", "Details"] : ["Details"]
     }
 }
 
@@ -327,7 +332,7 @@ public struct AgentCreationFlow: Equatable, Sendable {
 
     public mutating func fail(_ failure: ConsumerFlowFailure) {
         self.failure = failure
-        hasSaved = failure.didSave
+        if let didSave = failure.didSave { hasSaved = didSave }
         phase = .failed
     }
 

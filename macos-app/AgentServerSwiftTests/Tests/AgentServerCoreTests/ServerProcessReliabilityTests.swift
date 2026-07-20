@@ -3,8 +3,8 @@ import XCTest
 
 final class ServerProcessReliabilityTests: XCTestCase {
     func testCurrentServerAPIVersionCanBeAdopted() {
-        XCTAssertFalse(LocalServerCompatibility.shouldReplace(apiVersion: 9))
-        XCTAssertTrue(LocalServerCompatibility.shouldReplace(apiVersion: 8))
+        XCTAssertFalse(LocalServerCompatibility.shouldReplace(apiVersion: 10))
+        XCTAssertTrue(LocalServerCompatibility.shouldReplace(apiVersion: 9))
     }
 
     func testMissingOrOlderServerAPIVersionMustBeReplaced() {

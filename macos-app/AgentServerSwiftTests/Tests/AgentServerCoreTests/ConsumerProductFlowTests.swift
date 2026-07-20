@@ -229,6 +229,20 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertNil(failure.visibleRecovery)
     }
 
+    func testUncertainSaveFailureDoesNotClaimTheAgentWasOrWasNotSaved() {
+        let failure = ConsumerFlowFailure(
+            title: "Could not confirm the save",
+            message: "The app lost the server response.",
+            recovery: "Check the agent list, then try again safely.",
+            technicalDetails: "The request timed out twice.",
+            didSave: nil,
+            canRetry: true
+        )
+
+        XCTAssertEqual(failure.conciseMessage, "The app lost the server response.")
+        XCTAssertNil(failure.didSave)
+    }
+
     func testFailureWithoutRetryKeepsItsRecoveryInstructionVisible() {
         let failure = ConsumerFlowFailure(
             title: "File access was denied",
@@ -243,6 +257,19 @@ final class ConsumerProductFlowTests: XCTestCase {
             failure.visibleRecovery,
             "Choose another folder or allow access in System Settings."
         )
+    }
+
+    func testFailureActionsKeepDetailsBesideThePrimaryRecoveryAction() {
+        let failure = ConsumerFlowFailure(
+            title: "Could not save your agent",
+            message: "The save could not be confirmed.",
+            recovery: "Try again.",
+            technicalDetails: "The request timed out.",
+            didSave: false,
+            canRetry: true
+        )
+
+        XCTAssertEqual(failure.actionTitles, ["Try again", "Details"])
     }
 
     func testCreationKeepsProposalReviewableBeforeSaving() {

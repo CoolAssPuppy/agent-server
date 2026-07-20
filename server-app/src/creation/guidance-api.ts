@@ -99,8 +99,23 @@ export type GuidanceApiDependencies = {
 };
 
 type PendingProposal = { proposal: CreationProposal; offeredServiceIds: ReadonlySet<string>; expiresAt: number };
+type SavedProposalReceipt = {
+  saved: true;
+  agent: { id: string; name: string };
+  safe_test: { available: true; mode: 'safe_test'; run_endpoint: string };
+};
+type ProposalSaveSuccess = Omit<SavedProposalReceipt, 'agent'> & {
+  agent: AgentConfig;
+  security_analysis?: SecurityAnalysis;
+  preflight?: PreflightResult;
+};
+type ProposalSaveOutcome =
+  | { status: 201; body: ProposalSaveSuccess }
+  | { status: 409 | 422; body: Record<string, unknown> };
 const PROPOSAL_TTL_MS = 30 * 60 * 1_000;
 const MAX_PENDING_PROPOSALS = 100;
+const COMPLETED_SAVE_TTL_MS = 30 * 60 * 1_000;
+const MAX_COMPLETED_SAVES = 100;
 
 class ServiceRegistryUnavailableError extends Error {}
 
@@ -126,6 +141,8 @@ function defaultReadiness(agent: AgentConfig): DiagnosticReadiness {
 export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
   const app = new Hono();
   const pending = new Map<string, PendingProposal>();
+  const activeSaves = new Map<string, Promise<ProposalSaveOutcome>>();
+  const completedSaves = new Map<string, SavedProposalReceipt & { expiresAt: number }>();
   const now = dependencies.now ?? Date.now;
 
   function remember(proposal: CreationProposal, services: readonly { id: string }[]): string {
@@ -153,6 +170,38 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
     return entry;
   }
 
+  function findCompletedSave(id: string): SavedProposalReceipt | undefined {
+    const entry = completedSaves.get(id);
+    if (!entry) return undefined;
+    if (entry.expiresAt <= now()) {
+      completedSaves.delete(id);
+      return undefined;
+    }
+    const { expiresAt: _, ...receipt } = entry;
+    return receipt;
+  }
+
+  function rememberCompletedSave(id: string, agent: AgentConfig): void {
+    for (const [completedId, entry] of completedSaves) {
+      if (entry.expiresAt <= now()) completedSaves.delete(completedId);
+    }
+    completedSaves.set(id, {
+      saved: true,
+      agent: { id: agent.id, name: agent.name },
+      safe_test: {
+        available: true,
+        mode: 'safe_test',
+        run_endpoint: `/agents/${agent.id}/safe-test`,
+      },
+      expiresAt: now() + COMPLETED_SAVE_TTL_MS,
+    });
+    while (completedSaves.size > MAX_COMPLETED_SAVES) {
+      const oldest = completedSaves.keys().next().value as string | undefined;
+      if (!oldest) break;
+      completedSaves.delete(oldest);
+    }
+  }
+
   async function currentServiceRegistry(): Promise<ServiceRegistry> {
     try {
       return await dependencies.getServiceRegistry();
@@ -164,6 +213,75 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
   async function currentConnectedServices(): Promise<ServiceConnection[]> {
     const registry = await currentServiceRegistry();
     return registry.connections.filter((connection) => connection.status === 'connected');
+  }
+
+  async function savePendingProposal(
+    proposalId: string,
+    pendingProposal: PendingProposal,
+  ): Promise<ProposalSaveOutcome> {
+    const reviewed = CreationProposalSchema.parse(pendingProposal.proposal);
+    const requiredServiceIds = reviewed.connections
+      .filter((connection) => connection.required)
+      .map((connection) => connection.id);
+    const registry = await currentServiceRegistry();
+    const connectedIds = new Set(registry.connections
+      .filter((connection) => connection.status === 'connected')
+      .map((connection) => connection.id));
+    const isCurrent = requiredServiceIds.every((id) => (
+      pendingProposal.offeredServiceIds.has(id)
+      && connectedIds.has(id)
+      && registry.bindings.has(id)
+    ));
+    if (!isCurrent) {
+      return {
+        status: 409,
+        body: {
+          error: 'A selected service is no longer ready. Refresh services and review the proposal again.',
+          saved: false,
+          refresh_services: true,
+        },
+      };
+    }
+    const serviceBindings: ProposalServiceBinding[] = [];
+    for (const id of requiredServiceIds) {
+      const binding = registry.bindings.get(id);
+      if (binding) serviceBindings.push({ id, ...binding });
+    }
+    const agent = proposalToAgentConfig(reviewed, deriveProposalAgentId(reviewed.name), { serviceBindings });
+    const candidateContent = renderReviewedAgentFile(agent);
+    const analysis = dependencies.security
+      ? await dependencies.security.analyze({ agent, content: candidateContent })
+      : undefined;
+    const check = dependencies.security
+      ? await dependencies.security.preflight({ agent, content: candidateContent })
+      : undefined;
+    if (check?.decision === 'block') {
+      return {
+        status: 422,
+        body: {
+          error: 'Review the critical security findings before saving this agent.',
+          saved: false,
+          security_analysis: analysis,
+          preflight: check,
+        },
+      };
+    }
+
+    const created = await dependencies.writer.createReviewed(agent);
+    const safeTest = {
+      available: true as const,
+      mode: 'safe_test' as const,
+      run_endpoint: `/agents/${created.agent.id}/safe-test`,
+    };
+    const body: ProposalSaveSuccess = {
+      saved: true,
+      agent: redactAgentSecrets(created.agent),
+      safe_test: safeTest,
+      ...(analysis ? { security_analysis: analysis, preflight: check } : {}),
+    };
+    pending.delete(proposalId);
+    rememberCompletedSave(proposalId, created.agent);
+    return { status: 201, body };
   }
 
   function proposalServiceInputs(services: readonly ServiceConnection[]) {
@@ -288,65 +406,31 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
     try {
       SaveProposalRequestSchema.parse(await readJson(context.req.raw));
       const proposalId = context.req.param('proposalId');
+      const completed = findCompletedSave(proposalId);
+      if (completed) return context.json(completed, 201);
+
+      const active = activeSaves.get(proposalId);
+      if (active) {
+        const outcome = await active;
+        if (outcome.status === 201) return context.json(outcome.body, 201);
+        if (outcome.status === 409) return context.json(outcome.body, 409);
+        return context.json(outcome.body, 422);
+      }
+
       const pendingProposal = findProposal(proposalId);
       if (!pendingProposal) {
         return context.json({ error: 'This proposal is no longer available for review.', saved: false }, 404);
       }
-
-      const reviewed = CreationProposalSchema.parse(pendingProposal.proposal);
-      const requiredServiceIds = reviewed.connections
-        .filter((connection) => connection.required)
-        .map((connection) => connection.id);
-      const registry = await currentServiceRegistry();
-      const connectedIds = new Set(registry.connections
-        .filter((connection) => connection.status === 'connected')
-        .map((connection) => connection.id));
-      const isCurrent = requiredServiceIds.every((id) => (
-        pendingProposal.offeredServiceIds.has(id)
-        && connectedIds.has(id)
-        && registry.bindings.has(id)
-      ));
-      if (!isCurrent) {
-        return context.json({
-          error: 'A selected service is no longer ready. Refresh services and review the proposal again.',
-          saved: false,
-          refresh_services: true,
-        }, 409);
+      const save = savePendingProposal(proposalId, pendingProposal);
+      activeSaves.set(proposalId, save);
+      try {
+        const outcome = await save;
+        if (outcome.status === 201) return context.json(outcome.body, 201);
+        if (outcome.status === 409) return context.json(outcome.body, 409);
+        return context.json(outcome.body, 422);
+      } finally {
+        if (activeSaves.get(proposalId) === save) activeSaves.delete(proposalId);
       }
-      const serviceBindings: ProposalServiceBinding[] = [];
-      for (const id of requiredServiceIds) {
-        const binding = registry.bindings.get(id);
-        if (binding) serviceBindings.push({ id, ...binding });
-      }
-      const agent = proposalToAgentConfig(reviewed, deriveProposalAgentId(reviewed.name), { serviceBindings });
-      const candidateContent = renderReviewedAgentFile(agent);
-      const analysis = dependencies.security
-        ? await dependencies.security.analyze({ agent, content: candidateContent })
-        : undefined;
-      const check = dependencies.security
-        ? await dependencies.security.preflight({ agent, content: candidateContent })
-        : undefined;
-      if (check?.decision === 'block') {
-        return context.json({
-          error: 'Review the critical security findings before saving this agent.',
-          saved: false,
-          security_analysis: analysis,
-          preflight: check,
-        }, 422);
-      }
-
-      const created = await dependencies.writer.createReviewed(agent);
-      pending.delete(proposalId);
-      return context.json({
-        saved: true,
-        agent: redactAgentSecrets(created.agent),
-        safe_test: {
-          available: true,
-          mode: 'safe_test',
-          run_endpoint: `/agents/${created.agent.id}/safe-test`,
-        },
-        ...(analysis ? { security_analysis: analysis, preflight: check } : {}),
-      }, 201);
     } catch (error) {
       if (error instanceof ServiceRegistryUnavailableError) {
         return context.json({

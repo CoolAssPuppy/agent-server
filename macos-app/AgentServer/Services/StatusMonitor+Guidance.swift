@@ -62,6 +62,15 @@ extension StatusMonitor {
                 return .success(SavedAgentPresentation(agentId: response.agent.id, safeTestRunId: nil))
             }
             return await runSafeTestForSavedAgent(response.agent.id)
+        } catch let error as GuidanceSaveConfirmationError {
+            return .failure(ConsumerFlowFailure(
+                title: "Could not confirm the save",
+                message: "The app lost the server response.",
+                recovery: "Check the agent list, then try again safely.",
+                technicalDetails: error.localizedDescription,
+                didSave: nil,
+                canRetry: true
+            ))
         } catch {
             return .failure(ConsumerFlowFailure(
                 title: "Could not save your agent",

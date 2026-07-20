@@ -15,6 +15,7 @@ public enum GuidanceServerRoute: Equatable, Sendable {
     public var timeoutInterval: TimeInterval {
         switch self {
         case .createProposal, .diagnosis, .similarProposal: 75
+        case .saveProposal: 30
         default: 5
         }
     }
@@ -46,6 +47,35 @@ public enum GuidanceServerRoute: Equatable, Sendable {
         var allowed = CharacterSet.urlPathAllowed
         allowed.remove(charactersIn: "/")
         return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
+    }
+}
+
+public enum GuidanceSaveRetryPolicy {
+    public static func shouldRetry(_ error: Error) -> Bool {
+        guard let urlError = error as? URLError else { return false }
+        switch urlError.code {
+        case .timedOut, .networkConnectionLost:
+            return true
+        default:
+            return false
+        }
+    }
+
+    public static func confirmationError(after retryError: Error) -> GuidanceSaveConfirmationError? {
+        guard shouldRetry(retryError) else { return nil }
+        return GuidanceSaveConfirmationError(technicalDetails: retryError.localizedDescription)
+    }
+}
+
+public struct GuidanceSaveConfirmationError: LocalizedError, Equatable, Sendable {
+    public let technicalDetails: String
+
+    public init(technicalDetails: String) {
+        self.technicalDetails = technicalDetails
+    }
+
+    public var errorDescription: String? {
+        "The server response was lost, so the app could not confirm the save. \(technicalDetails)"
     }
 }
 

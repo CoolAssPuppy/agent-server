@@ -511,6 +511,64 @@ describe('consumer guidance API', () => {
     });
   });
 
+  it('returns the saved agent when the client retries after losing the first response', async () => {
+    const { app, writer } = createFixture();
+    const generated = await request(app, '/guidance/agent-proposals', {
+      method: 'POST',
+      body: JSON.stringify({
+        request: 'Summarize GitHub in Slack.',
+        timezone: 'Europe/Lisbon',
+        connected_services: [],
+        answers: [{ question_id: 'connection-slack', value: 'slack' }],
+      }),
+    }).then((response) => response.json());
+    const savePath = `/guidance/agent-proposals/${generated.proposal_id}/save`;
+
+    const first = await request(app, savePath, {
+      method: 'POST',
+      body: JSON.stringify({ confirmed: true }),
+    });
+    const retry = await request(app, savePath, {
+      method: 'POST',
+      body: JSON.stringify({ confirmed: true }),
+    });
+    const retryBody = await retry.json();
+
+    expect(first.status).toBe(201);
+    expect(retry.status).toBe(201);
+    expect(retryBody).toMatchObject({
+      saved: true,
+      agent: { id: 'friday-github-summary', name: 'Friday GitHub summary' },
+      safe_test: { run_endpoint: '/agents/friday-github-summary/safe-test' },
+    });
+    expect(retryBody.agent).toEqual({ id: 'friday-github-summary', name: 'Friday GitHub summary' });
+    expect(writer.createReviewed).toHaveBeenCalledTimes(1);
+  });
+
+  it('coalesces concurrent saves of the same reviewed proposal', async () => {
+    const { app, writer } = createFixture();
+    const generated = await request(app, '/guidance/agent-proposals', {
+      method: 'POST',
+      body: JSON.stringify({
+        request: 'Summarize GitHub in Slack.',
+        timezone: 'Europe/Lisbon',
+        connected_services: [],
+        answers: [{ question_id: 'connection-slack', value: 'slack' }],
+      }),
+    }).then((response) => response.json());
+    const savePath = `/guidance/agent-proposals/${generated.proposal_id}/save`;
+
+    const responses = await Promise.all([
+      request(app, savePath, { method: 'POST', body: JSON.stringify({ confirmed: true }) }),
+      request(app, savePath, { method: 'POST', body: JSON.stringify({ confirmed: true }) }),
+    ]);
+    const bodies = await Promise.all(responses.map((response) => response.json()));
+
+    expect(responses.map((response) => response.status)).toEqual([201, 201]);
+    expect(bodies).toEqual([expect.objectContaining({ saved: true }), expect.objectContaining({ saved: true })]);
+    expect(writer.createReviewed).toHaveBeenCalledTimes(1);
+  });
+
   it('does not apply a proposal that was not returned for review', async () => {
     const { app, writer } = createFixture();
     const response = await request(app, '/guidance/agent-proposals/unreviewed/save', {

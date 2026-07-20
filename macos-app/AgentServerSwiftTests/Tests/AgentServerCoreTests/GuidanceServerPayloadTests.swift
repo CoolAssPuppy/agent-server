@@ -217,7 +217,30 @@ final class GuidanceServerPayloadTests: XCTestCase {
         XCTAssertEqual(GuidanceServerRoute.createProposal.timeoutInterval, 75)
         XCTAssertEqual(GuidanceServerRoute.similarProposal("agent").timeoutInterval, 75)
         XCTAssertEqual(GuidanceServerRoute.diagnosis("run").timeoutInterval, 75)
-        XCTAssertEqual(GuidanceServerRoute.saveProposal("proposal").timeoutInterval, 5)
+        XCTAssertGreaterThanOrEqual(
+            GuidanceServerRoute.saveProposal("proposal").timeoutInterval,
+            15,
+            "Saving includes model-backed security analysis and must not use the health-check timeout"
+        )
+    }
+
+    func testSaveRetryPolicyRetriesOnlyAmbiguousTransportFailures() {
+        XCTAssertTrue(GuidanceSaveRetryPolicy.shouldRetry(URLError(.timedOut)))
+        XCTAssertTrue(GuidanceSaveRetryPolicy.shouldRetry(URLError(.networkConnectionLost)))
+        XCTAssertFalse(GuidanceSaveRetryPolicy.shouldRetry(URLError(.cancelled)))
+        XCTAssertFalse(GuidanceSaveRetryPolicy.shouldRetry(TestFailure.rejectedByServer))
+        XCTAssertNotNil(GuidanceSaveRetryPolicy.confirmationError(after: URLError(.timedOut)))
+        XCTAssertNil(GuidanceSaveRetryPolicy.confirmationError(after: TestFailure.rejectedByServer))
+    }
+
+    func testSaveResponseDecodesTheServerAgentReceiptWithAdditionalAgentFields() throws {
+        let data = Data(#"{"saved":true,"agent":{"id":"daily-manuscript-review","name":"Daily manuscript review","description":"Reviews a manuscript.","enabled":false},"safe_test":{"available":true,"mode":"safe_test","run_endpoint":"/agents/daily-manuscript-review/safe-test"}}"#.utf8)
+
+        let response = try JSONDecoder().decode(GuidanceSaveResponse.self, from: data)
+
+        XCTAssertTrue(response.saved)
+        XCTAssertEqual(response.agent.id, "daily-manuscript-review")
+        XCTAssertEqual(response.agent.name, "Daily manuscript review")
     }
 
     func testValidatedPatchUsesServerPreviewAndConfirmationWithoutChangingPayload() throws {
@@ -283,4 +306,8 @@ final class GuidanceServerPayloadTests: XCTestCase {
     private static let previewJSON = """
     {"result_content_hash":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","changes":[{"field":"working_directory","summary":"Allow edits only in Documents/Reports"}],"advanced_changes":{"working_directory":"~/Documents/Reports"},"risk":"high","requires_confirmation":true,"can_apply":true}
     """
+}
+
+private enum TestFailure: Error {
+    case rejectedByServer
 }

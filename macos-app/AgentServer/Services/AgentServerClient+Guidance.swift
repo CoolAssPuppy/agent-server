@@ -13,6 +13,21 @@ extension AgentServerClient {
     }
 
     func saveGuidedProposal(id: String) async throws -> GuidanceSaveResponse {
+        do {
+            return try await requestGuidedProposalSave(id: id)
+        } catch where GuidanceSaveRetryPolicy.shouldRetry(error) {
+            do {
+                return try await requestGuidedProposalSave(id: id)
+            } catch {
+                if let confirmationError = GuidanceSaveRetryPolicy.confirmationError(after: error) {
+                    throw confirmationError
+                }
+                throw error
+            }
+        }
+    }
+
+    private func requestGuidedProposalSave(id: String) async throws -> GuidanceSaveResponse {
         try await guidanceRequest(.saveProposal(id), body: GuidanceSaveRequest())
     }
 

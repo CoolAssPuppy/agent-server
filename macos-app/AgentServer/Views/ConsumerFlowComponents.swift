@@ -93,48 +93,54 @@ struct ConsumerFlowFailureView: View {
     @State private var showsDetails = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: NSpacing.md) {
-            HStack(alignment: .firstTextBaseline, spacing: NSpacing.sm) {
-                Image(systemName: "exclamationmark.circle.fill")
-                    .foregroundStyle(theme.tokens.error)
-                    .accessibilityHidden(true)
-                Text(failure.title)
-                    .font(NTypography.headlineSmall)
-                    .foregroundStyle(theme.tokens.foreground)
-            }
+        VStack(spacing: NSpacing.md) {
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundStyle(theme.tokens.error)
+                .accessibilityHidden(true)
+            Text(failure.title)
+                .font(NTypography.headlineSmall)
+                .foregroundStyle(theme.tokens.foreground)
             Text(failure.conciseMessage)
                 .font(NTypography.bodyMedium)
                 .foregroundStyle(theme.tokens.mutedForeground)
+                .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
             if let recovery = failure.visibleRecovery {
                 Text(recovery)
                     .font(NTypography.bodyMedium)
                     .foregroundStyle(theme.tokens.mutedForeground)
+                    .multilineTextAlignment(.center)
             }
-            HStack {
+            HStack(spacing: NSpacing.sm) {
                 if failure.canRetry, let retry {
                     Button("Try again", action: retry)
                         .buttonStyle(.borderedProminent)
                 }
-                Spacer()
-                DisclosureGroup("Advanced details", isExpanded: $showsDetails) {
-                    Text(failure.technicalDetails)
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, NSpacing.xs)
+                Button {
+                    showsDetails.toggle()
+                } label: {
+                    Label(
+                        showsDetails ? "Hide details" : "Details",
+                        systemImage: showsDetails ? "chevron.up" : "chevron.down"
+                    )
                 }
-                .fixedSize()
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("consumerFailure.details")
+            }
+            if showsDetails {
+                Text(failure.technicalDetails)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(NSpacing.md)
+                    .background(theme.tokens.muted.opacity(0.45))
+                    .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(NSpacing.lg)
-        .background(theme.tokens.card)
-        .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
-        .overlay {
-            RoundedRectangle(cornerRadius: NRadius.md)
-                .strokeBorder(theme.tokens.border.opacity(0.7))
-        }
+        .frame(maxWidth: 480)
+        .frame(maxWidth: .infinity, minHeight: 340, alignment: .center)
         .accessibilityElement(children: .contain)
     }
 }
