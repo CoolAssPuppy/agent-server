@@ -123,7 +123,7 @@ struct SecurityFindingRow: View {
     }
 }
 
-struct SecurityFindingCard: View {
+struct SecurityFindingDetail: View {
     let finding: SecurityFindingPresentation
     let reviewFix: (() -> Void)?
     let ignore: (() -> Void)?

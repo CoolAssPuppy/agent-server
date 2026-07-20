@@ -14,7 +14,7 @@ struct EnvironmentSettingsCard: View {
     @Environment(\.nTheme) private var theme
 
     var body: some View {
-        SettingsCard(title: "Environment") {
+        SettingsGroup(title: "Environment") {
             Text("Advanced values used by the local server. Secrets stay on this Mac.")
                 .font(NTypography.captionSmall)
                 .foregroundStyle(theme.tokens.mutedForeground)

@@ -108,7 +108,7 @@ struct SettingsDrawer: View {
                         .opacity(0.2)
                         .padding(.vertical, NSpacing.lg)
                 }
-                card(for: section)
+                sectionView(for: section)
             }
         }
     }
@@ -116,7 +116,7 @@ struct SettingsDrawer: View {
     // MARK: - Sections
 
     @ViewBuilder
-    private func card(for section: SettingsSection) -> some View {
+    private func sectionView(for section: SettingsSection) -> some View {
         switch section {
         case .general: generalSection
         case .runtimes: runtimeSection
@@ -129,7 +129,7 @@ struct SettingsDrawer: View {
     }
 
     private var generalSection: some View {
-        SettingsCard(
+        SettingsGroup(
             title: SettingsSection.general.title,
             titleContextActionLabel: monitor.demoModeState.contextMenuTitle,
             onTitleContextAction: monitor.toggleDemoMode
@@ -170,7 +170,7 @@ struct SettingsDrawer: View {
     }
 
     private var runtimeSection: some View {
-        SettingsCard(title: SettingsSection.runtimes.title) {
+        SettingsGroup(title: SettingsSection.runtimes.title) {
             Text("Use the versions already installed on this Mac.")
                 .font(NTypography.captionSmall)
                 .foregroundStyle(theme.tokens.mutedForeground)
@@ -193,7 +193,7 @@ struct SettingsDrawer: View {
     }
 
     private var storageSection: some View {
-        SettingsCard(title: SettingsSection.storage.title) {
+        SettingsGroup(title: SettingsSection.storage.title) {
             Text("Your agents and private connection settings live here.")
                 .font(NTypography.captionSmall)
                 .foregroundStyle(theme.tokens.mutedForeground)
@@ -231,7 +231,7 @@ struct SettingsDrawer: View {
     }
 
     private var agentPanelSection: some View {
-        SettingsCard(title: SettingsSection.agentPanel.title) {
+        SettingsGroup(title: SettingsSection.agentPanel.title) {
             SettingsToggleRow(label: "Send data to Agent Panel", isOn: panelSendingBinding)
                 .disabled(!agentPanelSettings.hasRequiredCredentials)
                 .opacity(agentPanelSettings.hasRequiredCredentials ? 1 : 0.45)
@@ -270,7 +270,7 @@ struct SettingsDrawer: View {
     }
 
     private var notificationsSection: some View {
-        SettingsCard(title: SettingsSection.notifications.title) {
+        SettingsGroup(title: SettingsSection.notifications.title) {
             SettingsToggleRow(label: "Enable notifications", isOn: $notificationPreferences.enabled)
 
             if notificationPreferences.enabled {
@@ -353,7 +353,7 @@ struct SettingsDrawer: View {
     }
 
     private var updatesSection: some View {
-        SettingsCard(title: SettingsSection.updates.title) {
+        SettingsGroup(title: SettingsSection.updates.title) {
             SettingsToggleRow(
                 label: "Automatically check for updates",
                 isOn: $updater.automaticallyChecksForUpdates

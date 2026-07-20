@@ -180,7 +180,7 @@ struct AgentSecurityAnalyzerView: View {
             .padding(.vertical, NSpacing.md)
             Divider().opacity(0.3)
             ScrollView {
-                SecurityFindingCard(
+                SecurityFindingDetail(
                     finding: finding,
                     reviewFix: finding.canFix ? { Task { await reviewFix(finding) } } : nil,
                     ignore: { findingToIgnore = finding }

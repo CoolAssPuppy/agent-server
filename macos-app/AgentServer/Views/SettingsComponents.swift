@@ -1,7 +1,7 @@
 import SwiftUI
 import NerdsUI
 
-struct SettingsCard<Content: View>: View {
+struct SettingsGroup<Content: View>: View {
     let title: String
     let titleContextActionLabel: String?
     let onTitleContextAction: (() -> Void)?
