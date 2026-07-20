@@ -17,6 +17,21 @@ final class ServerProcessReliabilityTests: XCTestCase {
         XCTAssertTrue(LocalServerCompatibility.shouldReplace(apiVersion: 6))
     }
 
+    func testHealthyOlderServerStaysRunningWhenReplacementPreflightFails() {
+        XCTAssertEqual(
+            LocalServerCompatibility.action(apiVersion: 10, replacementIsReady: false),
+            .keepExisting
+        )
+        XCTAssertEqual(
+            LocalServerCompatibility.action(apiVersion: 10, replacementIsReady: true),
+            .replaceExisting
+        )
+        XCTAssertEqual(
+            LocalServerCompatibility.action(apiVersion: 11, replacementIsReady: true),
+            .adoptExisting
+        )
+    }
+
     func testNodeResolverPrefersExecutableOverride() throws {
         let resolved = try NodeExecutableResolver.resolve(
             override: "/custom/node",
@@ -37,6 +52,16 @@ final class ServerProcessReliabilityTests: XCTestCase {
         XCTAssertEqual(resolved, "/second/node")
     }
 
+    func testNodeResolverFindsHomebrewAfterSparkleRelaunchWithSystemPath() throws {
+        let resolved = try NodeExecutableResolver.resolve(
+            override: nil,
+            path: "/usr/bin:/bin:/usr/sbin:/sbin",
+            isExecutable: { $0 == "/opt/homebrew/bin/node" }
+        )
+
+        XCTAssertEqual(resolved, "/opt/homebrew/bin/node")
+    }
+
     func testNodeResolverRejectsInvalidExplicitOverride() {
         XCTAssertThrowsError(try NodeExecutableResolver.resolve(
             override: "/missing/node",
@@ -47,7 +72,7 @@ final class ServerProcessReliabilityTests: XCTestCase {
         }
     }
 
-    func testNodeResolverReportsMissingExecutableWithoutHardcodedFallback() {
+    func testNodeResolverReportsMissingExecutableWhenNoCandidateExists() {
         XCTAssertThrowsError(try NodeExecutableResolver.resolve(
             override: nil,
             path: "/one:/two",
@@ -55,6 +80,30 @@ final class ServerProcessReliabilityTests: XCTestCase {
         )) { error in
             XCTAssertEqual(error as? NodeExecutableResolutionError, .notFound)
         }
+    }
+
+    func testChildPathRestoresHomebrewCommandsAfterSparkleRelaunch() {
+        let path = ChildProcessPathBuilder.build(
+            inheritedPath: "/usr/bin:/bin:/usr/sbin:/sbin",
+            nodeExecutable: "/opt/homebrew/bin/node"
+        )
+
+        XCTAssertEqual(
+            path,
+            "/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin"
+        )
+    }
+
+    func testChildPathKeepsEachCommandDirectoryOnlyOnce() {
+        let path = ChildProcessPathBuilder.build(
+            inheritedPath: "/opt/homebrew/bin:/usr/bin:/opt/homebrew/bin",
+            nodeExecutable: "/opt/homebrew/bin/node"
+        )
+
+        XCTAssertEqual(
+            path.split(separator: ":").filter { $0 == "/opt/homebrew/bin" }.count,
+            1
+        )
     }
 
     func testExternalPIDParserAcceptsOnlyUniquePositiveDecimalIdentifiers() {

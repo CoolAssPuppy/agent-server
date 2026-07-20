@@ -91,15 +91,26 @@ final class ServerProcessManager {
         let health = await serverHealth()
         guard !Task.isCancelled else { return }
         if let health {
-            if LocalServerCompatibility.shouldReplace(apiVersion: health.apiVersion) {
-                await restart()
+            guard LocalServerCompatibility.shouldReplace(apiVersion: health.apiVersion) else {
+                lifecycle.observedExistingServer()
                 return
             }
-            lifecycle.observedExistingServer()
+
+            let configuration = prepareLaunch()
+            guard LocalServerCompatibility.action(
+                apiVersion: health.apiVersion,
+                replacementIsReady: configuration != nil
+            ) == .replaceExisting,
+                  let configuration else {
+                lifecycle.observedExistingServer()
+                return
+            }
+            await restart(using: configuration)
             return
         }
 
-        launchServer()
+        guard let configuration = prepareLaunch() else { return }
+        launchServer(using: configuration)
     }
 
     func stopIfWeStarted() {
@@ -110,6 +121,11 @@ final class ServerProcessManager {
     }
 
     func restart() async {
+        guard let configuration = prepareLaunch() else { return }
+        await restart(using: configuration)
+    }
+
+    private func restart(using configuration: ServerLaunchConfiguration) async {
         if let process = serverProcess, process.isRunning {
             process.terminate()
             await Self.waitUntilExit(process)
@@ -119,7 +135,7 @@ final class ServerProcessManager {
             await killExternalServer()
         }
         guard !Task.isCancelled else { return }
-        launchServer()
+        launchServer(using: configuration)
     }
 
     private func killExternalServer() async {
@@ -158,13 +174,11 @@ final class ServerProcessManager {
         }
     }
 
-    private func launchServer() {
+    private func prepareLaunch() -> ServerLaunchConfiguration? {
         guard let dir = serverDirectory else {
             record(.serverDirectoryNotFound)
-            return
+            return nil
         }
-
-        let cliPath = "\(dir)/dist/cli.js"
 
         var environment = ProcessInfo.processInfo.environment
         let childPath = environment["PATH"] ?? ""
@@ -177,26 +191,37 @@ final class ServerProcessManager {
             )
         } catch NodeExecutableResolutionError.invalidOverride {
             record(.invalidNodeOverride)
-            return
+            return nil
         } catch {
             record(.nodeNotFound)
-            return
+            return nil
         }
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: nodePath)
-        process.arguments = [cliPath, "start"]
-        process.currentDirectoryURL = URL(fileURLWithPath: dir)
 
         if let eventKitBin = Self.bundledEventKitHelperPath() {
             environment["AGENT_SERVER_EVENTKIT_BIN"] = eventKitBin
         }
+        environment["PATH"] = ChildProcessPathBuilder.build(
+            inheritedPath: childPath,
+            nodeExecutable: nodePath
+        )
         environment["AGENT_SERVER_HOME"] = AgentServerWorkspaceStore.current().homeDirectory.path
 
         // Strip env vars that prevent the Agent SDK from spawning Claude Code
         environment.removeValue(forKey: "CLAUDECODE")
 
-        process.environment = environment
+        return ServerLaunchConfiguration(
+            serverDirectory: dir,
+            nodeExecutable: nodePath,
+            environment: environment
+        )
+    }
+
+    private func launchServer(using configuration: ServerLaunchConfiguration) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: configuration.nodeExecutable)
+        process.arguments = ["\(configuration.serverDirectory)/dist/cli.js", "start"]
+        process.currentDirectoryURL = URL(fileURLWithPath: configuration.serverDirectory)
+        process.environment = configuration.environment
 
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
@@ -237,6 +262,12 @@ final class ServerProcessManager {
         lastError = error
         print("[ServerProcessManager] \(error.localizedDescription)")
     }
+}
+
+private struct ServerLaunchConfiguration {
+    let serverDirectory: String
+    let nodeExecutable: String
+    let environment: [String: String]
 }
 
 enum ServerProcessManagerError: LocalizedError, Equatable {

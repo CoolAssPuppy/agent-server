@@ -103,3 +103,5 @@
 - Do not assume a provider name refers only to an API-backed model. Probe the user's machine before deciding whether a local executable exists.
 - Kimi Code can be installed as a native `kimi` executable with non-interactive prompt output and an ACP server. Treat support for that executable as a runtime integration, separate from the Moonshot-backed Kimi K3 model preset.
 - Do not assume npm subcommands exist in pnpm. For release metadata, use the release script's existing portable Python step or prove the exact package-manager command during preflight before changing version files.
+- Preserve interaction details the user explicitly values. A compact icon is not an acceptable substitute for a playful, direct theme picker unless the user asks for that tradeoff.
+- A signed archive passing build, notarization, and feed checks does not prove an in-place Sparkle update works. Before publishing, test the installed app's relaunch, workspace resolution, server startup, and agent discovery from the upgraded bundle.

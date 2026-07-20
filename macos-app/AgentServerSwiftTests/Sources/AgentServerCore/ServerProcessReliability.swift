@@ -1,11 +1,22 @@
 import Foundation
 
+public enum LocalServerAction: Equatable, Sendable {
+    case adoptExisting
+    case keepExisting
+    case replaceExisting
+}
+
 public enum LocalServerCompatibility {
     public static let requiredAPIVersion = 11
 
     public static func shouldReplace(apiVersion: Int?) -> Bool {
         guard let apiVersion else { return true }
         return apiVersion < requiredAPIVersion
+    }
+
+    public static func action(apiVersion: Int?, replacementIsReady: Bool) -> LocalServerAction {
+        guard shouldReplace(apiVersion: apiVersion) else { return .adoptExisting }
+        return replacementIsReady ? .replaceExisting : .keepExisting
     }
 }
 
@@ -15,6 +26,12 @@ public enum NodeExecutableResolutionError: Error, Equatable, Sendable {
 }
 
 public enum NodeExecutableResolver {
+    public static let standardLocations = [
+        "/opt/homebrew/bin/node",
+        "/usr/local/bin/node",
+        "/usr/bin/node",
+    ]
+
     public static func resolve(
         override: String?,
         path: String,
@@ -30,10 +47,28 @@ public enum NodeExecutableResolver {
         let candidates = path
             .split(separator: ":", omittingEmptySubsequences: true)
             .map { URL(fileURLWithPath: String($0)).appendingPathComponent("node").path }
+            + standardLocations
         guard let executable = candidates.first(where: isExecutable) else {
             throw NodeExecutableResolutionError.notFound
         }
         return executable
+    }
+}
+
+public enum ChildProcessPathBuilder {
+    public static func build(inheritedPath: String, nodeExecutable: String) -> String {
+        let nodeDirectory = URL(fileURLWithPath: nodeExecutable).deletingLastPathComponent().path
+        let inheritedDirectories = inheritedPath
+            .split(separator: ":", omittingEmptySubsequences: true)
+            .map(String.init)
+        let standardDirectories = NodeExecutableResolver.standardLocations.map {
+            URL(fileURLWithPath: $0).deletingLastPathComponent().path
+        }
+
+        var seen = Set<String>()
+        return ([nodeDirectory] + inheritedDirectories + standardDirectories)
+            .filter { seen.insert($0).inserted }
+            .joined(separator: ":")
     }
 }
 

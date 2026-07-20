@@ -1,5 +1,14 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Version 3.1 update regressions
+
+- [x] Reproduce the installed 3.1 crash during Sparkle relaunch and the empty agent list from local evidence.
+- [x] Add failing behavior tests for the update/runtime failure and the bouncy theme picker regression.
+- [x] Restore the existing bouncy theme picker without changing the user's saved theme.
+- [x] Fix agent discovery and server startup after an in-place app update.
+- [ ] Verify an installed upgrade, agent loading, server health, theme behavior, and all non-interactive test gates.
+- [ ] Commit each verified repair, run a simplification pass, release the corrected build, merge, and push.
+
 ## Version 3.1 release
 
 - [x] Confirm the existing release workflow, signing prerequisites, current published feed, branch state, and version availability.

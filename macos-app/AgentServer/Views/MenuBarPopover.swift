@@ -244,7 +244,7 @@ struct MenuBarPopover: View {
 
             Spacer()
 
-            appearanceMenu
+            ThemeDotStrip()
 
             Spacer()
 
@@ -305,33 +305,77 @@ struct MenuBarPopover: View {
         .accessibilityIdentifier("menuBar.agent.\(agent.id)")
     }
 
-    private var appearanceMenu: some View {
-        Menu {
+}
+
+// MARK: - Theme picker
+
+private struct ThemeDotStrip: View {
+    @EnvironmentObject private var themeManager: ThemeManager
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var presentation = ThemePickerPresentation()
+
+    var body: some View {
+        HStack(spacing: presentation.isExpanded ? NSpacing.xxs : 0) {
             ForEach(AgentServerThemeId.allCases) { appTheme in
-                Button {
-                    themeManager.currentTheme = appTheme
-                } label: {
-                    if themeManager.currentTheme == appTheme {
-                        Label(appTheme.displayName, systemImage: "checkmark")
-                    } else {
-                        Text(appTheme.displayName)
-                    }
-                }
+                themeButton(appTheme)
             }
-        } label: {
-            Image(systemName: "paintpalette")
-                .font(.system(size: NIconSize.sm))
-                .foregroundStyle(theme.tokens.mutedForeground)
-                .frame(width: 28, height: 28)
-                .contentShape(Rectangle())
         }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
+        .padding(.horizontal, presentation.isExpanded ? NSpacing.xs : NSpacing.xxxs)
+        .padding(.vertical, NSpacing.xxs)
+        .animation(animation, value: presentation.isExpanded)
+        .onHover { isHovering in
+            withAnimation(animation) {
+                presentation.setHovering(isHovering)
+            }
+        }
         .help(MenuBarPopoverPresentation.appearanceTitle)
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(MenuBarPopoverPresentation.appearanceTitle)
         .accessibilityValue(themeManager.currentTheme.displayName)
         .accessibilityHint(MenuBarPopoverPresentation.appearanceHint)
         .accessibilityIdentifier("menuBar.appearance")
+    }
+
+    private func themeButton(_ appTheme: AgentServerThemeId) -> some View {
+        let isActive = themeManager.currentTheme == appTheme
+        let isVisible = presentation.isExpanded || isActive
+
+        return Button {
+            withAnimation(animation) {
+                if presentation.isExpanded {
+                    themeManager.currentTheme = appTheme
+                    presentation.didSelectTheme()
+                } else {
+                    presentation.toggleExpanded()
+                }
+            }
+        } label: {
+            Circle()
+                .fill(appTheme.dotColor)
+                .frame(width: 10, height: 10)
+                .scaleEffect(isVisible ? 1 : 0.01)
+                .opacity(isVisible ? 1 : 0)
+                .overlay {
+                    Circle()
+                        .stroke(Color.primary.opacity(0.25), lineWidth: isActive ? 1.5 : 0)
+                        .frame(width: 14, height: 14)
+                        .opacity(isActive ? 1 : 0)
+                }
+        }
+        .buttonStyle(.plain)
+        .frame(width: isVisible ? 10 : 0)
+        .clipped()
+        .help(appTheme.displayName)
+        .accessibilityLabel(appTheme.displayName)
+        .accessibilityValue(isActive ? "Selected" : "")
+        .accessibilityHidden(!isVisible)
+        .accessibilityIdentifier("menuBar.appearance.\(appTheme.rawValue)")
+    }
+
+    private var animation: Animation? {
+        ThemePickerPresentation.motion(reduceMotion: reduceMotion) == .none
+            ? nil
+            : NAnimation.bouncy
     }
 }
 

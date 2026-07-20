@@ -98,6 +98,7 @@
 		ADEA864A419BCB76C61FD5DB /* SidebarViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 325C74DAF7BB5F1C25B3A733 /* SidebarViewModel.swift */; };
 		B0D0068D36188E18903DD594 /* DemoModePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E81165B52DED43ED77F7D0 /* DemoModePresentation.swift */; };
 		B21F725CDF123FDED4325916 /* SecurityServerModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00F566E57973BAC7955CF89 /* SecurityServerModels.swift */; };
+		B2C6F68DEB3B9876B8D905FA /* ThemePickerPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CD2991794E26E02A4901DE9 /* ThemePickerPresentation.swift */; };
 		B5453300A1BD30D48C23D05C /* AgentRunsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 643CBD2E294E942C10398144 /* AgentRunsView.swift */; };
 		B843D0CF6ED1949F08B87FBE /* AgentSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DAF4A42E82017D2EA925043 /* AgentSettingsView.swift */; };
 		BD2DA0D3BE67E8155FF4AB7D /* ConnectionsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA442CD355C507032FB201DE /* ConnectionsComponents.swift */; };
@@ -236,6 +237,7 @@
 		8820C4A9F5B4B9595EDFC80C /* Info.plist.example */ = {isa = PBXFileReference; path = Info.plist.example; sourceTree = "<group>"; };
 		8A39F8EC44F73E7FD02BB9B6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		8ADE39E580F94F63F2070A8B /* AgentFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentFile.swift; sourceTree = "<group>"; };
+		8CD2991794E26E02A4901DE9 /* ThemePickerPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemePickerPresentation.swift; sourceTree = "<group>"; };
 		8DAF4A42E82017D2EA925043 /* AgentSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSettingsView.swift; sourceTree = "<group>"; };
 		9098758BCD6B9EC571281A51 /* EventKitHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitHandler.swift; sourceTree = "<group>"; };
 		90FD11ED8E05AE334B24E838 /* MarkdownContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownContentView.swift; sourceTree = "<group>"; };
@@ -538,6 +540,7 @@
 				BEB4ABEDF791380EFF9F2DA7 /* ServerProcessReliability.swift */,
 				36E7C28685605B900B56E4DA /* SettingsPresentation.swift */,
 				325C74DAF7BB5F1C25B3A733 /* SidebarViewModel.swift */,
+				8CD2991794E26E02A4901DE9 /* ThemePickerPresentation.swift */,
 			);
 			name = AgentServerCore;
 			path = AgentServerSwiftTests/Sources/AgentServerCore;
@@ -862,6 +865,7 @@
 				866C6F8A4D433A5BF0E23958 /* StatusMonitor+Security.swift in Sources */,
 				470120920161412825893DBC /* StatusMonitor.swift in Sources */,
 				83DD619B99906B7FDB630086 /* Telemetry.swift in Sources */,
+				B2C6F68DEB3B9876B8D905FA /* ThemePickerPresentation.swift in Sources */,
 				FDBD6AED1F67A35E735DA77B /* TopDrawerSurface.swift in Sources */,
 				2E7E4BD18DE37418D0472DBF /* UITestScenarioWindow.swift in Sources */,
 				6DC305D1685AE6EBD82B7427 /* UpdaterManager.swift in Sources */,
