@@ -9,6 +9,7 @@ This report records automated verification for the `creation-experience` branch.
 - Guided agent creation
 - Agent Debugger
 - Security Analyzer and global Security Check
+- Installed Kimi Code runtime and the separate Kimi K3 model path
 - Shared structured model, security, review, patch, preflight, and retry behavior
 - Cleanup audit prerequisites
 - Documentation and redacted demo fixtures
@@ -17,7 +18,7 @@ This report records automated verification for the `creation-experience` branch.
 
 - Baseline: `5b779736985e918874b80b390372be71645dc19a`
 - Branch: `creation-experience`
-- Verified implementation head: `a1efb7e`
+- Verified implementation head: `f514ddf`
 - Worktree clean before closeout documentation edits: Yes
 - Primary Codex session ID: `019f7458-705a-7fe2-8819-b2bf9f383298`
 
@@ -65,17 +66,23 @@ See [FEATURE_COMMITS.md](FEATURE_COMMITS.md) for the complete chronological list
 38. `7140f72` Unify native grants with reviewed fixes
 39. `2ef3217` Harden reviewed security fixes
 40. `f810f4e` Block relocated home folder grants
+41. `1ca2be7` Replace the Kimi preset with K3
+42. `fd80fa6` Add the installed Kimi Code runtime
+43. `9607463` Simplify the Kimi ACP executor
+44. `283fc89` Document Kimi Code and replace older daemons
+45. `f514ddf` Harden the Kimi runtime boundary
 
 ## Automated checks
 
 | Check | Result | Evidence |
 |---|---|---|
-| Server behavior tests | Passed | 1,208 tests across 90 files |
-| Server coverage | Passed | 81.00% statements, 76.75% branches, 83.73% functions, 82.39% lines |
+| Server behavior tests | Passed | 1,255 tests across 93 files; 4 installed-runtime tests skipped by default |
+| Installed Kimi conformance | Passed | 9 tests against Kimi Code 0.28.0, including ACP, blocked read, blocked write, approved exact write, provider rejection, and cancellation |
+| Server coverage | Passed | 81.02% statements, 76.57% branches, 84.00% functions, 82.62% lines |
 | Server lint | Passed | `pnpm lint` exited successfully |
 | TypeScript strict check | Passed | `pnpm type-check` exited successfully |
 | Server production build | Passed | `pnpm build` exited successfully |
-| Swift behavior tests | Passed | 315 tests |
+| Swift behavior tests | Passed | 363 tests |
 | Signed macOS UI tests | Passed once | All four tests completed in 34.8 seconds. A later redundant rerun was interrupted after another app stole focus and UI testing stopped at the user's request. |
 | macOS application build | Passed | `AgentServer` scheme built successfully during final verification |
 | Native service helper build | Passed | `AgentServerEventKit` scheme built with scoped Calendar, Reminders, and Contacts support |
@@ -153,12 +160,18 @@ The UI results below come from the complete signed four-test run. They were not 
 - Demo fixtures contain no credentials or personal paths: Passed during documentation batch
 - Saved connection profiles expose references but never credential values: Passed in store, API, runtime, and macOS decoding tests
 - Renaming preserves connection identity; removal fails closed while agents reference the profile: Passed in server and Swift behavior tests
+- Installed Kimi receives a restricted environment and cannot inherit unrelated provider, MCP, proxy, or application secrets: Passed in server behavior tests
+- Kimi ACP permission requests fail closed for unknown tools, apply deny rules first, and report only the tool name and decision: Passed in protocol and installed-runtime tests
+- Kimi file callbacks normalize symlinks, enforce each reviewed path, cap files at 2 MB, and reject exact grants combined with Bash: Passed in server and installed-runtime tests
+- A `provider` block is rejected for installed Kimi instead of being ignored; Kimi K3 remains a distinct Codex and Moonshot path: Passed in server and Swift behavior tests
 
 ## Baseline comparison
 
 Existing agent Markdown and YAML remain the source of truth and continue through the existing parser, scheduler, runtime, connection, and run-history systems. The main intentional execution change is a shared security preflight for manual and automatic trigger paths. Unreviewed automatic high-risk runs are skipped and recorded; critical configurations are blocked until fixed. Safe tests use an ephemeral restricted configuration and do not change the saved agent. No permission, schedule, connection, model, or file scope changes without an approved patch.
 
 The cleanup work also extracted the server run lifecycle, split macOS guidance and security services, isolated child environments, fixed runtime path resolution and process waiting, bounded tracking state, and removed tracked machine-local files. Named connections now resolve opaque profile bindings for every run and fail closed if an account or runtime identity changes. The canonical Personal Notion agents in `~/Developer/brain` now use the actual REST operations granted by their selected connection, with no general file-write fallback.
+
+Installed Kimi Code is additive. Existing agent files keep their current executor, model, provider, permissions, and run history. The app presents Kimi Code as an installed coding agent and Kimi K3 as an API-backed model through Codex. Local API version 11 replaces older daemons that cannot understand `kimi-code`.
 
 ## Known limitations
 
@@ -172,6 +185,8 @@ The cleanup work also extracted the server run lifecycle, split macOS guidance a
 - Bounded undo is unavailable after a conflicting file edit.
 - Manual VoiceOver, Accessibility Inspector, keyboard-only, large-text, reduced-motion, and light and dark appearance validation is not yet recorded.
 - Five SwiftUI previews are provided instead of standalone screenshot artifacts.
+- Installed Kimi Code may process approved prompts and context through Kimi's service. Its local executable does not imply local model inference.
+- Exact Kimi file or folder grants cannot be combined with Bash because shell commands could bypass ACP file callbacks.
 
 ## Final decision
 
@@ -181,4 +196,4 @@ Open blockers: None found by the non-interactive automated verification. Complet
 
 Reviewer: Codex automated verification
 
-Verification date: 2026-07-19
+Verification date: 2026-07-20

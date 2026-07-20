@@ -100,7 +100,7 @@ Kimi Code coverage includes executable discovery, explicit opt-out and path over
 
 Swift behavior coverage includes proposal and debugger state changes, consumer risk and schedule presentation, security payloads, accessibility identifiers, drawer routing, transport recovery, and stale state protection. Four signed macOS UI tests cover the requested creation, missing-connection, safe-test, debugger, low-risk repair, embedded-secret, folder-narrowing, and high-risk review behaviors using deterministic launch scenarios.
 
-The latest non-interactive run passed 1,208 server tests across 90 files and 315 Swift tests. Server coverage reached 81.00% statements, 76.75% branches, 83.73% functions, and 82.39% lines. TypeScript checking, lint, the server build, and an unsigned app build passed. The full four-flow signed UI suite passed once earlier in the feature cycle. Later UI automation stopped at the user's request because it took keyboard focus. See [FINAL_VERIFICATION.md](FINAL_VERIFICATION.md) for the full record.
+The latest non-interactive run passed 1,255 server tests across 93 files and 363 Swift tests. Server coverage reached 81.02% statements, 76.57% branches, 84.00% functions, and 82.62% lines. Nine Kimi executor tests also passed against the installed Kimi Code 0.28.0 binary. TypeScript checking, lint, the server build, and an unsigned app build passed. The full four-flow signed UI suite passed once earlier in the feature cycle. Later UI automation stopped at the user's request because it took keyboard focus. See [FINAL_VERIFICATION.md](FINAL_VERIFICATION.md) for the full record.
 
 ## Demo
 

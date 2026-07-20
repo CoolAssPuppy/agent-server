@@ -8,7 +8,7 @@
 - [x] Add failing macOS behavior tests for installed Kimi status and distinct Kimi Code versus Kimi K3 choices.
 - [x] Add Kimi Code to the Coding agents Settings card and agent editor using the existing card and picker patterns.
 - [x] Document the two Kimi paths, update the API compatibility boundary, and preserve existing agent files.
-- [ ] Run full server and Swift verification, build, simplify, commit each consequential batch, and relaunch without UI automation.
+- [x] Run full server and Swift verification, build, simplify, commit each consequential batch, and relaunch without UI automation.
 
 Assumptions and risks:
 
@@ -16,6 +16,14 @@ Assumptions and risks:
 - The executor must use Kimi's supported structured output or ACP interface. Parsing decorative terminal text is not acceptable.
 - Kimi has no bundled fallback in this app. Missing or unauthenticated installations must remain visible and actionable instead of falling through to another runtime.
 - Exact permission enforcement must be proven before Kimi Code can run an agent with reviewed narrow file grants or a safe-test promise.
+
+Review:
+
+- Installed Kimi Code is a third executor backed by its supported ACP server. It uses the installed login, structured tool events, explicit permission decisions, reviewed filesystem callbacks, MCP forwarding, and cancellation.
+- Kimi Code and Kimi K3 remain separate choices. Kimi Code stores `executor: kimi-code` and rejects provider settings. Kimi K3 stores a Codex executor, `kimi-k3` model, Moonshot endpoint, and environment-key reference. Existing K2 and other agent files are unchanged.
+- Settings controls discovery for all three installed coding agents. The agent editor clears stale provider fields when switching to installed Kimi.
+- Local API version 11 replaces older running daemons that cannot execute `kimi-code`.
+- Verification: 1,255 server tests across 93 files, 363 Swift tests, 81.02% statement coverage, TypeScript type-check, lint, production build, and unsigned macOS build passed. Nine tests passed against installed Kimi Code 0.28.0. UI automation was not run.
 
 ## Recent Activity conversation grouping
 
