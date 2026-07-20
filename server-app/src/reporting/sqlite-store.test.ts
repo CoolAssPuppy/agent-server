@@ -33,6 +33,7 @@ describe('SqliteRunStore', () => {
       completedAt: new Date('2026-03-09T10:05:00Z'),
       summary: 'All good',
       conversationId: 'conv-42',
+      conversationChannel: 'telegram',
       durationMs: 1234,
       estimatedCostUsd: 0.0421,
       inputTokens: 900,

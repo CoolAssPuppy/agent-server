@@ -22,6 +22,7 @@ export type StoredRun = {
   commandsRun: string[];
   progressMessages: string[];
   conversationId?: string;
+  conversationChannel?: 'slack' | 'telegram';
   // Populated from the executor's ExecutionResult.usage so clients
   // (the macOS app, the panel) can render per-run duration and cost
   // without waiting for panel-side hydration.

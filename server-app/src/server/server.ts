@@ -736,7 +736,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   // Where a chat message routes to. Shared by Telegram and Slack so both drive
   // the same conversation/routing/notification flow; only the transport differs.
   type ChatChannelSink = {
-    channelName: string;
+    channelName: 'slack' | 'telegram';
     chatKey: number;
     notifyText: (msg: string) => Promise<unknown>;
     notify: (data: NotificationData) => Promise<unknown>;
@@ -761,6 +761,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
         const runId = await checkedTriggerRunForAgent(agent, {
           promptSuffix: contextSuffix,
           conversationId: activeConv.id,
+          conversationChannel: sink.channelName,
           onDone: (done) => {
             if (done.status === 'completed' && done.summary) {
               conversationStore.addMessage(activeConv.id, 'assistant', done.summary);
@@ -807,6 +808,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
       const runId = await checkedTriggerRunForAgent(agent, {
         promptSuffix: result.context,
         conversationId: convId,
+        conversationChannel: convId ? sink.channelName : undefined,
         onDone: (done) => {
           if (convId && done.status === 'completed' && done.summary) {
             conversationStore.addMessage(convId, 'assistant', done.summary);

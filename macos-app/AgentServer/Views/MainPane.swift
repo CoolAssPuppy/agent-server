@@ -126,19 +126,22 @@ struct MainPane: View {
     // MARK: - Activity
 
     private var activityColumn: some View {
-        let runs = MainPaneRecentActivityPolicy.visibleItems(
+        let items = MainPaneRecentActivityPolicy.groupedItems(
             from: monitor.recentRuns,
-            conversationID: \.conversationId
+            itemID: \.runId,
+            conversationID: \.conversationId,
+            conversationChannel: \.conversationChannel,
+            startedAt: \.startedAt
         )
         return VStack(alignment: .leading, spacing: NSpacing.sm) {
             eyebrow("Recent activity")
-            if runs.isEmpty {
+            if items.isEmpty {
                 calmEmpty("When an agent finishes, you'll see it here.")
             } else {
                 VStack(spacing: 0) {
-                    ForEach(Array(runs.enumerated()), id: \.element.runId) { index, run in
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         if index > 0 { Divider().opacity(0.25) }
-                        ActivityRow(run: run)
+                        ActivityRow(item: item)
                     }
                 }
                 .background(theme.tokens.card)
@@ -358,8 +361,10 @@ private struct UpcomingRunRow: View {
 // MARK: - Activity row
 
 private struct ActivityRow: View {
-    let run: Run
+    let item: MainPaneRecentActivityItem<Run>
     @Environment(\.nTheme) private var theme
+
+    private var run: Run { item.run }
 
     var body: some View {
         HStack(spacing: NSpacing.md) {
@@ -367,24 +372,49 @@ private struct ActivityRow: View {
                 .fill(run.status.color(theme.tokens))
                 .frame(width: 7, height: 7)
             VStack(alignment: .leading, spacing: 2) {
-                Text(run.agentName)
+                Text(title)
                     .font(NTypography.bodyMedium)
                     .foregroundStyle(theme.tokens.foreground)
                     .lineLimit(1)
-                if let summary = run.summary, !summary.isEmpty {
-                    Text(summary)
+                if let detail {
+                    Text(detail)
                         .font(NTypography.captionSmall)
                         .foregroundStyle(theme.tokens.mutedForeground)
                         .lineLimit(1)
                 }
             }
             Spacer()
-            Text(run.startedAt.formatted(.relative(presentation: .numeric)))
-                .font(NTypography.captionSmall)
-                .foregroundStyle(theme.tokens.mutedForeground)
-                .lineLimit(1)
+            if case .run = item.kind {
+                Text(run.startedAt.formatted(.relative(presentation: .numeric)))
+                    .font(NTypography.captionSmall)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .lineLimit(1)
+            }
         }
         .padding(.horizontal, NSpacing.lg)
         .padding(.vertical, NSpacing.md)
+    }
+
+    private var title: String {
+        switch item.kind {
+        case .run:
+            return run.agentName
+        case .conversation(let channel, let startedAt, _):
+            return ConversationActivityPresentation.title(
+                channel: channel,
+                formattedDate: startedAt.formatted(date: .abbreviated, time: .shortened)
+            )
+        }
+    }
+
+    private var detail: String? {
+        switch item.kind {
+        case .run:
+            guard let summary = run.summary, !summary.isEmpty else { return nil }
+            return summary
+        case .conversation(_, _, let runCount):
+            let noun = runCount == 1 ? "turn" : "turns"
+            return "\(run.agentName) · \(runCount) \(noun)"
+        }
     }
 }

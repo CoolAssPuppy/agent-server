@@ -22,6 +22,7 @@ export type TriggerRunOptions = {
   promptSuffix?: string;
   onDone?: RunDoneCallback;
   conversationId?: string;
+  conversationChannel?: 'slack' | 'telegram';
   mode?: 'normal' | 'safe_test';
   retryOfRunId?: string;
   repairId?: string;
@@ -112,6 +113,7 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
       commandsRun: [],
       progressMessages: [],
       conversationId: options.conversationId,
+      conversationChannel: options.conversationChannel,
       mode: options.mode ?? 'normal',
       retryOfRunId: options.retryOfRunId,
       repairId: options.repairId,

@@ -83,7 +83,7 @@
 ## Keep the home feed about agent work
 
 - Decorative agent-count claims such as “on watch” add noise without helping the user decide or act.
-- Repeated conversational turns can overwhelm operational activity. Keep chats in full history while excluding them from the concise home feed.
+- Repeated conversational turns can overwhelm operational activity. Group them by stable conversation ID in the concise home feed, label the source channel and start time, and keep each turn in full history.
 - Do not explain exclusions the selection UI already makes obvious, such as stating that unselected service accounts will not be added.
 
 ## Repeated model questions are normal input noise

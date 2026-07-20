@@ -38,6 +38,7 @@ type RunRow = {
   commands_run: string;
   progress_messages: string;
   conversation_id: string | null;
+  conversation_channel: string | null;
   duration_ms: number | null;
   estimated_cost_usd: number | null;
   input_tokens: number | null;
@@ -158,6 +159,7 @@ export class SqliteRunStore implements RunStoreLike {
         commands_run TEXT NOT NULL DEFAULT '[]',
         progress_messages TEXT NOT NULL DEFAULT '[]',
         conversation_id TEXT,
+        conversation_channel TEXT,
         duration_ms INTEGER,
         estimated_cost_usd REAL,
         input_tokens INTEGER,
@@ -183,6 +185,9 @@ export class SqliteRunStore implements RunStoreLike {
     if (!columns.some((column) => column.name === 'code')) {
       this.db.exec('ALTER TABLE runs ADD COLUMN code TEXT');
     }
+    if (!columns.some((column) => column.name === 'conversation_channel')) {
+      this.db.exec('ALTER TABLE runs ADD COLUMN conversation_channel TEXT');
+    }
   }
 
   private writeRun(run: StoredRun): void {
@@ -191,10 +196,10 @@ export class SqliteRunStore implements RunStoreLike {
         `INSERT OR REPLACE INTO runs (
           run_id, agent_id, agent_name, status, started_at, completed_at,
           summary, error, code, turn_count, tools_used, files_read, files_written,
-          commands_run, progress_messages, conversation_id, duration_ms,
+          commands_run, progress_messages, conversation_id, conversation_channel, duration_ms,
           estimated_cost_usd, input_tokens, output_tokens, model, run_mode,
           retry_of_run_id, repair_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         run.runId,
@@ -213,6 +218,7 @@ export class SqliteRunStore implements RunStoreLike {
         JSON.stringify(run.commandsRun),
         JSON.stringify(run.progressMessages),
         run.conversationId ?? null,
+        run.conversationChannel ?? null,
         run.durationMs ?? null,
         run.estimatedCostUsd ?? null,
         run.inputTokens ?? null,
@@ -265,6 +271,9 @@ function rowToRun(row: RunRow): StoredRun {
     commandsRun: parseStringArray(row.commands_run),
     progressMessages: parseStringArray(row.progress_messages),
     conversationId: row.conversation_id ?? undefined,
+    conversationChannel: row.conversation_channel === 'slack' || row.conversation_channel === 'telegram'
+      ? row.conversation_channel
+      : undefined,
     durationMs: row.duration_ms ?? undefined,
     estimatedCostUsd: row.estimated_cost_usd ?? undefined,
     inputTokens: row.input_tokens ?? undefined,

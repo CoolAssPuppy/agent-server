@@ -30,6 +30,7 @@ struct Run: Codable, Identifiable {
     let estimatedCostUsd: Double?
     let durationMs: Int?
     let conversationId: String?
+    let conversationChannel: String?
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -57,6 +58,7 @@ struct Run: Codable, Identifiable {
         estimatedCostUsd = try c.decodeIfPresent(Double.self, forKey: .estimatedCostUsd)
         durationMs = try c.decodeIfPresent(Int.self, forKey: .durationMs)
         conversationId = try c.decodeIfPresent(String.self, forKey: .conversationId)
+        conversationChannel = try c.decodeIfPresent(String.self, forKey: .conversationChannel)
     }
 
     init(
@@ -67,7 +69,8 @@ struct Run: Codable, Identifiable {
         commandsRun: [String], progressMessages: [String],
         accomplishments: [String] = [], observations: [String] = [],
         trigger: String?, model: String?, inputTokens: Int?, outputTokens: Int?,
-        estimatedCostUsd: Double?, durationMs: Int?, conversationId: String?
+        estimatedCostUsd: Double?, durationMs: Int?, conversationId: String?,
+        conversationChannel: String? = nil
     ) {
         self.runId = runId; self.agentId = agentId; self.agentName = agentName
         self.status = status; self.startedAt = startedAt; self.completedAt = completedAt
@@ -78,6 +81,7 @@ struct Run: Codable, Identifiable {
         self.trigger = trigger; self.model = model; self.inputTokens = inputTokens
         self.outputTokens = outputTokens; self.estimatedCostUsd = estimatedCostUsd
         self.durationMs = durationMs; self.conversationId = conversationId
+        self.conversationChannel = conversationChannel
     }
 
     var isActive: Bool {

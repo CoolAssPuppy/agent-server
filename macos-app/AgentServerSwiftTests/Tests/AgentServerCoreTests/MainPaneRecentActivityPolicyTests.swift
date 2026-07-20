@@ -7,55 +7,63 @@ final class MainPaneRecentActivityPolicyTests: XCTestCase {
         XCTAssertEqual(MainPaneVisualPolicy.activitySurface, .groupedRows)
     }
 
-    func testRecentActivityFiltersChatRunsBeforeTakingTheFirstSevenVisibleRuns() {
+    func testRecentActivityGroupsConversationTurnsBeforeApplyingItsLimit() {
+        let newest = Date(timeIntervalSince1970: 300)
+        let oldest = Date(timeIntervalSince1970: 100)
         let runs = [
-            fixture("chat-1", conversationID: "conversation-1"),
-            fixture("visible-1"),
-            fixture("chat-2", conversationID: "conversation-2"),
-            fixture("visible-2"),
-            fixture("chat-3", conversationID: "conversation-3"),
-            fixture("visible-3"),
-            fixture("visible-4"),
-            fixture("visible-5"),
-            fixture("visible-6"),
-            fixture("visible-7"),
-            fixture("visible-8")
+            fixture("chat-new", conversationID: "conversation-1", channel: "slack", startedAt: newest),
+            fixture("visible", startedAt: Date(timeIntervalSince1970: 200)),
+            fixture("chat-old", conversationID: "conversation-1", channel: "slack", startedAt: oldest),
+            fixture("telegram", conversationID: "conversation-2", channel: "telegram", startedAt: oldest)
         ]
 
-        let visibleRuns = MainPaneRecentActivityPolicy.visibleItems(
+        let items = MainPaneRecentActivityPolicy.groupedItems(
             from: runs,
-            conversationID: \.conversationID
+            itemID: \.id,
+            conversationID: \.conversationID,
+            conversationChannel: \.channel,
+            startedAt: \.startedAt
         )
 
+        XCTAssertEqual(items.map(\.id), ["conversation:conversation-1", "run:visible", "conversation:conversation-2"])
         XCTAssertEqual(
-            visibleRuns.map(\.id),
-            ["visible-1", "visible-2", "visible-3", "visible-4", "visible-5", "visible-6", "visible-7"]
+            items[0].kind,
+            .conversation(channel: "slack", startedAt: oldest, runCount: 2)
         )
+        XCTAssertEqual(items[1].kind, .run)
+        XCTAssertEqual(items[2].kind, .conversation(channel: "telegram", startedAt: oldest, runCount: 1))
     }
 
-    func testAnyConversationIdentifierKeepsARunOutOfHomeActivity() {
-        let runs = [
-            fixture("visible"),
-            fixture("empty-conversation", conversationID: "")
-        ]
-
-        let visibleRuns = MainPaneRecentActivityPolicy.visibleItems(
-            from: runs,
-            conversationID: \.conversationID
+    func testConversationTitleUsesTheRecordedChannelWithoutExposingImplementationTerms() {
+        XCTAssertEqual(
+            ConversationActivityPresentation.title(
+                channel: "slack",
+                formattedDate: "Jul 20 at 10:42 AM"
+            ),
+            "Slack conversation from Jul 20 at 10:42 AM"
         )
-
-        XCTAssertEqual(visibleRuns.map(\.id), ["visible"])
+        XCTAssertEqual(
+            ConversationActivityPresentation.title(
+                channel: nil,
+                formattedDate: "Jul 20 at 10:42 AM"
+            ),
+            "Conversation from Jul 20 at 10:42 AM"
+        )
     }
 
     private func fixture(
         _ id: String,
-        conversationID: String? = nil
+        conversationID: String? = nil,
+        channel: String? = nil,
+        startedAt: Date = Date(timeIntervalSince1970: 0)
     ) -> ActivityFixture {
-        ActivityFixture(id: id, conversationID: conversationID)
+        ActivityFixture(id: id, conversationID: conversationID, channel: channel, startedAt: startedAt)
     }
 }
 
 private struct ActivityFixture {
     let id: String
     let conversationID: String?
+    let channel: String?
+    let startedAt: Date
 }

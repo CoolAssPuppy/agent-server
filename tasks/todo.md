@@ -1,5 +1,21 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Recent Activity conversation grouping
+
+- [x] Add failing server coverage for retaining a conversation's Slack or Telegram source.
+- [x] Add failing macOS coverage for grouping many conversation turns into one activity item.
+- [x] Show one dated Slack, Telegram, or neutral conversation row while preserving ordinary run rows.
+- [x] Keep individual conversation runs available in full agent history.
+- [x] Run full server and Swift verification, build, simplify, commit, and relaunch without UI automation.
+
+Review:
+
+- Recent Activity now groups every run with the same conversation ID into one Slack, Telegram, or neutral conversation row.
+- The row uses the conversation's first timestamp, names the agent, and reports its turn count. Ordinary agent runs remain separate.
+- The server persists the source channel with each conversation run. Older stored conversations remain readable and use a neutral label because their channel was not recorded.
+- Full run history remains unchanged, so individual turns are still available outside the concise home feed.
+- Verification: 1,238 server tests, 359 Swift tests, TypeScript type-check, lint, server build, and the unsigned macOS build passed. UI automation was not run.
+
 ## Settings card layout restoration
 
 - [x] Add failing coverage for responsive arranged Settings cards.

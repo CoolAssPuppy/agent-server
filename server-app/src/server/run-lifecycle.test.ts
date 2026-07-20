@@ -91,6 +91,21 @@ describe('run lifecycle', () => {
     expect(onTerminal).not.toHaveBeenCalled();
   });
 
+  it('records which messaging service owns a conversation run', async () => {
+    const { lifecycle, store } = createHarness();
+
+    const runId = lifecycle.trigger(makeAgent(), {
+      conversationId: 'conversation-42',
+      conversationChannel: 'slack',
+    });
+    await lifecycle.waitForTerminal(runId);
+
+    expect(store.get(runId)).toMatchObject({
+      conversationId: 'conversation-42',
+      conversationChannel: 'slack',
+    });
+  });
+
   it('records runner failures and invokes the failure hooks once', async () => {
     const failure: RunResult = {
       status: 'failed',
