@@ -81,7 +81,7 @@ public struct CreationQuestion: Identifiable, Equatable, Sendable {
 
     public var serviceContextExplanation: String? {
         guard case .service(let name, _) = kind, let name else { return nil }
-        return "Choose the \(name) account this agent should use. No other \(name) account will be added."
+        return "Choose the \(name) account this agent should use."
     }
 
     public var isUnavailable: Bool {

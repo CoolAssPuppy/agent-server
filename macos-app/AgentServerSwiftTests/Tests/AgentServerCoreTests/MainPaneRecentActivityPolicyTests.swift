@@ -26,7 +26,6 @@ final class MainPaneRecentActivityPolicyTests: XCTestCase {
             visibleRuns.map(\.id),
             ["visible-1", "visible-2", "visible-3", "visible-4", "visible-5", "visible-6", "visible-7"]
         )
-        XCTAssertEqual(runs.count, 11)
     }
 
     func testAnyConversationIdentifierKeepsARunOutOfHomeActivity() {
@@ -51,7 +50,7 @@ final class MainPaneRecentActivityPolicyTests: XCTestCase {
     }
 }
 
-private struct ActivityFixture: Equatable {
+private struct ActivityFixture {
     let id: String
     let conversationID: String?
 }

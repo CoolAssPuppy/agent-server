@@ -120,7 +120,7 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(question.serviceContextTitle, "You mentioned Notion")
         XCTAssertEqual(
             question.serviceContextExplanation,
-            "Choose the Notion account this agent should use. No other Notion account will be added."
+            "Choose the Notion account this agent should use."
         )
     }
 
