@@ -14,9 +14,9 @@ extension AgentRuntimeDraft {
     }
 }
 
-/// Plain-language model picker. Custom reveals endpoint/model/key fields; Kimi
-/// and Custom show where the key lives (`.env`), keeping secrets out of the
-/// agent file.
+/// Plain-language coding-agent picker. Kimi Code uses the installed runtime;
+/// Kimi K3 and Custom show where their API key lives, keeping secrets out of
+/// the agent file.
 struct ModelField: View {
     @Binding var draft: ModelDraft
     @Environment(\.nTheme) private var theme

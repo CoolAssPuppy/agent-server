@@ -140,5 +140,7 @@ This is the complete chronological commit list after baseline `5b779736985e91887
 136. `7e54fa5` Add native saved connection management
 137. `2410ff9` Simplify connection setup language
 138. `a1efb7e` Prune connection view commentary
-139. `fd80fa6` Add the installed Kimi Code runtime
-140. `9607463` Simplify the Kimi ACP executor
+139. `1ca2be7` Replace the Kimi preset with K3
+140. `fd80fa6` Add the installed Kimi Code runtime
+141. `9607463` Simplify the Kimi ACP executor
+142. `283fc89` Document Kimi Code and replace older daemons

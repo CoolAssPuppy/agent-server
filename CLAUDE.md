@@ -1,6 +1,6 @@
 # Agent Server
 
-Lightweight orchestration server that runs AI agents in the background using Claude Code as its execution engine. Agents are defined as YAML or Markdown files with cron schedules. The server discovers agents, evaluates schedules, acquires locks, runs Claude Code via the Agent SDK, streams events, and reports telemetry in A2A format.
+Lightweight orchestration server that runs AI agents in the background using Claude Code, Codex, or Kimi Code. Agents are defined as YAML or Markdown files with cron schedules. The server discovers agents, evaluates schedules, acquires locks, runs the selected executor, streams events, and reports telemetry in A2A format.
 
 ## Repository structure
 
@@ -31,8 +31,10 @@ server-app/src/
     router.ts            -- LLM-powered message routing (picks agent from user message)
     dispatcher.ts        -- Maps channel names to Channel instances
   execution/
+    default-executors.ts -- Registers the built-in Claude Code, Codex, and Kimi Code executors
     executor.ts          -- Stream event parsing, tool metadata extraction, types
     executor-registry.ts -- Plugin registry for model-agnostic execution
+    runtime-discovery.ts -- Discovers installed coding-agent executables once at startup
     permissions.ts       -- Glob-based tool permission matching (canUseTool)
     runner.ts            -- Orchestrates lock -> report -> execute -> release
     lockfile.ts          -- PID-based file locks with stale detection
@@ -61,6 +63,10 @@ server-app/src/
     init.ts              -- Scaffolds ~/.agent-server/ with sample agent
   plugins/
     claude-code.ts       -- Claude Code executor (Agent SDK query()). Exports buildMcpServers() which auto-injects the eventkit MCP server when AGENT_SERVER_EVENTKIT_BIN is set.
+    codex.ts             -- Codex executor (official Codex SDK)
+    kimi-code.ts         -- Installed Kimi Code executor (ACP)
+    kimi-code-events.ts  -- ACP event, permission, and telemetry mapping
+    kimi-code-file-policy.ts -- Exact reviewed file access for ACP callbacks
   cli.ts                 -- Commander CLI: start, run, list, init, install, uninstall
   index.ts               -- Barrel exports for library use
   test-factories.ts      -- Shared test data factories
@@ -72,6 +78,8 @@ sample-agents/           -- Example agent YAML configs
 
 - TypeScript strict mode, ES2022, ESM
 - @anthropic-ai/claude-agent-sdk for running Claude Code programmatically
+- @openai/codex-sdk for running Codex programmatically
+- @agentclientprotocol/sdk for structured Kimi Code sessions
 - Zod for schema validation
 - cron-parser v5 (`CronExpressionParser.parse()`, NOT `parseExpression()`)
 - Hono for HTTP API
@@ -115,11 +123,17 @@ Run history is durable, backed by SQLite via Node's built-in `node:sqlite` (no n
 
 ### Runtime discovery and custom model providers
 
-Runs use the user's installed Claude/Codex binaries and subscription logins when found. `execution/runtime-discovery.ts` resolves both once at startup (opt-out flag > explicit `AGENT_SERVER_CLAUDE_PATH`/`AGENT_SERVER_CODEX_PATH` > `~/.claude/local/claude` > PATH; set `AGENT_SERVER_USE_INSTALLED_CLAUDE`/`_CODEX=false` to force bundled). The resolved paths thread through `ExecutorFnOptions` into `Options.pathToClaudeCodeExecutable` (Claude) and `CodexOptions.codexPathOverride` (Codex); undefined falls back to the SDK's bundled runtime.
+Runs use the user's installed Claude Code, Codex, or Kimi Code executable and login when found. `execution/runtime-discovery.ts` resolves all three once at startup. Claude checks its opt-out flag, explicit path, local install, then `PATH`. Codex checks its opt-out flag, explicit path, then `PATH`. Kimi checks `AGENT_SERVER_USE_INSTALLED_KIMI`, `AGENT_SERVER_KIMI_PATH`, `~/.kimi-code/bin/kimi`, then `PATH`. Claude Code and Codex can fall back to their SDK runtimes. Kimi Code has no bundled fallback.
 
-Agents can point at a custom model provider via the `provider` block (`base_url` + optional `api_key`), executor-agnostic. Each runtime maps it to its own mechanism. For the **Codex** runtime it maps to `CodexOptions.baseUrl`/`apiKey`, so an OpenAI-compatible endpoint like Moonshot's Kimi K3 works directly (see `sample-agents/kimi-summarizer.yaml`). For the **Claude** runtime, `buildProviderEnv()` layers `ANTHROPIC_BASE_URL` + `ANTHROPIC_API_KEY` over the process env via the SDK's per-session `Options.env` so it targets an Anthropic-compatible endpoint for that run only, without mutating the global `process.env` that keeps other agents on the subscription login. `cli.ts` strips `ANTHROPIC_API_KEY` at startup. `base_url` is a literal URL; `api_key` holds a `${VAR}` reference resolved from `.env` at run time through `resolveEnvString`, never a literal secret in the agent file.
+Agents can point Claude Code or Codex at a custom model provider through the `provider` block (`base_url` plus optional `api_key`). Codex maps it to `CodexOptions.baseUrl` and `apiKey`, so Moonshot's Kimi K3 works through the Codex executor. Claude Code maps it to per-session Anthropic environment values. `cli.ts` strips `ANTHROPIC_API_KEY` at startup. The `api_key` field holds a `${VAR}` reference resolved at run time and never a literal secret. Installed Kimi Code uses its own login and ACP model selection, so it rejects a `provider` block.
 
-**Codex safety mapping.** Codex ignores the Claude tool allowlist (`tools`/`disallowed_tools`/`canUseTool`), so `execution/codex-safety.ts` translates an agent's capability/permission model into Codex's own safety knobs, keeping the UI toggles meaningful on the Codex path (which every custom-model/Kimi agent uses). `deriveCodexSandbox()` maps write/exec permission onto `sandboxMode` (read-only when the agent may neither write files nor run commands, else workspace-write; an explicit `codex_sandbox` and `permission_mode: plan` still win; `danger-full-access` is never derived). `deriveCodexNetworkAccess()` maps an explicit web-tool grant onto `networkAccessEnabled` (off by default). The mapping is deliberately coarse — Codex safety is broad tiers, not per-tool. MCP-based capabilities carry over directly (the Codex executor passes `mcp_servers`).
+**Codex safety mapping.** Codex ignores the Claude tool allowlist (`tools`/`disallowed_tools`/`canUseTool`), so `execution/codex-safety.ts` translates an agent's capability and permission model into Codex's safety knobs. `deriveCodexSandbox()` maps write and command permission onto `sandboxMode`. `deriveCodexNetworkAccess()` maps an explicit web-tool grant onto network access, which is off by default. This mapping applies to Codex agents, including API-backed Kimi K3 agents. It does not apply to installed Kimi Code.
+
+### Kimi Code ACP executor
+
+`executor: kimi-code` starts the discovered `kimi acp` executable and uses Agent Client Protocol for initialization, session creation, prompts, events, permission requests, filesystem callbacks, model selection, MCP forwarding, and cancellation. Deny rules win over allow rules. File callbacks normalize and canonicalize paths, resolve symlinks, enforce each `file_access` grant, and cap text reads and writes at 2 MB. Exact file grants cannot be combined with Bash because a shell could bypass the callbacks.
+
+The Kimi child receives a small environment containing runtime variables and `KIMI_CODE_HOME`; application, provider, MCP, and proxy secrets are not inherited. Reviewed MCP configuration is forwarded explicitly through ACP. `KIMI_DISABLE_CRON=1` keeps Agent Server in control of schedules. Missing or signed-out installations fail with an actionable error and never fall through to another executor.
 
 ### Panel client and ghost run cleanup
 
@@ -331,7 +345,7 @@ Connect to `ws://localhost:47821/ws` for real-time run progress. Events are JSON
 
 ### Run wall-clock timeout
 
-Every run is bounded by a wall-clock timeout to guarantee that a wedged MCP tool call, unresponsive SDK stream, or other hang cannot hold the agent's lock indefinitely. The runner races the executor against a `setTimeout` in `execution/runner.ts` (`raceWithTimeout`); on expiry it calls `AbortController.abort()` with a `RunTimeoutError` so the Claude SDK can surface the abort to in-flight tool calls, then rejects the race so `runAgent` returns cleanly and the lock is released in the `finally` block.
+Every run is bounded by a wall-clock timeout to guarantee that a wedged MCP tool call, unresponsive SDK stream, or other hang cannot hold the agent's lock indefinitely. The runner races the executor against a `setTimeout` in `execution/runner.ts` (`raceWithTimeout`). On expiry it aborts the executor and rejects the race so `runAgent` returns cleanly and the lock is released in the `finally` block. Kimi Code sends an ACP session cancellation before terminating the child process.
 
 Precedence: per-agent `timeout` field (YAML) wins over the server default `AGENT_SERVER_RUN_TIMEOUT_MS` (30 min). Set either to `0` to disable. The runner marks timed-out runs as `failed` and emits `reporter.cancel(reason, 'run_timeout')` so the panel can distinguish timeout cancellations from user-initiated ones.
 
@@ -373,9 +387,9 @@ permissions:             # optional, glob-based tool permissions (allowlist mode
     - "mcp__claude_ai_Linear__list_*"
   deny:
     - "mcp__*__create_*"
-executor: claude-code    # optional, defaults to claude-code
+executor: codex          # claude-code, codex, or kimi-code; defaults to claude-code
 model: kimi-k3           # optional per-agent model name
-provider:                # optional custom model provider (see below)
+provider:                # optional for Claude Code or Codex; rejected by kimi-code
   base_url: https://api.moonshot.ai/v1   # literal URL (OpenAI- or Anthropic-compatible)
   api_key: "${MOONSHOT_API_KEY}"         # ${VAR} ref resolved from .env; never a literal secret
 mcp_servers:             # optional, additional MCP servers for this agent
@@ -466,8 +480,10 @@ The CLI loads `~/.agent-server/.env` at startup. Shell env vars and Doppler (`do
 | AGENT_SERVER_RUN_DB | ~/.agent-server/runs.db | Durable run-history SQLite database. `:memory:` for ephemeral. |
 | AGENT_SERVER_USE_INSTALLED_CLAUDE | true | Use the user's installed Claude binary when found. Set `false` to force the bundled runtime. |
 | AGENT_SERVER_USE_INSTALLED_CODEX | true | Use the user's installed Codex binary when found. Set `false` to force the bundled runtime. |
+| AGENT_SERVER_USE_INSTALLED_KIMI | true | Use the user's installed Kimi Code binary when found. Set `false` to turn off Kimi Code. |
 | AGENT_SERVER_CLAUDE_PATH | (auto) | Explicit path to the Claude executable, overriding auto-discovery. |
 | AGENT_SERVER_CODEX_PATH | (auto) | Explicit path to the Codex executable, overriding auto-discovery. |
+| AGENT_SERVER_KIMI_PATH | (auto) | Explicit path to the Kimi Code executable, overriding auto-discovery. |
 | AGENT_SERVER_CHECK_INTERVAL_MS | 60000 | Daemon check interval |
 | AGENT_SERVER_PANEL_URL | (none) | Agent Panel URL for telemetry |
 | AGENT_SERVER_PANEL_API_KEY | (none) | API key for Agent Panel |
@@ -539,7 +555,7 @@ macos-app/
       Sidebar.swift                   -- Agent list (left, 240px)
       MainPane.swift                  -- Home dashboard cards
       AgentDetailDrawer.swift         -- Consumer agent page (last run, capabilities, gear)
-      AgentSettingsView.swift         -- Gear editor: basics, schedule, capability toggles, Connect flow, advanced raw editor
+      AgentSettingsView.swift         -- Gear editor: basics, schedule, capability toggles, Connect flow, and Open raw file
       CreateAgentSheet.swift          -- Consumer new-agent flow (POST /agents)
       SettingsDrawer.swift            -- App settings (power-user cards behind Advanced)
     Assets.xcassets/                  -- App icon + menu bar icons
@@ -555,7 +571,7 @@ macos-app/
 
 ### Key patterns
 
-- **Consumer UI**: The main window is sidebar (agents) + home pane, with slide-in drawers governed by `DrawerRouter`. Clicking an agent opens `AgentDetailDrawer` — a consumer page showing the schedule in plain English, the last run's outcome (rendered markdown summary), and enabled-capability chips; full run history hides behind "View history". The gear opens `AgentSettingsSheet`: name/description/schedule/instructions plus a capability toggle list driven by the server's derived `capabilities` array. Toggles PUT `/agents/:id` immediately; a capability missing its keys triggers `ConnectCapabilitySheet`, which saves values into `~/.agent-server/.env` via `EnvFileStore` (restarting the server if idle) and retries. A raw-file editor (`AgentPromptEditor`) stays available behind an Advanced disclosure. `CreateAgentSheet` creates agents through `POST /agents` with capability checkboxes from `GET /capabilities`. `SchedulePreset` (AgentServerCore) maps the picker to cron and back; unrecognized cron shapes stay "Custom" so hand-written schedules are never rewritten. The legacy `NavigationSplitView` stack (SettingsView/AgentsListView/AgentEditorView/AgentDetailView/SettingsTabView/EnvEditorView) was removed; notification deep-links route into the drawer via `openMainWindow(route:)`.
+- **Consumer UI**: The main window is sidebar (agents) + home pane, with slide-in drawers governed by `DrawerRouter`. Clicking an agent opens `AgentDetailDrawer`, which shows the schedule in plain English, the last run's outcome, and enabled capabilities. The gear opens `AgentSettingsSheet` for basics, schedule, instructions, capability controls, and a direct Open raw file action. The Coding agents card controls installed Claude Code, Codex, and Kimi Code discovery. The per-agent picker distinguishes installed Kimi Code from API-backed Kimi K3. `SchedulePreset` maps the picker to cron and back; unrecognized cron shapes stay Custom so hand-written schedules are never rewritten. Notification deep-links route into the drawer through `openMainWindow(route:)`.
 - **NSStatusBar + NSMenu**: Menu bar icon with dropdown showing active runs and scheduled agent count. Icon switches from template (idle) to tinted (active runs).
 - **StatusMonitor**: Connects to `ws://localhost:47821/ws` for real-time run events. Falls back to HTTP polling every 5 seconds if WebSocket disconnects. Reconnects automatically after 5 seconds. Uses `@Published` properties for reactive UI updates. On lifecycle events (`run_completed`, `run_failed`, `mcp_status`) it calls `poll()` and routes to `NotificationManager`. Routes `run_failed` with `code == "run_timeout"` to `notifyRunTimedOut` and `run_failed` without a timeout code to `notifyRunFailed` — both tier-2. Detects server restarts by comparing `/health` `started_at` values between polls and fires `notifyServerRestarted` on change. Does NOT notify on `run_started` (too noisy).
 - **AgentServerClient**: HTTP client with `cancelRun(id:)` for aborting running agents via `POST /runs/:id/cancel`.

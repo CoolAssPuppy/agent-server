@@ -33,6 +33,20 @@ function createReporter(): Reporter {
 }
 
 describe('Kimi Code ACP execution', () => {
+  it('rejects a provider block that the installed runtime cannot honor', async () => {
+    const [clientStream] = createStreamPair();
+
+    await expect(runKimiAcpSession(makeAgent({
+      executor: 'kimi-code',
+      provider: {
+        base_url: 'https://api.moonshot.ai/v1',
+        api_key: '${MOONSHOT_API_KEY}',
+      },
+    }), createReporter(), clientStream)).rejects.toThrow(
+      'Kimi Code uses its installed login and does not accept a provider setting',
+    );
+  });
+
   it.runIf(process.env.AGENT_SERVER_TEST_KIMI === 'true')(
     'negotiates ACP and completes a prompt with the installed Kimi Code binary',
     async () => {

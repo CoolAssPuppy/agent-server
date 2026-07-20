@@ -41,6 +41,17 @@ The audience should understand the flow without an explanation of YAML, cron exp
 ## Troubleshooting
 
 - If proposal generation is unavailable, confirm the local Codex executable and reopen the flow. Deterministic security analysis should still work.
+
+## Optional Kimi Code proof
+
+1. Open Settings and confirm Use installed Kimi is on.
+2. Edit a demo agent and open the Coding agent menu.
+3. Show Kimi Code and Kimi K3 via Moonshot as separate choices.
+4. Choose Kimi Code, deny commands, grant one demo file, and run it.
+5. Show the structured tool activity and exact file boundary in the run detail.
+6. Turn Use installed Kimi off and retry. The app should explain that Kimi Code is unavailable without falling through to Claude Code or Codex.
+
+This optional proof uses only demo content. The installed executable may process the approved prompt and context through Kimi's service under the signed-in account.
 - If the app reports that the server is offline, use Retry after the local health check succeeds.
 - If the fixture does not load, run the parser verification command from the final verification report.
 - If a review is stale, rerun Security Check. The agent file changed after the previous review.

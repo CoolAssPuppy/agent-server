@@ -254,9 +254,9 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   const connectionProfileStore = new ConnectionProfileStore(join(config.agentsDir, '..', 'connections.json'));
 
   // Discover the user's installed Claude Code, Codex, and Kimi Code binaries once at startup so
-  // runs use the runtimes (and subscription logins) they already have, falling
-  // back to the SDK's bundled runtimes when none is found. Resolved once — a
-  // `which` lookup per run would be wasteful.
+  // runs use the runtimes and logins they already have. Claude Code and Codex
+  // can fall back to SDK runtimes; Kimi Code requires an installed executable.
+  // Resolve once because a `which` lookup per run would be wasteful.
   const runtimePaths = discoverRuntimePaths();
   if (runtimePaths.claudeExecutablePath) {
     console.log(`  Claude runtime: ${runtimePaths.claudeExecutablePath} (installed)`);

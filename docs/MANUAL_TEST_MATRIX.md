@@ -58,6 +58,26 @@ Build the server and app from the `creation-experience` branch. Use demo agents 
 | Stale preview | Edit the agent outside the app after preview and choose Apply | Apply stops with a conflict and asks for a new review. |
 | Undo | Apply a reversible fix, undo it, and reopen the agent | The earlier content returns if no later edit conflicts. |
 
+## Kimi Code runtime
+
+| Scenario | Expected result |
+|---|---|
+| Installed and signed in | Settings shows Use installed Kimi on. A `kimi-code` agent completes through the installed executable and records structured tool activity. |
+| Missing installation | Selecting Kimi Code leaves the agent reviewable, but a run explains that Kimi Code is not installed or is turned off. It never uses another runtime. |
+| Signed out | A run asks the user to sign in with `kimi login`. No prompt, credential, or agent file appears in the error. |
+| Turn off installed Kimi | Disable Use installed Kimi and restart the server | Kimi Code becomes unavailable while Claude Code, Codex, and existing agent files remain unchanged. |
+| Invalid explicit path | Set `AGENT_SERVER_KIMI_PATH` to a missing executable | Discovery fails closed and does not search `PATH` or use another runtime. |
+| Kimi Code versus Kimi K3 | Switch the per-agent coding-agent picker between both choices | Kimi Code stores `executor: kimi-code` with no provider. Kimi K3 stores `executor: codex`, model `kimi-k3`, and a Moonshot provider reference. |
+| Existing Kimi K2 agent | Open and save an older custom Kimi K2 agent without changing its model | Its executor, model ID, provider reference, and history labels remain unchanged. |
+| Exact read-only path | Ask Kimi Code to read one approved file and one file outside the grant | The approved read succeeds. The outside content is not returned or logged. |
+| Exact approved write | Allow one output file and deny Bash | The approved file can be created or changed. A neighboring file remains unavailable. |
+| Symlink escape | Place a symlink inside an approved folder that points outside it | Canonical path checks reject the outside target. |
+| Exact path plus Bash | Add Bash while exact file grants are present | The run refuses to start and explains that commands could bypass exact path checks. |
+| Reviewed MCP connection | Run a Kimi Code agent with one saved MCP connection | Only that MCP configuration and its referenced values are forwarded through ACP. Unrelated environment secrets remain absent. |
+| Cancellation | Stop an active Kimi Code run | Agent Server sends ACP cancellation, stops the child, releases the lock, and records a cancelled run. |
+| Model choice | Set a Kimi ACP model value and run | The value is sent through ACP session configuration. A provider block is rejected with guidance to use Kimi K3 via Moonshot. |
+| Log privacy | Search server and app logs after successful and failed Kimi runs | Prompts, file contents, provider keys, MCP secrets, and permission arguments are absent. Tool names and granted or blocked state may appear. |
+
 ## Security Analyzer
 
 | Scenario | Expected result |

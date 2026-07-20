@@ -177,12 +177,12 @@ max_turns: 10
 | `schedule` | no | | Cron expression (e.g., `0 9 * * 1-5`). Omit for on-demand agents. |
 | `timezone` | no | | IANA timezone for schedule evaluation (e.g., `America/Los_Angeles`) |
 | `prompt` | yes* | | The prompt sent to the selected executor. *In frontmatter format, the Markdown body is the prompt. |
-| `max_turns` | no | `AGENT_SERVER_DEFAULT_MAX_TURNS` (default `20`) | Maximum agentic conversation turns |
+| `max_turns` | no | `AGENT_SERVER_DEFAULT_MAX_TURNS` (default `20`) | Maximum Claude Code or Codex agentic turns. Kimi Code manages its own ACP session. |
 | `working_directory` | no | `$HOME` | Working directory for the executor session. Supports `~`. |
 | `tools` | no | `[]` | Allowed tools list. Claude Code receives the list directly; Kimi Code enforces it when ACP asks for tool permission. |
 | `disallowed_tools` | no | `[]` | Tools to explicitly deny. Deny rules take precedence. |
 | `permissions` | no | | Fine-grained tool permissions with glob patterns. See [tool permissions](#example-tool-permissions). |
-| `permission_mode` | no | `bypassPermissions` | Claude Code SDK permission mode. For Codex, `plan` maps to a read-only sandbox and all other modes map to `workspace-write`. |
+| `permission_mode` | no | `bypassPermissions` | Claude Code SDK permission mode. For Codex, `plan` maps to a read-only sandbox and all other modes map to `workspace-write`. Kimi Code uses explicit permission rules. |
 | `enabled` | no | `true` | Whether the scheduler runs this agent |
 | `executor` | no | `claude-code` | Which executor plugin to use: `claude-code`, `codex`, or `kimi-code` |
 | `codex_sandbox` | no | `workspace-write` | Codex-only sandbox override: `read-only`, `workspace-write`, or `danger-full-access` |
@@ -1255,16 +1255,16 @@ mcp_servers:
 
 ### Kimi Code executor
 
-Kimi Code is a local coding-agent runtime. It is separate from the Kimi K3 model preset, which runs through Codex and Moonshot's API. Choosing one never rewrites an agent configured for the other.
+Kimi Code is an installed coding-agent runtime. The executable and orchestration run on this Mac, while prompts and approved context may be processed by Kimi's service under the user's signed-in account. It is separate from the Kimi K3 model preset, which runs through Codex and Moonshot's API. Choosing one never rewrites an agent configured for the other.
 
-Install and sign in to Kimi Code first:
+Install Kimi Code using its [official instructions](https://moonshotai.github.io/kimi-code/en/guides/getting-started.html), then sign in:
 
 ```bash
 kimi login
 kimi --version
 ```
 
-Agent Server finds `kimi` in `~/.kimi-code/bin`, then on `PATH`. Set `AGENT_SERVER_KIMI_PATH` for an explicit executable or turn discovery off in Settings. Missing and signed-out installations produce an actionable error and do not fall through to another runtime.
+Agent Server finds `kimi` in `~/.kimi-code/bin`, then on `PATH`. Set `AGENT_SERVER_KIMI_PATH` for an explicit executable or turn discovery off in Settings. Missing and signed-out installations produce an actionable error and do not fall through to another runtime. Agent Server also disables Kimi's independent scheduler inside managed runs so the Agent Server schedule remains authoritative.
 
 Use the installed runtime per agent:
 
@@ -1288,7 +1288,7 @@ prompt: Review the manuscript and save the findings in review.md.
 
 The executor communicates through Agent Client Protocol instead of parsing terminal decoration. Permission requests are checked against the agent's allow and deny rules. File callbacks normalize paths, resolve symlinks, enforce each reviewed file or folder grant, and cap reads and writes at 2 MB. Agent Server rejects a Kimi Code configuration that combines exact file grants with shell command access because shell commands could bypass those path checks.
 
-Kimi receives a small child-process environment. General application secrets and proxy variables are not inherited. Reviewed MCP servers are forwarded through the ACP session, including only their configured environment or header values. Cancellation sends an ACP session cancel request and then stops the child process.
+Kimi receives a small child-process environment. General application secrets and proxy variables are not inherited. Reviewed MCP servers are forwarded through the ACP session, including only their configured environment or header values. Cancellation sends an ACP session cancel request and then stops the child process. A `provider` block is rejected for `kimi-code` because the installed runtime uses its own login and ACP model selection.
 
 Kimi K3 remains available as a distinct model choice:
 

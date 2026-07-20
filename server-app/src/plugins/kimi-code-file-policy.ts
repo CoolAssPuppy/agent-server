@@ -18,6 +18,12 @@ export type KimiFilePolicy = {
 };
 
 export function assertKimiSafety(agent: AgentConfig): void {
+  if (agent.provider) {
+    throw new Error(
+      'Kimi Code uses its installed login and does not accept a provider setting. '
+      + 'Choose Kimi K3 via Moonshot for an API-backed model.',
+    );
+  }
   if ((agent.file_access?.length ?? 0) > 0 && isToolPermitted(agent, 'Bash')) {
     throw new Error('Kimi Code cannot enforce exact file access while command execution is allowed.');
   }

@@ -61,6 +61,8 @@ The verified baseline had 862 server tests across 60 files and 126 Swift tests. 
 - Settings discovery controls and per-agent runtime selection in the existing macOS editor
 - Local API version 11 so the app replaces older daemons that cannot run `kimi-code`
 
+The Kimi Code executable runs locally, but model processing may use Kimi's service under the user's signed-in account. Agent Server does not treat an installed executable as proof of local inference. The separate Kimi K3 choice uses Codex, Moonshot's provider endpoint, and a referenced API key. Provider blocks are rejected for `kimi-code` instead of being silently ignored.
+
 ## Cleanup audit integration
 
 The work includes the relevant items from the codebase cleanup audit. It improved local API authentication, child-process environment isolation, executor defaults, run identity, redaction, WebSocket recovery, polling, settings draft safety, and shared permission policies. It also resolves Node through the configured child path, moves process waiting off the main actor, bounds tracking collections, removes tracked local Xcode and Wrangler state, and extracts the tested server run lifecycle from the main server composition file.

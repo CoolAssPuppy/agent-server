@@ -20,7 +20,7 @@ This model covers guided agent creation, Agent Debugger, Security Analyzer, the 
 1. User input enters the macOS app.
 2. The macOS app calls the authenticated loopback server.
 3. Agent Server reads local agent files and run evidence.
-4. Agent Server starts Codex, Claude Code, MCP servers, or custom providers.
+4. Agent Server starts Codex, Claude Code, installed Kimi Code through ACP, MCP servers, or custom providers.
 5. Agents may read untrusted files, messages, and web content.
 6. Approved patches replace local agent files.
 7. Notifications and connected services can send data outside the Mac.
@@ -37,6 +37,8 @@ This model covers guided agent creation, Agent Debugger, Security Analyzer, the 
 - A stale preview applied after another edit
 - A credential copied into an agent file or diagnostic log
 - A bug that associates a draft, finding, or fix with the wrong agent
+- A compromised or substituted local coding-agent executable
+- A mismatch between an ACP tool request and the permission decision applied to it
 
 ## Main threats and controls
 
@@ -57,6 +59,11 @@ This model covers guided agent creation, Agent Debugger, Security Analyzer, the 
 | Automatic destructive execution | Repeated data loss | Destructive instruction rules, automatic-trigger findings, confirmation, critical preflight | User-approved destructive workflows still carry risk |
 | Agent chaining increases authority | A low-risk input reaches a powerful agent | Chaining analysis, visible affected agents, review after content change | Cross-agent intent is hard to prove statically |
 | Notification goes to the wrong destination | Private content is disclosed | Destination shown in proposal and preflight, connection readiness, reviewable patches | External service account configuration may change separately |
+| Compromised installed Kimi executable | Local files, approved MCP access, or prompts are misused | Executable discovery requires an executable path, child environment is restricted, access is limited to reviewed tools and paths | A malicious executable running as the user may still exercise the user's local authority |
+| Kimi remote processing discloses context | Approved prompts or file content leave the Mac | The UI names the installed Kimi runtime, agent capabilities remain reviewable, and no unrelated environment secrets are inherited | Kimi's service and the user's selected account or model remain an external trust boundary |
+| ACP permission identity mismatch | A denied tool is approved or the wrong policy is checked | Tool IDs are correlated with structured tool events, unknown tools fail closed, deny rules win, permission outcomes are tested against the installed binary | A future incompatible ACP behavior may require an adapter update |
+| Kimi path or symlink escape | Files outside a reviewed grant are read or changed | Absolute canonical paths, realpath checks, exact file or descendant checks, 2 MB limits, and rejection of exact grants with Bash | Command access is intentionally incompatible with exact path enforcement |
+| Independent Kimi scheduling creates unreviewed runs | Work runs outside Agent Server history or preflight | Managed child environments force `KIMI_DISABLE_CRON=1` | A separately launched Kimi process remains outside Agent Server's control |
 
 ## Risk criteria
 

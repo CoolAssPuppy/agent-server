@@ -132,6 +132,8 @@ High-risk previews require confirmation tied to the preview result hash. Rollbac
 
 Codex is the primary structured model integration for proposals, unexplained diagnostics, and semantic prompt findings. It runs with a strict output schema, a bounded prompt, and restricted tools. GPT-5.6 may be selected through a compatible configured runtime when available. GPT-5.6 is optional and core checks do not depend on it.
 
+Installed coding agents are a separate execution concern. Claude Code, Codex, and Kimi Code share the run lifecycle but retain runtime-specific safety boundaries. `executor: kimi-code` uses the installed executable and ACP; it does not power proposal generation and does not accept a provider block. Kimi K3 remains an API-backed model choice through the Codex executor and Moonshot provider. Existing agent files are never migrated between these paths automatically.
+
 Deterministic logic remains responsible for parsing, schedule validation, path normalization, secret detection, permission evaluation, risk floors, patch policy, content hashes, review staleness, and final schema validation.
 
 ## Cleanup prerequisites
