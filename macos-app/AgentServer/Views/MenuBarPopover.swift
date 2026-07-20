@@ -19,6 +19,7 @@ struct MenuBarPopover: View {
     var onQuit: (() -> Void)?
 
     @Environment(\.nTheme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var decisionsViewModel: MenuBarDecisionsViewModel {
         MenuBarDecisionsViewModel(decisions: monitor.pendingDecisions)
@@ -84,18 +85,22 @@ struct MenuBarPopover: View {
         } label: {
             HStack(spacing: NSpacing.sm) {
                 Text("Agent Server")
-                    .font(.system(size: 15))
-                    .tracking(-0.15)
+                    .font(NTypography.bodyMedium)
+                    .fontWeight(.semibold)
                     .foregroundStyle(theme.tokens.foreground)
 
                 Spacer()
 
                 if !monitor.activeRuns.isEmpty {
-                    // Live run indicator — pulsing so it reads as different
-                    // from the static server-status dot.
                     HStack(spacing: NSpacing.xxs) {
-                        PulsingDot(color: .green)
-                            .frame(width: 8, height: 8)
+                        if reduceMotion {
+                            Circle()
+                                .fill(Color.green)
+                                .frame(width: 8, height: 8)
+                        } else {
+                            PulsingDot(color: .green)
+                                .frame(width: 8, height: 8)
+                        }
                         Text("\(monitor.activeRuns.count) running")
                             .font(NTypography.captionSmall)
                             .foregroundStyle(theme.tokens.mutedForeground)
@@ -157,13 +162,7 @@ struct MenuBarPopover: View {
                 .padding(.bottom, NSpacing.xxs)
 
             ForEach(runningAgents) { agent in
-                PopoverAgentRow(
-                    agent: agent,
-                    variant: .running,
-                    trailingText: nil
-                )
-                .contentShape(Rectangle())
-                .onTapGesture { onOpenAgent?(agent.id) }
+                agentButton(agent: agent, variant: .running, trailingText: nil)
             }
         }
         .padding(.bottom, NSpacing.xxs)
@@ -179,13 +178,7 @@ struct MenuBarPopover: View {
                 .padding(.bottom, NSpacing.xxs)
 
             ForEach(availableAgents) { agent in
-                PopoverAgentRow(
-                    agent: agent,
-                    variant: .scheduled,
-                    trailingText: agent.scheduleDisplay
-                )
-                .contentShape(Rectangle())
-                .onTapGesture { onOpenAgent?(agent.id) }
+                agentButton(agent: agent, variant: .scheduled, trailingText: agent.scheduleDisplay)
             }
         }
         .padding(.bottom, NSpacing.sm)
@@ -234,6 +227,7 @@ struct MenuBarPopover: View {
             }
             .buttonStyle(.plain)
             .help("Settings")
+            .accessibilityLabel("Settings")
 
             Button {
                 onOpenHome?()
@@ -246,10 +240,11 @@ struct MenuBarPopover: View {
             }
             .buttonStyle(.plain)
             .help("Open dashboard")
+            .accessibilityLabel("Open dashboard")
 
             Spacer()
 
-            ThemeDotStrip()
+            appearanceMenu
 
             Spacer()
 
@@ -264,6 +259,7 @@ struct MenuBarPopover: View {
             }
             .buttonStyle(.plain)
             .help("Quit")
+            .accessibilityLabel("Quit Agent Server")
         }
         .padding(.horizontal, NSpacing.md)
         .padding(.vertical, NSpacing.xs)
@@ -277,13 +273,65 @@ struct MenuBarPopover: View {
     private func sectionLabel(title: String, trailing: String) -> some View {
         HStack {
             Text(title)
-                .font(.system(size: 11))
+                .font(NTypography.labelSmall)
                 .foregroundStyle(theme.tokens.mutedForeground)
             Spacer()
             Text(trailing)
-                .font(.system(size: 11))
+                .font(NTypography.captionSmall)
                 .foregroundStyle(theme.tokens.mutedForeground.opacity(0.8))
         }
+    }
+
+    private func agentButton(
+        agent: Agent,
+        variant: PopoverRowVariant,
+        trailingText: String?
+    ) -> some View {
+        Button {
+            onOpenAgent?(agent.id)
+        } label: {
+            PopoverAgentRow(agent: agent, variant: variant, trailingText: trailingText)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            MenuBarPopoverPresentation.agentAccessibilityLabel(
+                name: agent.name,
+                isRunning: variant == .running,
+                schedule: trailingText
+            )
+        )
+        .accessibilityHint(MenuBarPopoverPresentation.agentAccessibilityHint)
+        .accessibilityIdentifier("menuBar.agent.\(agent.id)")
+    }
+
+    private var appearanceMenu: some View {
+        Menu {
+            ForEach(AgentServerThemeId.allCases) { appTheme in
+                Button {
+                    themeManager.currentTheme = appTheme
+                } label: {
+                    if themeManager.currentTheme == appTheme {
+                        Label(appTheme.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(appTheme.displayName)
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "paintpalette")
+                .font(.system(size: NIconSize.sm))
+                .foregroundStyle(theme.tokens.mutedForeground)
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help(MenuBarPopoverPresentation.appearanceTitle)
+        .accessibilityLabel(MenuBarPopoverPresentation.appearanceTitle)
+        .accessibilityValue(themeManager.currentTheme.displayName)
+        .accessibilityHint(MenuBarPopoverPresentation.appearanceHint)
+        .accessibilityIdentifier("menuBar.appearance")
     }
 }
 
@@ -313,6 +361,7 @@ private struct PopoverAgentRow: View {
     let trailingText: String?
 
     @Environment(\.nTheme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(alignment: .top, spacing: NSpacing.md) {
@@ -321,13 +370,13 @@ private struct PopoverAgentRow: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(agent.name)
-                    .font(.system(size: 13))
+                    .font(NTypography.bodyMedium)
                     .foregroundStyle(theme.tokens.foreground)
                     .lineLimit(1)
 
-                if let sub = subtitle, !sub.isEmpty {
-                    Text(sub)
-                        .font(.system(size: 11))
+                if let description = agent.description, !description.isEmpty {
+                    Text(description)
+                        .font(NTypography.caption)
                         .foregroundStyle(theme.tokens.mutedForeground)
                         .lineLimit(2)
                 }
@@ -336,7 +385,7 @@ private struct PopoverAgentRow: View {
                 // main window sidebar). Smaller, more muted.
                 if let trailingText, !trailingText.isEmpty {
                     Text(trailingText)
-                        .font(.system(size: 10))
+                        .font(NTypography.captionSmall)
                         .foregroundStyle(theme.tokens.mutedForeground.opacity(0.8))
                         .lineLimit(1)
                 }
@@ -355,7 +404,13 @@ private struct PopoverAgentRow: View {
             ZStack {
                 RoundedRectangle(cornerRadius: NRadius.sm)
                     .fill(Color.green.opacity(0.15))
-                PulsingIcon(systemName: agent.kind.icon, size: 12, color: Color.green)
+                if reduceMotion {
+                    Image(systemName: agent.kind.icon)
+                        .font(.system(size: NIconSize.xs, weight: .semibold))
+                        .foregroundStyle(Color.green)
+                } else {
+                    PulsingIcon(systemName: agent.kind.icon, size: NIconSize.xs, color: Color.green)
+                }
             }
         case .scheduled:
             ZStack {
@@ -368,14 +423,6 @@ private struct PopoverAgentRow: View {
         }
     }
 
-    private var subtitle: String? {
-        switch variant {
-        case .running:
-            return agent.description
-        case .scheduled:
-            return agent.description
-        }
-    }
 }
 
 // MARK: - Needs you card
@@ -398,14 +445,14 @@ private struct NeedsYouCard: View {
                     .background(theme.tokens.primary)
                     .clipShape(Capsule())
                 Text("\(card.agentName) · \(card.relativeTimestamp)")
-                    .font(.system(size: 11))
+                    .font(NTypography.captionSmall)
                     .foregroundStyle(theme.tokens.mutedForeground)
                     .lineLimit(1)
                 Spacer()
             }
 
             Text(card.title)
-                .font(.system(size: 13))
+                .font(NTypography.bodyMedium)
                 .foregroundStyle(theme.tokens.foreground)
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
@@ -429,7 +476,7 @@ private struct NeedsYouCard: View {
         let parts = buildMetadataParts()
         if !parts.isEmpty {
             Text(parts.joined(separator: " · "))
-                .font(.system(size: 11))
+                .font(NTypography.captionSmall)
                 .foregroundStyle(theme.tokens.mutedForeground)
                 .lineLimit(1)
         }
@@ -456,7 +503,7 @@ private struct NeedsYouCard: View {
                     onAction(action)
                 } label: {
                     Text(action.label)
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(NTypography.labelMedium)
                         .foregroundStyle(action.isRecommended ? theme.tokens.primaryForeground : theme.tokens.foreground)
                         .frame(maxWidth: .infinity)
                         .frame(height: 32)
@@ -467,53 +514,6 @@ private struct NeedsYouCard: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(action.accessibilityLabel)
-            }
-        }
-    }
-}
-
-// MARK: - Theme dot strip
-
-struct ThemeDotStrip: View {
-    @EnvironmentObject var themeManager: ThemeManager
-    @State private var isExpanded = false
-
-    var body: some View {
-        HStack(spacing: isExpanded ? NSpacing.xxs : 0) {
-            ForEach(AgentServerThemeId.allCases) { appTheme in
-                let isActive = themeManager.currentTheme == appTheme
-                let show = isExpanded || isActive
-
-                Button {
-                    withAnimation(NAnimation.bouncy) {
-                        themeManager.currentTheme = appTheme
-                        isExpanded = false
-                    }
-                } label: {
-                    Circle()
-                        .fill(appTheme.dotColor)
-                        .frame(width: 10, height: 10)
-                        .scaleEffect(show ? 1 : 0.01)
-                        .opacity(show ? 1 : 0)
-                        .overlay(
-                            Circle()
-                                .stroke(Color.primary.opacity(0.25), lineWidth: isActive ? 1.5 : 0)
-                                .frame(width: 14, height: 14)
-                                .opacity(isActive ? 1 : 0)
-                        )
-                }
-                .buttonStyle(.plain)
-                .frame(width: show ? 10 : 0)
-                .clipped()
-                .help(appTheme.displayName)
-            }
-        }
-        .padding(.horizontal, isExpanded ? NSpacing.xs : NSpacing.xxxs)
-        .padding(.vertical, NSpacing.xxs)
-        .animation(NAnimation.bouncy, value: isExpanded)
-        .onHover { hovering in
-            withAnimation(NAnimation.bouncy) {
-                isExpanded = hovering
             }
         }
     }

@@ -1,5 +1,25 @@
 import Foundation
 
+// MARK: - Popover presentation
+
+enum MenuBarPopoverPresentation {
+    static let agentAccessibilityHint = "Opens agent details"
+    static let appearanceTitle = "Appearance"
+    static let appearanceHint = "Choose the app appearance"
+
+    static func agentAccessibilityLabel(
+        name: String,
+        isRunning: Bool,
+        schedule: String?
+    ) -> String {
+        if isRunning {
+            return "\(name), running"
+        }
+        guard let schedule, !schedule.isEmpty else { return name }
+        return "\(name), \(schedule)"
+    }
+}
+
 // MARK: - Card models rendered by MenuBarPopover
 
 struct DecisionActionIntent: Hashable {

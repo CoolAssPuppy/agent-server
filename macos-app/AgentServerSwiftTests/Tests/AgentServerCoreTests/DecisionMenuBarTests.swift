@@ -3,6 +3,47 @@ import XCTest
 
 final class DecisionMenuBarTests: XCTestCase {
 
+    // MARK: - Popover accessibility presentation
+
+    func testRunningAgentRowAnnouncesItsLiveStateWithoutRepeatingDescription() {
+        XCTAssertEqual(
+            MenuBarPopoverPresentation.agentAccessibilityLabel(
+                name: "Weekly Goals Report",
+                isRunning: true,
+                schedule: "Monday at 7:00 AM"
+            ),
+            "Weekly Goals Report, running"
+        )
+    }
+
+    func testAvailableAgentRowAnnouncesItsSchedule() {
+        XCTAssertEqual(
+            MenuBarPopoverPresentation.agentAccessibilityLabel(
+                name: "Daily Portuguese and French",
+                isRunning: false,
+                schedule: "Daily at 5:00 AM"
+            ),
+            "Daily Portuguese and French, Daily at 5:00 AM"
+        )
+    }
+
+    func testAvailableAgentWithoutScheduleHasAConciseLabel() {
+        XCTAssertEqual(
+            MenuBarPopoverPresentation.agentAccessibilityLabel(
+                name: "Research assistant",
+                isRunning: false,
+                schedule: nil
+            ),
+            "Research assistant"
+        )
+    }
+
+    func testPopoverControlCopyDescribesNavigationAndAppearance() {
+        XCTAssertEqual(MenuBarPopoverPresentation.agentAccessibilityHint, "Opens agent details")
+        XCTAssertEqual(MenuBarPopoverPresentation.appearanceTitle, "Appearance")
+        XCTAssertEqual(MenuBarPopoverPresentation.appearanceHint, "Choose the app appearance")
+    }
+
     // MARK: - Factory helpers (immutable, no beforeEach mutation)
 
     private func makeApprove(
