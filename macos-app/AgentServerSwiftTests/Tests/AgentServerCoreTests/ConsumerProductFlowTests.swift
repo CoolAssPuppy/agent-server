@@ -196,6 +196,55 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertTrue(flow.canRequestProposal)
     }
 
+    func testEmptyFileSelectionDoesNotCountAsAnAnsweredQuestion() {
+        let question = CreationQuestion(
+            id: "file-access",
+            prompt: "Which files or folders may this agent use?",
+            kind: .fileAccess,
+            isRequired: true
+        )
+        var flow = AgentCreationFlow(request: "Review my manuscript")
+        flow.receiveQuestions([question])
+
+        flow.answer(questionId: question.id, value: .fileGrants([]))
+
+        XCTAssertEqual(flow.nextQuestion, question)
+        XCTAssertFalse(flow.canRequestProposal)
+    }
+
+    func testRetryableFailureUsesOneConciseVisibleMessage() {
+        let failure = ConsumerFlowFailure(
+            title: "Could not prepare your agent",
+            message: "The local creation service did not finish the proposal.",
+            recovery: "Your description and choices are still here.",
+            technicalDetails: "The model response was invalid.",
+            didSave: false,
+            canRetry: true
+        )
+
+        XCTAssertEqual(
+            failure.conciseMessage,
+            "The local creation service did not finish the proposal. Nothing was saved."
+        )
+        XCTAssertNil(failure.visibleRecovery)
+    }
+
+    func testFailureWithoutRetryKeepsItsRecoveryInstructionVisible() {
+        let failure = ConsumerFlowFailure(
+            title: "File access was denied",
+            message: "The selected folder could not be opened.",
+            recovery: "Choose another folder or allow access in System Settings.",
+            technicalDetails: "NSFileReadNoPermissionError",
+            didSave: false,
+            canRetry: false
+        )
+
+        XCTAssertEqual(
+            failure.visibleRecovery,
+            "Choose another folder or allow access in System Settings."
+        )
+    }
+
     func testCreationKeepsProposalReviewableBeforeSaving() {
         let proposal = AgentProposalPresentation.fixture(risk: .needsReview, reviewId: "proposal-1")
         var flow = AgentCreationFlow(request: "Send a weekly summary")

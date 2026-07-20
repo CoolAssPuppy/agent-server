@@ -39,7 +39,7 @@ public enum CreationAnswerValue: Equatable, Sendable {
 
     public var isEmpty: Bool {
         switch self {
-        case .string(let value): value.isEmpty
+        case .string(let value): value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .fileGrants(let grants): grants.isEmpty
         }
     }
@@ -131,6 +131,15 @@ public struct ConsumerFlowFailure: Error, Equatable, Sendable {
         self.didSave = didSave
         self.canRetry = canRetry
     }
+
+    public var conciseMessage: String {
+        let saveStatus = didSave ? "Your changes were saved." : "Nothing was saved."
+        return "\(message) \(saveStatus)"
+    }
+
+    public var visibleRecovery: String? {
+        canRetry ? nil : recovery
+    }
 }
 
 public struct SavedAgentPresentation: Equatable, Sendable {
@@ -190,7 +199,11 @@ public struct AgentCreationFlow: Equatable, Sendable {
     }
 
     public var nextQuestion: CreationQuestion? {
-        questions.first { $0.isRequired && answers[$0.id] == nil }
+        questions.first { question in
+            guard question.isRequired else { return false }
+            guard let answer = answers[question.id] else { return true }
+            return answer.isEmpty
+        }
     }
 
     public var pendingConnectionQuestions: [CreationQuestion] {

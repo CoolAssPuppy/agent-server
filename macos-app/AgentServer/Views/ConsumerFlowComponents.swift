@@ -93,20 +93,30 @@ struct ConsumerFlowFailureView: View {
     @State private var showsDetails = false
 
     var body: some View {
-        ConsumerSection(failure.title) {
-            Label(failure.message, systemImage: "exclamationmark.triangle")
-                .font(NTypography.bodyLarge)
-                .foregroundStyle(theme.tokens.error)
-            Text(failure.didSave ? "Your changes were saved." : "Nothing was saved.")
+        VStack(alignment: .leading, spacing: NSpacing.md) {
+            HStack(alignment: .firstTextBaseline, spacing: NSpacing.sm) {
+                Image(systemName: "exclamationmark.circle.fill")
+                    .foregroundStyle(theme.tokens.error)
+                    .accessibilityHidden(true)
+                Text(failure.title)
+                    .font(NTypography.headlineSmall)
+                    .foregroundStyle(theme.tokens.foreground)
+            }
+            Text(failure.conciseMessage)
                 .font(NTypography.bodyMedium)
-            Text(failure.recovery)
-                .font(NTypography.bodyLarge)
                 .foregroundStyle(theme.tokens.mutedForeground)
+                .fixedSize(horizontal: false, vertical: true)
+            if let recovery = failure.visibleRecovery {
+                Text(recovery)
+                    .font(NTypography.bodyMedium)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            }
             HStack {
                 if failure.canRetry, let retry {
                     Button("Try again", action: retry)
                         .buttonStyle(.borderedProminent)
                 }
+                Spacer()
                 DisclosureGroup("Advanced details", isExpanded: $showsDetails) {
                     Text(failure.technicalDetails)
                         .font(.system(.caption, design: .monospaced))
@@ -114,7 +124,16 @@ struct ConsumerFlowFailureView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.top, NSpacing.xs)
                 }
+                .fixedSize()
             }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(NSpacing.lg)
+        .background(theme.tokens.card)
+        .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
+        .overlay {
+            RoundedRectangle(cornerRadius: NRadius.md)
+                .strokeBorder(theme.tokens.border.opacity(0.7))
         }
         .accessibilityElement(children: .contain)
     }
