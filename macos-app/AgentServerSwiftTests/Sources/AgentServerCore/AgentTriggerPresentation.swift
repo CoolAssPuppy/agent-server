@@ -85,6 +85,26 @@ struct AgentRunTriggerFeedback: Equatable {
     let recovery: AgentRunTriggerRecovery
 }
 
+enum AgentRunControlActionStyle: Equatable {
+    case borderedProminent
+}
+
+enum AgentRunControlStatusStyle: Equatable {
+    case secondaryText
+}
+
+enum AgentRunControlFeedbackStyle: Equatable {
+    case flat
+}
+
+struct AgentRunControlSupportingSurfacePresentation: Equatable {
+    let primaryActionStyle = AgentRunControlActionStyle.borderedProminent
+    let pausedStatusStyle = AgentRunControlStatusStyle.secondaryText
+    let feedbackStyle = AgentRunControlFeedbackStyle.flat
+    let isFeedbackSelectable = true
+    let supportsReducedMotion = true
+}
+
 enum AgentRunTriggerState: Equatable {
     case idle
     case starting

@@ -42,17 +42,10 @@ struct AgentRunControl: View {
                 }
                 Text(runButtonTitle)
                     .font(NTypography.bodyMedium)
-                    .fontWeight(.semibold)
             }
-            .padding(.horizontal, NSpacing.md)
-            .padding(.vertical, NSpacing.xs)
-            .foregroundStyle(theme.tokens.primaryForeground)
-            .background(
-                RoundedRectangle(cornerRadius: NRadius.sm)
-                    .fill(theme.tokens.primary)
-            )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
         .disabled(isRunning || state.isStarting || !agent.enabled)
         .accessibilityIdentifier("agentDetail.runNow")
     }
@@ -64,13 +57,9 @@ struct AgentRunControl: View {
     }
 
     private var pausedBadge: some View {
-        Text("Paused")
+        Label("Paused", systemImage: "pause.circle")
             .font(NTypography.caption)
             .foregroundStyle(theme.tokens.mutedForeground)
-            .padding(.horizontal, NSpacing.xs)
-            .padding(.vertical, 2)
-            .background(theme.tokens.muted)
-            .clipShape(Capsule())
     }
 
     private func feedbackView(_ feedback: AgentRunTriggerFeedback) -> some View {
@@ -92,6 +81,7 @@ struct AgentRunControl: View {
                     .font(NTypography.bodySmall)
                     .foregroundStyle(theme.tokens.mutedForeground)
                     .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
                 Button(feedback.recoveryTitle) {
                     recover(feedback.recovery)
                 }
@@ -100,13 +90,7 @@ struct AgentRunControl: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(NSpacing.sm)
-        .background(theme.tokens.card)
-        .overlay {
-            RoundedRectangle(cornerRadius: NRadius.sm)
-                .stroke(theme.tokens.border, lineWidth: 1)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
+        .padding(.vertical, NSpacing.xs)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("agentDetail.runFeedback")
     }

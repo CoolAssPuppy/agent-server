@@ -16,9 +16,6 @@ struct AgentSafetyReadinessRow: View {
                     .frame(width: 24)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: NSpacing.xxxs) {
-                    Text("Safety and readiness")
-                        .font(NTypography.labelSmall)
-                        .foregroundStyle(theme.tokens.mutedForeground)
                     Text(presentation.title)
                         .font(NTypography.bodyMedium)
                         .foregroundStyle(theme.tokens.foreground)
@@ -32,17 +29,12 @@ struct AgentSafetyReadinessRow: View {
                     .foregroundStyle(theme.tokens.mutedForeground)
                     .accessibilityHidden(true)
             }
-            .padding(NSpacing.md)
-            .background(theme.tokens.card)
-            .overlay {
-                RoundedRectangle(cornerRadius: NRadius.md)
-                    .stroke(theme.tokens.border, lineWidth: 1)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
+            .padding(.vertical, NSpacing.sm)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
+        .accessibilityLabel("Safety and readiness, \(presentation.title), \(presentation.detail)")
         .accessibilityHint(presentation.action == .openSettings
             ? "Opens agent settings"
             : "Opens the security check")

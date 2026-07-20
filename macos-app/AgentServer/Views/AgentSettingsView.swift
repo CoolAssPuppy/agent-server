@@ -15,6 +15,7 @@ struct AgentSettingsSheet: View {
     var onDeleted: () -> Void = {}
 
     @Environment(\.nTheme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var didSeed = false
     @State private var seededAgentId: String?
@@ -40,17 +41,16 @@ struct AgentSettingsSheet: View {
         VStack(spacing: 0) {
             header
             Divider().opacity(0.3)
-            ScrollView {
-                VStack(alignment: .leading, spacing: NSpacing.xl) {
-                    basicsSection
-                    modelSection
-                    instructionsSection
-                    capabilitiesSection
-                    advancedSection
-                    deleteSection
-                }
-                .padding(NSpacing.xl)
+            Form {
+                basicsSection
+                modelSection
+                instructionsSection
+                capabilitiesSection
+                advancedSection
+                deleteSection
             }
+            .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
             Divider().opacity(0.3)
             footerBar
         }
@@ -109,8 +109,9 @@ struct AgentSettingsSheet: View {
             if let errorMessage {
                 Text(errorMessage)
                     .font(NTypography.caption)
-                    .foregroundStyle(.red)
-                    .lineLimit(2)
+                    .foregroundStyle(theme.tokens.error)
+                    .textSelection(.enabled)
+                    .accessibilityLabel("Save error: \(errorMessage)")
             }
             Spacer()
             Button("Cancel") { isPresented = false }
@@ -134,23 +135,10 @@ struct AgentSettingsSheet: View {
     // MARK: - Basics
 
     private var basicsSection: some View {
-        VStack(alignment: .leading, spacing: NSpacing.sm) {
-            sectionTitle("Basics")
-
-            VStack(alignment: .leading, spacing: NSpacing.xs) {
-                fieldLabel("Name")
-                TextField("Agent name", text: $name)
-                    .textFieldStyle(.roundedBorder)
-            }
-
-            VStack(alignment: .leading, spacing: NSpacing.xs) {
-                fieldLabel("Description")
-                TextField("What does this agent do?", text: $descriptionText)
-                    .textFieldStyle(.roundedBorder)
-            }
-
-            VStack(alignment: .leading, spacing: NSpacing.xs) {
-                fieldLabel("Schedule")
+        Section("Basics") {
+            TextField("Name", text: $name, prompt: Text("Agent name"))
+            TextField("Description", text: $descriptionText, prompt: Text("What does this agent do?"))
+            LabeledContent("Schedule") {
                 ScheduleField(draft: $scheduleDraft)
             }
         }
@@ -159,23 +147,19 @@ struct AgentSettingsSheet: View {
     // MARK: - Model
 
     private var modelSection: some View {
-        VStack(alignment: .leading, spacing: NSpacing.sm) {
-            sectionTitle("Model")
-            Text("Which AI runs this agent.")
-                .font(NTypography.caption)
-                .foregroundStyle(theme.tokens.mutedForeground)
+        Section {
             ModelField(draft: $modelDraft)
+        } header: {
+            Text("Model")
+        } footer: {
+            Text("Which AI runs this agent.")
         }
     }
 
     // MARK: - Instructions
 
     private var instructionsSection: some View {
-        VStack(alignment: .leading, spacing: NSpacing.sm) {
-            sectionTitle("Instructions")
-            Text("Tell the agent what to do in plain language.")
-                .font(NTypography.caption)
-                .foregroundStyle(theme.tokens.mutedForeground)
+        Section {
             MarkdownEditor(text: $promptText)
                 .frame(height: 180)
                 .padding(NSpacing.sm)
@@ -187,45 +171,36 @@ struct AgentSettingsSheet: View {
                                 .strokeBorder(theme.tokens.border, lineWidth: 1)
                         )
                 )
+        } header: {
+            Text("Instructions")
+        } footer: {
+            Text("Tell the agent what to do in plain language.")
         }
     }
 
     // MARK: - Capabilities
 
     private var capabilitiesSection: some View {
-        VStack(alignment: .leading, spacing: NSpacing.sm) {
-            sectionTitle("What this agent can do")
-            Text("Review your choices, then choose Save to update the agent.")
-                .font(NTypography.caption)
-                .foregroundStyle(theme.tokens.mutedForeground)
-
-            VStack(spacing: 0) {
-                let capabilities = agent?.capabilities ?? []
-                if capabilities.isEmpty {
-                    Text("Capabilities are unavailable — update and restart the agent server.")
-                        .font(NTypography.caption)
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                        .padding(NSpacing.md)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                } else {
-                    ForEach(Array(capabilities.enumerated()), id: \.element.id) { index, capability in
-                        if index > 0 { Divider().opacity(0.3) }
-                        CapabilityRow(
-                            capability: capability,
-                            isEnabled: capabilityDraft.isEnabled(capability.id, fallback: capability.enabled),
-                            onToggle: { newValue in
-                                toggleCapability(capability, to: newValue)
-                            }
-                        )
-                    }
+        Section {
+            let capabilities = agent?.capabilities ?? []
+            if capabilities.isEmpty {
+                Text("Capabilities are unavailable. Update and restart Agent Server.")
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            } else {
+                ForEach(capabilities, id: \.id) { capability in
+                    CapabilityRow(
+                        capability: capability,
+                        isEnabled: capabilityDraft.isEnabled(capability.id, fallback: capability.enabled),
+                        onToggle: { newValue in
+                            toggleCapability(capability, to: newValue)
+                        }
+                    )
                 }
             }
-            .background(theme.tokens.card)
-            .overlay(
-                RoundedRectangle(cornerRadius: NRadius.sm)
-                    .stroke(theme.tokens.border, lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
+        } header: {
+            Text("What this agent can do")
+        } footer: {
+            Text("Review your choices, then choose Save to update the agent.")
         }
     }
 
@@ -244,22 +219,8 @@ struct AgentSettingsSheet: View {
     // MARK: - Advanced
 
     private var advancedSection: some View {
-        VStack(alignment: .leading, spacing: NSpacing.sm) {
-            Button {
-                withAnimation(.easeOut(duration: 0.15)) { showAdvanced.toggle() }
-            } label: {
-                HStack(spacing: NSpacing.xs) {
-                    Image(systemName: showAdvanced ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
-                    Text("Advanced")
-                        .font(NTypography.labelMedium)
-                }
-                .foregroundStyle(theme.tokens.mutedForeground)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if showAdvanced {
+        Section {
+            DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
                 if let fileURL = AgentFile.find(agentId: agentId)?.url {
                     // The fields above already cover the prompt (Instructions),
                     // schedule, model, and capabilities. For anything the UI
@@ -282,13 +243,14 @@ struct AgentSettingsSheet: View {
                         .foregroundStyle(theme.tokens.mutedForeground)
                 }
             }
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: showAdvanced)
         }
     }
 
     // MARK: - Delete
 
     private var deleteSection: some View {
-        HStack {
+        Section {
             Button(role: .destructive) {
                 confirmingDelete = true
             } label: {
@@ -304,7 +266,6 @@ struct AgentSettingsSheet: View {
             } message: {
                 Text("The agent's file is moved aside, not destroyed. You can recover it from the .deleted folder inside your agents folder.")
             }
-            Spacer()
         }
     }
 
@@ -422,19 +383,6 @@ struct AgentSettingsSheet: View {
         }
     }
 
-    // MARK: - Small helpers
-
-    private func sectionTitle(_ title: String) -> some View {
-        Text(title.uppercased())
-            .font(NTypography.labelSmall)
-            .foregroundStyle(theme.tokens.mutedForeground)
-    }
-
-    private func fieldLabel(_ label: String) -> some View {
-        Text(label)
-            .font(NTypography.caption)
-            .foregroundStyle(theme.tokens.mutedForeground)
-    }
 }
 
 // MARK: - Capability row
@@ -462,12 +410,8 @@ struct CapabilityRow: View {
                         .foregroundStyle(theme.tokens.foreground)
                     if capability.custom {
                         Text("Custom")
-                            .font(NTypography.badge)
+                            .font(NTypography.caption)
                             .foregroundStyle(theme.tokens.mutedForeground)
-                            .padding(.horizontal, NSpacing.xs)
-                            .padding(.vertical, 1)
-                            .background(theme.tokens.muted)
-                            .clipShape(Capsule())
                     }
                 }
                 Text(capability.description)

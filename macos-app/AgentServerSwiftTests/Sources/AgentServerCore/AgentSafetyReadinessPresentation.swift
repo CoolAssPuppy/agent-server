@@ -15,6 +15,23 @@ public enum AgentSafetyReadinessAction: Equatable, Sendable {
     case reviewSecurity
 }
 
+public enum AgentSafetyReadinessRowStyle: Equatable, Sendable {
+    case flatDisclosure
+}
+
+public enum AgentSafetyReadinessTextRole: Equatable, Sendable {
+    case body
+    case secondary
+}
+
+public struct AgentSafetyReadinessSupportingSurfacePresentation: Equatable, Sendable {
+    public let rowStyle = AgentSafetyReadinessRowStyle.flatDisclosure
+    public let usesCardBackground = false
+    public let textRoles: [AgentSafetyReadinessTextRole] = [.body, .secondary]
+
+    public init() {}
+}
+
 public struct AgentSafetyReadinessPresentation: Equatable, Sendable {
     public let title: String
     public let detail: String

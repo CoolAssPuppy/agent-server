@@ -2,6 +2,16 @@ import XCTest
 @testable import AgentServerCore
 
 final class AgentTriggerPresentationTests: XCTestCase {
+    func testRunControlUsesNativeActionsAndFlatSelectableFeedback() {
+        let presentation = AgentRunControlSupportingSurfacePresentation()
+
+        XCTAssertEqual(presentation.primaryActionStyle, .borderedProminent)
+        XCTAssertEqual(presentation.pausedStatusStyle, .secondaryText)
+        XCTAssertEqual(presentation.feedbackStyle, .flat)
+        XCTAssertTrue(presentation.isFeedbackSelectable)
+        XCTAssertTrue(presentation.supportsReducedMotion)
+    }
+
     func testScheduledAgentUsesCronDescription() {
         let presentation = AgentTriggerPresentation(schedule: "0 9 * * *", hasWatch: false)
 

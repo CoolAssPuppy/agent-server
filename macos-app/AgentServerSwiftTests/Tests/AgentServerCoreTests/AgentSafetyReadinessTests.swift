@@ -2,6 +2,14 @@ import XCTest
 @testable import AgentServerCore
 
 final class AgentSafetyReadinessTests: XCTestCase {
+    func testSafetyReadinessUsesAFlatDisclosureRowWithoutDecorativeContainer() {
+        let style = AgentSafetyReadinessSupportingSurfacePresentation()
+
+        XCTAssertEqual(style.rowStyle, .flatDisclosure)
+        XCTAssertFalse(style.usesCardBackground)
+        XCTAssertEqual(style.textRoles, [.body, .secondary])
+    }
+
     func testAgentDetailUsesSentenceCaseSectionsAndPlainCapabilityRows() {
         XCTAssertEqual(AgentDetailPresentation.lastRunTitle, "Last run")
         XCTAssertEqual(AgentDetailPresentation.producedTitle, "Produced")

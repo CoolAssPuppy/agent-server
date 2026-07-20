@@ -34,3 +34,41 @@ public struct AgentCapabilityDraft: Equatable, Sendable {
         }
     }
 }
+
+public enum AgentSettingsContainerStyle: Equatable, Sendable {
+    case nativeForm
+}
+
+public enum AgentSettingsSection: Equatable, Sendable {
+    case basics
+    case model
+    case instructions
+    case capabilities
+    case advanced
+    case delete
+}
+
+public enum AgentSettingsCapabilityRowStyle: Equatable, Sendable {
+    case plain
+}
+
+public enum AgentSettingsCustomIndicator: Equatable, Sendable {
+    case secondaryText
+}
+
+public enum AgentSettingsAdvancedStyle: Equatable, Sendable {
+    case disclosure
+}
+
+public struct AgentSettingsSupportingSurfacePresentation: Equatable, Sendable {
+    public let containerStyle = AgentSettingsContainerStyle.nativeForm
+    public let sections: [AgentSettingsSection] = [
+        .basics, .model, .instructions, .capabilities, .advanced, .delete,
+    ]
+    public let capabilityRowStyle = AgentSettingsCapabilityRowStyle.plain
+    public let customCapabilityIndicator = AgentSettingsCustomIndicator.secondaryText
+    public let advancedStyle = AgentSettingsAdvancedStyle.disclosure
+    public let areErrorsSelectable = true
+
+    public init() {}
+}
