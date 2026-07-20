@@ -3,6 +3,7 @@ import { homedir } from 'os';
 import { join } from 'path';
 import { sanitizeMetadata, sanitizeStructuredValue, sanitizeText } from '../server/security-utils.js';
 import { toErrorMessage } from '../util/errors.js';
+import { withTimeout } from '../util/with-timeout.js';
 
 export type StatusState =
   | 'submitted'
@@ -82,23 +83,11 @@ async function fetchWithTimeout(
   if (timeoutMs <= 0) return fetchImpl(input, init);
 
   const controller = new AbortController();
-  let handle: NodeJS.Timeout | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    handle = setTimeout(() => {
-      controller.abort();
-      reject(new Error(`Panel request exceeded timeout of ${timeoutMs}ms`));
-    }, timeoutMs);
-    handle.unref?.();
+  return withTimeout(fetchImpl(input, { ...init, signal: controller.signal }), {
+    timeoutMs,
+    createError: () => new Error(`Panel request exceeded timeout of ${timeoutMs}ms`),
+    onTimeout: () => controller.abort(),
   });
-
-  try {
-    return await Promise.race([
-      fetchImpl(input, { ...init, signal: controller.signal }),
-      timeout,
-    ]);
-  } finally {
-    if (handle) clearTimeout(handle);
-  }
 }
 
 export class TelemetryReporter {

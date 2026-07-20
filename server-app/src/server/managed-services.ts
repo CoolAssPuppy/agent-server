@@ -1,4 +1,5 @@
 import { toErrorMessage } from '../util/errors.js';
+import { withTimeout } from '../util/with-timeout.js';
 
 export type ManagedService = {
   name: string;
@@ -13,31 +14,6 @@ type ManagedServicesOptions = {
   stopTimeoutMs?: number;
 };
 
-async function runWithTimeout(
-  operation: () => Promise<void> | void,
-  timeoutMs: number | undefined,
-  timeoutMessage: string,
-): Promise<void> {
-  if (!timeoutMs || timeoutMs <= 0) {
-    await operation();
-    return;
-  }
-
-  let handle: NodeJS.Timeout | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    handle = setTimeout(() => {
-      reject(new Error(timeoutMessage));
-    }, timeoutMs);
-    handle.unref?.();
-  });
-
-  try {
-    await Promise.race([Promise.resolve(operation()), timeout]);
-  } finally {
-    if (handle) clearTimeout(handle);
-  }
-}
-
 async function stopServices(
   services: readonly ManagedService[],
   timeoutMs?: number,
@@ -46,11 +22,10 @@ async function stopServices(
 
   for (const service of [...services].reverse()) {
     try {
-      await runWithTimeout(
-        service.stop,
+      await withTimeout(Promise.resolve().then(() => service.stop()), {
         timeoutMs,
-        `${service.name} did not stop within ${timeoutMs}ms`,
-      );
+        createError: () => new Error(`${service.name} did not stop within ${timeoutMs}ms`),
+      });
     } catch (error) {
       errors.push(new Error(`${service.name}: ${toErrorMessage(error)}`));
     }
@@ -74,11 +49,12 @@ export async function startManagedServices(
   try {
     for (const service of services) {
       attempted.push(service);
-      await runWithTimeout(
-        service.start,
-        options.startTimeoutMs,
-        `${service.name} did not start within ${options.startTimeoutMs}ms`,
-      );
+      await withTimeout(Promise.resolve().then(() => service.start()), {
+        timeoutMs: options.startTimeoutMs,
+        createError: () => new Error(
+          `${service.name} did not start within ${options.startTimeoutMs}ms`,
+        ),
+      });
     }
   } catch (startError) {
     try {

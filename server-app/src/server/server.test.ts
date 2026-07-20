@@ -4,7 +4,6 @@ import { makeAgent } from '../test-factories.js';
 import type { AgentConfig } from '../agents/config.js';
 import {
   chatKeyFromString,
-  buildConversationPromptSuffix,
   extractMcpNeedsAuthServers,
   shouldDispatchNotification,
   shouldSendChannelRunNotification,
@@ -172,19 +171,6 @@ describe('chatKeyFromString', () => {
 
   it('separates distinct channel ids', () => {
     expect(chatKeyFromString('D123')).not.toBe(chatKeyFromString('D999'));
-  });
-});
-
-describe('buildConversationPromptSuffix', () => {
-  it('includes the latest user message exactly once', () => {
-    const suffix = buildConversationPromptSuffix([
-      { role: 'user', content: 'First question', createdAt: new Date() },
-      { role: 'assistant', content: 'First answer', createdAt: new Date() },
-      { role: 'user', content: 'Latest question', createdAt: new Date() },
-    ]);
-
-    expect(suffix.match(/Latest question/g)).toHaveLength(1);
-    expect(suffix).toContain('[User]\nLatest question');
   });
 });
 

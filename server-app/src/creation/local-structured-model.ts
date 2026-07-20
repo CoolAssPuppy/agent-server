@@ -6,6 +6,7 @@ import {
 } from '@openai/codex-sdk';
 import { tmpdir } from 'os';
 import { buildCodexChildEnvironment } from '../agents/environment-policy.js';
+import { withTimeout } from '../util/with-timeout.js';
 
 export type LocalCodexOptions = CodexOptions;
 export type LocalThreadOptions = ThreadOptions;
@@ -47,19 +48,6 @@ function parseStructuredResponse(response: string): unknown {
   }
 }
 
-function withTimeout<T>(promise: Promise<T>, controller: AbortController, timeoutMs: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      controller.abort();
-      reject(new Error('Local structured model timed out.'));
-    }, timeoutMs);
-    promise.then(
-      (value) => { clearTimeout(timer); resolve(value); },
-      (error: unknown) => { clearTimeout(timer); reject(error); },
-    );
-  });
-}
-
 /** Local Codex structured output with read-only, offline execution. */
 export function createLocalStructuredModel(options: RunnerOptions = {}): LocalStructuredModel {
   const createCodex = options.createCodex ?? ((codexOptions: CodexOptions) => new Codex(codexOptions));
@@ -96,8 +84,11 @@ export function createLocalStructuredModel(options: RunnerOptions = {}): LocalSt
         try {
           const turn = await withTimeout(
             thread.run(prompt, { outputSchema, signal: controller.signal }),
-            controller,
-            timeoutMs,
+            {
+              timeoutMs,
+              createError: () => new Error('Local structured model timed out.'),
+              onTimeout: () => controller.abort(),
+            },
           );
           const value = parseStructuredResponse(turn.finalResponse);
           if (key && active.get(key) === controller) active.delete(key);

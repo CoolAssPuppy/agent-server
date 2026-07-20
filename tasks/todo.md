@@ -4,7 +4,7 @@
 
 - [x] Commit the audit report and this remediation baseline.
 - [x] Batch 1: Fix trigger direction and cycles, timeout ownership, telemetry deadlines and durability, conversation duplication, skipped terminals, interaction delivery, and shutdown handling. Cover TD-01 through TD-05 and TD-23 through TD-26.
-- [ ] Batch 1 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun all server gates, and commit refinements.
+- [x] Batch 1 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun all server gates, and commit refinements.
 - [ ] Batch 2: Fix evidence redaction, body limits, bounded security maps, cleanup errors, dynamic watches, glob parsing, discovery diagnostics, configuration documentation generation, duplicate normalization, and the unused Telegram decision path. Cover TD-06, TD-27 through TD-32, TD-40, TD-44, and TD-45.
 - [ ] Batch 2 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun all server gates, and commit refinements.
 - [ ] Batch 3: Upgrade vulnerable dependencies, add dependency auditing and native CI, make macOS build inputs reproducible, test the CLI, and ratchet coverage. Cover TD-07 through TD-11, TD-38, and TD-39.
@@ -29,7 +29,7 @@
 
 ### Review
 
-Pending remediation completion.
+Batch 1 fixes trigger direction and bounded chains, preserves locks for timed-out work, makes terminal telemetry durable and request-bounded, removes duplicated conversation input, distinguishes skipped runs, fails undeliverable interactions, and stages startup with bounded rollback and teardown. The cleanup pass consolidated timeout handling, channel completion handling, and internal-only exports. Verification passed with 1,292 server tests, strict type checking, ESLint, the server build, 378 Swift tests, and an unsigned macOS app build. Remaining batches are pending.
 
 ## Tech debt audit
 

@@ -39,6 +39,7 @@ describe('formatConversationHistory', () => {
     expect(result).toContain('Find me a restaurant in Soho');
     expect(result).toContain('Barrafina');
     expect(result).toContain('Book the second one for 7pm');
+    expect(result.match(/Book the second one for 7pm/g)).toHaveLength(1);
   });
 
   it('should summarize long assistant messages', () => {

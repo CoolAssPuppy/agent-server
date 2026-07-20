@@ -36,7 +36,6 @@ import { ChannelDispatcher } from '../channels/dispatcher.js';
 import { InteractionStore } from '../interaction/store.js';
 import { ConversationStore } from '../conversation/store.js';
 import { formatConversationHistory } from '../conversation/history-formatter.js';
-import type { ConversationMessage } from '../conversation/schema.js';
 import type { InteractionRequest } from '../interaction/schema.js';
 import { createTelegramChannel } from '../channels/telegram.js';
 import { createSlackChannel } from '../channels/slack.js';
@@ -56,6 +55,7 @@ import type { RunTriggerSource } from '../analysis/run-preflight.js';
 import { createSafeTestTrigger } from '../creation/safe-test.js';
 import {
   createRunLifecycle,
+  type RunDoneCallback,
   type TriggerRunOptions,
 } from './run-lifecycle.js';
 import { buildServiceRegistry } from '../services/registry.js';
@@ -178,10 +178,6 @@ export function chatKeyFromString(id: string): number {
     hash = ((hash << 5) + hash + id.charCodeAt(i)) | 0;
   }
   return Math.abs(hash);
-}
-
-export function buildConversationPromptSuffix(messages: ConversationMessage[]): string {
-  return formatConversationHistory(messages);
 }
 
 /**
@@ -764,6 +760,24 @@ export function startServer(
     notify: (data: NotificationData) => Promise<unknown>;
   };
 
+  function handleChannelRunDone(
+    agent: AgentConfig,
+    sink: ChatChannelSink,
+    done: Parameters<RunDoneCallback>[0],
+    conversationId?: string,
+  ): void {
+    if (conversationId && done.status === 'completed' && done.summary) {
+      conversationStore.addMessage(conversationId, 'assistant', done.summary);
+    }
+
+    const notification: NotificationData = done.status === 'completed'
+      ? { agentName: agent.name, status: 'completed', summary: done.summary }
+      : { agentName: agent.name, status: done.status, error: done.error };
+    if (shouldSendChannelRunNotification(agent, done.status, sink.channelName)) {
+      void sink.notify(notification);
+    }
+  }
+
   async function handleChannelMessage(text: string, sink: ChatChannelSink): Promise<void> {
     try {
       const activeConv = conversationStore.findActiveByChat(sink.chatKey);
@@ -778,23 +792,13 @@ export function startServer(
 
         conversationStore.addMessage(activeConv.id, 'user', text);
         const updatedConversation = conversationStore.get(activeConv.id);
-        const contextSuffix = buildConversationPromptSuffix(updatedConversation?.messages ?? []);
+        const contextSuffix = formatConversationHistory(updatedConversation?.messages ?? []);
 
         const runId = await checkedTriggerRunForAgent(agent, {
           promptSuffix: contextSuffix,
           conversationId: activeConv.id,
           conversationChannel: sink.channelName,
-          onDone: (done) => {
-            if (done.status === 'completed' && done.summary) {
-              conversationStore.addMessage(activeConv.id, 'assistant', done.summary);
-            }
-            const data: NotificationData = done.status === 'completed'
-              ? { agentName: agent.name, status: 'completed', summary: done.summary }
-              : { agentName: agent.name, status: done.status, error: done.error };
-            if (shouldSendChannelRunNotification(agent, done.status, sink.channelName)) {
-              void sink.notify(data);
-            }
-          },
+          onDone: (done) => handleChannelRunDone(agent, sink, done, activeConv.id),
         }, 'channel');
         if (!runId) {
           await sink.notifyText('Security review is required before this agent can run from messages.');
@@ -831,17 +835,7 @@ export function startServer(
         promptSuffix: result.context,
         conversationId: convId,
         conversationChannel: convId ? sink.channelName : undefined,
-        onDone: (done) => {
-          if (convId && done.status === 'completed' && done.summary) {
-            conversationStore.addMessage(convId, 'assistant', done.summary);
-          }
-          const data: NotificationData = done.status === 'completed'
-            ? { agentName: agent.name, status: 'completed', summary: done.summary }
-            : { agentName: agent.name, status: done.status, error: done.error };
-          if (shouldSendChannelRunNotification(agent, done.status, sink.channelName)) {
-            void sink.notify(data);
-          }
-        },
+        onDone: (done) => handleChannelRunDone(agent, sink, done, convId),
       }, 'channel');
       if (!runId) {
         await sink.notifyText('Security review is required before this agent can run from messages.');

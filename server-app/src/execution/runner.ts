@@ -6,6 +6,7 @@ import { sanitizePromptSuffix } from '../server/security-utils.js';
 import { assessPromptInjectionRisk, wrapUntrustedUserContext } from './prompt-injection.js';
 import type { DecisionContext } from './decision-handler.js';
 import { toErrorMessage } from '../util/errors.js';
+import { withTimeout } from '../util/with-timeout.js';
 import {
   assertRequiredOutput,
   OutputContractError,
@@ -169,12 +170,18 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
       return result;
     })();
 
-    const result = await raceWithTimeout(
-      runWork,
+    const result = await withTimeout(runWork, {
       timeoutMs,
-      abortController,
-      () => { isTimedOut = true; },
-    );
+      createError: () => createTimeoutError(timeoutMs ?? 0),
+      onTimeout: (error) => {
+        isTimedOut = true;
+        try {
+          abortController?.abort(error);
+        } catch {
+          // Node <20 may not accept an abort reason; the deadline still wins.
+        }
+      },
+    });
     await reporter.complete(result);
     reporter.stop();
     return { runId, status: 'completed', result };
@@ -216,36 +223,6 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
     };
   } finally {
     if (shouldReleaseLock) releaseLock(lockDir, agent.id);
-  }
-}
-
-async function raceWithTimeout<T>(
-  work: Promise<T>,
-  timeoutMs: number | undefined,
-  abortController: AbortController | undefined,
-  onTimeout?: () => void,
-): Promise<T> {
-  if (!timeoutMs || timeoutMs <= 0) return work;
-
-  let handle: NodeJS.Timeout | undefined;
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    handle = setTimeout(() => {
-      const error = createTimeoutError(timeoutMs);
-      onTimeout?.();
-      try {
-        abortController?.abort(error);
-      } catch {
-        // Node <20 may not accept an abort reason; fall through.
-      }
-      reject(error);
-    }, timeoutMs);
-    if (handle.unref) handle.unref();
-  });
-
-  try {
-    return await Promise.race([work, timeoutPromise]);
-  } finally {
-    if (handle) clearTimeout(handle);
   }
 }
 

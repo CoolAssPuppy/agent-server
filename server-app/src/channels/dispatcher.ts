@@ -2,7 +2,7 @@ import type { Channel } from './channel.js';
 import type { InteractionRequest } from '../interaction/schema.js';
 import type { NotificationData } from '../interaction/notification.js';
 
-export class ChannelUnavailableError extends Error {
+class ChannelUnavailableError extends Error {
   constructor(channelName: string) {
     super(`Channel not configured: ${channelName}`);
     this.name = 'ChannelUnavailableError';
