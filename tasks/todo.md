@@ -1288,3 +1288,14 @@ Selecting no files now counts as an explicit least-privilege answer to the file-
 ### Review
 
 The footer reads Back, Cancel, Continue from left to right, with Back separated slightly and hidden on the first step. Completed question steps are retained, so Back from files restores Connections with Set up later still selected, and the next Back restores the description. The connection screen uses one quiet Set up later action rather than adding another permanent footer control. Deferred services survive as required Needs setup items, so the server does not repeat the same question and the proposal still makes the missing setup visible. Verification: 376 Swift behavior tests, 1,257 server tests, strict TypeScript checking, server compilation, and the local Debug macOS build pass.
+
+## Version 3.1.2 release
+
+- [x] Run the release script with version 3.1.2 and release text “Bug fixes”.
+- [x] Verify signing, notarization, Sparkle signature, uploaded DMG, and live appcast.
+- [x] Confirm version and build metadata changed only as expected.
+- [x] Commit release metadata and push main.
+
+### Review
+
+Agent Server 3.1.2 build 30 passed 1,257 server tests and 376 Swift behavior tests, strict TypeScript checking, ESLint, and the signed Release archive build. Apple accepted both the app bundle and DMG, and both notarization tickets were stapled and validated. The versioned DMG, latest alias, and appcast were uploaded successfully. The live appcast reports Version 3.1.2 with the release text “Bug fixes”.
