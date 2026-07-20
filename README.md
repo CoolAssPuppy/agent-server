@@ -1,6 +1,6 @@
 # Agent Server
 
-A lightweight orchestration server that runs local AI agents in the background using Claude Code or Codex. It includes a native macOS app for creating, monitoring, debugging, and reviewing agents.
+A lightweight orchestration server that runs local AI agents in the background using Claude Code, Codex, or Kimi Code. It includes a native macOS app for creating, monitoring, debugging, and reviewing agents.
 
 ## Consumer agent tools
 
@@ -25,7 +25,7 @@ agent-server/
 
 ## How it works
 
-Agent Server uses executor adapters for Claude Code and Codex. Each adapter streams structured runtime events and records tool usage, file operations, command metadata, and run results through the same lifecycle.
+Agent Server uses executor adapters for Claude Code, Codex, and Kimi Code. Each adapter streams structured runtime events and records tool usage, file operations, command metadata, and run results through the same lifecycle.
 
 Agents can use local files, connected services, schedules, messaging channels, model selection, and runtime-specific tools. The shared permission, security, run-history, and debugger layers apply regardless of the selected executor.
 
@@ -60,7 +60,7 @@ This creates `~/.agent-server/` with `agents/`, `locks/`, and `logs/` directorie
 
 ### 3. Configure environment variables
 
-Static connection keys can be added to `~/.agent-server/.env`. Claude Code and Codex can use their existing local subscription logins, so no cloud API key is required for core local use. The Agent Panel settings are optional.
+Static connection keys can be added to `~/.agent-server/.env`. Claude Code, Codex, and Kimi Code can use their existing local logins, so no cloud API key is required for core local use. The Agent Panel settings are optional.
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-...
@@ -179,14 +179,14 @@ max_turns: 10
 | `prompt` | yes* | | The prompt sent to the selected executor. *In frontmatter format, the Markdown body is the prompt. |
 | `max_turns` | no | `AGENT_SERVER_DEFAULT_MAX_TURNS` (default `20`) | Maximum agentic conversation turns |
 | `working_directory` | no | `$HOME` | Working directory for the executor session. Supports `~`. |
-| `tools` | no | `[]` | Allowed tools list for the Claude Code executor. Empty means all tools are available. |
-| `disallowed_tools` | no | `[]` | Tools to explicitly deny for the Claude Code executor. Removed from the model's context entirely. |
-| `permissions` | no | | Fine-grained tool permissions for the Claude Code executor with glob patterns. See [tool permissions](#example-tool-permissions). |
+| `tools` | no | `[]` | Allowed tools list. Claude Code receives the list directly; Kimi Code enforces it when ACP asks for tool permission. |
+| `disallowed_tools` | no | `[]` | Tools to explicitly deny. Deny rules take precedence. |
+| `permissions` | no | | Fine-grained tool permissions with glob patterns. See [tool permissions](#example-tool-permissions). |
 | `permission_mode` | no | `bypassPermissions` | Claude Code SDK permission mode. For Codex, `plan` maps to a read-only sandbox and all other modes map to `workspace-write`. |
 | `enabled` | no | `true` | Whether the scheduler runs this agent |
-| `executor` | no | `claude-code` | Which executor plugin to use: `claude-code` or `codex` |
+| `executor` | no | `claude-code` | Which executor plugin to use: `claude-code`, `codex`, or `kimi-code` |
 | `codex_sandbox` | no | `workspace-write` | Codex-only sandbox override: `read-only`, `workspace-write`, or `danger-full-access` |
-| `model` | no | | Optional model override passed to Codex as `--model` |
+| `model` | no | | Optional model override passed to Codex or selected in a Kimi Code ACP session |
 | `on_complete` | no | | Agents to trigger on successful completion |
 | `on_failure` | no | | Agents to trigger on failure |
 | `watch` | no | | File paths to watch for changes (triggers runs outside the cron schedule) |
@@ -709,6 +709,12 @@ The CLI loads `~/.agent-server/.env` at startup. Shell environment variables tak
 | `AGENT_SERVER_DEFAULT_MAX_TURNS` | `20` | Default `max_turns` used when an agent omits `max_turns` |
 | `AGENT_SERVER_PROMPT_INJECTION_GUARD` | `true` | Wrap untrusted user context in guarded delimiters and policy instructions before execution |
 | `AGENT_SERVER_PROMPT_INJECTION_STRICT` | `false` | Reject suspicious user context (pattern-based) before execution |
+| `AGENT_SERVER_USE_INSTALLED_CLAUDE` | `true` | Set to `false` to use the Claude Agent SDK's bundled runtime |
+| `AGENT_SERVER_CLAUDE_PATH` | | Exact path to the Claude Code executable |
+| `AGENT_SERVER_USE_INSTALLED_CODEX` | `true` | Set to `false` to use the Codex SDK's bundled runtime |
+| `AGENT_SERVER_CODEX_PATH` | | Exact path to the Codex executable |
+| `AGENT_SERVER_USE_INSTALLED_KIMI` | `true` | Set to `false` to turn off installed Kimi Code discovery |
+| `AGENT_SERVER_KIMI_PATH` | | Exact path to the `kimi` executable. An invalid explicit path fails closed. |
 | `ANTHROPIC_API_KEY` | | Anthropic API key. Required for Telegram message routing (agent selection via Haiku). |
 
 Example `~/.agent-server/.env`:
@@ -1207,7 +1213,7 @@ prompt: |
 
 Codex support is intentionally implemented as a separate executor. Existing agents keep using `claude-code` until you set `executor: codex`.
 
-Some Claude SDK fields do not have a one-to-one Codex SDK setting. `tools`, `disallowed_tools`, `permissions`, and `max_turns` are only enforced by the Claude Code executor today. Codex runs disable network access and web search by default. The configured Codex sandbox controls filesystem writes, but Agent Server cannot yet enforce a command allowlist or narrow filesystem read roots for Codex shell commands.
+Some Claude SDK fields do not have a one-to-one Codex SDK setting. Codex does not enforce `tools`, `disallowed_tools`, `permissions`, or `max_turns`. Kimi Code enforces tool permissions through ACP but does not use `max_turns`. Codex runs disable network access and web search by default. The configured Codex sandbox controls filesystem writes, but Agent Server cannot yet enforce a command allowlist or narrow filesystem read roots for Codex shell commands.
 
 Credential-free agent-level MCP declarations are passed as SDK configuration overrides. Codex agents reject MCP declarations containing `env` or `headers` because SDK overrides can appear in child-process arguments. Keep agents that need private tokens disabled until a token-backed adapter is available:
 
@@ -1245,6 +1251,53 @@ mcp_servers:
     args: ["-y", "@notionhq/notion-mcp-server"]
     env:
       NOTION_TOKEN: "${NOTION_PERSONAL_API_KEY}"
+```
+
+### Kimi Code executor
+
+Kimi Code is a local coding-agent runtime. It is separate from the Kimi K3 model preset, which runs through Codex and Moonshot's API. Choosing one never rewrites an agent configured for the other.
+
+Install and sign in to Kimi Code first:
+
+```bash
+kimi login
+kimi --version
+```
+
+Agent Server finds `kimi` in `~/.kimi-code/bin`, then on `PATH`. Set `AGENT_SERVER_KIMI_PATH` for an explicit executable or turn discovery off in Settings. Missing and signed-out installations produce an actionable error and do not fall through to another runtime.
+
+Use the installed runtime per agent:
+
+```yaml
+id: manuscript-review
+name: Manuscript Review
+executor: kimi-code
+working_directory: ~/Documents/Novel
+permissions:
+  allow: [Read, Write, Edit]
+  deny: [Bash, WebFetch, WebSearch]
+file_access:
+  - path: ~/Documents/Novel/manuscript.docx
+    kind: file
+    access: read_only
+  - path: ~/Documents/Novel/review.md
+    kind: file
+    access: read_write
+prompt: Review the manuscript and save the findings in review.md.
+```
+
+The executor communicates through Agent Client Protocol instead of parsing terminal decoration. Permission requests are checked against the agent's allow and deny rules. File callbacks normalize paths, resolve symlinks, enforce each reviewed file or folder grant, and cap reads and writes at 2 MB. Agent Server rejects a Kimi Code configuration that combines exact file grants with shell command access because shell commands could bypass those path checks.
+
+Kimi receives a small child-process environment. General application secrets and proxy variables are not inherited. Reviewed MCP servers are forwarded through the ACP session, including only their configured environment or header values. Cancellation sends an ACP session cancel request and then stops the child process.
+
+Kimi K3 remains available as a distinct model choice:
+
+```yaml
+executor: codex
+model: kimi-k3
+provider:
+  base_url: https://api.moonshot.ai/v1
+  api_key: "${MOONSHOT_API_KEY}"
 ```
 
 Register custom executors programmatically:
@@ -1317,7 +1370,10 @@ server-app/src/
 
   plugins/                   Executor implementations
     claude-code.ts             Claude Code executor (Agent SDK query())
-    codex.ts                  Codex executor (official Codex SDK)
+    codex.ts                   Codex executor (official Codex SDK)
+    kimi-code.ts               Kimi Code executor (ACP)
+    kimi-code-events.ts        Kimi ACP event and permission mapping
+    kimi-code-file-policy.ts   Reviewed Kimi file access boundaries
 
   cli.ts                     Commander CLI entry point
   index.ts                   Barrel exports for library use
@@ -1345,6 +1401,7 @@ Tests are colocated with source files (`*.test.ts`). The project uses TDD with f
 
 - TypeScript strict mode, ES2022, ESM
 - [Claude Agent SDK](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk) for running Claude Code programmatically
+- [Agent Client Protocol SDK](https://www.npmjs.com/package/@agentclientprotocol/sdk) for running Kimi Code with structured messages and permissions
 - [Anthropic SDK](https://www.npmjs.com/package/@anthropic-ai/sdk) for message routing (agent selection via Haiku)
 - [Zod](https://zod.dev/) for schema validation
 - [cron-parser](https://github.com/harrisiirak/cron-parser) v5 for schedule evaluation
@@ -1364,7 +1421,7 @@ Tests are colocated with source files (`*.test.ts`). The project uses TDD with f
 ## Requirements
 
 - Node.js 20+
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated
+- At least one supported local runtime installed and authenticated: Claude Code, Codex, or Kimi Code
 
 ## License
 

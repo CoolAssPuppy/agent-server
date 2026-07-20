@@ -51,6 +51,16 @@ The verified baseline had 862 server tests across 60 files and 126 Swift tests. 
 - Preflight handling for high-risk and critical agents
 - Structured patch preview and application
 
+### Installed Kimi Code runtime
+
+- A third installed coding-agent choice beside Claude Code and Codex
+- A separate Kimi K3 via Moonshot model choice, with no silent migration between them
+- Structured ACP sessions for prompts, tool activity, permission decisions, file access, and cancellation
+- Exact reviewed file and folder boundaries when command execution is off
+- A restricted child-process environment and actionable installation or sign-in errors
+- Settings discovery controls and per-agent runtime selection in the existing macOS editor
+- Local API version 11 so the app replaces older daemons that cannot run `kimi-code`
+
 ## Cleanup audit integration
 
 The work includes the relevant items from the codebase cleanup audit. It improved local API authentication, child-process environment isolation, executor defaults, run identity, redaction, WebSocket recovery, polling, settings draft safety, and shared permission policies. It also resolves Node through the configured child path, moves process waiting off the main actor, bounds tracking collections, removes tracked local Xcode and Wrangler state, and extracts the tested server run lifecycle from the main server composition file.
@@ -78,10 +88,13 @@ GPT-5.6 is an optional structured model when the user has selected a compatible 
 - Retain failed runs when a fix is retried.
 - Treat critical risks as preflight blockers until reviewed.
 - Keep local deterministic behavior available without a cloud account.
+- Present Kimi Code as an installed coding agent and Kimi K3 as an API model so users can tell which account and runtime will be used.
 
 ## Tests added
 
 The feature work adds server behavior coverage for shared schemas, environment and permission policies, redaction, proposal validation and fallback, diagnostics, security rules and review state, patch preview and application, conflicts, rollback, runtime integration, and analysis APIs.
+
+Kimi Code coverage includes executable discovery, explicit opt-out and path overrides, closed executor schemas, safe environment construction, ACP negotiation, structured event mapping, deny-first permission decisions, exact read and write boundaries, cancellation, missing-runtime recovery, and the macOS runtime draft. Four opt-in conformance tests also exercise the installed Kimi binary without reading repository or user content.
 
 Swift behavior coverage includes proposal and debugger state changes, consumer risk and schedule presentation, security payloads, accessibility identifiers, drawer routing, transport recovery, and stale state protection. Four signed macOS UI tests cover the requested creation, missing-connection, safe-test, debugger, low-risk repair, embedded-secret, folder-narrowing, and high-risk review behaviors using deterministic launch scenarios.
 
@@ -110,6 +123,7 @@ Use [BUILD_WEEK_DEMO.md](BUILD_WEEK_DEMO.md) and the redacted fixtures under `se
 - Failed-run notifications do not yet open the Debugger directly. Failed run detail, agent detail, and context actions provide debugger entry points.
 - Static connection secrets remain in the existing owner-only local environment file. A Keychain migration needs a matching server token bridge.
 - Static analysis cannot guarantee that an approved agent will behave safely.
+- Kimi Code cannot combine exact file or folder grants with shell command access because shell commands could bypass ACP file callbacks.
 - Bounded undo is unavailable after a conflicting file edit.
 - Manual VoiceOver, Accessibility Inspector, keyboard-only, and light and dark appearance checks remain release validation tasks.
 - SwiftUI previews are included for the main consumer states. No standalone screenshot artifacts are included.

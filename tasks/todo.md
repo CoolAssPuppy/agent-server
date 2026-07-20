@@ -7,7 +7,7 @@
 - [x] Implement `kimi-code` as a registered executor without changing existing Kimi K3 API-backed agents.
 - [x] Add failing macOS behavior tests for installed Kimi status and distinct Kimi Code versus Kimi K3 choices.
 - [x] Add Kimi Code to the Coding agents Settings card and agent editor using the existing card and picker patterns.
-- [ ] Document the two Kimi paths, update the API compatibility boundary, and preserve existing agent files.
+- [x] Document the two Kimi paths, update the API compatibility boundary, and preserve existing agent files.
 - [ ] Run full server and Swift verification, build, simplify, commit each consequential batch, and relaunch without UI automation.
 
 Assumptions and risks:

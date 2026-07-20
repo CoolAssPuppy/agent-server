@@ -103,7 +103,7 @@ export function discoverKimiExecutable(probe: RuntimeProbe): string | undefined 
   return onPath && probe.isExecutable(onPath) ? onPath : undefined;
 }
 
-/** Resolve both runtime paths at once (called once at server startup). */
+/** Resolve all runtime paths at once (called once at server startup). */
 export function discoverRuntimePaths(
   probe: RuntimeProbe = createDefaultProbe(),
 ): RuntimePaths {

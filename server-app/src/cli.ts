@@ -21,7 +21,7 @@ const program = new Command();
 
 program
   .name('agent-server')
-  .description('Lightweight agent orchestration server powered by Claude Code')
+  .description('Lightweight agent orchestration server for Claude Code, Codex, and Kimi Code')
   .version('3.0.2');
 
 program

@@ -253,7 +253,7 @@ export function startServer(config: ServerConfig, options?: StartServerOptions):
   const executorRegistry = createDefaultExecutorRegistry();
   const connectionProfileStore = new ConnectionProfileStore(join(config.agentsDir, '..', 'connections.json'));
 
-  // Discover the user's installed Claude / Codex binaries once at startup so
+  // Discover the user's installed Claude Code, Codex, and Kimi Code binaries once at startup so
   // runs use the runtimes (and subscription logins) they already have, falling
   // back to the SDK's bundled runtimes when none is found. Resolved once — a
   // `which` lookup per run would be wasteful.
