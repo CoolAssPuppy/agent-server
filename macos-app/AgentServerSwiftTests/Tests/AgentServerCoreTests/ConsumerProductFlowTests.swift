@@ -526,6 +526,15 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(flow.phase, .applying)
     }
 
+    func testDebuggerUsesAFlatReadingFlowWithTechnicalContentDisclosed() {
+        XCTAssertEqual(AgentDebuggerPresentation.surfaceStyle, .flatSections)
+        XCTAssertEqual(
+            AgentDebuggerPresentation.sections,
+            [.problem, .evidence, .recommendedFix, .actions]
+        )
+        XCTAssertTrue(AgentDebuggerPresentation.disclosesTechnicalDetails)
+    }
+
     func testDebuggerPreservesFailedRunWhileRetrying() {
         var flow = AgentDebuggerFlow(failedRunId: "failed-1")
         flow.receiveDiagnosis(.fixture())

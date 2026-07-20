@@ -61,7 +61,6 @@ struct AgentDebuggerView: View {
             .frame(maxWidth: 760)
             .padding(NSpacing.xl)
         }
-        .background(theme.tokens.background)
         .task {
             guard flow.phase == .idle else { return }
             await diagnose()
@@ -110,22 +109,25 @@ struct AgentDebuggerView: View {
 
     private func diagnosisView(_ diagnosis: DiagnosticPresentation) -> some View {
         VStack(alignment: .leading, spacing: NSpacing.md) {
-            ConsumerSection("What went wrong") {
+            ConsumerSection("What went wrong", style: .flat) {
                 Text(diagnosis.title)
-                    .font(NTypography.headlineSmall)
+                    .font(NTypography.bodyMedium)
                 Text(diagnosis.explanation)
+                    .font(NTypography.bodyMedium)
                     .foregroundStyle(theme.tokens.mutedForeground)
             }
             if diagnosis.hasEvidence {
-                ConsumerSection("Evidence") {
+                Divider().opacity(0.3)
+                ConsumerSection("Evidence", style: .flat) {
                     ForEach(diagnosis.evidence.prefix(3), id: \.self) { fact in
                         Label(fact, systemImage: "info.circle")
-                            .font(NTypography.bodyLarge)
+                            .font(NTypography.bodyMedium)
                     }
                 }
             }
             if let fix = diagnosis.recommendedFix {
-                ConsumerSection("Recommended fix") {
+                Divider().opacity(0.3)
+                ConsumerSection("Recommended fix", style: .flat) {
                     Text(fix.title)
                         .font(NTypography.bodyMedium)
                     Text(fix.impact)
@@ -175,12 +177,13 @@ struct AgentDebuggerView: View {
     private func fixReview(_ fix: ConfigurationFixPresentation) -> some View {
         VStack(alignment: .leading, spacing: NSpacing.md) {
             ConsumerFlowHeader(title: "Review fix", explanation: "Nothing changes until you approve this update.")
-            ConsumerSection("Changes") {
+            ConsumerSection("Changes", style: .flat) {
                 ForEach(fix.changes, id: \.self) { change in
                     Label(change, systemImage: "arrow.right.circle")
                 }
             }
-            ConsumerSection("Safety impact") {
+            Divider().opacity(0.3)
+            ConsumerSection("Safety impact", style: .flat) {
                 HStack(alignment: .top) {
                     ConsumerRiskLabel(risk: fix.risk)
                     Text(fix.impact)
@@ -206,7 +209,7 @@ struct AgentDebuggerView: View {
     }
 
     private var readyToRetry: some View {
-        ConsumerSection("Fix applied") {
+        ConsumerSection("Fix applied", style: .flat) {
             Text("The approved change was saved. The original failed run is still available in run history.")
             Button("Retry now") { Task { await retryRun() } }
                 .buttonStyle(.borderedProminent)
@@ -227,7 +230,7 @@ struct AgentDebuggerView: View {
     }
 
     private var resolved: some View {
-        ConsumerSection("The fix worked") {
+        ConsumerSection("The fix worked", style: .flat) {
             Label("The new run completed successfully.", systemImage: "checkmark.circle")
                 .font(NTypography.headlineSmall)
                 .foregroundStyle(theme.tokens.success)
