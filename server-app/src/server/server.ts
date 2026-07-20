@@ -31,7 +31,7 @@ import {
   evaluateSafeTriggers,
   type TriggerChain,
 } from '../agents/triggers.js';
-import { FileWatcher, extractWatchConfigs } from '../agents/file-watcher.js';
+import { AgentFileWatchManager } from '../agents/file-watcher.js';
 import { ChannelDispatcher } from '../channels/dispatcher.js';
 import { InteractionStore } from '../interaction/store.js';
 import { ConversationStore } from '../conversation/store.js';
@@ -732,23 +732,21 @@ export function startServer(
       })
     : undefined;
 
-  async function setupFileWatchers(): Promise<FileWatcher | null> {
-    const agents = await discoverAgents(config.agentsDir);
-    const watchConfigs = extractWatchConfigs(agents);
-    if (watchConfigs.length === 0) return null;
-
-    console.log(`  File watches: ${watchConfigs.length} path(s)`);
-    const watcher = new FileWatcher({
-      watches: watchConfigs,
+  async function setupFileWatchManager(): Promise<AgentFileWatchManager> {
+    const manager = new AgentFileWatchManager({
+      agentsDir: config.agentsDir,
       onChange: (agentId, filePath) => {
         console.log(`[file-watch] ${filePath} changed, triggering ${agentId}`);
         void triggerAutomaticRun(agentId, undefined, 'watcher').catch((err) => {
           console.error(`[file-watch] Failed to trigger ${agentId}: ${err}`);
         });
       },
+      onReconcile: (watchCount) => {
+        console.log(`  File watches: ${watchCount} path(s)`);
+      },
     });
-    watcher.start();
-    return watcher;
+    await manager.start();
+    return manager;
   }
 
   // Where a chat message routes to. Shared by Telegram and Slack so both drive
@@ -946,7 +944,7 @@ export function startServer(
     }
   };
 
-  let fileWatcher: FileWatcher | null = null;
+  let fileWatchManager: AgentFileWatchManager | undefined;
   const managedServices: ManagedService[] = [
     ...(scheduleSync ? [{
       name: 'schedule sync',
@@ -966,9 +964,9 @@ export function startServer(
     {
       name: 'file watcher',
       start: async () => {
-        fileWatcher = await setupFileWatchers();
+        fileWatchManager = await setupFileWatchManager();
       },
-      stop: () => fileWatcher?.stop(),
+      stop: () => fileWatchManager?.stop(),
     },
     {
       name: 'message channels',

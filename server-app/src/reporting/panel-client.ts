@@ -20,6 +20,17 @@ export type PanelRunRow = {
   conversation_id?: string | null;
 };
 
+export class PanelCleanupError extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = 'PanelCleanupError';
+  }
+}
+
 export class PanelClient {
   private readonly panelUrl: string;
   private readonly panelApiKey: string;
@@ -44,16 +55,17 @@ export class PanelClient {
       });
 
       if (!response.ok) {
-        console.error(`[panel-client] Cleanup returned ${response.status}`);
-        return 0;
+        throw new PanelCleanupError(`Panel cleanup returned ${response.status}`, response.status);
       }
 
       const result = await response.json() as { cleaned?: number };
       return result.cleaned ?? 0;
     } catch (err) {
+      if (err instanceof PanelCleanupError) throw err;
       const message = toErrorMessage(err);
-      console.error(`[panel-client] Failed to clean up orphaned runs: ${message}`);
-      return 0;
+      throw new PanelCleanupError(`Panel cleanup request failed: ${message}`, undefined, {
+        cause: err,
+      });
     }
   }
 

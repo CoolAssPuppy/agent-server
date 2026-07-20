@@ -185,6 +185,57 @@ describe('SqliteRunStore', () => {
     expect(run?.toolsUsed).toHaveLength(256);
   });
 
+  it('never persists secret-bearing run evidence in readable form', () => {
+    store.add(makeStoredRun({
+      summary: 'token="sqlite-summary-secret"',
+      error: 'password="sqlite-error-secret"',
+      commandsRun: ['Authorization: Bearer sqlite-command-secret'],
+      filesRead: ['/tmp/api_key="sqlite-file-secret"'],
+      progressMessages: ['secret="sqlite-initial-progress"'],
+    }));
+    store.addProgress('run-1', 'token="sqlite-later-progress"');
+
+    const stored = JSON.stringify(store.get('run-1'));
+    expect(stored).toContain('[REDACTED]');
+    for (const secret of [
+      'sqlite-summary-secret',
+      'sqlite-error-secret',
+      'sqlite-command-secret',
+      'sqlite-file-secret',
+      'sqlite-initial-progress',
+      'sqlite-later-progress',
+    ]) {
+      expect(stored).not.toContain(secret);
+    }
+  });
+
+  it('redacts historical rows that were stored before persistence sanitization', () => {
+    store.add(makeStoredRun({ runId: 'legacy-run' }));
+    const legacyDatabase = new DatabaseSync(dbPath);
+    legacyDatabase.prepare(`
+      UPDATE runs
+      SET summary = ?, error = ?, commands_run = ?, progress_messages = ?
+      WHERE run_id = ?
+    `).run(
+      'token="legacy-summary-secret"',
+      'password="legacy-error-secret"',
+      JSON.stringify(['Authorization: Bearer legacy-command-secret']),
+      JSON.stringify(['api_key="legacy-progress-secret"']),
+      'legacy-run',
+    );
+    legacyDatabase.close();
+
+    const representations = [store.get('legacy-run'), store.list()[0]];
+    for (const representation of representations) {
+      const serialized = JSON.stringify(representation);
+      expect(serialized).toContain('[REDACTED]');
+      expect(serialized).not.toContain('legacy-summary-secret');
+      expect(serialized).not.toContain('legacy-error-secret');
+      expect(serialized).not.toContain('legacy-command-secret');
+      expect(serialized).not.toContain('legacy-progress-secret');
+    }
+  });
+
   it('evicts the oldest runs beyond the configured cap', () => {
     const capped = new SqliteRunStore({ path: join(dir, 'capped.db'), maxRuns: 3 });
     capped.add(makeStoredRun({ runId: 'r1', startedAt: new Date('2026-01-01') }));

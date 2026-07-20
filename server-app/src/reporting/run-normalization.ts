@@ -1,4 +1,5 @@
 import type { StoredRun } from './store.js';
+import { sanitizeText } from '../server/security-utils.js';
 
 /**
  * Bounds shared by every `RunStore` implementation (in-memory and SQLite) so a
@@ -19,13 +20,20 @@ export function truncate(value: string, maxLength = MAX_TEXT_LENGTH): string {
   return `${value.slice(0, maxLength)}…`;
 }
 
+function sanitizeAndTruncate(value: string, maxLength: number): string {
+  const sanitized = sanitizeText(value, Math.max(1, value.length + 1));
+  return truncate(sanitized, maxLength);
+}
+
 function trimArray(values: string[]): string[] {
-  return values.slice(0, MAX_LIST_ITEMS).map((v) => truncate(v));
+  return values
+    .slice(0, MAX_LIST_ITEMS)
+    .map((value) => sanitizeAndTruncate(value, MAX_TEXT_LENGTH));
 }
 
 /** Truncate a single progress line to the shared per-message cap. */
 export function truncateProgressMessage(message: string): string {
-  return truncate(message, MAX_PROGRESS_MESSAGE_LENGTH);
+  return sanitizeAndTruncate(message, MAX_PROGRESS_MESSAGE_LENGTH);
 }
 
 /**
@@ -36,10 +44,13 @@ export function truncateProgressMessage(message: string): string {
 export function normalizeStoredRun(run: StoredRun): StoredRun {
   return {
     ...run,
-    summary: run.summary ? truncate(run.summary, MAX_SUMMARY_LENGTH) : undefined,
-    error: run.error ? truncate(run.error, MAX_ERROR_LENGTH) : undefined,
-    retryOfRunId: run.retryOfRunId ? truncate(run.retryOfRunId, MAX_LINK_ID_LENGTH) : undefined,
-    repairId: run.repairId ? truncate(run.repairId, MAX_LINK_ID_LENGTH) : undefined,
+    summary: run.summary ? sanitizeAndTruncate(run.summary, MAX_SUMMARY_LENGTH) : undefined,
+    error: run.error ? sanitizeAndTruncate(run.error, MAX_ERROR_LENGTH) : undefined,
+    code: run.code ? sanitizeAndTruncate(run.code, MAX_LINK_ID_LENGTH) : undefined,
+    retryOfRunId: run.retryOfRunId
+      ? sanitizeAndTruncate(run.retryOfRunId, MAX_LINK_ID_LENGTH)
+      : undefined,
+    repairId: run.repairId ? sanitizeAndTruncate(run.repairId, MAX_LINK_ID_LENGTH) : undefined,
     toolsUsed: trimArray(run.toolsUsed),
     filesRead: trimArray(run.filesRead),
     filesWritten: trimArray(run.filesWritten),

@@ -88,6 +88,30 @@ describe('ProgressBroadcaster', () => {
     expect(listener).toHaveBeenCalledWith(event);
   });
 
+  it('redacts secret-bearing event fields before notifying subscribers', () => {
+    const broadcaster = new ProgressBroadcaster();
+    const listener = vi.fn();
+    broadcaster.subscribe(listener);
+
+    broadcaster.emit({
+      type: 'run_progress',
+      runId: 'r1',
+      agentId: 'agent-1',
+      message: 'token="websocket-message-secret"',
+      error: 'password="websocket-error-secret"',
+      summary: 'Authorization: Bearer websocket-summary-secret',
+      timestamp: new Date().toISOString(),
+      metadata: { command: 'api_key="websocket-metadata-secret"' },
+    });
+
+    const delivered = JSON.stringify(listener.mock.calls[0]?.[0]);
+    expect(delivered).toContain('[REDACTED]');
+    expect(delivered).not.toContain('websocket-message-secret');
+    expect(delivered).not.toContain('websocket-error-secret');
+    expect(delivered).not.toContain('websocket-summary-secret');
+    expect(delivered).not.toContain('websocket-metadata-secret');
+  });
+
   it('handles subscriber errors without affecting other subscribers', () => {
     const broadcaster = new ProgressBroadcaster();
     const badListener = vi.fn().mockImplementation(() => {

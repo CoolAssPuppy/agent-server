@@ -69,6 +69,24 @@ describe('security-utils', () => {
     expect(limiter.consume('ip').allowed).toBe(false);
   });
 
+  it('bounds rate-limit keys and evicts the oldest active counter', () => {
+    const limiter = new InMemoryRateLimiter(1, 10_000, 2);
+    expect(limiter.consume('first', 1).allowed).toBe(true);
+    expect(limiter.consume('second', 2).allowed).toBe(true);
+    expect(limiter.consume('third', 3).allowed).toBe(true);
+
+    expect(limiter.consume('first', 4).allowed).toBe(true);
+  });
+
+  it('sweeps expired rate-limit counters before applying the bound', () => {
+    const limiter = new InMemoryRateLimiter(1, 100, 2);
+    limiter.consume('expired-a', 1);
+    limiter.consume('expired-b', 2);
+
+    expect(limiter.consume('current', 200).allowed).toBe(true);
+    expect(limiter.consume('expired-a', 201).allowed).toBe(true);
+  });
+
 
   it('does not trust proxy headers by default when extracting client IP', () => {
     const request = new Request('http://localhost/test', {
@@ -127,5 +145,47 @@ describe('security-utils', () => {
     tracker.registerFailure('ip');
     expect(tracker.isBlocked('ip').allowed).toBe(true);
     expect(tracker.registerFailure('ip').allowed).toBe(false);
+  });
+
+  it('bounds authentication records and evicts the oldest client', () => {
+    const tracker = new AuthFailureTracker(2, 10_000, 2);
+    tracker.registerFailure('first', 1);
+    tracker.registerFailure('second', 2);
+    tracker.registerFailure('third', 3);
+
+    expect(tracker.registerFailure('first', 4).allowed).toBe(true);
+  });
+
+  it('never evicts an active ban when new client keys fill the tracker', () => {
+    const tracker = new AuthFailureTracker(2, 10_000, 2);
+    tracker.registerFailure('banned', 1);
+    expect(tracker.registerFailure('banned', 2).allowed).toBe(false);
+    tracker.registerFailure('unblocked', 3);
+
+    tracker.registerFailure('churn', 4);
+
+    expect(tracker.isBlocked('banned', 5).allowed).toBe(false);
+    expect(tracker.registerFailure('unblocked', 6).allowed).toBe(true);
+  });
+
+  it('rejects new tracking entries instead of evicting when every record is actively banned', () => {
+    const tracker = new AuthFailureTracker(2, 10_000, 2);
+    tracker.registerFailure('first', 1);
+    expect(tracker.registerFailure('first', 2).allowed).toBe(false);
+    tracker.registerFailure('second', 3);
+    expect(tracker.registerFailure('second', 4).allowed).toBe(false);
+
+    expect(tracker.registerFailure('churn', 5).allowed).toBe(false);
+    expect(tracker.isBlocked('first', 6).allowed).toBe(false);
+    expect(tracker.isBlocked('second', 6).allowed).toBe(false);
+  });
+
+  it('sweeps authentication failures after the retention window', () => {
+    const tracker = new AuthFailureTracker(2, 100, 2);
+    tracker.registerFailure('expired-a', 1);
+    tracker.registerFailure('expired-b', 2);
+
+    expect(tracker.registerFailure('current', 200).allowed).toBe(true);
+    expect(tracker.registerFailure('expired-a', 201).allowed).toBe(true);
   });
 });

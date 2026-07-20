@@ -1,7 +1,11 @@
 export { AgentConfigSchema, ConnectionBindingsSchema, PermissionsSchema, ProviderConfigSchema, parseAgentYaml, parseAgentFile, resolveEnvVars, resolveEnvString, type AgentConfig, type ConnectionBindings, type McpServerConfig, type Permissions, type ProviderConfig } from './agents/config.js';
 export { EXECUTOR_NAMES, type AgentExecutor } from './agents/executor.js';
 export { matchesPattern, isToolAllowed, buildCanUseTool } from './execution/permissions.js';
-export { discoverAgents } from './agents/discovery.js';
+export {
+  AgentDiscoveryError,
+  discoverAgents,
+  type DiscoveryOptions,
+} from './agents/discovery.js';
 export {
   CAPABILITY_CATALOG,
   CapabilityError,

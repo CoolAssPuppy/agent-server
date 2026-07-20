@@ -137,17 +137,30 @@ type Counter = {
   resetAt: number;
 };
 
+const DEFAULT_MAX_TRACKED_KEYS = 10_000;
+
+function evictOldestEntry<T>(entries: Map<string, T>): void {
+  const oldestKey = entries.keys().next().value;
+  if (oldestKey !== undefined) entries.delete(oldestKey);
+}
+
 export class InMemoryRateLimiter {
   private readonly counters = new Map<string, Counter>();
+  private nextSweepAt = 0;
 
   constructor(
     private readonly maxRequests: number,
     private readonly windowMs: number,
+    private readonly maxTrackedKeys: number = DEFAULT_MAX_TRACKED_KEYS,
   ) {}
 
   consume(key: string, now: number = Date.now()): RateLimitResult {
+    this.sweepIfNeeded(now);
     const current = this.counters.get(key);
     if (!current || current.resetAt <= now) {
+      if (!current && this.counters.size >= this.maxTrackedKeys) {
+        evictOldestEntry(this.counters);
+      }
       this.counters.set(key, { count: 1, resetAt: now + this.windowMs });
       return { allowed: true };
     }
@@ -162,22 +175,44 @@ export class InMemoryRateLimiter {
     current.count += 1;
     return { allowed: true };
   }
+
+  private sweepIfNeeded(now: number): void {
+    if (now < this.nextSweepAt && this.counters.size < this.maxTrackedKeys) return;
+    for (const [key, counter] of this.counters) {
+      if (counter.resetAt <= now) this.counters.delete(key);
+    }
+    this.nextSweepAt = now + Math.min(this.windowMs, 60_000);
+  }
 }
 
 type BanRecord = {
   failures: number;
   blockedUntil: number;
+  expiresAt: number;
 };
+
+function evictOldestUnblockedRecord(records: Map<string, BanRecord>, now: number): boolean {
+  for (const [key, record] of records) {
+    if (record.blockedUntil <= now) {
+      records.delete(key);
+      return true;
+    }
+  }
+  return false;
+}
 
 export class AuthFailureTracker {
   private readonly records = new Map<string, BanRecord>();
+  private nextSweepAt = 0;
 
   constructor(
     private readonly maxFailures: number,
     private readonly banMs: number,
+    private readonly maxTrackedKeys: number = DEFAULT_MAX_TRACKED_KEYS,
   ) {}
 
   isBlocked(key: string, now: number = Date.now()): RateLimitResult {
+    this.sweepIfNeeded(now);
     const record = this.records.get(key);
     if (!record) return { allowed: true };
     if (record.blockedUntil > 0 && record.blockedUntil <= now) {
@@ -194,13 +229,24 @@ export class AuthFailureTracker {
   }
 
   registerFailure(key: string, now: number = Date.now()): RateLimitResult {
+    this.sweepIfNeeded(now);
     const record = this.records.get(key);
     if (!record) {
-      this.records.set(key, { failures: 1, blockedUntil: 0 });
+      if (this.records.size >= this.maxTrackedKeys) {
+        const hasCapacity = evictOldestUnblockedRecord(this.records, now);
+        if (!hasCapacity) {
+          return {
+            allowed: false,
+            retryAfterSeconds: Math.max(1, Math.ceil(this.banMs / 1000)),
+          };
+        }
+      }
+      this.records.set(key, { failures: 1, blockedUntil: 0, expiresAt: now + this.banMs });
       return { allowed: true };
     }
 
     record.failures += 1;
+    record.expiresAt = now + this.banMs;
     if (record.failures >= this.maxFailures) {
       record.blockedUntil = now + this.banMs;
       return {
@@ -214,5 +260,13 @@ export class AuthFailureTracker {
 
   registerSuccess(key: string): void {
     this.records.delete(key);
+  }
+
+  private sweepIfNeeded(now: number): void {
+    if (now < this.nextSweepAt && this.records.size < this.maxTrackedKeys) return;
+    for (const [key, record] of this.records) {
+      if (record.expiresAt <= now) this.records.delete(key);
+    }
+    this.nextSweepAt = now + Math.min(this.banMs, 60_000);
   }
 }

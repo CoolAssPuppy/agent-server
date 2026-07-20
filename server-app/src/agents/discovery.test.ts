@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdirSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { discoverAgents } from './discovery.js';
+import { AgentDiscoveryError, discoverAgents } from './discovery.js';
 
 function createTempDir(): string {
   const dir = join(tmpdir(), `agent-server-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -55,7 +55,10 @@ describe('discoverAgents', () => {
   });
 
   it('returns empty array for non-existent directory', async () => {
-    const agents = await discoverAgents('/tmp/does-not-exist-ever');
+    const readdir = vi.fn().mockRejectedValue(Object.assign(new Error('missing'), {
+      code: 'ENOENT',
+    }));
+    const agents = await discoverAgents('/tmp/does-not-exist-ever', { readdir });
     expect(agents).toEqual([]);
   });
 
@@ -90,6 +93,55 @@ describe('discoverAgents', () => {
     const agents = await discoverAgents(dir);
     expect(agents).toHaveLength(1);
     expect(agents[0].id).toBe('hello');
+  });
+
+  it('reports a sanitized parser cause for invalid agent files', async () => {
+    const sourceExcerpt = 'SENSITIVE_SOURCE_EXCERPT_847291';
+    writeAgent(dir, 'broken.yaml', [
+      'id: broken',
+      'name: Broken',
+      `prompt: "${sourceExcerpt}`,
+    ].join('\n'));
+    const warn = vi.fn();
+
+    await discoverAgents(dir, { warn });
+
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(
+      /^\[agent-discovery\] Invalid agent file "broken\.yaml" \([A-Z_]+\)$/,
+    ));
+    expect(warn.mock.calls.flat().join(' ')).not.toContain(sourceExcerpt);
+  });
+
+  it('reports unreadable agent files separately from invalid definitions', async () => {
+    const warn = vi.fn();
+    const readFile = vi.fn().mockRejectedValue(Object.assign(new Error('private token value'), {
+      code: 'EACCES',
+    }));
+
+    const agents = await discoverAgents(dir, {
+      warn,
+      readFile,
+      readdir: async () => ['secret.yaml'],
+    });
+
+    expect(agents).toEqual([]);
+    expect(warn).toHaveBeenCalledWith(
+      '[agent-discovery] Cannot read agent file "secret.yaml" (EACCES)',
+    );
+    expect(warn.mock.calls.flat().join(' ')).not.toContain('private token value');
+  });
+
+  it('throws a typed diagnostic when the agent directory is unreadable', async () => {
+    const readdir = vi.fn().mockRejectedValue(Object.assign(new Error('private directory detail'), {
+      code: 'EACCES',
+    }));
+
+    await expect(discoverAgents('/private/agents', { readdir })).rejects.toMatchObject({
+      name: 'AgentDiscoveryError',
+      code: 'EACCES',
+      path: '/private/agents',
+      message: 'Cannot read agent directory "/private/agents" (EACCES)',
+    } satisfies Partial<AgentDiscoveryError>);
   });
 
   it('ignores non-yaml files', async () => {

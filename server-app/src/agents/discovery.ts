@@ -1,34 +1,90 @@
 import { readdir, readFile } from 'fs/promises';
 import { join, extname } from 'path';
+import { sanitizeText } from '../server/security-utils.js';
 import { type AgentConfig, parseAgentFile } from './config.js';
 
 export const AGENT_EXTENSIONS = new Set(['.yaml', '.yml', '.md']);
 
-function isAgentFile(filename: string): boolean {
+export function isAgentFile(filename: string): boolean {
   return AGENT_EXTENSIONS.has(extname(filename));
 }
 
-async function tryParseAgent(directory: string, file: string): Promise<AgentConfig | null> {
+export type DiscoveryOptions = {
+  readdir?: (directory: string) => Promise<string[]>;
+  readFile?: (path: string, encoding: BufferEncoding) => Promise<string>;
+  warn?: (message: string) => void;
+};
+
+function errorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== 'object' || !('code' in error)) return undefined;
+  return typeof error.code === 'string' ? error.code : undefined;
+}
+
+function invalidDefinitionCode(error: unknown): string {
+  if (!(error instanceof Error)) return 'INVALID_DEFINITION';
+  if (error.name === 'YAMLParseError') return 'YAML_PARSE_ERROR';
+  if (error.name === 'ZodError') return 'SCHEMA_VALIDATION_ERROR';
+  return 'INVALID_DEFINITION';
+}
+
+export class AgentDiscoveryError extends Error {
+  readonly code: string;
+  readonly path: string;
+
+  constructor(path: string, code: string) {
+    const safePath = sanitizeText(path, 500);
+    super(`Cannot read agent directory "${safePath}" (${code})`);
+    this.name = 'AgentDiscoveryError';
+    this.code = code;
+    this.path = safePath;
+  }
+}
+
+async function tryParseAgent(
+  directory: string,
+  file: string,
+  options: Required<Pick<DiscoveryOptions, 'readFile' | 'warn'>>,
+): Promise<AgentConfig | null> {
+  let content: string;
   try {
-    const content = await readFile(join(directory, file), 'utf-8');
+    content = await options.readFile(join(directory, file), 'utf-8');
+  } catch (error) {
+    const code = errorCode(error) ?? 'READ_FAILED';
+    options.warn(`[agent-discovery] Cannot read agent file "${sanitizeText(file, 240)}" (${code})`);
+    return null;
+  }
+
+  try {
     return parseAgentFile(content);
-  } catch {
-    console.warn(`Skipping invalid agent definition: ${file}`);
+  } catch (error) {
+    const code = invalidDefinitionCode(error);
+    options.warn(`[agent-discovery] Invalid agent file "${sanitizeText(file, 240)}" (${code})`);
     return null;
   }
 }
 
-export async function discoverAgents(directory: string): Promise<AgentConfig[]> {
+export async function discoverAgents(
+  directory: string,
+  options: DiscoveryOptions = {},
+): Promise<AgentConfig[]> {
+  const readDirectory = options.readdir ?? readdir;
+  const readAgentFile = options.readFile ?? readFile;
+  const warn = options.warn ?? console.warn;
   let entries: string[];
   try {
-    entries = await readdir(directory);
-  } catch {
-    return [];
+    entries = await readDirectory(directory);
+  } catch (error) {
+    const code = errorCode(error) ?? 'READ_FAILED';
+    if (code === 'ENOENT') return [];
+    throw new AgentDiscoveryError(directory, code);
   }
 
   const agentFiles = entries.filter(isAgentFile).sort();
   const results = await Promise.all(
-    agentFiles.map((file) => tryParseAgent(directory, file))
+    agentFiles.map((file) => tryParseAgent(directory, file, {
+      readFile: readAgentFile,
+      warn,
+    }))
   );
 
   const unique = new Map<string, AgentConfig>();

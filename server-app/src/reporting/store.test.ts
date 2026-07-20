@@ -77,4 +77,42 @@ describe('RunStore', () => {
     const run = store.get('run-1');
     expect(run?.progressMessages).toEqual(['Step 1 done', 'Step 2 done']);
   });
+
+  it('redacts secret-bearing evidence at the persistence boundary', () => {
+    store.add(makeStoredRun({
+      summary: 'Created report with token="summary-secret-value"',
+      error: 'Authorization: Bearer error-secret-value',
+      toolsUsed: ['tool token="tool-secret-value"'],
+      filesRead: ['/tmp/api_key="read-secret-value"'],
+      filesWritten: ['/tmp/password="write-secret-value"'],
+      commandsRun: ['curl -H "Authorization: Bearer command-secret-value"'],
+      progressMessages: ['Started with secret="initial-progress-value"'],
+    }));
+    store.addProgress('run-1', 'Continuing with token="later-progress-value"');
+
+    const stored = JSON.stringify(store.get('run-1'));
+    expect(stored).toContain('[REDACTED]');
+    for (const secret of [
+      'summary-secret-value',
+      'error-secret-value',
+      'tool-secret-value',
+      'read-secret-value',
+      'write-secret-value',
+      'command-secret-value',
+      'initial-progress-value',
+      'later-progress-value',
+    ]) {
+      expect(stored).not.toContain(secret);
+    }
+  });
+
+  it('keeps redaction stable when a stored run is updated', () => {
+    store.add(makeStoredRun({ summary: 'token="one-secret-value"' }));
+    const redactedSummary = store.get('run-1')?.summary;
+
+    store.update('run-1', { status: 'completed' });
+
+    expect(store.get('run-1')?.summary).toBe(redactedSummary);
+    expect(redactedSummary).toContain('[REDACTED]');
+  });
 });

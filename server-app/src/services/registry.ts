@@ -9,6 +9,7 @@ import {
 } from '../agents/capabilities.js';
 import type { ConnectionProfile } from '../connections/profile.js';
 import { resolveConnectionProfile } from '../connections/profile-resolver.js';
+import { stableValue } from '../util/stable-value.js';
 
 type EnvironmentSource = Record<string, string | undefined>;
 export type ServiceRuntimeBinding = {
@@ -63,14 +64,6 @@ const CATALOG_ACTIONS: Readonly<Record<string, ServiceAction[]>> = {
   tripmaster: ['read', 'write'],
   calorienerds: ['read', 'write'],
 };
-
-function stableValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(stableValue);
-  if (value === null || typeof value !== 'object') return value;
-  return Object.fromEntries(Object.entries(value as Record<string, unknown>)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, entry]) => [key, stableValue(entry)]));
-}
 
 function safeDisplayName(value: string, maxLength = 120): string {
   return value.replace(/\p{Cc}+/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, maxLength);

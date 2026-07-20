@@ -10,6 +10,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "docs:environment": "tsx scripts/generate-environment-reference.ts",
     "dev": "tsx watch src/cli.ts",
     "start": "node dist/cli.js",
     "test": "vitest run",

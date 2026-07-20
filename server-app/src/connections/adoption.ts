@@ -7,6 +7,7 @@ import {
 import { computeAgentContentHash } from '../analysis/security-rules.js';
 import type { ConnectionProfile } from './profile.js';
 import { resolveConnectionProfile } from './profile-resolver.js';
+import { stableValue } from '../util/stable-value.js';
 
 export type InlineAgentSource = {
   content: string;
@@ -41,14 +42,6 @@ type ResolvedCandidate = {
   runtime_name: string;
   config: McpServerConfig;
 };
-
-function stableValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(stableValue);
-  if (value === null || typeof value !== 'object') return value;
-  return Object.fromEntries(Object.entries(value as Record<string, unknown>)
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, entry]) => [key, stableValue(entry)]));
-}
 
 function normalizedConfig(config: McpServerConfig): Record<string, unknown> {
   if ('command' in config) {

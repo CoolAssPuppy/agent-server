@@ -44,7 +44,7 @@ describe('PanelClient', () => {
       expect(body).toEqual({});
     });
 
-    it('returns 0 when request fails', async () => {
+    it('rejects when the panel returns an error response', async () => {
       const mockFetch = createMockFetch({ ok: false, status: 500 });
       const client = new PanelClient({
         panelUrl: 'https://panel.example.com',
@@ -52,11 +52,13 @@ describe('PanelClient', () => {
         fetch: mockFetch,
       });
 
-      const result = await client.failOrphanedRuns('myhost-1234');
-      expect(result).toBe(0);
+      await expect(client.failOrphanedRuns('myhost-1234')).rejects.toMatchObject({
+        name: 'PanelCleanupError',
+        status: 500,
+      });
     });
 
-    it('returns 0 when fetch throws', async () => {
+    it('rejects when the panel cannot be reached', async () => {
       const mockFetch = vi.fn().mockRejectedValue(new Error('Network error'));
       const client = new PanelClient({
         panelUrl: 'https://panel.example.com',
@@ -64,8 +66,10 @@ describe('PanelClient', () => {
         fetch: mockFetch,
       });
 
-      const result = await client.failOrphanedRuns('myhost-1234');
-      expect(result).toBe(0);
+      await expect(client.failOrphanedRuns('myhost-1234')).rejects.toMatchObject({
+        name: 'PanelCleanupError',
+        message: 'Panel cleanup request failed: Network error',
+      });
     });
   });
 

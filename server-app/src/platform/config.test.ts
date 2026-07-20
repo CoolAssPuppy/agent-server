@@ -2,8 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { loadConfig, loadEnvFile } from './config.js';
 import { homedir } from 'os';
 import { join } from 'path';
-import { mkdirSync, writeFileSync, rmSync } from 'fs';
+import { mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
+import {
+  ENVIRONMENT_VARIABLE_REFERENCE,
+  renderEnvironmentReferenceTable,
+} from './environment-reference.js';
 
 describe('loadConfig', () => {
   it('uses defaults when no env vars are set', () => {
@@ -116,6 +120,31 @@ describe('loadConfig', () => {
       SLACK_BOT_TOKEN: 'xoxb-bare',
     });
     expect(prefixed.slackBotToken).toBe('xoxb-pref');
+  });
+});
+
+describe('environment reference', () => {
+  const readme = readFileSync(join(import.meta.dirname, '../../../README.md'), 'utf-8');
+
+  it('matches the canonical generated table', () => {
+    const table = readme.match(/\| Variable \| Default \| Description \|\n[\s\S]*?(?=\n\nExample)/)?.[0];
+    expect(table).toBe(renderEnvironmentReferenceTable());
+  });
+
+  it('documents every Agent Server input that loadConfig accepts', () => {
+    const configSource = readFileSync(join(import.meta.dirname, 'config.ts'), 'utf-8');
+    const configuredNames = new Set(
+      [...configSource.matchAll(/env\.(AGENT_SERVER_[A-Z0-9_]+)/g)].map((match) => match[1]),
+    );
+    const documentedNames = new Set(ENVIRONMENT_VARIABLE_REFERENCE.map(({ name }) => name));
+
+    expect([...configuredNames].filter((name) => !documentedNames.has(name))).toEqual([]);
+    expect(documentedNames.size).toBe(ENVIRONMENT_VARIABLE_REFERENCE.length);
+  });
+
+  it('states that local API authentication is required and init generates its key', () => {
+    expect(readme).toContain('`AGENT_SERVER_API_KEY` is required for every server start.');
+    expect(readme).toContain('`agent-server init` generates');
   });
 });
 

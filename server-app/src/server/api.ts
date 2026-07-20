@@ -20,6 +20,7 @@ import {
   type AgentWriter,
 } from '../agents/writer.js';
 import type { RunStoreLike } from '../reporting/store.js';
+import { normalizeStoredRun } from '../reporting/run-normalization.js';
 import { computeAgentMetrics } from '../reporting/metrics.js';
 import type { PendingDecision } from '../reporting/realtime-client.js';
 import type { PreflightResult } from '../analysis/models.js';
@@ -30,7 +31,6 @@ import {
   InMemoryRateLimiter,
   getClientIp,
   sanitizePromptSuffix,
-  sanitizeStoredRun,
   sanitizeText,
 } from './security-utils.js';
 
@@ -155,11 +155,34 @@ function setSecurityHeaders(headers: Headers): void {
   headers.set('Cache-Control', 'no-store');
 }
 
-function parseContentLength(request: Request): number | undefined {
-  const value = request.headers.get('content-length');
-  if (!value) return undefined;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+type NodeRequestInit = RequestInit & { duplex: 'half' };
+
+async function bufferRequestWithinLimit(request: Request, maxBytes: number): Promise<Request | null> {
+  if (!request.body) return request;
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.byteLength;
+    if (totalBytes > maxBytes) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+
+  const body = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  const requestInit: NodeRequestInit = { body, duplex: 'half' };
+  return new Request(request, requestInit);
 }
 
 function isLoopbackHost(host: string): boolean {
@@ -228,24 +251,6 @@ export function createApi(deps: ApiDependencies): Hono {
       return response;
     }
 
-    const blocked = authFailures.isBlocked(ip);
-    if (!blocked.allowed) {
-      c.header('Retry-After', String(blocked.retryAfterSeconds ?? 60));
-      const response = c.json({ error: 'Too many failed auth attempts' }, 429);
-      setSecurityHeaders(response.headers);
-      return response;
-    }
-
-    const bodyLimit = isAgentWriteRequest(c.req.method, c.req.path)
-      ? MAX_AGENT_WRITE_BODY_BYTES
-      : MAX_BODY_BYTES;
-    const contentLength = parseContentLength(c.req.raw);
-    if (contentLength !== undefined && contentLength > bodyLimit) {
-      const response = c.json({ error: 'Request body too large' }, 413);
-      setSecurityHeaders(response.headers);
-      return response;
-    }
-
     const isMutationRequest = c.req.method !== 'GET' && c.req.method !== 'HEAD' && c.req.method !== 'OPTIONS';
     if (isMutationRequest && !isSameOriginRequest(c.req.raw, deps.host)) {
       console.warn(`[api] Rejected cross-origin mutation from ${sanitizeText(c.req.raw.headers.get('origin') ?? 'unknown', 120)}`);
@@ -256,17 +261,39 @@ export function createApi(deps: ApiDependencies): Hono {
 
     const requestKey = extractApiKeyHeader(c.req.raw);
     if (!isAuthorized(requestKey, apiKey)) {
+      const blocked = authFailures.isBlocked(ip);
+      if (!blocked.allowed) {
+        c.header('Retry-After', String(blocked.retryAfterSeconds ?? 60));
+        const response = c.json({ error: 'Too many failed auth attempts' }, 429);
+        setSecurityHeaders(response.headers);
+        return response;
+      }
+
       const failure = authFailures.registerFailure(ip);
       console.warn(`[api] Unauthorized request from ${sanitizeText(ip, 64)} to ${sanitizeText(c.req.path, 80)}`);
       if (!failure.allowed) {
         c.header('Retry-After', String(failure.retryAfterSeconds ?? 60));
       }
-      const response = c.json({ error: 'Unauthorized' }, 401);
+      const response = failure.allowed
+        ? c.json({ error: 'Unauthorized' }, 401)
+        : c.json({ error: 'Too many failed auth attempts' }, 429);
       setSecurityHeaders(response.headers);
       return response;
     }
 
     authFailures.registerSuccess(ip);
+
+    const bodyLimit = isAgentWriteRequest(c.req.method, c.req.path)
+      ? MAX_AGENT_WRITE_BODY_BYTES
+      : MAX_BODY_BYTES;
+    const bufferedRequest = await bufferRequestWithinLimit(c.req.raw, bodyLimit);
+    if (!bufferedRequest) {
+      const response = c.json({ error: 'Request body too large' }, 413);
+      setSecurityHeaders(response.headers);
+      return response;
+    }
+    c.req.raw = bufferedRequest;
+
     await next();
     if (c.res) setSecurityHeaders(c.res.headers);
     return c.res;
@@ -615,13 +642,13 @@ export function createApi(deps: ApiDependencies): Hono {
   app.get('/runs', (c) => {
     const agentId = c.req.query('agent_id');
     const runs = agentId ? deps.store.listByAgent(agentId) : deps.store.list();
-    return c.json(runs.map(sanitizeStoredRun));
+    return c.json(runs.map(normalizeStoredRun));
   });
 
   app.get('/runs/:id', (c) => {
     const run = deps.store.get(c.req.param('id'));
     if (!run) return c.json({ error: 'Run not found' }, 404);
-    return c.json(sanitizeStoredRun(run));
+    return c.json(normalizeStoredRun(run));
   });
 
   const emptySnapshot: ConnectionSnapshot = { servers: [], discovered_at: null };
@@ -674,7 +701,7 @@ export function createApi(deps: ApiDependencies): Hono {
       return c.json({ ok: true, cleaned });
     } catch (err) {
       const message = toErrorMessage(err);
-      return c.json({ error: `Cleanup failed: ${message}` }, 500);
+      return c.json({ error: `Cleanup failed: ${message}` }, 502);
     }
   });
 

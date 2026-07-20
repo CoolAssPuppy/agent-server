@@ -10,6 +10,8 @@ import { initAgentServer } from './platform/init.js';
 import { installLaunchAgent, uninstallLaunchAgent } from './platform/launchd.js';
 import { createPanelClient } from './reporting/panel-client.js';
 import { AGENT_SERVER_VERSION } from './version.js';
+import { runCleanupCommand } from './platform/cleanup-command.js';
+import { toErrorMessage } from './util/errors.js';
 
 const baseDir = process.env.AGENT_SERVER_HOME || join(homedir(), '.agent-server');
 const fileEnv = loadEnvFile(baseDir, process.env);
@@ -106,14 +108,8 @@ program
   .action(async () => {
     const config = loadConfig();
     const panelClient = createPanelClient(config);
-
-    if (!panelClient) {
-      console.error('No panel URL configured. Set AGENT_SERVER_PANEL_URL and AGENT_SERVER_PANEL_API_KEY.');
-      process.exit(1);
-    }
-
-    const cleaned = await panelClient.failOrphanedRuns();
-    console.log(`Cleaned up ${cleaned} orphaned run(s).`);
+    const exitCode = await runCleanupCommand(panelClient, console);
+    if (exitCode !== 0) process.exitCode = exitCode;
   });
 
 program
@@ -144,4 +140,7 @@ program
     console.log('Run `launchctl remove com.agent-server.daemon` to stop the running instance.');
   });
 
-program.parse();
+void program.parseAsync().catch((error) => {
+  console.error(`Command failed: ${toErrorMessage(error)}`);
+  process.exitCode = 1;
+});

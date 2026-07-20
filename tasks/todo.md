@@ -5,7 +5,7 @@
 - [x] Commit the audit report and this remediation baseline.
 - [x] Batch 1: Fix trigger direction and cycles, timeout ownership, telemetry deadlines and durability, conversation duplication, skipped terminals, interaction delivery, and shutdown handling. Cover TD-01 through TD-05 and TD-23 through TD-26.
 - [x] Batch 1 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun all server gates, and commit refinements.
-- [ ] Batch 2: Fix evidence redaction, body limits, bounded security maps, cleanup errors, dynamic watches, glob parsing, discovery diagnostics, configuration documentation generation, duplicate normalization, and the unused Telegram decision path. Cover TD-06, TD-27 through TD-32, TD-40, TD-44, and TD-45.
+- [x] Batch 2: Fix evidence redaction, body limits, bounded security maps, cleanup errors, dynamic watches, glob parsing, discovery diagnostics, configuration documentation generation, duplicate normalization, and the unused Telegram decision path. Cover TD-06, TD-27 through TD-32, TD-40, TD-44, and TD-45.
 - [ ] Batch 2 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun all server gates, and commit refinements.
 - [ ] Batch 3: Upgrade vulnerable dependencies, add dependency auditing and native CI, make macOS build inputs reproducible, test the CLI, and ratchet coverage. Cover TD-07 through TD-11, TD-38, and TD-39.
 - [ ] Batch 3 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun server, Swift, and build gates, and commit refinements.
@@ -29,7 +29,11 @@
 
 ### Review
 
-Batch 1 fixes trigger direction and bounded chains, preserves locks for timed-out work, makes terminal telemetry durable and request-bounded, removes duplicated conversation input, distinguishes skipped runs, fails undeliverable interactions, and stages startup with bounded rollback and teardown. The cleanup pass consolidated timeout handling, channel completion handling, and internal-only exports. Verification passed with 1,292 server tests, strict type checking, ESLint, the server build, 378 Swift tests, and an unsigned macOS app build. Remaining batches are pending.
+Batch 1 fixes trigger direction and bounded chains, preserves locks for timed-out work, makes terminal telemetry durable and request-bounded, removes duplicated conversation input, distinguishes skipped runs, fails undeliverable interactions, and stages startup with bounded rollback and teardown. Its cleanup pass consolidated timeout handling, channel completion handling, and internal-only exports.
+
+Batch 2 redacts run evidence before memory or SQLite persistence and on legacy-row reads, authenticates before bounded body streaming, bounds security maps without evicting active bans, reports panel cleanup failures honestly, reconciles file watches after definition edits, escapes glob patterns safely, and emits source-free discovery diagnostics. It also generates the environment reference from one contract, centralizes stable value normalization, and removes the unwired Telegram decision implementation in favor of the production panel-backed path.
+
+Verification through Batch 2 passed with 1,270 server tests, strict type checking, ESLint, the server build, the generated environment reference check, 378 Swift tests, and an unsigned macOS app build. Remaining batches are pending.
 
 ## Tech debt audit
 

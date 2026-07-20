@@ -1,3 +1,5 @@
+import { sanitizeProgressEvent } from './security-utils.js';
+
 export type ProgressEvent = {
   type: 'run_started' | 'run_progress' | 'run_completed' | 'run_failed' | 'run_skipped' | 'mcp_status';
   runId: string;
@@ -34,9 +36,10 @@ export class ProgressBroadcaster {
   }
 
   emit(event: ProgressEvent): void {
+    const safeEvent = sanitizeProgressEvent(event);
     for (const listener of this.listeners) {
       try {
-        listener(event);
+        listener(safeEvent);
       } catch (err) {
         console.error('[websocket] Listener error:', err);
       }

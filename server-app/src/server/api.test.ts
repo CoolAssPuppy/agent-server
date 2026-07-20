@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Hono } from 'hono';
+import { DatabaseSync } from 'node:sqlite';
+import { rmSync } from 'fs';
+import { join } from 'path';
 import { createApi as createProductionApi } from './api.js';
 import { RunStore } from '../reporting/store.js';
-import { makeAgent, makeStoredRun } from '../test-factories.js';
+import { SqliteRunStore } from '../reporting/sqlite-store.js';
+import { createTempDir, makeAgent, makeStoredRun } from '../test-factories.js';
 import { RunPreflightDeniedError } from '../analysis/run-preflight-gate.js';
 import type { ConnectionProfile } from '../connections/profile.js';
 
@@ -519,6 +523,64 @@ describe('API routes', () => {
       expect(body).toHaveLength(1);
       expect(body[0].agentId).toBe('agent-a');
     });
+
+    it('returns persisted evidence without exposing its original secrets', async () => {
+      store.add(makeStoredRun({
+        summary: 'token="api-summary-secret"',
+        error: 'password="api-error-secret"',
+        commandsRun: ['Authorization: Bearer api-command-secret'],
+        progressMessages: ['secret="api-progress-secret"'],
+      }));
+
+      const response = await authenticatedRequest(createApp(), '/runs');
+      const responseText = await response.text();
+
+      expect(responseText).toContain('[REDACTED]');
+      expect(responseText).not.toContain('api-summary-secret');
+      expect(responseText).not.toContain('api-error-secret');
+      expect(responseText).not.toContain('api-command-secret');
+      expect(responseText).not.toContain('api-progress-secret');
+    });
+
+    it('does not expose raw evidence from a pre-upgrade SQLite row', async () => {
+      const directory = createTempDir('legacy-api-run');
+      const databasePath = join(directory, 'runs.db');
+      const sqliteStore = new SqliteRunStore({ path: databasePath });
+      try {
+        sqliteStore.add(makeStoredRun({ runId: 'legacy-run' }));
+        const legacyDatabase = new DatabaseSync(databasePath);
+        legacyDatabase.prepare(`
+          UPDATE runs
+          SET summary = ?, error = ?, commands_run = ?, progress_messages = ?
+          WHERE run_id = ?
+        `).run(
+          'token="legacy-api-summary-secret"',
+          'password="legacy-api-error-secret"',
+          JSON.stringify(['Authorization: Bearer legacy-api-command-secret']),
+          JSON.stringify(['api_key="legacy-api-progress-secret"']),
+          'legacy-run',
+        );
+        legacyDatabase.close();
+
+        const app = createApi({
+          getAgents: async () => [makeAgent()],
+          store: sqliteStore,
+          triggerRun,
+        });
+        const listResponse = await authenticatedRequest(app, '/runs');
+        const detailResponse = await authenticatedRequest(app, '/runs/legacy-run');
+        const serialized = `${await listResponse.text()}${await detailResponse.text()}`;
+
+        expect(serialized).toContain('[REDACTED]');
+        expect(serialized).not.toContain('legacy-api-summary-secret');
+        expect(serialized).not.toContain('legacy-api-error-secret');
+        expect(serialized).not.toContain('legacy-api-command-secret');
+        expect(serialized).not.toContain('legacy-api-progress-secret');
+      } finally {
+        sqliteStore.close();
+        rmSync(directory, { recursive: true, force: true });
+      }
+    });
   });
 
   describe('GET /runs/:id', () => {
@@ -690,6 +752,21 @@ describe('API routes', () => {
       const res = await authenticatedRequest(app, '/cleanup', { method: 'POST' });
       expect(res.status).toBe(501);
     });
+
+    it('returns a non-success response when panel cleanup fails', async () => {
+      const cleanupFn = vi.fn().mockRejectedValue(new Error('Panel unavailable'));
+      const app = createApi({
+        getAgents: async () => [makeAgent()],
+        store,
+        triggerRun,
+        cleanupFn,
+      });
+
+      const res = await authenticatedRequest(app, '/cleanup', { method: 'POST' });
+
+      expect(res.status).toBe(502);
+      await expect(res.json()).resolves.toEqual({ error: 'Cleanup failed: Panel unavailable' });
+    });
   });
 
   describe('security middleware', () => {
@@ -700,6 +777,39 @@ describe('API routes', () => {
       expect(res.headers.get('x-content-type-options')).toBe('nosniff');
       expect(res.headers.get('x-frame-options')).toBe('DENY');
       expect(res.headers.get('cache-control')).toBe('no-store');
+    });
+
+    it('rejects unauthorized requests before reading their body stream', async () => {
+      const app = createSecuredApp();
+      const readSpy = vi.spyOn(ReadableStreamDefaultReader.prototype, 'read');
+
+      const res = await app.request('/agents/test-agent/run', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ with: 'x'.repeat(9_000) }),
+      });
+
+      expect(res.status).toBe(401);
+      expect(readSpy).not.toHaveBeenCalled();
+      readSpy.mockRestore();
+    });
+
+    it('rejects cross-origin mutations before reading their body stream', async () => {
+      const app = createApp('127.0.0.1');
+      const readSpy = vi.spyOn(ReadableStreamDefaultReader.prototype, 'read');
+
+      const res = await authenticatedRequest(app, '/agents/test-agent/run', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          origin: 'https://attacker.example',
+        },
+        body: JSON.stringify({ with: 'x'.repeat(9_000) }),
+      });
+
+      expect(res.status).toBe(403);
+      expect(readSpy).not.toHaveBeenCalled();
+      readSpy.mockRestore();
     });
 
     it('requires json content type for non-empty trigger body', async () => {
@@ -757,15 +867,30 @@ describe('API routes', () => {
 
     it('keeps health available after repeated authentication failures', async () => {
       const app = createSecuredApp();
+      let thresholdResponse: Response | undefined;
       for (let attempt = 0; attempt < 10; attempt += 1) {
-        await app.request('/agents');
+        thresholdResponse = await app.request('/agents');
       }
 
       const blockedResponse = await app.request('/agents');
       const res = await app.request('/health');
 
+      expect(thresholdResponse?.status).toBe(429);
       expect(blockedResponse.status).toBe(429);
       expect(res.status).toBe(200);
+    });
+
+    it('accepts a valid credential after failures and clears the source ban', async () => {
+      const app = createSecuredApp();
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        await app.request('/agents');
+      }
+
+      const recovered = await authenticatedRequest(app, '/agents');
+      const nextFailure = await app.request('/agents');
+
+      expect(recovered.status).toBe(200);
+      expect(nextFailure.status).toBe(401);
     });
   });
 
@@ -929,15 +1054,51 @@ describe('API routes', () => {
 
     it('still rejects oversized bodies on other routes', async () => {
       const app = createApp();
+      const body = JSON.stringify({ with: 'x'.repeat(30_000) });
       const res = await authenticatedRequest(app, '/agents/test-agent/run', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          'content-length': String(30_000),
+          'content-length': String(Buffer.byteLength(body)),
         },
-        body: '{}',
+        body,
       });
       expect(res.status).toBe(413);
+    });
+
+    it('rejects actual body bytes that exceed a falsified content length', async () => {
+      const app = createApp();
+      const body = JSON.stringify({ with: 'x'.repeat(9_000) });
+
+      const res = await authenticatedRequest(app, '/agents/test-agent/run', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'content-length': '2',
+        },
+        body,
+      });
+
+      expect(res.status).toBe(413);
+      expect(triggerRun).not.toHaveBeenCalled();
+    });
+
+    it('rejects oversized agent writes based on actual bytes', async () => {
+      const update = vi.fn().mockResolvedValue(makeAgent());
+      const app = createWriterApp({ update });
+      const body = JSON.stringify({ prompt: 'valid', padding: 'x'.repeat(256 * 1024) });
+
+      const res = await authenticatedRequest(app, '/agents/test-agent', {
+        method: 'PUT',
+        headers: {
+          'content-type': 'application/json',
+          'content-length': '2',
+        },
+        body,
+      });
+
+      expect(res.status).toBe(413);
+      expect(update).not.toHaveBeenCalled();
     });
 
     it('deletes an agent', async () => {

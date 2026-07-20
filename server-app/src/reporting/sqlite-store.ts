@@ -254,7 +254,7 @@ function parseStringArray(value: string): string[] {
 }
 
 function rowToRun(row: RunRow): StoredRun {
-  return {
+  return normalizeStoredRun({
     runId: row.run_id,
     agentId: row.agent_id,
     agentName: row.agent_name,
@@ -282,5 +282,5 @@ function rowToRun(row: RunRow): StoredRun {
     retryOfRunId: row.retry_of_run_id ?? undefined,
     repairId: row.repair_id ?? undefined,
     ...(row.run_mode === 'safe_test' ? { mode: 'safe_test' as const } : {}),
-  };
+  });
 }
