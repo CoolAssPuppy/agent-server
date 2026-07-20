@@ -1,5 +1,55 @@
 import Foundation
 
+public enum ConnectionScreenSection: String, CaseIterable, Equatable, Sendable {
+    case saved
+    case claude
+    case messaging
+    case templates
+
+    public static let primary: [Self] = [.saved, .claude, .messaging]
+    public static let advanced: [Self] = [.templates]
+
+    public var title: String {
+        switch self {
+        case .saved: "Your connections"
+        case .claude: "Available through Claude"
+        case .messaging: "Messaging"
+        case .templates: "Connection templates"
+        }
+    }
+
+    public var explanation: String {
+        switch self {
+        case .saved: "Accounts and tools you have set up for Agent Server."
+        case .claude: "Apps connected in Claude are available to your agents through your existing sign-in."
+        case .messaging: "Chat with your agents and receive their replies."
+        case .templates: "Quick setup for common services."
+        }
+    }
+
+    public var isAdvanced: Bool { Self.advanced.contains(self) }
+}
+
+public enum ConnectionSetupSection: String, CaseIterable, Equatable, Sendable {
+    case identity
+    case method
+    case credentials
+    case technical
+
+    public static let visible: [Self] = [.identity, .method, .credentials]
+
+    public var title: String {
+        switch self {
+        case .identity: "Connection name"
+        case .method: "How it connects"
+        case .credentials: "Credentials"
+        case .technical: "Technical details"
+        }
+    }
+
+    public var isAdvanced: Bool { self == .technical }
+}
+
 public struct ConnectionProfilePresentation: Equatable, Identifiable, Sendable {
     public enum Status: Equatable, Sendable {
         case ready

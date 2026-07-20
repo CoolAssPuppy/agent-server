@@ -162,10 +162,10 @@ struct ConnectionsView: View {
     private var mainPanel: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: NSpacing.xl) {
-                savedConnectionsSection
-                availableSection
+                ForEach(ConnectionScreenSection.primary, id: \.self) { section in
+                    primarySection(section)
+                }
                 servicesSection
-                messagingSection
             }
             .padding(.horizontal, NSpacing.xxl)
             .padding(.vertical, NSpacing.xl)
@@ -174,6 +174,16 @@ struct ConnectionsView: View {
         .frame(width: navigation.selectedConnectionID == nil ? nil : ConnectionPanelStyle.listWidth)
         .frame(maxHeight: .infinity)
         .frame(maxWidth: navigation.selectedConnectionID == nil ? .infinity : nil)
+    }
+
+    @ViewBuilder
+    private func primarySection(_ section: ConnectionScreenSection) -> some View {
+        switch section {
+        case .saved: savedConnectionsSection
+        case .claude: availableSection
+        case .messaging: messagingSection
+        case .templates: EmptyView()
+        }
     }
 
     private func savedConnectionDetail(_ profile: ConnectionProfile) -> some View {
@@ -224,19 +234,17 @@ struct ConnectionsView: View {
                 refreshing = false
             }
         } label: {
-            ZStack {
-                Circle().fill(theme.tokens.muted)
-                    .overlay(Circle().stroke(theme.tokens.border, lineWidth: 1))
+            Group {
                 if refreshing {
                     ProgressView().controlSize(.small)
                 } else {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(NTypography.bodyMedium)
                         .foregroundStyle(theme.tokens.mutedForeground)
                 }
             }
             .frame(width: 28, height: 28)
-            .contentShape(Circle())
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(refreshing)
@@ -250,10 +258,9 @@ struct ConnectionsView: View {
                 isAddingConnection = true
             } label: {
                 Image(systemName: "plus")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(NTypography.bodyMedium)
                     .frame(width: 28, height: 28)
-                    .background(Circle().fill(theme.tokens.muted))
-                    .overlay(Circle().stroke(theme.tokens.border, lineWidth: 1))
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help("Add connection")
@@ -265,13 +272,7 @@ struct ConnectionsView: View {
 
     private var savedConnectionsSection: some View {
         VStack(alignment: .leading, spacing: NSpacing.sm) {
-            Text("YOUR CONNECTIONS")
-                .font(NTypography.labelSmall)
-                .tracking(0.8)
-                .foregroundStyle(theme.tokens.mutedForeground)
-            Text("Reusable accounts and tools you configured for Agent Server.")
-                .font(NTypography.caption)
-                .foregroundStyle(theme.tokens.mutedForeground)
+            ConnectionSectionHeader(section: .saved)
 
             if savedProfiles.isEmpty {
                 Button {
@@ -282,11 +283,10 @@ struct ConnectionsView: View {
                         .padding(NSpacing.lg)
                 }
                 .buttonStyle(.plain)
-                .background(theme.tokens.background)
-                .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border, lineWidth: 1))
-                .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
+                .background(theme.tokens.muted.opacity(0.28))
+                .clipShape(RoundedRectangle(cornerRadius: NRadius.md, style: .continuous))
             } else {
-                VStack(spacing: 0) {
+                ConnectionInsetGroup {
                     ForEach(Array(savedProfiles.enumerated()), id: \.element.id) { index, profile in
                         if index > 0 { Divider().opacity(0.25) }
                         SavedConnectionRow(
@@ -299,9 +299,6 @@ struct ConnectionsView: View {
                         )
                     }
                 }
-                .background(theme.tokens.background)
-                .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border, lineWidth: 1))
-                .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
             }
         }
     }
@@ -320,14 +317,7 @@ struct ConnectionsView: View {
     /// from the running server. This is the live truth, not a static promise.
     private var availableSection: some View {
         VStack(alignment: .leading, spacing: NSpacing.sm) {
-            Text("AVAILABLE THROUGH CLAUDE")
-                .font(NTypography.labelSmall)
-                .tracking(0.8)
-                .foregroundStyle(theme.tokens.mutedForeground)
-            Text("Every app you've connected in Claude is available to your agents automatically, using your existing sign-in. This is what the server can reach right now.")
-                .font(NTypography.caption)
-                .foregroundStyle(theme.tokens.mutedForeground)
-                .fixedSize(horizontal: false, vertical: true)
+            ConnectionSectionHeader(section: .claude)
 
             availableContent
         }
@@ -339,15 +329,12 @@ struct ConnectionsView: View {
         if connectors.isEmpty {
             emptyAvailableCard
         } else {
-            VStack(spacing: 0) {
+            ConnectionInsetGroup {
                 ForEach(Array(connectors.enumerated()), id: \.element.id) { index, connector in
                     if index > 0 { Divider().opacity(0.25) }
                     DiscoveredConnectionRow(connector: connector)
                 }
             }
-            .background(theme.tokens.background)
-            .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border, lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
         }
     }
 
@@ -367,22 +354,21 @@ struct ConnectionsView: View {
         }
         .padding(NSpacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.tokens.background)
-        .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
+        .background(theme.tokens.muted.opacity(0.28))
+        .clipShape(RoundedRectangle(cornerRadius: NRadius.md, style: .continuous))
     }
 
     // MARK: - Services
 
     private var servicesSection: some View {
-        DisclosureGroup("Connection templates", isExpanded: $showsConnectionTemplates) {
+        DisclosureGroup(ConnectionScreenSection.templates.title, isExpanded: $showsConnectionTemplates) {
             VStack(alignment: .leading, spacing: NSpacing.sm) {
-                Text("Quick setup for known services. Use Add connection above for custom MCP, HTTP, or API setups.")
+                Text("\(ConnectionScreenSection.templates.explanation) Use Add connection for a custom web service or local tool.")
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
                     .fixedSize(horizontal: false, vertical: true)
 
-                VStack(spacing: 0) {
+                ConnectionInsetGroup {
                     ForEach(Array(credentialPresentation.rows.enumerated()), id: \.element.id) { index, row in
                         if index > 0 { Divider().opacity(0.25) }
                         CredentialConnectionRow(row: row, catalogEntry: catalogEntry(for: row)) {
@@ -390,9 +376,6 @@ struct ConnectionsView: View {
                         }
                     }
                 }
-                .background(theme.tokens.background)
-                .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border, lineWidth: 1))
-                .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
             }
             .padding(.top, NSpacing.sm)
         }
@@ -439,16 +422,9 @@ struct ConnectionsView: View {
 
     private var messagingSection: some View {
         VStack(alignment: .leading, spacing: NSpacing.sm) {
-            Text("MESSAGING")
-                .font(NTypography.labelSmall)
-                .tracking(0.8)
-                .foregroundStyle(theme.tokens.mutedForeground)
-            Text("Chat with your agents from Telegram or Slack. Add a bot token and your agents can message you and take your replies.")
-                .font(NTypography.caption)
-                .foregroundStyle(theme.tokens.mutedForeground)
-                .fixedSize(horizontal: false, vertical: true)
+            ConnectionSectionHeader(section: .messaging)
 
-            VStack(spacing: 0) {
+            ConnectionInsetGroup {
                 ConnectionRow(entry: telegramEntry) {
                     connectTarget = CatalogConnectTarget(entry: telegramEntry)
                 }
@@ -457,9 +433,6 @@ struct ConnectionsView: View {
                     connectTarget = CatalogConnectTarget(entry: slackMessagingEntry)
                 }
             }
-            .background(theme.tokens.background)
-            .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border, lineWidth: 1))
-            .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
 
             if telegramConnected || slackMessagingConnected {
                 pairingHint
@@ -486,7 +459,6 @@ struct ConnectionsView: View {
         .background(
             RoundedRectangle(cornerRadius: NRadius.md).fill(theme.tokens.accent.opacity(0.08))
         )
-        .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.accent.opacity(0.25), lineWidth: 1))
     }
 
     /// Whether an env key is set (non-empty) in Agent Server's environment file.

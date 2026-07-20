@@ -1,6 +1,41 @@
 import SwiftUI
 import NerdsUI
 
+struct ConnectionSectionHeader: View {
+    let section: ConnectionScreenSection
+
+    @Environment(\.nTheme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: NSpacing.xxxs) {
+            Text(section.title)
+                .font(NTypography.labelMedium)
+                .foregroundStyle(theme.tokens.foreground)
+            Text(section.explanation)
+                .font(NTypography.caption)
+                .foregroundStyle(theme.tokens.mutedForeground)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+struct ConnectionInsetGroup<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    @Environment(\.nTheme) private var theme
+
+    var body: some View {
+        VStack(spacing: 0) {
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(theme.tokens.muted.opacity(0.28))
+        .clipShape(RoundedRectangle(cornerRadius: NRadius.md, style: .continuous))
+    }
+}
+
 struct CredentialConnectionRow: View {
     let row: ConnectionCredentialRow
     let catalogEntry: CapabilityCatalogEntry?
@@ -99,9 +134,9 @@ struct ConnectionRow: View {
     @ViewBuilder
     private var trailing: some View {
         if entry.auth == .oauth {
-            statusPill("Sign in from Claude", color: theme.tokens.mutedForeground)
+            statusText("Sign in from Claude", color: theme.tokens.mutedForeground)
         } else if isKeyless {
-            statusPill("Built in", color: theme.tokens.mutedForeground)
+            statusText("Built in", color: theme.tokens.mutedForeground)
         } else if isConnected {
             HStack(spacing: NSpacing.xs) {
                 Image(systemName: "checkmark.circle.fill")
@@ -121,7 +156,7 @@ struct ConnectionRow: View {
         }
     }
 
-    private func statusPill(_ text: String, color: Color) -> some View {
+    private func statusText(_ text: String, color: Color) -> some View {
         Text(text)
             .font(NTypography.captionSmall)
             .foregroundStyle(color)
@@ -227,8 +262,8 @@ struct ConnectServiceSheet: View {
             if let errorMessage {
                 Text(errorMessage)
                     .font(NTypography.caption)
-                    .foregroundStyle(.red)
-                    .lineLimit(3)
+                    .foregroundStyle(theme.tokens.destructive)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             HStack {

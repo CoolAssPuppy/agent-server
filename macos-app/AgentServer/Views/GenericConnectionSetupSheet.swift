@@ -21,9 +21,10 @@ struct GenericConnectionSetupSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: NSpacing.xl) {
                     introduction
-                    identityCard
-                    connectionCard
-                    credentialsCard
+                    ForEach(Array(ConnectionSetupSection.visible.enumerated()), id: \.element) { index, section in
+                        if index > 0 { Divider().opacity(0.35) }
+                        visibleSection(section)
+                    }
                     technicalDetails
                 }
                 .padding(NSpacing.xxl)
@@ -50,16 +51,26 @@ struct GenericConnectionSetupSheet: View {
         }
     }
 
-    private var identityCard: some View {
-        setupCard(title: "Connection name", explanation: "Use any name that helps you distinguish this account or workspace.") {
+    @ViewBuilder
+    private func visibleSection(_ section: ConnectionSetupSection) -> some View {
+        switch section {
+        case .identity: identitySection
+        case .method: methodSection
+        case .credentials: credentialsSection
+        case .technical: EmptyView()
+        }
+    }
+
+    private var identitySection: some View {
+        setupSection(section: .identity, explanation: "Use any name that helps you distinguish this account or workspace.") {
             TextField("For example, Personal Notion", text: $label)
                 .textFieldStyle(.roundedBorder)
                 .accessibilityIdentifier("connectionSetup.name")
         }
     }
 
-    private var connectionCard: some View {
-        setupCard(title: "How it connects", explanation: methodExplanation) {
+    private var methodSection: some View {
+        setupSection(section: .method, explanation: methodExplanation) {
             Picker("Connection method", selection: $method) {
                 Text("Web service").tag(ConnectionSetupDraft.Method.web)
                 Text("Local command").tag(ConnectionSetupDraft.Method.local)
@@ -82,9 +93,9 @@ struct GenericConnectionSetupSheet: View {
         }
     }
 
-    private var credentialsCard: some View {
-        setupCard(
-            title: "Credentials",
+    private var credentialsSection: some View {
+        setupSection(
+            section: .credentials,
             explanation: "Add the keys this connection needs. Values stay in the selected Agent Server folder's .env file."
         ) {
             if credentials.isEmpty {
@@ -151,7 +162,7 @@ struct GenericConnectionSetupSheet: View {
     }
 
     private var technicalDetails: some View {
-        DisclosureGroup("Technical details") {
+        DisclosureGroup(ConnectionSetupSection.technical.title) {
             VStack(alignment: .leading, spacing: NSpacing.sm) {
                 detailRow("Adapter", "Custom MCP")
                 detailRow("Transport", method == .web ? "HTTP" : "Standard input and output")
@@ -170,8 +181,8 @@ struct GenericConnectionSetupSheet: View {
             if let errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.triangle")
                     .font(NTypography.caption)
-                    .foregroundStyle(.red)
-                    .lineLimit(2)
+                    .foregroundStyle(theme.tokens.destructive)
+                    .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("connectionSetup.error")
             }
             Spacer()
@@ -192,14 +203,16 @@ struct GenericConnectionSetupSheet: View {
             : "Start a tool installed on this Mac when an agent needs it."
     }
 
-    private func setupCard<Content: View>(
-        title: String,
+    private func setupSection<Content: View>(
+        section: ConnectionSetupSection,
         explanation: String,
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: NSpacing.md) {
             VStack(alignment: .leading, spacing: NSpacing.xxs) {
-                Text(title).font(NTypography.bodyMedium)
+                Text(section.title)
+                    .font(NTypography.labelMedium)
+                    .foregroundStyle(theme.tokens.foreground)
                 Text(explanation)
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
@@ -207,9 +220,7 @@ struct GenericConnectionSetupSheet: View {
             }
             content()
         }
-        .padding(NSpacing.lg)
-        .background(theme.tokens.muted.opacity(0.35))
-        .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func detailRow(_ label: String, _ value: String) -> some View {

@@ -113,14 +113,19 @@ struct SavedConnectionDetailView: View {
             detailHeader
             Divider().opacity(0.3)
             ScrollView {
-                VStack(alignment: .leading, spacing: NSpacing.xl) {
-                    readinessCard
-                    connectionCard
-                    credentialCard
-                    managementCard
+                VStack(alignment: .leading, spacing: 0) {
+                    readinessSection
+                    sectionDivider
+                    connectionSection
+                    sectionDivider
+                    credentialSection
+                    sectionDivider
+                    managementSection
+                    sectionDivider
                     technicalDetails
                 }
-                .padding(NSpacing.xl)
+                .padding(.horizontal, NSpacing.xl)
+                .padding(.bottom, NSpacing.xl)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -150,7 +155,7 @@ struct SavedConnectionDetailView: View {
         .padding(.vertical, NSpacing.md)
     }
 
-    private var readinessCard: some View {
+    private var readinessSection: some View {
         VStack(alignment: .leading, spacing: NSpacing.sm) {
             Text(presentation.name)
                 .font(NTypography.headlineMedium)
@@ -171,24 +176,24 @@ struct SavedConnectionDetailView: View {
                 .foregroundStyle(theme.tokens.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .connectionDetailCard()
+        .connectionDetailSection()
     }
 
-    private var connectionCard: some View {
+    private var connectionSection: some View {
         VStack(alignment: .leading, spacing: NSpacing.sm) {
             Text("Connection")
-                .font(NTypography.bodyMedium)
+                .font(NTypography.labelMedium)
             detailRow("Method", presentation.connectionMethod)
             detailRow("Address", presentation.location, usesMonospacedText: true)
         }
-        .connectionDetailCard()
+        .connectionDetailSection()
     }
 
-    private var credentialCard: some View {
+    private var credentialSection: some View {
         VStack(alignment: .leading, spacing: NSpacing.md) {
             HStack {
                 Text("Credentials")
-                    .font(NTypography.bodyMedium)
+                    .font(NTypography.labelMedium)
                 Spacer()
                 Button("Modify credentials", action: onModifyCredentials)
                     .buttonStyle(.borderless)
@@ -205,13 +210,13 @@ struct SavedConnectionDetailView: View {
                 .foregroundStyle(theme.tokens.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .connectionDetailCard()
+        .connectionDetailSection()
     }
 
-    private var managementCard: some View {
+    private var managementSection: some View {
         VStack(alignment: .leading, spacing: NSpacing.md) {
             Text("Manage connection")
-                .font(NTypography.bodyMedium)
+                .font(NTypography.labelMedium)
 
             if isEditingName {
                 HStack(spacing: NSpacing.sm) {
@@ -262,7 +267,7 @@ struct SavedConnectionDetailView: View {
                 .accessibilityIdentifier("connections.managementFeedback")
             }
         }
-        .connectionDetailCard()
+        .connectionDetailSection()
     }
 
     private var trimmedProposedName: String {
@@ -366,6 +371,11 @@ struct SavedConnectionDetailView: View {
             .padding(.top, NSpacing.sm)
         }
         .font(NTypography.bodyMedium)
+        .connectionDetailSection()
+    }
+
+    private var sectionDivider: some View {
+        Divider().opacity(0.35)
     }
 
     private func detailRow(
@@ -387,23 +397,15 @@ struct SavedConnectionDetailView: View {
 }
 
 private extension View {
-    func connectionDetailCard() -> some View {
-        modifier(ConnectionDetailCardModifier())
+    func connectionDetailSection() -> some View {
+        modifier(ConnectionDetailSectionModifier())
     }
 }
 
-private struct ConnectionDetailCardModifier: ViewModifier {
-    @Environment(\.nTheme) private var theme
-
+private struct ConnectionDetailSectionModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .padding(NSpacing.lg)
+            .padding(.vertical, NSpacing.lg)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(theme.tokens.background)
-            .overlay(
-                RoundedRectangle(cornerRadius: NRadius.md)
-                    .stroke(theme.tokens.border, lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
     }
 }
