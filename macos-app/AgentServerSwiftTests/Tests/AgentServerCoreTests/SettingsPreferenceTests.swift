@@ -13,10 +13,19 @@ final class SettingsPreferenceTests: XCTestCase {
         )
     }
 
-    func testSettingsUseOneColumnWhenTwoReadableCardsWillNotFit() {
-        XCTAssertEqual(SettingsPresentation.columnCount(availableWidth: 639), 1)
-        XCTAssertEqual(SettingsPresentation.columnCount(availableWidth: 640), 2)
-        XCTAssertEqual(SettingsPresentation.columnCount(availableWidth: 1_200), 2)
+    func testSettingsSectionsUseConsumerFacingSentenceCaseTitles() {
+        XCTAssertEqual(
+            SettingsSection.allCases.map(\.title),
+            [
+                "General",
+                "Coding agents",
+                "Notifications",
+                "Agent Server folder",
+                "Updates",
+                "Agent Panel",
+                "Environment",
+            ]
+        )
     }
 
     func testAbsentEnvironmentFlagUsesItsConsumerDefault() {

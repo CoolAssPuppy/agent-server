@@ -22,11 +22,10 @@ struct SettingsCard<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: NSpacing.sm) {
-            Text(title.uppercased())
-                .font(.system(size: 11, weight: .semibold))
-                .tracking(0.6)
-                .foregroundStyle(theme.tokens.mutedForeground)
+        VStack(alignment: .leading, spacing: NSpacing.md) {
+            Text(title)
+                .font(NTypography.headlineSmall)
+                .foregroundStyle(theme.tokens.foreground)
                 .contextMenu {
                     if let titleContextActionLabel, let onTitleContextAction {
                         Button(titleContextActionLabel, action: onTitleContextAction)
@@ -36,14 +35,7 @@ struct SettingsCard<Content: View>: View {
                 content()
             }
         }
-        .padding(NSpacing.lg)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(theme.tokens.card)
-        .overlay(
-            RoundedRectangle(cornerRadius: NRadius.md)
-                .stroke(theme.tokens.border, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
     }
 }
 
@@ -56,7 +48,7 @@ struct SettingsToggleRow: View {
     var body: some View {
         HStack {
             Text(label)
-                .font(.system(size: 13))
+                .font(NTypography.bodyLarge)
                 .foregroundStyle(theme.tokens.foreground)
             Spacer()
             Toggle(label, isOn: $isOn)
@@ -77,7 +69,7 @@ struct SettingsValueRow<Trailing: View>: View {
     var body: some View {
         HStack {
             Text(label)
-                .font(.system(size: 13))
+                .font(NTypography.bodyLarge)
                 .foregroundStyle(theme.tokens.foreground)
             Spacer()
             trailing()
@@ -99,7 +91,7 @@ struct SettingsStatusPill: View {
                 .foregroundStyle(isHealthy ? Color.green : Color.orange)
                 .accessibilityHidden(true)
             Text(label)
-                .font(.system(size: 12))
+                .font(NTypography.bodyMedium)
                 .foregroundStyle(theme.tokens.foreground)
         }
         .accessibilityElement(children: .combine)
@@ -141,9 +133,9 @@ struct SettingsAdvancedDisclosure: View {
                     .font(.system(size: 10, weight: .semibold))
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Advanced")
-                        .font(NTypography.labelMedium)
+                        .font(NTypography.bodyLarge)
                     Text("Agent Panel and environment values")
-                        .font(NTypography.captionSmall)
+                        .font(NTypography.caption)
                         .foregroundStyle(theme.tokens.mutedForeground)
                 }
                 Spacer()

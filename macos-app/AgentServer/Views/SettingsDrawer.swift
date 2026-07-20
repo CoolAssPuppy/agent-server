@@ -4,15 +4,15 @@ import AppKit
 import UserNotifications
 
 /// Settings drawer that pulls down over the main pane. Everyday controls lead
-/// in an adaptive grid. Infrastructure controls stay behind Advanced, and the
-/// whole surface scrolls when the window is short or narrow.
+/// in a flat, single-column form. Infrastructure controls stay behind Advanced,
+/// and the whole surface scrolls when the window is short.
 ///
 /// Visual rules:
 ///  - Overlay, not push. The drawer layers on top of the content; the main
 ///    pane stays put. The host is responsible for dimming the content behind.
-///  - Inset from the window chrome (`NSpacing.lg` on left and right).
+///  - Inset from the window chrome (`NSpacing.xxl` on left and right).
 ///  - Rounded bottom corners only.
-///  - No drop shadows on the cards themselves — flat border + card fill.
+///  - Sections share the drawer surface instead of introducing nested cards.
 ///  - Close affordance pinned upper-right of the drawer inside a muted circle.
 struct SettingsDrawer: View {
     @ObservedObject var monitor: StatusMonitor
@@ -74,61 +74,63 @@ struct SettingsDrawer: View {
     }
 
     private var content: some View {
-        GeometryReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: NSpacing.lg) {
-                    LazyVGrid(columns: gridColumns(for: proxy.size.width), alignment: .leading, spacing: NSpacing.lg) {
-                        ForEach(SettingsPresentation.primarySections, id: \.self) { section in
-                            card(for: section)
-                        }
-                    }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                sectionGroup(SettingsPresentation.primarySections)
 
-                    SettingsAdvancedDisclosure(isExpanded: $showAdvancedSettings)
+                Divider()
+                    .opacity(0.3)
+                    .padding(.vertical, NSpacing.lg)
 
-                    if showAdvancedSettings {
-                        LazyVGrid(columns: gridColumns(for: proxy.size.width), alignment: .leading, spacing: NSpacing.lg) {
-                            ForEach(SettingsPresentation.advancedSections, id: \.self) { section in
-                                card(for: section)
-                            }
-                        }
+                SettingsAdvancedDisclosure(isExpanded: $showAdvancedSettings)
+
+                if showAdvancedSettings {
+                    Divider()
+                        .opacity(0.3)
+                        .padding(.vertical, NSpacing.lg)
+                    sectionGroup(SettingsPresentation.advancedSections)
                         .accessibilityIdentifier("settings.advancedContent")
-                    }
                 }
-                .padding(.horizontal, NSpacing.xxl)
-                .padding(.bottom, NSpacing.xxl)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .scrollBounceBehavior(.basedOnSize)
+            .frame(maxWidth: 760, alignment: .leading)
+            .padding(.horizontal, NSpacing.xxl)
+            .padding(.bottom, NSpacing.xxl)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+    }
+
+    private func sectionGroup(_ sections: [SettingsSection]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(sections.enumerated()), id: \.element) { index, section in
+                if index > 0 {
+                    Divider()
+                        .opacity(0.2)
+                        .padding(.vertical, NSpacing.lg)
+                }
+                card(for: section)
+            }
         }
     }
 
-    private func gridColumns(for availableWidth: CGFloat) -> [GridItem] {
-        let contentWidth = max(0, availableWidth - (NSpacing.xxl * 2))
-        let count = SettingsPresentation.columnCount(availableWidth: Double(contentWidth))
-        return Array(
-            repeating: GridItem(.flexible(minimum: 280), spacing: NSpacing.lg, alignment: .top),
-            count: count
-        )
-    }
-
-    // MARK: - Cards
+    // MARK: - Sections
 
     @ViewBuilder
     private func card(for section: SettingsSection) -> some View {
         switch section {
-        case .general: generalCard
-        case .runtimes: runtimeCard
-        case .notifications: notificationsCard
-        case .storage: storageCard
-        case .updates: updatesCard
-        case .agentPanel: agentPanelCard
-        case .environment: environmentCard
+        case .general: generalSection
+        case .runtimes: runtimeSection
+        case .notifications: notificationsSection
+        case .storage: storageSection
+        case .updates: updatesSection
+        case .agentPanel: agentPanelSection
+        case .environment: environmentSection
         }
     }
 
-    private var generalCard: some View {
+    private var generalSection: some View {
         SettingsCard(
-            title: "General",
+            title: SettingsSection.general.title,
             titleContextActionLabel: monitor.demoModeState.contextMenuTitle,
             onTitleContextAction: monitor.toggleDemoMode
         ) {
@@ -167,8 +169,8 @@ struct SettingsDrawer: View {
         }
     }
 
-    private var runtimeCard: some View {
-        SettingsCard(title: "Coding agents") {
+    private var runtimeSection: some View {
+        SettingsCard(title: SettingsSection.runtimes.title) {
             Text("Use the versions already installed on this Mac.")
                 .font(NTypography.captionSmall)
                 .foregroundStyle(theme.tokens.mutedForeground)
@@ -190,8 +192,8 @@ struct SettingsDrawer: View {
         }
     }
 
-    private var storageCard: some View {
-        SettingsCard(title: "Agent Server folder") {
+    private var storageSection: some View {
+        SettingsCard(title: SettingsSection.storage.title) {
             Text("Your agents and private connection settings live here.")
                 .font(NTypography.captionSmall)
                 .foregroundStyle(theme.tokens.mutedForeground)
@@ -215,7 +217,7 @@ struct SettingsDrawer: View {
         }
     }
 
-    private var environmentCard: some View {
+    private var environmentSection: some View {
         EnvironmentSettingsCard(
             pairs: $pairs,
             revealedKeys: $revealedKeys,
@@ -228,8 +230,8 @@ struct SettingsDrawer: View {
         )
     }
 
-    private var agentPanelCard: some View {
-        SettingsCard(title: "Agent Panel") {
+    private var agentPanelSection: some View {
+        SettingsCard(title: SettingsSection.agentPanel.title) {
             SettingsToggleRow(label: "Send data to Agent Panel", isOn: panelSendingBinding)
                 .disabled(!agentPanelSettings.hasRequiredCredentials)
                 .opacity(agentPanelSettings.hasRequiredCredentials ? 1 : 0.45)
@@ -267,8 +269,8 @@ struct SettingsDrawer: View {
         }
     }
 
-    private var notificationsCard: some View {
-        SettingsCard(title: "Notifications") {
+    private var notificationsSection: some View {
+        SettingsCard(title: SettingsSection.notifications.title) {
             SettingsToggleRow(label: "Enable notifications", isOn: $notificationPreferences.enabled)
 
             if notificationPreferences.enabled {
@@ -350,8 +352,8 @@ struct SettingsDrawer: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    private var updatesCard: some View {
-        SettingsCard(title: "Updates") {
+    private var updatesSection: some View {
+        SettingsCard(title: SettingsSection.updates.title) {
             SettingsToggleRow(
                 label: "Automatically check for updates",
                 isOn: $updater.automaticallyChecksForUpdates
@@ -363,20 +365,10 @@ struct SettingsDrawer: View {
                     .foregroundStyle(theme.tokens.foreground)
             }
 
-            Button {
+            Button("Check for updates…") {
                 UpdaterManager.shared.checkForUpdates()
-            } label: {
-                Text("Check for updates…")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(theme.tokens.foreground)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, NSpacing.xs)
-                    .background(
-                        RoundedRectangle(cornerRadius: NRadius.sm)
-                            .stroke(theme.tokens.border, lineWidth: 1)
-                    )
             }
-            .buttonStyle(.plain)
+            .controlSize(.small)
         }
     }
 

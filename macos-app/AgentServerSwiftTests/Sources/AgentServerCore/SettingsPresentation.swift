@@ -6,6 +6,18 @@ public enum SettingsSection: String, CaseIterable, Equatable, Sendable {
     case updates
     case agentPanel
     case environment
+
+    public var title: String {
+        switch self {
+        case .general: "General"
+        case .runtimes: "Coding agents"
+        case .notifications: "Notifications"
+        case .storage: "Agent Server folder"
+        case .updates: "Updates"
+        case .agentPanel: "Agent Panel"
+        case .environment: "Environment"
+        }
+    }
 }
 
 public enum SettingsPresentation {
@@ -22,9 +34,4 @@ public enum SettingsPresentation {
         .environment,
     ]
 
-    /// Two cards stay readable once each can retain about 300 points of width.
-    /// Wider drawers remain at two columns to preserve a calm reading order.
-    public static func columnCount(availableWidth: Double) -> Int {
-        availableWidth >= 640 ? 2 : 1
-    }
 }
