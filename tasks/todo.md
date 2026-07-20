@@ -1279,6 +1279,7 @@ Selecting no files now counts as an explicit least-privilege answer to the file-
 - [x] Add failing Swift tests for Back and Set up later.
 - [x] Add a failing server test that preserves deferred services without repeating questions.
 - [x] Add Back before Cancel and Continue while keeping Cancel adjacent to Continue.
+- [x] Preserve completed question steps so Back moves from files to connections before the description.
 - [x] Add a quiet Set up later action inside the connections step.
 - [x] Preserve deferred services as Needs setup in the proposal.
 - [x] Run focused tests, full Swift and server tests, type-check, and the macOS build.
@@ -1286,4 +1287,4 @@ Selecting no files now counts as an explicit least-privilege answer to the file-
 
 ### Review
 
-The footer reads Back, Cancel, Continue from left to right, with Back separated slightly and hidden on the first step. The connection screen uses one quiet Set up later action rather than adding another permanent footer control. Deferred services survive as required Needs setup items, so the server does not repeat the same question and the proposal still makes the missing setup visible. Verification: 375 Swift behavior tests, 1,257 server tests, strict TypeScript checking, server compilation, and the local Debug macOS build pass.
+The footer reads Back, Cancel, Continue from left to right, with Back separated slightly and hidden on the first step. Completed question steps are retained, so Back from files restores Connections with Set up later still selected, and the next Back restores the description. The connection screen uses one quiet Set up later action rather than adding another permanent footer control. Deferred services survive as required Needs setup items, so the server does not repeat the same question and the proposal still makes the missing setup visible. Verification: 376 Swift behavior tests, 1,257 server tests, strict TypeScript checking, server compilation, and the local Debug macOS build pass.

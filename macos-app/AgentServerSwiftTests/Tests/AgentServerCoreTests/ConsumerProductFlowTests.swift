@@ -17,6 +17,35 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(flow.answers["tone"], .string("Concise"))
     }
 
+    func testBackMovesThroughEarlierQuestionStepsOneAtATime() {
+        let connection = CreationQuestion(
+            id: "connection-notion",
+            prompt: "Which Notion connection?",
+            kind: .service(name: "Notion", choices: ["Personal Notion"]),
+            isRequired: true,
+            choiceValues: ["notion-personal"]
+        )
+        let files = CreationQuestion(
+            id: "file-access",
+            prompt: "Which files may it use?",
+            kind: .fileAccess,
+            isRequired: true
+        )
+        var flow = AgentCreationFlow(request: "Review my manuscript in Notion")
+        flow.receiveQuestions([connection])
+        flow.deferConnectionSetup()
+        flow.receiveQuestions([files])
+
+        flow.goBack()
+
+        XCTAssertEqual(flow.phase, .questions)
+        XCTAssertEqual(flow.connectionQuestions, [connection])
+        XCTAssertEqual(flow.answers[connection.id], .string(CreationAnswerValue.setUpLater))
+
+        flow.goBack()
+        XCTAssertEqual(flow.phase, .request)
+    }
+
     func testConnectionSetupCanBeDeferredWithoutLosingTheRequestedServices() {
         var flow = AgentCreationFlow(request: "Send a summary to Notion and Slack")
         flow.receiveQuestions([

@@ -193,12 +193,15 @@ public struct AgentCreationFlow: Equatable, Sendable {
     public private(set) var hasSaved: Bool
     public private(set) var savedAgent: SavedAgentPresentation?
     public private(set) var safeTestState: SafeTestRunState?
+    private var questionHistory: [[CreationQuestion]]
+    private var editingQuestionId: String?
 
     public init(request: String) {
         self.phase = .request
         self.request = request
         self.questions = []
         self.answers = [:]
+        self.questionHistory = []
         self.shouldRunSafeTest = false
         self.hasSaved = false
     }
@@ -211,7 +214,11 @@ public struct AgentCreationFlow: Equatable, Sendable {
     }
 
     public var nextQuestion: CreationQuestion? {
-        questions.first { question in
+        if let editingQuestionId,
+           let question = questions.first(where: { $0.id == editingQuestionId }) {
+            return question
+        }
+        return questions.first { question in
             guard question.isRequired else { return false }
             return !question.isAnswered(by: answers[question.id])
         }
@@ -244,6 +251,9 @@ public struct AgentCreationFlow: Equatable, Sendable {
     public var canGoBack: Bool { phase == .questions || phase == .proposal }
 
     public mutating func receiveQuestions(_ questions: [CreationQuestion]) {
+        if !self.questions.isEmpty, self.questions != questions {
+            questionHistory.append(self.questions)
+        }
         for question in questions {
             if case .string(let existing)? = answers[question.id] {
                 if case .service = question.kind,
@@ -257,6 +267,7 @@ public struct AgentCreationFlow: Equatable, Sendable {
             if question.id == "contact-group-id" { answers.removeValue(forKey: "contact-fields") }
         }
         self.questions = questions
+        editingQuestionId = nil
         phase = .questions
     }
 
@@ -267,6 +278,7 @@ public struct AgentCreationFlow: Equatable, Sendable {
     public mutating func answer(questionId: String, value: CreationAnswerValue) {
         guard questions.contains(where: { $0.id == questionId }) else { return }
         answers[questionId] = value
+        if editingQuestionId == questionId { editingQuestionId = nil }
     }
 
     public mutating func deferConnectionSetup() {
@@ -276,6 +288,24 @@ public struct AgentCreationFlow: Equatable, Sendable {
     }
 
     public mutating func goBack() {
+        guard canGoBack else { return }
+        if phase == .proposal {
+            proposal = nil
+            failure = nil
+            guard !questions.isEmpty else {
+                phase = .request
+                return
+            }
+            phase = .questions
+            activateLastQuestionForEditing()
+            return
+        }
+        if let previousQuestions = questionHistory.popLast() {
+            questions = previousQuestions
+            phase = .questions
+            activateLastQuestionForEditing()
+            return
+        }
         returnToRequest()
     }
 
@@ -303,7 +333,15 @@ public struct AgentCreationFlow: Equatable, Sendable {
         guard phase == .proposal || phase == .questions else { return }
         proposal = nil
         failure = nil
+        questionHistory.removeAll()
+        editingQuestionId = nil
         phase = .request
+    }
+
+    private mutating func activateLastQuestionForEditing() {
+        editingQuestionId = connectionQuestions.isEmpty
+            ? questions.last(where: \.isRequired)?.id
+            : nil
     }
 
     public mutating func reviseRequest(_ request: String) {

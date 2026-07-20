@@ -455,7 +455,7 @@ struct GuidedAgentCreationView: View {
         HStack(spacing: NSpacing.sm) {
             Spacer()
             if flow.canGoBack {
-                Button("Back") { flow.goBack() }
+                Button("Back", action: goBack)
                     .accessibilityIdentifier(ConsumerFlowAccessibility.creationBack)
                 Spacer().frame(width: NSpacing.sm)
             }
@@ -551,6 +551,22 @@ struct GuidedAgentCreationView: View {
     private func deferConnectionSetup() {
         flow.deferConnectionSetup()
         submitConnectionSetup()
+    }
+
+    private func goBack() {
+        flow.goBack()
+        guard let question = flow.nextQuestion,
+              let savedAnswer = flow.answers[question.id] else { return }
+        switch savedAnswer {
+        case .string(let value):
+            if case .schedule = question.kind {
+                scheduleAnswer = ScheduleDraft(cron: value)
+            } else {
+                answer = value
+            }
+        case .fileGrants(let grants):
+            fileGrants = grants
+        }
     }
 
     private func refreshQuestion() {
