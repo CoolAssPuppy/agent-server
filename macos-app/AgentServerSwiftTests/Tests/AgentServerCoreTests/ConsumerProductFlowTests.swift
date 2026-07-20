@@ -457,6 +457,38 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(proposal.summary.risk, .low)
     }
 
+    func testProposalReviewUsesOneFlatHierarchyAndThreeConsumerTextRoles() {
+        let proposal = AgentProposalPresentation(
+            reviewId: "proposal-1",
+            name: "Morning briefing",
+            explanation: "Prepares a short briefing.",
+            schedule: "Every weekday at 8:00 a.m.",
+            permissions: ["Read selected files"],
+            fileAccess: [.init(path: "/Users/example/Briefing", canEdit: false)],
+            calendarAccess: [.init(id: "work", name: "Work", canEdit: false)],
+            reminderAccess: [.init(id: "tasks", name: "Tasks", actions: ["View reminders"])],
+            contactAccess: [.init(id: "team", name: "Team", details: ["Names and email addresses"])],
+            connections: [.init(name: "Notion", state: .connected)],
+            instructions: "Prepare the briefing.",
+            risk: .needsReview,
+            riskReason: "This agent reads calendar events."
+        )
+
+        XCTAssertEqual(proposal.reviewPolicy.surfaceStyle, .flatSections)
+        XCTAssertFalse(proposal.reviewPolicy.usesNestedCards)
+        XCTAssertEqual(proposal.reviewPolicy.consumerTextRoles, [.sectionTitle, .body, .secondary])
+        XCTAssertEqual(
+            proposal.reviewSections,
+            [.summary, .connections, .files, .calendars, .reminders, .contacts, .permissions, .instructions]
+        )
+    }
+
+    func testProposalReviewOmitsEmptyAccessSectionsWithoutHidingPermissionsOrInstructions() {
+        let proposal = AgentProposalPresentation.fixture(connections: [])
+
+        XCTAssertEqual(proposal.reviewSections, [.summary, .permissions, .instructions])
+    }
+
     func testCreationFailureExplainsWhetherAnythingWasSavedAndCanRetry() {
         var flow = AgentCreationFlow(request: "Send a weekly summary")
         flow.receiveProposal(.fixture())

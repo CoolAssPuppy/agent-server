@@ -177,6 +177,58 @@ public struct AgentProposalSummary: Equatable, Sendable {
     public let riskReason: String
 }
 
+public enum AgentProposalReviewSurfaceStyle: Equatable, Sendable {
+    case flatSections
+}
+
+public enum AgentProposalReviewTextRole: Equatable, Sendable {
+    case sectionTitle
+    case body
+    case secondary
+}
+
+public struct AgentProposalReviewPolicy: Equatable, Sendable {
+    public let surfaceStyle: AgentProposalReviewSurfaceStyle
+    public let usesNestedCards: Bool
+    public let consumerTextRoles: [AgentProposalReviewTextRole]
+
+    public init(
+        surfaceStyle: AgentProposalReviewSurfaceStyle = .flatSections,
+        usesNestedCards: Bool = false,
+        consumerTextRoles: [AgentProposalReviewTextRole] = [.sectionTitle, .body, .secondary]
+    ) {
+        self.surfaceStyle = surfaceStyle
+        self.usesNestedCards = usesNestedCards
+        self.consumerTextRoles = consumerTextRoles
+    }
+}
+
+public enum AgentProposalReviewSection: Hashable, Sendable {
+    case summary
+    case connections
+    case files
+    case calendars
+    case reminders
+    case contacts
+    case permissions
+    case instructions
+}
+
+public extension AgentProposalPresentation {
+    var reviewPolicy: AgentProposalReviewPolicy { AgentProposalReviewPolicy() }
+
+    var reviewSections: [AgentProposalReviewSection] {
+        var sections: [AgentProposalReviewSection] = [.summary]
+        if !connections.isEmpty { sections.append(.connections) }
+        if !fileAccess.isEmpty { sections.append(.files) }
+        if !calendarAccess.isEmpty { sections.append(.calendars) }
+        if !reminderAccess.isEmpty { sections.append(.reminders) }
+        if !contactAccess.isEmpty { sections.append(.contacts) }
+        sections.append(contentsOf: [.permissions, .instructions])
+        return sections
+    }
+}
+
 public struct AgentProposalReadiness: Equatable, Sendable {
     public let requiredSetupNames: [String]
 

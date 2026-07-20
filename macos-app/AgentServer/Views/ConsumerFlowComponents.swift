@@ -23,17 +23,40 @@ struct ConsumerFlowHeader: View {
 }
 
 struct ConsumerSection<Content: View>: View {
+    enum Style {
+        case card
+        case flat
+    }
+
     let title: String
+    let style: Style
     let content: Content
 
     @Environment(\.nTheme) private var theme
 
-    init(_ title: String, @ViewBuilder content: () -> Content) {
+    init(_ title: String, style: Style = .card, @ViewBuilder content: () -> Content) {
         self.title = title
+        self.style = style
         self.content = content()
     }
 
     var body: some View {
+        if style == .card {
+            sectionContent
+                .padding(NSpacing.lg)
+                .background(theme.tokens.card)
+                .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
+                .overlay {
+                    RoundedRectangle(cornerRadius: NRadius.md)
+                        .strokeBorder(theme.tokens.border.opacity(0.7))
+                }
+        } else {
+            sectionContent
+                .padding(.vertical, NSpacing.md)
+        }
+    }
+
+    private var sectionContent: some View {
         VStack(alignment: .leading, spacing: NSpacing.sm) {
             Text(title)
                 .font(NTypography.headlineSmall)
@@ -41,13 +64,6 @@ struct ConsumerSection<Content: View>: View {
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(NSpacing.lg)
-        .background(theme.tokens.card)
-        .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
-        .overlay {
-            RoundedRectangle(cornerRadius: NRadius.md)
-                .strokeBorder(theme.tokens.border.opacity(0.7))
-        }
     }
 }
 

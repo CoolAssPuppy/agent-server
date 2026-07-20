@@ -7,21 +7,34 @@ struct AgentProposalView: View {
     @Environment(\.nTheme) private var theme
     @State private var showsInstructions = false
     @State private var showsAdvanced = false
-    @State private var showsAccessDetails = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: NSpacing.md) {
-            summary
-            if !proposal.connections.isEmpty { connections }
-            accessDetails
-            instructions
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(proposal.reviewSections.enumerated()), id: \.element) { index, section in
+                if index > 0 { sectionDivider }
+                proposalSection(section)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func proposalSection(_ section: AgentProposalReviewSection) -> some View {
+        switch section {
+        case .summary: summary
+        case .connections: connections
+        case .files: files
+        case .calendars: calendars
+        case .reminders: reminders
+        case .contacts: contacts
+        case .permissions: permissions
+        case .instructions: instructions
         }
     }
 
     private var summary: some View {
-        ConsumerSection(proposal.summary.name) {
+        ConsumerSection(proposal.summary.name, style: .flat) {
             Text(proposal.summary.outcome)
-                .font(NTypography.bodyLarge)
+                .font(NTypography.bodyMedium)
                 .fixedSize(horizontal: false, vertical: true)
             Label(proposal.summary.schedule, systemImage: "calendar.badge.clock")
                 .font(NTypography.bodyMedium)
@@ -43,22 +56,8 @@ struct AgentProposalView: View {
         }
     }
 
-    private var accessDetails: some View {
-        DisclosureGroup("Access details", isExpanded: $showsAccessDetails) {
-            VStack(alignment: .leading, spacing: NSpacing.md) {
-                if !proposal.fileAccess.isEmpty { files }
-                if !proposal.calendarAccess.isEmpty { calendars }
-                if !proposal.reminderAccess.isEmpty { reminders }
-                if !proposal.contactAccess.isEmpty { contacts }
-                permissions
-            }
-            .padding(.top, NSpacing.sm)
-        }
-        .font(NTypography.bodyMedium)
-    }
-
     private var reminders: some View {
-        ConsumerSection("Reminder lists this agent can access") {
+        ConsumerSection("Reminder lists this agent can access", style: .flat) {
             VStack(spacing: NSpacing.xs) {
                 ForEach(proposal.reminderAccess, id: \.id) { access in
                     HStack {
@@ -66,7 +65,8 @@ struct AgentProposalView: View {
                         Text(resourceLabel(name: access.name, account: access.account))
                         Spacer()
                         Text(access.actions.joined(separator: ", "))
-                            .font(NTypography.badge)
+                            .font(NTypography.caption)
+                            .foregroundStyle(theme.tokens.mutedForeground)
                     }
                     .accessibilityElement(children: .combine)
                 }
@@ -75,7 +75,7 @@ struct AgentProposalView: View {
     }
 
     private var contacts: some View {
-        ConsumerSection("Contacts this agent can access") {
+        ConsumerSection("Contacts this agent can access", style: .flat) {
             VStack(spacing: NSpacing.xs) {
                 ForEach(proposal.contactAccess, id: \.id) { access in
                     HStack {
@@ -83,7 +83,8 @@ struct AgentProposalView: View {
                         Text(resourceLabel(name: access.name, account: access.account))
                         Spacer()
                         Text(access.details.joined(separator: ", "))
-                            .font(NTypography.badge)
+                            .font(NTypography.caption)
+                            .foregroundStyle(theme.tokens.mutedForeground)
                     }
                     .accessibilityElement(children: .combine)
                 }
@@ -92,7 +93,7 @@ struct AgentProposalView: View {
     }
 
     private var calendars: some View {
-        ConsumerSection("Calendars this agent can access") {
+        ConsumerSection("Calendars this agent can access", style: .flat) {
             VStack(spacing: NSpacing.xs) {
                 ForEach(proposal.calendarAccess, id: \.id) { access in
                     HStack {
@@ -100,7 +101,8 @@ struct AgentProposalView: View {
                         Text(resourceLabel(name: access.name, account: access.account))
                         Spacer()
                         Text(access.canEdit ? "Can add and change events" : "View only")
-                            .font(NTypography.badge)
+                            .font(NTypography.caption)
+                            .foregroundStyle(theme.tokens.mutedForeground)
                     }
                     .accessibilityElement(children: .combine)
                 }
@@ -114,7 +116,7 @@ struct AgentProposalView: View {
     }
 
     private var connections: some View {
-        ConsumerSection("Apps and services") {
+        ConsumerSection("Apps and services", style: .flat) {
             VStack(spacing: NSpacing.xs) {
                 ForEach(proposal.connections, id: \.name) { connection in
                     HStack {
@@ -125,7 +127,7 @@ struct AgentProposalView: View {
                             .font(NTypography.bodyMedium)
                         Spacer()
                         Text(connection.state.title)
-                            .font(NTypography.badge)
+                            .font(NTypography.caption)
                             .foregroundStyle(connection.state == .connected ? theme.tokens.success : theme.tokens.warning)
                     }
                     if !connection.reason.isEmpty {
@@ -146,7 +148,7 @@ struct AgentProposalView: View {
     }
 
     private var files: some View {
-        ConsumerSection("Files this agent can access") {
+        ConsumerSection("Files this agent can access", style: .flat) {
             VStack(spacing: NSpacing.xs) {
                 ForEach(proposal.fileAccess, id: \.path) { access in
                     HStack {
@@ -156,7 +158,8 @@ struct AgentProposalView: View {
                             .truncationMode(.middle)
                         Spacer()
                         Text(access.canEdit ? "Can make changes" : "Read-only")
-                            .font(NTypography.badge)
+                            .font(NTypography.caption)
+                            .foregroundStyle(theme.tokens.mutedForeground)
                     }
                     .accessibilityElement(children: .combine)
                 }
@@ -165,7 +168,7 @@ struct AgentProposalView: View {
     }
 
     private var permissions: some View {
-        ConsumerSection("What it is allowed to do") {
+        ConsumerSection("What it is allowed to do", style: .flat) {
             if proposal.permissions.isEmpty {
                 Text("No extra access requested")
                     .foregroundStyle(theme.tokens.mutedForeground)
@@ -173,7 +176,7 @@ struct AgentProposalView: View {
                 VStack(alignment: .leading, spacing: NSpacing.xs) {
                     ForEach(proposal.permissions, id: \.self) { permission in
                         Label(permission, systemImage: "checkmark.circle")
-                            .font(NTypography.bodyLarge)
+                            .font(NTypography.bodyMedium)
                     }
                 }
             }
@@ -181,9 +184,9 @@ struct AgentProposalView: View {
     }
 
     private var instructions: some View {
-        ConsumerSection("Instructions preview") {
+        ConsumerSection("Instructions preview", style: .flat) {
             Text(proposal.instructions)
-                .font(NTypography.bodyLarge)
+                .font(NTypography.bodyMedium)
                 .lineLimit(showsInstructions ? nil : 6)
                 .textSelection(.enabled)
             Button(showsInstructions ? "Show less" : "Read all instructions") {
@@ -197,6 +200,10 @@ struct AgentProposalView: View {
                     .padding(.top, NSpacing.xs)
             }
         }
+    }
+
+    private var sectionDivider: some View {
+        Divider().opacity(0.45)
     }
 
     private func serviceIcon(_ name: String) -> String {

@@ -289,10 +289,7 @@ struct GuidedAgentCreationView: View {
                 }
             }
         }
-        .padding(NSpacing.lg)
-        .background(theme.tokens.card)
-        .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border))
-        .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
+        .padding(.vertical, NSpacing.sm)
     }
 
     private var fileAccessPicker: some View {
@@ -396,11 +393,7 @@ struct GuidedAgentCreationView: View {
                     .foregroundStyle(theme.tokens.mutedForeground)
             }
             .padding(NSpacing.md)
-            .background(isSelected ? theme.tokens.primary.opacity(0.08) : theme.tokens.background)
-            .overlay {
-                RoundedRectangle(cornerRadius: NRadius.sm)
-                    .stroke(isSelected ? theme.tokens.primary.opacity(0.4) : theme.tokens.border)
-            }
+            .background(isSelected ? theme.tokens.primary.opacity(0.08) : Color.clear)
             .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
             .contentShape(Rectangle())
         }
@@ -410,23 +403,20 @@ struct GuidedAgentCreationView: View {
 
     @ViewBuilder
     private func serviceBrandIcon(_ serviceName: String?) -> some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: NRadius.sm)
-                .fill(theme.tokens.card)
+        Group {
             if let serviceName, let asset = CapabilityBrand.asset(forServiceName: serviceName) {
                 Image(asset)
                     .renderingMode(.template)
                     .resizable()
                     .scaledToFit()
                     .foregroundStyle(theme.tokens.foreground)
-                    .padding(8)
+                    .padding(6)
             } else {
                 Image(systemName: "app.connected.to.app.below.fill")
                     .foregroundStyle(theme.tokens.foreground)
             }
         }
-        .frame(width: 40, height: 40)
-        .overlay { RoundedRectangle(cornerRadius: NRadius.sm).stroke(theme.tokens.border) }
+        .frame(width: 36, height: 36)
         .accessibilityHidden(true)
     }
 
