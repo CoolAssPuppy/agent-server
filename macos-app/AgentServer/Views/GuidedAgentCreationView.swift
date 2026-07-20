@@ -186,6 +186,13 @@ struct GuidedAgentCreationView: View {
                     serviceChoice(question, serviceName: serviceName, choices: choices)
                 }
             }
+            HStack {
+                Spacer()
+                Button("Set up later", action: deferConnectionSetup)
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationSetUpLater)
+            }
         }
     }
 
@@ -447,6 +454,11 @@ struct GuidedAgentCreationView: View {
     private var footer: some View {
         HStack(spacing: NSpacing.sm) {
             Spacer()
+            if flow.canGoBack {
+                Button("Back") { flow.goBack() }
+                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationBack)
+                Spacer().frame(width: NSpacing.sm)
+            }
             Button("Cancel", action: onCancel)
                 .keyboardShortcut(.cancelAction)
                 .disabled(isBusy)
@@ -481,7 +493,6 @@ struct GuidedAgentCreationView: View {
                     .disabled(!(flow.nextQuestion?.isAnswered(by: currentAnswerValue) ?? false))
             }
         case .proposal:
-            Button("Edit details") { flow.returnToRequest() }
             if let proposal = flow.proposal, !proposal.readiness.canSave {
                 Button(proposal.readiness.primaryActionTitle, action: requestConnectionSetup)
                     .buttonStyle(.borderedProminent)
@@ -535,6 +546,11 @@ struct GuidedAgentCreationView: View {
         guard flow.areConnectionQuestionsAnswered, flow.canRequestProposal else { return }
         flow.beginProposalRequest()
         prepare()
+    }
+
+    private func deferConnectionSetup() {
+        flow.deferConnectionSetup()
+        submitConnectionSetup()
     }
 
     private func refreshQuestion() {

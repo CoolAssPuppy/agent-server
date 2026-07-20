@@ -2,6 +2,47 @@ import XCTest
 @testable import AgentServerCore
 
 final class ConsumerProductFlowTests: XCTestCase {
+    func testCreationCanReturnToTheDescriptionFromALaterStep() {
+        var flow = AgentCreationFlow(request: "Send a weekly summary")
+        flow.receiveQuestions([
+            CreationQuestion(id: "tone", prompt: "Which tone?", kind: .text, isRequired: true),
+        ])
+        flow.answer(questionId: "tone", value: "Concise")
+
+        XCTAssertTrue(flow.canGoBack)
+        flow.goBack()
+
+        XCTAssertEqual(flow.phase, .request)
+        XCTAssertEqual(flow.request, "Send a weekly summary")
+        XCTAssertEqual(flow.answers["tone"], .string("Concise"))
+    }
+
+    func testConnectionSetupCanBeDeferredWithoutLosingTheRequestedServices() {
+        var flow = AgentCreationFlow(request: "Send a summary to Notion and Slack")
+        flow.receiveQuestions([
+            CreationQuestion(
+                id: "connection-notion",
+                prompt: "Which Notion connection?",
+                kind: .service(name: "Notion", choices: ["Personal Notion"]),
+                isRequired: true,
+                choiceValues: ["notion-personal"]
+            ),
+            CreationQuestion(
+                id: "connection-slack",
+                prompt: "Which Slack connection?",
+                kind: .service(name: "Slack", choices: []),
+                isRequired: true
+            ),
+        ])
+
+        flow.deferConnectionSetup()
+
+        XCTAssertTrue(flow.areConnectionQuestionsAnswered)
+        XCTAssertTrue(flow.canRequestProposal)
+        XCTAssertEqual(flow.answers["connection-notion"], .string(CreationAnswerValue.setUpLater))
+        XCTAssertEqual(flow.answers["connection-slack"], .string(CreationAnswerValue.setUpLater))
+    }
+
     func testConnectionSetupGroupsEveryMentionedService() {
         var flow = AgentCreationFlow(request: "Save to Notion and create a Linear issue")
         flow.receiveQuestions([
@@ -671,6 +712,8 @@ final class ConsumerProductFlowTests: XCTestCase {
     func testCriticalControlsHaveStableAccessibilityIdentifiers() {
         XCTAssertEqual(ConsumerFlowAccessibility.sidebarCreateAgent, "sidebar.createAgent")
         XCTAssertEqual(ConsumerFlowAccessibility.creationRequest, "creation.request")
+        XCTAssertEqual(ConsumerFlowAccessibility.creationBack, "creation.back")
+        XCTAssertEqual(ConsumerFlowAccessibility.creationSetUpLater, "creation.setUpLater")
         XCTAssertEqual(ConsumerFlowAccessibility.creationReview, "creation.review")
         XCTAssertEqual(ConsumerFlowAccessibility.creationSimilar, "creation.similar")
         XCTAssertEqual(ConsumerFlowAccessibility.creationConnectionSetup, "creation.connectionSetup")

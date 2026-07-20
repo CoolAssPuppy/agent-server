@@ -2,6 +2,8 @@ public enum ConsumerFlowAccessibility {
     public static let sidebarCreateAgent = "sidebar.createAgent"
     public static let creationRequest = "creation.request"
     public static let creationContinue = "creation.continue"
+    public static let creationBack = "creation.back"
+    public static let creationSetUpLater = "creation.setUpLater"
     public static let creationReview = "creation.review"
     public static let creationSave = "creation.save"
     public static let creationSaveAndTest = "creation.saveAndTest"

@@ -34,6 +34,8 @@ public enum CreationResourcePickerMode: Equatable, Sendable {
 }
 
 public enum CreationAnswerValue: Equatable, Sendable {
+    public static let setUpLater = "__set_up_later__"
+
     case string(String)
     case fileGrants([CreationFileGrant])
 
@@ -228,7 +230,8 @@ public struct AgentCreationFlow: Equatable, Sendable {
 
     public var areConnectionQuestionsAnswered: Bool {
         !connectionQuestions.isEmpty && connectionQuestions.allSatisfy { question in
-            !question.requiresConnectionSetup && answers[question.id] != nil
+            guard let answer = answers[question.id] else { return false }
+            return answer == .string(CreationAnswerValue.setUpLater) || !question.requiresConnectionSetup
         }
     }
 
@@ -237,6 +240,8 @@ public struct AgentCreationFlow: Equatable, Sendable {
     }
 
     public var canRetry: Bool { failure?.canRetry == true }
+
+    public var canGoBack: Bool { phase == .questions || phase == .proposal }
 
     public mutating func receiveQuestions(_ questions: [CreationQuestion]) {
         for question in questions {
@@ -262,6 +267,16 @@ public struct AgentCreationFlow: Equatable, Sendable {
     public mutating func answer(questionId: String, value: CreationAnswerValue) {
         guard questions.contains(where: { $0.id == questionId }) else { return }
         answers[questionId] = value
+    }
+
+    public mutating func deferConnectionSetup() {
+        for question in connectionQuestions {
+            answers[question.id] = .string(CreationAnswerValue.setUpLater)
+        }
+    }
+
+    public mutating func goBack() {
+        returnToRequest()
     }
 
     public mutating func beginProposalRequest() {

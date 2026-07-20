@@ -30,6 +30,8 @@ export type ProposalModel = {
 
 export type CreateProposalInput = ProposalRequestInput & { model?: ProposalModel };
 
+const SET_UP_LATER_ANSWER = '__set_up_later__';
+
 export class ProposalGenerationUnavailableError extends Error {
   constructor(readonly modelStatus: 'unavailable' | 'invalid') {
     super('The local creation service could not verify the proposal. Nothing was saved.');
@@ -175,11 +177,15 @@ function applyAuthoritativeConnections(
   proposal: CreationProposal,
   request: ProposalRequest,
 ): CreationProposal | undefined {
+  const deferred = deferredConnectionServices(request);
   const available = new Map(servicesRelevantToRequest(request).map((service) => [service.id, service]));
   const selectedIds = explicitlySelectedServiceIds(request);
-  const proposalIds = proposal.connections.map((connection) => connection.id);
+  const retainedConnections = proposal.connections.filter((connection) => (
+    !deferred.some((service) => connectionMatchesService(connection.id, connection.name, service, request))
+  ));
+  const proposalIds = retainedConnections.map((connection) => connection.id);
   if (new Set(proposalIds).size !== proposalIds.length) return undefined;
-  const proposedConnections = proposal.connections.map((connection) => {
+  const proposedConnections = retainedConnections.map((connection) => {
     const service = available.get(connection.id);
     if (!service) return undefined;
     return {
@@ -209,6 +215,13 @@ function applyAuthoritativeConnections(
     connections: [
       ...proposedConnections.filter((connection) => connection !== undefined),
       ...missingSelectedConnections.filter((connection) => connection !== undefined),
+      ...deferred.map((service) => ({
+        id: service.id,
+        name: service.name,
+        required: true,
+        status: 'needs_setup' as const,
+        reason: 'Set up this connection before the agent can use it.',
+      })),
     ],
   };
 }
@@ -323,13 +336,22 @@ function localProposal(request: ProposalRequest): CreationProposal | undefined {
   const intent = safeIntent(request);
   const trigger = confirmedTrigger(request);
   const relevantServices = servicesRelevantToRequest(request);
-  const connections = relevantServices.map((service) => ({
-    id: service.id,
-    name: service.name,
-    required: true,
-    status: 'connected' as const,
-    reason: 'You selected this service for the agent.',
-  }));
+  const connections = [
+    ...relevantServices.map((service) => ({
+      id: service.id,
+      name: service.name,
+      required: true,
+      status: 'connected' as const,
+      reason: 'You selected this service for the agent.',
+    })),
+    ...deferredConnectionServices(request).map((service) => ({
+      id: service.id,
+      name: service.name,
+      required: true,
+      status: 'needs_setup' as const,
+      reason: 'Set up this connection before the agent can use it.',
+    })),
+  ];
   const fileAccess = (confirmedFileAccess(request) ?? []).map((grant) => ({
     ...grant,
     is_suggestion: false,
@@ -431,6 +453,7 @@ function unansweredConnectionQuestions(request: ProposalRequest): ProposalFallba
     const answer = request.answers.find((candidate) => (
       candidate.question_id === questionId && typeof candidate.value === 'string'
     ));
+    if (answer?.value === SET_UP_LATER_ANSWER) return [];
     if (connections.some((connection) => connection.id === answer?.value)) return [];
     return [{
       id: questionId,
@@ -448,6 +471,7 @@ function unansweredConnectionQuestions(request: ProposalRequest): ProposalFallba
 export function servicesRelevantToRequest(request: ProposalRequest): ProposalRequest['connectedServices'] {
   const intent = request.request.toLowerCase();
   const selectedIds = explicitlySelectedServiceIds(request);
+  const deferredIds = new Set(deferredConnectionServices(request).map((service) => service.id));
 
   const groups = new Map<string, number>();
   for (const service of request.connectedServices) {
@@ -455,9 +479,10 @@ export function servicesRelevantToRequest(request: ProposalRequest): ProposalReq
     groups.set(group, (groups.get(group) ?? 0) + 1);
   }
   return request.connectedServices.filter((service) => {
-    if (selectedIds.has(service.id)) return true;
     const serviceId = 'service_id' in service ? service.service_id : undefined;
     const group = serviceId ?? service.id;
+    if (deferredIds.has(group)) return false;
+    if (selectedIds.has(service.id)) return true;
     if ((groups.get(group) ?? 0) > 1) return false;
     const terms = [serviceId, service.name.split(/\s|\(/)[0]]
       .filter((term): term is string => Boolean(term && term.length >= 3));
@@ -470,10 +495,35 @@ export function servicesRelevantToRequest(request: ProposalRequest): ProposalReq
 
 function explicitlySelectedServiceIds(request: ProposalRequest): Set<string> {
   return new Set(request.answers.flatMap((answer) => (
-    answer.question_id.startsWith('connection-') && typeof answer.value === 'string'
+    answer.question_id.startsWith('connection-')
+      && typeof answer.value === 'string'
+      && answer.value !== SET_UP_LATER_ANSWER
       ? [answer.value]
       : []
   )));
+}
+
+function deferredConnectionServices(request: ProposalRequest): typeof CONNECTION_SERVICES {
+  const ids = new Set(request.answers.flatMap((answer) => (
+    answer.question_id.startsWith('connection-') && answer.value === SET_UP_LATER_ANSWER
+      ? [answer.question_id.slice('connection-'.length)]
+      : []
+  )));
+  return CONNECTION_SERVICES.filter((service) => ids.has(service.id));
+}
+
+function connectionMatchesService(
+  connectionId: string,
+  connectionName: string,
+  service: (typeof CONNECTION_SERVICES)[number],
+  request: ProposalRequest,
+): boolean {
+  if (connectionId === service.id || connectionName.toLowerCase() === service.name.toLowerCase()) return true;
+  return request.connectedServices.some((connection) => (
+    connection.id === connectionId
+      && 'service_id' in connection
+      && connection.service_id === service.id
+  ));
 }
 
 function unansweredScopeQuestion(request: ProposalRequest): ProposalFallbackQuestion | undefined {

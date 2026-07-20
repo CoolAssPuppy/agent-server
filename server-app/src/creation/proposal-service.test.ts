@@ -149,6 +149,25 @@ describe('guided agent proposal creation', () => {
     }
   });
 
+  it('keeps deferred connections visible without asking the same setup question again', async () => {
+    const result = await createAgentProposal({
+      request: 'Every morning, save a short note in Notion.',
+      timezone: 'Europe/Lisbon',
+      connectedServices: [{
+        id: 'notion-personal', service_id: 'notion', name: 'Personal Notion',
+        source: 'configured_api', actions: ['read', 'write'], actions_known: true,
+      }],
+      answers: [{ question_id: 'connection-notion', value: '__set_up_later__' }],
+    });
+
+    expect(result).toMatchObject({
+      status: 'proposal',
+      proposal: {
+        connections: [{ id: 'notion', name: 'Notion', required: true, status: 'needs_setup' }],
+      },
+    });
+  });
+
   it('chooses an existing required service before asking for file access', async () => {
     const fake = modelReturning(completeProposal());
     const request = 'Every morning, review a Word manuscript and store the results in Personal Notion.';
