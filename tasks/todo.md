@@ -1634,3 +1634,13 @@ Agent Server 3.1.2 build 30 passed 1,257 server tests and 376 Swift behavior tes
 ### Review
 
 The Settings drawer now uses the same card, row, divider, and control geometry throughout. Storage, update, restart, telemetry, and environment actions share compact Settings button primitives with visible keyboard focus. The header has the reference subtitle and boundary, Advanced is a card-aligned disclosure, and the content background separates cards from the drawer surface. The Apple design and clean-and-refactor passes also split reusable buttons into a focused file. Verification passed with 472 Swift tests, 1,332 server tests with 4 skipped, strict TypeScript checking, ESLint, the server build, and the unsigned Debug macOS build. The rebuilt drawer was inspected from the running local app.
+## Version 3.3.0 release
+
+- [x] Run the release script with version 3.3.0 and release text “Bug fixes”.
+- [x] Verify signing, notarization, Sparkle signature, uploaded DMG, and live appcast.
+- [x] Confirm version and build metadata changed only as expected.
+- [x] Commit release metadata and push main.
+
+### Review
+
+Agent Server 3.3.0 build 33 passed 1,332 server tests with 4 skipped, 472 Swift behavior tests, strict TypeScript checking, ESLint, and the signed universal Release archive build. Apple accepted the app submission `4aab5ff3-95d1-4a6b-8fc9-461bbeb17971` and DMG submission `0f81493c-6228-42d0-ac5b-e8dae5ff353b`. Both notarization tickets were stapled and validated. The Sparkle-signed DMG and appcast were published, and the live feed reports Version 3.3.0 with the release text “Bug fixes”.
