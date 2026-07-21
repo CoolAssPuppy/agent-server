@@ -1,0 +1,532 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Agent Server</title>
+    <link>https://downloads.strategicnerds.com/apps/agent-server/appcast.xml</link>
+    <description>Agent Server updates</description>
+    <language>en</language>
+    <item>
+      <title>Version 3.3.3</title>
+      <pubDate>Tue, 21 Jul 2026 12:26:32 +0000</pubDate>
+      <sparkle:version>36</sparkle:version>
+      <sparkle:shortVersionString>3.3.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Bug fixes.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.3.3.dmg"
+        sparkle:edSignature="fOlF6k3Y5/Uz/HodpKCFDc0B2sXudY4y43sO6GTzfq7NSinsqHbzwcrc3XUlgouIzcVZKquWwBGbN2H3zakVBg=="
+        length="18749265"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 3.3.2</title>
+      <pubDate>Tue, 21 Jul 2026 12:09:23 +0000</pubDate>
+      <sparkle:version>35</sparkle:version>
+      <sparkle:shortVersionString>3.3.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          Bug fixes
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.3.2.dmg"
+        sparkle:edSignature="ImM82pEw7WDyR5OnmIx2a2s7LEFwuta6oT9o0rDbmP9lZ7YSLNyw67oR1uSvzjUQGYnu8pyBBp1Uyu89xPhwBw=="
+        length="18750632"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 3.3.1</title>
+      <pubDate>Tue, 21 Jul 2026 11:34:56 +0000</pubDate>
+      <sparkle:version>34</sparkle:version>
+      <sparkle:shortVersionString>3.3.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          Bug fixes
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.3.1.dmg"
+        sparkle:edSignature="BSkRFlftannPM2ih5j/5SLnehGt56CVVYxtL1+yEy01oI4LDyYzeSLq0O0e/wI1hdzKYyTXnUF1hm0vn5s27Bw=="
+        length="202447864"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 3.3.0</title>
+      <pubDate>Tue, 21 Jul 2026 10:18:34 +0000</pubDate>
+      <sparkle:version>33</sparkle:version>
+      <sparkle:shortVersionString>3.3.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Bug fixes</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.3.0.dmg"
+        sparkle:edSignature="h1QY/1UhWZS+vk3oelmnr+lyde6arO3g68IBX9dLcHyL8buAuDlyRgY80GHnc+2z5iVBr7fp3ejfw9K9VL0XCA=="
+        length="202448218"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 3.2.0</title>
+      <pubDate>Mon, 20 Jul 2026 21:05:22 +0000</pubDate>
+      <sparkle:version>32</sparkle:version>
+      <sparkle:shortVersionString>3.2.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Now you can choose which LLM your agents use</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.2.0.dmg"
+        sparkle:edSignature="YoehtEF1qQFEF2GwnNb0AilITnVccGKWYNZ0dJbxat7S7a9mESPt40CQbrUBcUy5qsE2VaP181RdGMBbobS3BA=="
+        length="191714452"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 3.1.3</title>
+      <pubDate>Mon, 20 Jul 2026 19:25:22 +0000</pubDate>
+      <sparkle:version>31</sparkle:version>
+      <sparkle:shortVersionString>3.1.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Bug fixes</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.1.3.dmg"
+        sparkle:edSignature="m08+jvZsps9NpBYmpnJ7AU3d1lWV8+SVkJejYX53qL3RYnHcFXe397s9ehQ3E4BXgSESgsvw0cLdUv/M48j1DQ=="
+        length="191674256"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 3.1.2</title>
+      <pubDate>Mon, 20 Jul 2026 17:31:03 +0000</pubDate>
+      <sparkle:version>30</sparkle:version>
+      <sparkle:shortVersionString>3.1.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Bug fixes</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.1.2.dmg"
+        sparkle:edSignature="OGILYJiMSLeVqq77LNuWQiNq47TJfMsXCLzGWBB2A9Pxla9yC3TlbnvtKwxS4HxTx/f8G+x4oTQPyPxwo6mDAw=="
+        length="191674619"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 3.1.1</title>
+      <pubDate>Mon, 20 Jul 2026 15:11:52 +0000</pubDate>
+      <sparkle:version>29</sparkle:version>
+      <sparkle:shortVersionString>3.1.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Restores the bouncy theme picker and fixes agents not loading after an update.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.1.1.dmg"
+        sparkle:edSignature="6xNNTUWCuqlh0cM8+3jjsj7EiZxw2eEyBN83X3MLoabkXJGn3yWWm/TrJcrxSaPWPHex7IzKrZT0BetceQNPDw=="
+        length="191688837"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 3.1</title>
+      <pubDate>Mon, 20 Jul 2026 12:15:43 +0000</pubDate>
+      <sparkle:version>28</sparkle:version>
+      <sparkle:shortVersionString>3.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Try the new Agent Creator. More to come.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.1.dmg"
+        sparkle:edSignature="C9MU0UN4mqfKxLRUnUZFayJm7FbzANEGKEbwJAW0PQpYDMmMaBZEhyi7nDMJDAXOQi0LM0GL1mt8bdrSiMqtBw=="
+        length="191638219"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 3.0.2</title>
+      <pubDate>Sat, 18 Jul 2026 06:09:34 +0000</pubDate>
+      <sparkle:version>27</sparkle:version>
+      <sparkle:shortVersionString>3.0.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <p>Setup: when you connect a Slack or Telegram bot, Agent Server now reminds you to message it once so it can reach you, so scheduled notifications never quietly go nowhere.</p>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.0.2.dmg"
+        sparkle:edSignature="1vv87XPdp8SkG/xms5aJfgEHVwdFroM/RD5LDAQJoFzWYYVxHgYLvlBUpyKKYmCNLjD36zjvibxhQIQ7fEzJBg=="
+        length="189605257"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 3.0.1</title>
+      <pubDate>Sat, 18 Jul 2026 05:51:12 +0000</pubDate>
+      <sparkle:version>26</sparkle:version>
+      <sparkle:shortVersionString>3.0.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <p>Messaging: a Slack or Telegram message to your agent bot now routes to the right agent from a keyword, so short prompts like "French quiz" reach the correct agent.</p>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.0.1.dmg"
+        sparkle:edSignature="yiIU4KpqXC8+5Mf1/IYavae/6uVL+r/jVqVp0fd51Q/YusS/z2oe6AAfPs0ftyNN0p5ISMbJsvCRGqsj45YKBw=="
+        length="189594157"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 3.0.0</title>
+      <pubDate>Sat, 18 Jul 2026 00:56:27 +0000</pubDate>
+      <sparkle:version>25</sparkle:version>
+      <sparkle:shortVersionString>3.0.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <p>Fully reimagined Agent Server with much better support for creating, controlling, and communicating with your agents.</p>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.0.0.dmg"
+        sparkle:edSignature="e2RdsmBENFsllFezxprofMYk2RVUNDd0XSqzkvyYNLXRVj+RslvNhddA7ziBECDApe/ycHv8PGXiWGkAEAeoCw=="
+        length="189604393"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 2.4.2</title>
+      <pubDate>Mon, 13 Jul 2026 00:26:58 +0000</pubDate>
+      <sparkle:version>24</sparkle:version>
+      <sparkle:shortVersionString>2.4.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Bug fixes</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-2.4.2.dmg"
+        sparkle:edSignature="t1Xv4ymJw9WG9pmkIAw0r/osDjwrGBiuQTMx5LKrxcyJVvYg8S4OP0N1nKD+1a8+r9N8ZvzWQbvMsQneb20pDg=="
+        length="187536210"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 2.4.1</title>
+      <pubDate>Sun, 12 Jul 2026 22:44:20 +0000</pubDate>
+      <sparkle:version>23</sparkle:version>
+      <sparkle:shortVersionString>2.4.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Now supports Codex for non-interactive agent execution.</li><li>Security hardening.</li><li>Bug fixes.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-2.4.1.dmg"
+        sparkle:edSignature="IYgocgWxk+/BZe6NIwK8SR5PRz10jBSgxIoFc2p7CG5QXz76WiUFPQGYQa4W1Fd5SA1WQkWfJBbY6cYag938BA=="
+        length="187518545"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 2.4.0</title>
+      <pubDate>Sun, 12 Jul 2026 22:03:21 +0000</pubDate>
+      <sparkle:version>22</sparkle:version>
+      <sparkle:shortVersionString>2.4.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Now supports Codex for non-interactive agent execution.</li><li>Security hardening.</li><li>Bug fixes.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-2.4.0.dmg"
+        sparkle:edSignature="Q8UxuNEHKf1LhLIKYaIvlEvVA5nKEMoTpWvt4r0qXz5gAZHo1YqIrJPipWhJtsCfEMJvrn8KT/dvdEHP8JlVBA=="
+        length="187517030"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 2.3.1</title>
+      <pubDate>Tue, 07 Jul 2026 05:02:46 +0000</pubDate>
+      <sparkle:version>21</sparkle:version>
+      <sparkle:shortVersionString>2.3.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Bug fixes</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-2.3.1.dmg"
+        sparkle:edSignature="hOpHRKO9KXeRvY32MTEktUm4wiGeG+0NohCweq/ReQp/aEQRAMjruXrpaTbcp16N2kIdncg9EYU9+NjPB15FBQ=="
+        length="72917454"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 2.3.0</title>
+      <pubDate>Fri, 03 Jul 2026 07:16:13 +0000</pubDate>
+      <sparkle:version>20</sparkle:version>
+      <sparkle:shortVersionString>2.3.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Agents connected to Agent Panel now receive run triggers and decisions over a direct realtime connection instead of a long-lived event stream. No configuration changes are required.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-2.3.0.dmg"
+        sparkle:edSignature="fv9ldncUBzHcfNDYvJvTofDnU/BzXg+t1UexeH2cgqCGRu/Az8C8cJ4Z4d2z0fU4LGQVqN3DjHUMAlUWIDh2Bw=="
+        length="72880978"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 2.2.3</title>
+      <pubDate>Thu, 02 Jul 2026 07:11:22 +0000</pubDate>
+      <sparkle:version>19</sparkle:version>
+      <sparkle:shortVersionString>2.2.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Bug fixes</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-2.2.3.dmg"
+        sparkle:edSignature="iqWOHluheQB4b0blr6RYuvSAE5WlPJ2axicACnfBnEd7Hyj0r4xAvsDelNZCQtQsHo3UVNA7ph+xBql8pu8qAg=="
+        length="71136345"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 2.2.2</title>
+      <pubDate>Thu, 02 Jul 2026 04:54:32 +0000</pubDate>
+      <sparkle:version>17</sparkle:version>
+      <sparkle:shortVersionString>2.2.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Bug fixes</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-2.2.2.dmg"
+        sparkle:edSignature="LZO2G/Ty9gOv0x7nqRnzl7XXFNBa6u3IHYfxCjwz18eX+ADMzixs0R6oLncUsetLiP0l5AxzT47sK717uGIvCQ=="
+        length="70959485"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 2.2.1</title>
+      <pubDate>Tue, 28 Apr 2026 23:18:27 +0000</pubDate>
+      <sparkle:version>16</sparkle:version>
+      <sparkle:shortVersionString>2.2.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Bug fixes to telemetry server.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://downloads.strategicnerds.com/apps/agent-server/AgentServer-2.2.1.dmg"
+        sparkle:edSignature="Jvm4o2ZVvEyo7mcN7+niKUIsW44NrDDiieE+biJfL+NiKf8ihtZkuiXCCakUbSzcednVCX5yaaE6WKjcTNfbCw=="
+        length="32346142"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 2.2.0</title>
+      <pubDate>Sun, 19 Apr 2026 18:20:31 +0000</pubDate>
+      <sparkle:version>11</sparkle:version>
+      <sparkle:shortVersionString>2.2.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Added system notifications</li><li>Bug fixes to address stuck agents</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://downloads.strategicnerds.com/apps/agent-server/AgentServer-2.2.0.dmg"
+        sparkle:edSignature="+M27pB+6DJDQGJFqW3wGqx0W8VHucPUa1kt+h5NNZQxTPX2YeXOF+3BU/H6Rk1A+37qVTBH/nXahYgRVxbFtCA=="
+        length="32327716"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 2.1.2</title>
+      <pubDate>Sun, 19 Apr 2026 09:29:05 +0000</pubDate>
+      <sparkle:version>10</sparkle:version>
+      <sparkle:shortVersionString>2.1.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Bug fixes</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://downloads.strategicnerds.com/apps/agent-server/AgentServer-2.1.2.dmg"
+        sparkle:edSignature="q+8IX/UpRHmLhvUiUBoruFtf5bk5JkurzL6HA0GZtFO39SC+hVSzoHcd6kY7bnMEcU5Lsj/LPCmSlyPfPuBlAQ=="
+        length="32097188"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 2.1.1</title>
+      <pubDate>Wed, 15 Apr 2026 20:52:57 +0000</pubDate>
+      <sparkle:version>9</sparkle:version>
+      <sparkle:shortVersionString>2.1.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Bug fixes</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://downloads.strategicnerds.com/apps/agent-server/AgentServer-2.1.1.dmg"
+        sparkle:edSignature="WeLcfOmrcm0u5QPcbHPIR+JGXdhWyth+YLdrT7aMSDT7fK/ZtfC9iIvmJMuTMu42DGEHdwbc/RYHPzSAkNQUCg=="
+        length="32099783"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 2.1.0</title>
+      <pubDate>Wed, 15 Apr 2026 12:04:38 +0000</pubDate>
+      <sparkle:version>8</sparkle:version>
+      <sparkle:shortVersionString>2.1.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>More reliable Agent Server.</li><li>Edit prompt and configuration (YAML) for agents.</li><li>Dashboard now populates with data.</li><li>Optional anonymized telemetry.</li><li>Lots of bug fixes.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://downloads.strategicnerds.com/apps/agent-server/AgentServer-2.1.0.dmg"
+        sparkle:edSignature="b1Kg8LfjK5mgSPQViBNzbrtXvP4OoENe2EMTShRTgW2PeUYGqwaeMN7y5u24j7Y5C+/AJ0eifAffllWjLHy1CA=="
+        length="32059731"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 2.0.0</title>
+      <pubDate>Tue, 14 Apr 2026 23:03:07 +0000</pubDate>
+      <sparkle:version>7</sparkle:version>
+      <sparkle:shortVersionString>2.0.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Fresh new user interface.</li><li>Support for Decisions — agents can now pause mid-run to ask you for permission to continue or information they need to proceed.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://downloads.strategicnerds.com/apps/agent-server/AgentServer-2.0.0.dmg"
+        sparkle:edSignature="+iizeLt4N93g020JXPvKiv7/MwHcxKlWUDAODnuHo17VWPs16fkyQfCj1VDgctttXeTyp2KqGVOU2k4F24VpBA=="
+        length="30883866"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 1.0.4</title>
+      <pubDate>Mon, 13 Apr 2026 13:11:21 +0000</pubDate>
+      <sparkle:version>6</sparkle:version>
+      <sparkle:shortVersionString>1.0.4</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Folder picker now allows creating new folders.</li><li>Fixed washed-out text in Kujan and Graff (light) themes.</li><li>Improved primary text contrast in dark themes.</li><li>Running agents now display a glowing, pulsing green indicator in the agent list.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://downloads.strategicnerds.com/apps/agent-server/AgentServer-1.0.4.dmg"
+        sparkle:edSignature="J1UKSFRhb/5A2CG3tekacYTeU8ywL99UmcjSwKnAV+5U8T7xuJVNxnDCUUq+ZGeVUBvnjh4KPu/9yLIZVlEVAw=="
+        length="30544773"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 1.0.3</title>
+      <pubDate>Sun, 12 Apr 2026 20:25:53 +0000</pubDate>
+      <sparkle:version>5</sparkle:version>
+      <sparkle:shortVersionString>1.0.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Fix Sparkle auto-update relaunch: dismiss open sheets so terminate+relaunch completes cleanly.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://downloads.strategicnerds.com/apps/agent-server/AgentServer-1.0.3.dmg"
+        sparkle:edSignature="QmZOaVbTbf4OKwjTKd3POHtNTWUHBJdtElNQ7rOFyc6LCLKR52J3kLae4Jr2tMfOZwj9dhGWe65w9QDB/VHsBg=="
+        length="30540135"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 1.0.2</title>
+      <pubDate>Sun, 12 Apr 2026 20:14:09 +0000</pubDate>
+      <sparkle:version>4</sparkle:version>
+      <sparkle:shortVersionString>1.0.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Added About window with Strategic Nerds logo, copyright, and Venmo link.</li>
+          <li>Custom main menu with Check for Updates and Settings items.</li>
+          <li>Venmo support link in Settings footer.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://downloads.strategicnerds.com/apps/agent-server/AgentServer-1.0.2.dmg"
+        sparkle:edSignature="2QHmV4idylgDWhn2e45/XuaDG72brZDeKvC0PiYQU82ja3Xfu9Sg/G/CGeUpOgq+SuprVwudVYmHS+44F2Y+Bw=="
+        length="30536778"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
+      <title>Version 1.0.1</title>
+      <pubDate>Sun, 12 Apr 2026 19:45:00 +0000</pubDate>
+      <sparkle:version>2</sparkle:version>
+      <sparkle:shortVersionString>1.0.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>First release with auto-update support via Sparkle.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://downloads.strategicnerds.com/apps/agent-server/AgentServer-1.0.1.dmg"
+        sparkle:edSignature="/UiJW6BpOr61RdURjxuakkgdmi7NhY4eDhmTXf9/rSwEC9Hf2qlvHvIBCcO1pUfluZna04F6i2IR15ZkPEywBg=="
+        length="30509024"
+        type="application/x-apple-diskimage" />
+    </item>
+  </channel>
+</rss>
