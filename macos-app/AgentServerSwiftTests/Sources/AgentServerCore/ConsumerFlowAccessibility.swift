@@ -29,5 +29,6 @@ public enum ConsumerFlowAccessibility {
 public enum CreationRequestEditorPresentation {
     public static let usesMarkdownEditor = true
     public static let fillsAvailableSpace = true
+    public static let footerHeight: Double = 46
     public static let helperText = "Agents are Markdown files in which you describe what they do and how they do it."
 }

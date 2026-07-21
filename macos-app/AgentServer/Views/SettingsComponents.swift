@@ -22,16 +22,20 @@ struct SettingsGroup<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: NSpacing.md) {
+        VStack(alignment: .leading, spacing: NSpacing.sm) {
             Group {
                 if titleInteraction.allowsTextSelection {
-                    Text(title).textSelection(.enabled)
+                    Text(displayTitle).textSelection(.enabled)
                 } else {
-                    Text(title).textSelection(.disabled)
+                    Text(displayTitle).textSelection(.disabled)
                 }
             }
-                .font(NTypography.headlineSmall)
-                .foregroundStyle(theme.tokens.foreground)
+                .font(.system(
+                    size: CGFloat(SettingsPresentation.cardHeadingFontSize),
+                    weight: .semibold
+                ))
+                .tracking(SettingsPresentation.cardHeadingTracking)
+                .foregroundStyle(theme.tokens.mutedForeground)
                 .contextMenu {
                     if let titleContextActionLabel, let onTitleContextAction {
                         Button(titleContextActionLabel, action: onTitleContextAction)
@@ -41,7 +45,8 @@ struct SettingsGroup<Content: View>: View {
                 content()
             }
         }
-        .padding(NSpacing.lg)
+        .padding(.horizontal, CGFloat(SettingsPresentation.cardHorizontalPadding))
+        .padding(.vertical, CGFloat(SettingsPresentation.cardVerticalPadding))
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(theme.tokens.card)
         .overlay {
@@ -54,6 +59,10 @@ struct SettingsGroup<Content: View>: View {
     private var titleInteraction: SettingsGroupTitleInteraction {
         SettingsGroupTitleInteraction(hasContextAction: onTitleContextAction != nil)
     }
+
+    private var displayTitle: String {
+        SettingsPresentation.usesUppercaseCardHeadings ? title.uppercased() : title
+    }
 }
 
 struct SettingsToggleRow: View {
@@ -65,7 +74,10 @@ struct SettingsToggleRow: View {
     var body: some View {
         HStack {
             Text(label)
-                .font(NTypography.bodyLarge)
+                .font(.system(
+                    size: CGFloat(SettingsPresentation.rowTitleFontSize),
+                    weight: .medium
+                ))
                 .foregroundStyle(theme.tokens.foreground)
             Spacer()
             Toggle(label, isOn: $isOn)
@@ -86,7 +98,10 @@ struct SettingsValueRow<Trailing: View>: View {
     var body: some View {
         HStack {
             Text(label)
-                .font(NTypography.bodyLarge)
+                .font(.system(
+                    size: CGFloat(SettingsPresentation.rowTitleFontSize),
+                    weight: .medium
+                ))
                 .foregroundStyle(theme.tokens.foreground)
             Spacer()
             trailing()
@@ -123,7 +138,7 @@ struct SettingsRestartNotice: View {
     var body: some View {
         HStack(alignment: .center, spacing: NSpacing.sm) {
             Text("Restart Agent Server to use this change.")
-                .font(NTypography.captionSmall)
+                .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
                 .foregroundStyle(theme.tokens.mutedForeground)
             Spacer(minLength: NSpacing.xs)
             Button("Restart now", action: action)
@@ -150,15 +165,18 @@ struct SettingsAdvancedDisclosure: View {
                     .font(.system(size: 10, weight: .semibold))
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Advanced")
-                        .font(NTypography.bodyLarge)
+                        .font(.system(
+                            size: CGFloat(SettingsPresentation.rowTitleFontSize),
+                            weight: .medium
+                        ))
                     Text("Agent Panel and environment values")
-                        .font(NTypography.caption)
+                        .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
                         .foregroundStyle(theme.tokens.mutedForeground)
                 }
                 Spacer()
             }
             .foregroundStyle(theme.tokens.foreground)
-            .padding(.vertical, NSpacing.sm)
+            .padding(.vertical, NSpacing.xs)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

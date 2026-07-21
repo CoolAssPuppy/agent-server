@@ -20,6 +20,10 @@ struct TopDrawerSurface<HeaderActions: View, Content: View>: View {
     let showsDivider: Bool
     let titleIcon: String?
     let titleStatus: TopDrawerTitleStatus
+    let titleFont: Font
+    let headerHorizontalPadding: CGFloat
+    let headerTopPadding: CGFloat
+    let headerBottomPadding: CGFloat
     private let headerActions: HeaderActions
     private let content: Content
 
@@ -33,6 +37,10 @@ struct TopDrawerSurface<HeaderActions: View, Content: View>: View {
         showsDivider: Bool = true,
         titleIcon: String? = nil,
         titleStatus: TopDrawerTitleStatus = .normal,
+        titleFont: Font = NTypography.headlineLarge,
+        headerHorizontalPadding: CGFloat = NSpacing.xxl,
+        headerTopPadding: CGFloat = 28,
+        headerBottomPadding: CGFloat = NSpacing.md,
         @ViewBuilder headerActions: () -> HeaderActions,
         @ViewBuilder content: () -> Content
     ) {
@@ -43,6 +51,10 @@ struct TopDrawerSurface<HeaderActions: View, Content: View>: View {
         self.showsDivider = showsDivider
         self.titleIcon = titleIcon
         self.titleStatus = titleStatus
+        self.titleFont = titleFont
+        self.headerHorizontalPadding = headerHorizontalPadding
+        self.headerTopPadding = headerTopPadding
+        self.headerBottomPadding = headerBottomPadding
         self.headerActions = headerActions()
         self.content = content()
     }
@@ -75,7 +87,7 @@ struct TopDrawerSurface<HeaderActions: View, Content: View>: View {
                     .accessibilityHidden(true)
             }
             Text(title)
-                .font(NTypography.headlineLarge)
+                .font(titleFont)
                 .foregroundStyle(theme.tokens.foreground)
                 .accessibilityAddTraits(.isHeader)
             Spacer()
@@ -87,9 +99,9 @@ struct TopDrawerSurface<HeaderActions: View, Content: View>: View {
             )
             .keyboardShortcut("w", modifiers: .command)
         }
-        .padding(.horizontal, NSpacing.xxl)
-        .padding(.top, 28)
-        .padding(.bottom, NSpacing.md)
+        .padding(.horizontal, headerHorizontalPadding)
+        .padding(.top, headerTopPadding)
+        .padding(.bottom, headerBottomPadding)
     }
 
     private func toolbarButton(
@@ -151,6 +163,10 @@ extension TopDrawerSurface where HeaderActions == EmptyView {
         showsDivider: Bool = true,
         titleIcon: String? = nil,
         titleStatus: TopDrawerTitleStatus = .normal,
+        titleFont: Font = NTypography.headlineLarge,
+        headerHorizontalPadding: CGFloat = NSpacing.xxl,
+        headerTopPadding: CGFloat = 28,
+        headerBottomPadding: CGFloat = NSpacing.md,
         @ViewBuilder content: () -> Content
     ) {
         self.init(
@@ -161,6 +177,10 @@ extension TopDrawerSurface where HeaderActions == EmptyView {
             showsDivider: showsDivider,
             titleIcon: titleIcon,
             titleStatus: titleStatus,
+            titleFont: titleFont,
+            headerHorizontalPadding: headerHorizontalPadding,
+            headerTopPadding: headerTopPadding,
+            headerBottomPadding: headerBottomPadding,
             headerActions: EmptyView.init,
             content: content
         )

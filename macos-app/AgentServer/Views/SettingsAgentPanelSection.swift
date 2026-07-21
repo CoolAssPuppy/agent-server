@@ -17,7 +17,7 @@ struct SettingsAgentPanelSection: View {
                 .opacity(hasRequiredCredentials ? 1 : 0.45)
             if !hasRequiredCredentials {
                 Text("Add both the Agent Panel URL and API key below to turn this on.")
-                    .font(NTypography.captionSmall)
+                    .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
                     .foregroundStyle(theme.tokens.mutedForeground)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -35,7 +35,7 @@ struct SettingsAgentPanelSection: View {
     private var restartNotice: some View {
         HStack(spacing: NSpacing.sm) {
             Text("Restart Agent Server to use this change.")
-                .font(NTypography.captionSmall)
+                .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
                 .foregroundStyle(theme.tokens.mutedForeground)
             Spacer(minLength: NSpacing.xs)
             Button("Restart now", action: onRestart)
@@ -76,7 +76,7 @@ struct SettingsAgentPanelSection: View {
             isOn: telemetryIncludesMetadata
         )
         Text("Per-agent settings override these values. Restart the server to apply changes.")
-            .font(NTypography.captionSmall)
+            .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
             .foregroundStyle(theme.tokens.mutedForeground)
             .fixedSize(horizontal: false, vertical: true)
     }

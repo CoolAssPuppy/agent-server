@@ -71,7 +71,7 @@ struct SettingsStorageSection: View {
     var body: some View {
         SettingsGroup(title: SettingsSection.storage.title) {
             Text("Your agents and private connection settings live here.")
-                .font(NTypography.captionSmall)
+                .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
                 .foregroundStyle(theme.tokens.mutedForeground)
             Text(workspace.homeDirectory.path)
                 .font(NTypography.caption)
@@ -108,7 +108,7 @@ struct SettingsNotificationsSection: View {
             }
             if isAuthorizationDenied {
                 Text("Notifications are blocked in System Settings. Enable them under Notifications > Agent Server.")
-                    .font(NTypography.captionSmall)
+                    .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
                     .foregroundStyle(theme.tokens.mutedForeground)
                     .fixedSize(horizontal: false, vertical: true)
             }

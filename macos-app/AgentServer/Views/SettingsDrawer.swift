@@ -22,7 +22,14 @@ struct SettingsDrawer: View {
             title: "Settings",
             closeLabel: "Close settings",
             onClose: router.close,
-            showsDivider: false
+            showsDivider: false,
+            titleFont: .system(
+                size: CGFloat(SettingsPresentation.drawerTitleFontSize),
+                weight: .semibold
+            ),
+            headerHorizontalPadding: CGFloat(SettingsPresentation.headerHorizontalPadding),
+            headerTopPadding: CGFloat(SettingsPresentation.headerVerticalPadding),
+            headerBottomPadding: CGFloat(SettingsPresentation.headerVerticalPadding)
         ) {
             content
         }
@@ -39,7 +46,10 @@ struct SettingsDrawer: View {
     private var content: some View {
         GeometryReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: NSpacing.lg) {
+                VStack(
+                    alignment: .leading,
+                    spacing: CGFloat(SettingsPresentation.interCardSpacing)
+                ) {
                     primarySectionColumns
                     SettingsAdvancedDisclosure(isExpanded: $showAdvancedSettings)
                     if showAdvancedSettings {
@@ -50,8 +60,9 @@ struct SettingsDrawer: View {
                         .accessibilityIdentifier("settings.advancedContent")
                     }
                 }
-                .padding(.horizontal, NSpacing.xxl)
-                .padding(.bottom, NSpacing.xxl)
+                .padding(.horizontal, CGFloat(SettingsPresentation.outerHorizontalPadding))
+                .padding(.top, CGFloat(SettingsPresentation.outerTopPadding))
+                .padding(.bottom, CGFloat(SettingsPresentation.outerBottomPadding))
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
             .scrollBounceBehavior(.basedOnSize)
@@ -59,9 +70,15 @@ struct SettingsDrawer: View {
     }
 
     private var primarySectionColumns: some View {
-        HStack(alignment: .top, spacing: NSpacing.lg) {
+        HStack(
+            alignment: .top,
+            spacing: CGFloat(SettingsPresentation.interCardSpacing)
+        ) {
             ForEach(SettingsPresentation.primaryColumns.indices, id: \.self) { columnIndex in
-                VStack(alignment: .leading, spacing: NSpacing.lg) {
+                VStack(
+                    alignment: .leading,
+                    spacing: CGFloat(SettingsPresentation.interCardSpacing)
+                ) {
                     ForEach(SettingsPresentation.primaryColumns[columnIndex], id: \.self) {
                         sectionView(for: $0)
                     }
@@ -75,19 +92,22 @@ struct SettingsDrawer: View {
         _ sections: [SettingsSection],
         availableWidth: CGFloat
     ) -> some View {
-        let contentWidth = max(0, availableWidth - (NSpacing.xxl * 2))
+        let contentWidth = max(
+            0,
+            availableWidth - (CGFloat(SettingsPresentation.outerHorizontalPadding) * 2)
+        )
         let count = SettingsPresentation.columnCount(availableWidth: Double(contentWidth))
         return LazyVGrid(
             columns: Array(
                 repeating: GridItem(
                     .flexible(minimum: 280),
-                    spacing: NSpacing.lg,
+                    spacing: CGFloat(SettingsPresentation.interCardSpacing),
                     alignment: .top
                 ),
                 count: count
             ),
             alignment: .leading,
-            spacing: NSpacing.lg
+            spacing: CGFloat(SettingsPresentation.interCardSpacing)
         ) {
             ForEach(sections, id: \.self) { sectionView(for: $0) }
         }

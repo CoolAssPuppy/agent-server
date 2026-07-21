@@ -16,7 +16,7 @@ struct EnvironmentSettingsCard: View {
     var body: some View {
         SettingsGroup(title: "Environment") {
             Text("Advanced values used by the local server. Secrets stay on this Mac.")
-                .font(NTypography.captionSmall)
+                .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
                 .foregroundStyle(theme.tokens.mutedForeground)
 
             VStack(alignment: .leading, spacing: NSpacing.xs) {

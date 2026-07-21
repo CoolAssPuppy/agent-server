@@ -1,5 +1,19 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Match the actual Settings drawer and window footers
+
+- [x] Add behavior contracts for the compact Settings drawer typography and spacing.
+- [x] Match the global Settings drawer to Mail Notifier's type scale and card geometry.
+- [x] Make the creation wizard footer the same height as the sidebar footer.
+- [x] Run focused and full Swift tests, rebuild, relaunch locally, and commit without pushing.
+
+Review:
+
+- The global Settings drawer now matches Mail Notifier's 18 pt title, 10 pt uppercase card headings, 13 pt row labels, 11 pt supporting copy, 14 pt card gaps, and compact header, outer, and card padding.
+- The creation wizard and sidebar footers now share one 46 pt height contract and the same top divider treatment.
+- The focused presentation tests and all 469 Swift behavior tests passed. The unsigned macOS Debug build passed with only pre-existing notification concurrency warnings.
+- The local app and server relaunched from the verified build at `2026-07-21T07:58:50.655Z`.
+
 ## Match Edit agent to Mail Notifier settings
 
 - [x] Replace the native Form and Section layout with explicit compact cards modeled on Mail Notifier.

@@ -77,6 +77,8 @@
 - Async detail requests must carry the identity of the selected object and request generation. Reject late logs or hydration data after the selection changes.
 - Safety is a primary agent state, not an icon-only utility. Show connection readiness, stale review state, scan failure, and risk in one visible row with a direct recovery action.
 - A fixed-height drawer still needs one outer scroll surface. Keep common settings in a stable reading order, adapt only the column count, and place infrastructure controls behind one clearly described disclosure.
+- When the user names the Settings drawer, inspect and change the global Settings surface. Do not substitute an agent-specific edit form because it happens to contain settings.
+- Window footers that share one baseline must use one height contract. Content-specific padding must not make one pane's footer taller than its neighbor.
 
 ## Do not equate an operation timeout with server reachability
 

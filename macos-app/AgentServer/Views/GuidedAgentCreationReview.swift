@@ -38,8 +38,11 @@ extension GuidedAgentCreationView {
             footerActions
         }
         .padding(.horizontal, NSpacing.xl)
-        .padding(.vertical, NSpacing.md)
+        .frame(height: WindowFooterMetrics.height)
         .background(.bar)
+        .overlay(alignment: .top) {
+            Divider().opacity(WindowFooterMetrics.dividerOpacity)
+        }
     }
 
     @ViewBuilder

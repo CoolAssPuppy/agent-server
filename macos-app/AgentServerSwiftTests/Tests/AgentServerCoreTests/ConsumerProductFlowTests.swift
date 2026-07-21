@@ -817,6 +817,7 @@ final class ConsumerProductFlowTests: XCTestCase {
     func testCreationRequestUsesTheFullSizeMarkdownEditor() {
         XCTAssertTrue(CreationRequestEditorPresentation.usesMarkdownEditor)
         XCTAssertTrue(CreationRequestEditorPresentation.fillsAvailableSpace)
+        XCTAssertEqual(CreationRequestEditorPresentation.footerHeight, 46)
         XCTAssertEqual(
             CreationRequestEditorPresentation.helperText,
             "Agents are Markdown files in which you describe what they do and how they do it."

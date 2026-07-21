@@ -6,7 +6,7 @@ import AgentServerDesignSystem
 /// footer from here rather than from their own content, which would otherwise
 /// drift apart as the content in either one changes.
 enum WindowFooterMetrics {
-    static let height: CGFloat = 46
+    static let height = CGFloat(CreationRequestEditorPresentation.footerHeight)
     static let dividerOpacity: Double = 0.4
 }
 

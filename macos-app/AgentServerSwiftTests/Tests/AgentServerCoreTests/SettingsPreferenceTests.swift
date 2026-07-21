@@ -34,6 +34,23 @@ final class SettingsPreferenceTests: XCTestCase {
         XCTAssertEqual(SettingsPresentation.columnCount(availableWidth: 620), 1)
     }
 
+    func testSettingsMatchMailNotifierCompactTypographyAndSpacing() {
+        XCTAssertEqual(SettingsPresentation.drawerTitleFontSize, 18)
+        XCTAssertEqual(SettingsPresentation.cardHeadingFontSize, 10)
+        XCTAssertEqual(SettingsPresentation.rowTitleFontSize, 13)
+        XCTAssertEqual(SettingsPresentation.supportingFontSize, 11)
+        XCTAssertEqual(SettingsPresentation.cardHeadingTracking, 0.6)
+        XCTAssertTrue(SettingsPresentation.usesUppercaseCardHeadings)
+        XCTAssertEqual(SettingsPresentation.interCardSpacing, 14)
+        XCTAssertEqual(SettingsPresentation.outerHorizontalPadding, 22)
+        XCTAssertEqual(SettingsPresentation.outerTopPadding, 18)
+        XCTAssertEqual(SettingsPresentation.outerBottomPadding, 14)
+        XCTAssertEqual(SettingsPresentation.headerHorizontalPadding, 24)
+        XCTAssertEqual(SettingsPresentation.headerVerticalPadding, 18)
+        XCTAssertEqual(SettingsPresentation.cardHorizontalPadding, 20)
+        XCTAssertEqual(SettingsPresentation.cardVerticalPadding, 18)
+    }
+
     func testPrimarySettingsKeepUpdatesInTheRightColumn() {
         XCTAssertEqual(
             SettingsPresentation.primaryColumns,
