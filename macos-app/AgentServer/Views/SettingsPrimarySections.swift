@@ -16,17 +16,32 @@ struct SettingsGeneralSection: View {
             titleContextActionLabel: monitor.demoModeState.contextMenuTitle,
             onTitleContextAction: monitor.toggleDemoMode
         ) {
-            SettingsToggleRow(label: "Launch at login", isOn: $launchAtLogin)
+            SettingsToggleRow(
+                label: "Launch at login",
+                description: "Start Agent Server when you log in.",
+                isOn: $launchAtLogin
+            )
                 .onChange(of: launchAtLogin) { _, value in
                     LaunchAtLoginManager.shared.isEnabled = value
                 }
+            SettingsRowDivider()
             SettingsToggleRow(
                 label: "Resume scheduled agents after wake",
+                description: "Run work missed while this Mac was asleep.",
                 isOn: $resumeAfterWake
             )
-            if requiresRestart { SettingsRestartNotice(action: onRestart) }
-            SettingsToggleRow(label: "Help improve Agent Server", isOn: $telemetryOptIn)
+            if requiresRestart {
+                SettingsRestartNotice(action: onRestart)
+                    .padding(.top, 8)
+            }
+            SettingsRowDivider()
+            SettingsToggleRow(
+                label: "Help improve Agent Server",
+                description: "Send anonymous usage data.",
+                isOn: $telemetryOptIn
+            )
                 .onChange(of: telemetryOptIn) { _, value in Telemetry.setOptedIn(value) }
+            SettingsRowDivider()
             SettingsValueRow(label: "Server status") {
                 SettingsStatusPill(
                     isHealthy: monitor.isServerReachable,
@@ -50,10 +65,13 @@ struct SettingsRuntimeSection: View {
     var body: some View {
         SettingsGroup(title: SettingsSection.runtimes.title) {
             SettingsToggleRow(label: "Use installed Claude", isOn: $usesInstalledClaude)
+            SettingsRowDivider()
             SettingsToggleRow(label: "Use installed Codex", isOn: $usesInstalledCodex)
+            SettingsRowDivider()
             SettingsToggleRow(label: "Use installed Kimi", isOn: $usesInstalledKimi)
             if requiresRestart {
                 SettingsRestartNotice(action: onRestart)
+                    .padding(.top, 10)
                     .accessibilityIdentifier("settings.restartRuntime")
             }
         }
@@ -70,24 +88,26 @@ struct SettingsStorageSection: View {
 
     var body: some View {
         SettingsGroup(title: SettingsSection.storage.title) {
-            Text("Your agents and private connection settings live here.")
-                .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
-                .foregroundStyle(theme.tokens.mutedForeground)
-            Text(workspace.homeDirectory.path)
-                .font(NTypography.caption)
-                .foregroundStyle(theme.tokens.foreground)
-                .lineLimit(2)
-                .truncationMode(.middle)
-                .textSelection(.enabled)
-            HStack(spacing: NSpacing.sm) {
-                Button("Choose…", action: onChoose)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Your agents and private connection settings live here.")
+                    .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                Text(workspace.homeDirectory.path)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(theme.tokens.foreground)
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+            }
+            HStack(spacing: 8) {
+                SettingsSecondaryButton(title: "Choose…", action: onChoose)
                     .accessibilityIdentifier("settings.chooseAgentServerFolder")
-                Button("Open in Finder", action: onOpen)
+                SettingsSecondaryButton(title: "Open in Finder", action: onOpen)
                 if workspace != .default() {
-                    Button("Use default", action: onRestoreDefault)
+                    SettingsSecondaryButton(title: "Use default", action: onRestoreDefault)
                 }
             }
-            .controlSize(.small)
+            .padding(.top, 12)
         }
     }
 }
@@ -101,6 +121,7 @@ struct SettingsNotificationsSection: View {
         SettingsGroup(title: SettingsSection.notifications.title) {
             SettingsToggleRow(label: "Enable notifications", isOn: $preferences.enabled)
             if preferences.enabled {
+                SettingsRowDivider()
                 SettingsToggleRow(
                     label: "Notify for agent output",
                     isOn: $preferences.includeAgentOutput
@@ -111,6 +132,7 @@ struct SettingsNotificationsSection: View {
                     .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
                     .foregroundStyle(theme.tokens.mutedForeground)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 6)
             }
         }
         .task {
@@ -130,13 +152,17 @@ struct SettingsUpdatesSection: View {
                 label: "Automatically check for updates",
                 isOn: $updater.automaticallyChecksForUpdates
             )
+            SettingsRowDivider()
             SettingsValueRow(label: "Current version") {
                 Text(version)
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(theme.tokens.foreground)
             }
-            Button("Check for updates…", action: updater.checkForUpdates)
-                .controlSize(.small)
+            SettingsRowDivider()
+            SettingsFullWidthActionButton(
+                title: "Check for updates…",
+                action: updater.checkForUpdates
+            )
         }
     }
 

@@ -14,6 +14,7 @@ enum TopDrawerTitleStatus {
 
 struct TopDrawerSurface<HeaderActions: View, Content: View>: View {
     let title: String
+    let subtitle: String?
     let closeLabel: String
     let onClose: () -> Void
     let onEscape: () -> Void
@@ -31,6 +32,7 @@ struct TopDrawerSurface<HeaderActions: View, Content: View>: View {
 
     init(
         title: String,
+        subtitle: String? = nil,
         closeLabel: String,
         onClose: @escaping () -> Void,
         onEscape: (() -> Void)? = nil,
@@ -45,6 +47,7 @@ struct TopDrawerSurface<HeaderActions: View, Content: View>: View {
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
+        self.subtitle = subtitle
         self.closeLabel = closeLabel
         self.onClose = onClose
         self.onEscape = onEscape ?? onClose
@@ -86,10 +89,17 @@ struct TopDrawerSurface<HeaderActions: View, Content: View>: View {
                     .frame(width: 20, height: 20)
                     .accessibilityHidden(true)
             }
-            Text(title)
-                .font(titleFont)
-                .foregroundStyle(theme.tokens.foreground)
-                .accessibilityAddTraits(.isHeader)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(titleFont)
+                    .foregroundStyle(theme.tokens.foreground)
+                    .accessibilityAddTraits(.isHeader)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                }
+            }
             Spacer()
             headerActions
             toolbarButton(
@@ -157,6 +167,7 @@ struct TopDrawerSurface<HeaderActions: View, Content: View>: View {
 extension TopDrawerSurface where HeaderActions == EmptyView {
     init(
         title: String,
+        subtitle: String? = nil,
         closeLabel: String,
         onClose: @escaping () -> Void,
         onEscape: (() -> Void)? = nil,
@@ -171,6 +182,7 @@ extension TopDrawerSurface where HeaderActions == EmptyView {
     ) {
         self.init(
             title: title,
+            subtitle: subtitle,
             closeLabel: closeLabel,
             onClose: onClose,
             onEscape: onEscape,

@@ -136,3 +136,4 @@
 - Wizard Back must restore the immediately preceding completed step and its choices. Returning every Back action to the opening description breaks user expectations and makes deferred connection choices appear lost.
 - A review action must state the behavior it authorizes and show a durable result. Never disable approval because the prior review is stale when approving the current scan is the intended recovery path, and do not show approval controls for risk levels that run without approval.
 - A security summary should name a risk level once. Findings belong in inline disclosures beneath that summary; opening another horizontal panel for one row fragments the review and creates inconsistent treatment across agents.
+- Matching reference typography does not match the reference layout. Copy the row geometry, divider rhythm, control sizing, button treatment, and alignment as one coherent component system before calling a settings surface consistent.

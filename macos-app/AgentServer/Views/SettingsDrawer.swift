@@ -17,12 +17,15 @@ struct SettingsDrawer: View {
     @State var didLoad = false
     @State var workspaceReloadTask: Task<Void, Never>?
 
+    @Environment(\.nTheme) private var theme
+
     var body: some View {
         TopDrawerSurface(
             title: "Settings",
+            subtitle: "Preferences for Agent Server",
             closeLabel: "Close settings",
             onClose: router.close,
-            showsDivider: false,
+            showsDivider: true,
             titleFont: .system(
                 size: CGFloat(SettingsPresentation.drawerTitleFontSize),
                 weight: .semibold
@@ -66,6 +69,7 @@ struct SettingsDrawer: View {
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
             .scrollBounceBehavior(.basedOnSize)
+            .background(theme.tokens.background)
         }
     }
 

@@ -22,7 +22,7 @@ struct SettingsGroup<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: NSpacing.sm) {
+        VStack(alignment: .leading, spacing: 0) {
             Group {
                 if titleInteraction.allowsTextSelection {
                     Text(displayTitle).textSelection(.enabled)
@@ -41,7 +41,8 @@ struct SettingsGroup<Content: View>: View {
                         Button(titleContextActionLabel, action: onTitleContextAction)
                     }
                 }
-            VStack(alignment: .leading, spacing: NSpacing.xxs) {
+                .padding(.bottom, CGFloat(SettingsPresentation.cardHeadingBottomPadding))
+            VStack(alignment: .leading, spacing: 0) {
                 content()
             }
         }
@@ -67,46 +68,62 @@ struct SettingsGroup<Content: View>: View {
 
 struct SettingsToggleRow: View {
     let label: String
+    var description: String? = nil
     @Binding var isOn: Bool
 
     @Environment(\.nTheme) private var theme
 
     var body: some View {
-        HStack {
-            Text(label)
-                .font(.system(
-                    size: CGFloat(SettingsPresentation.rowTitleFontSize),
-                    weight: .medium
-                ))
-                .foregroundStyle(theme.tokens.foreground)
-            Spacer()
+        SettingsValueRow(label: label, description: description) {
             Toggle(label, isOn: $isOn)
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .controlSize(.small)
+                .tint(theme.tokens.primary)
         }
-        .padding(.vertical, 4)
     }
 }
 
 struct SettingsValueRow<Trailing: View>: View {
     let label: String
+    var description: String? = nil
     @ViewBuilder let trailing: () -> Trailing
 
     @Environment(\.nTheme) private var theme
 
     var body: some View {
-        HStack {
-            Text(label)
-                .font(.system(
-                    size: CGFloat(SettingsPresentation.rowTitleFontSize),
-                    weight: .medium
-                ))
-                .foregroundStyle(theme.tokens.foreground)
-            Spacer()
+        HStack(
+            alignment: .center,
+            spacing: CGFloat(SettingsPresentation.rowHorizontalSpacing)
+        ) {
+            VStack(alignment: .leading, spacing: CGFloat(SettingsPresentation.rowTextSpacing)) {
+                Text(label)
+                    .font(.system(
+                        size: CGFloat(SettingsPresentation.rowTitleFontSize),
+                        weight: .medium
+                    ))
+                    .foregroundStyle(theme.tokens.foreground)
+                if let description {
+                    Text(description)
+                        .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 8)
             trailing()
         }
-        .padding(.vertical, 4)
+    }
+}
+
+struct SettingsRowDivider: View {
+    @Environment(\.nTheme) private var theme
+
+    var body: some View {
+        Rectangle()
+            .fill(theme.tokens.border.opacity(0.65))
+            .frame(height: 1)
+            .padding(.vertical, CGFloat(SettingsPresentation.rowDividerVerticalPadding))
     }
 }
 
@@ -123,7 +140,7 @@ struct SettingsStatusPill: View {
                 .foregroundStyle(isHealthy ? Color.green : Color.orange)
                 .accessibilityHidden(true)
             Text(label)
-                .font(NTypography.bodyMedium)
+                .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
                 .foregroundStyle(theme.tokens.foreground)
         }
         .accessibilityElement(children: .combine)
@@ -141,9 +158,7 @@ struct SettingsRestartNotice: View {
                 .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
                 .foregroundStyle(theme.tokens.mutedForeground)
             Spacer(minLength: NSpacing.xs)
-            Button("Restart now", action: action)
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
+            SettingsSecondaryButton(title: "Restart now", action: action)
         }
     }
 }
@@ -176,7 +191,14 @@ struct SettingsAdvancedDisclosure: View {
                 Spacer()
             }
             .foregroundStyle(theme.tokens.foreground)
-            .padding(.vertical, NSpacing.xs)
+            .padding(.horizontal, CGFloat(SettingsPresentation.cardHorizontalPadding))
+            .padding(.vertical, 12)
+            .background(theme.tokens.card)
+            .overlay {
+                RoundedRectangle(cornerRadius: NRadius.md)
+                    .stroke(theme.tokens.border, lineWidth: 1)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

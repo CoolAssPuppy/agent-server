@@ -1623,3 +1623,14 @@ The footer reads Back, Cancel, Continue from left to right, with Back separated 
 ### Review
 
 Agent Server 3.1.2 build 30 passed 1,257 server tests and 376 Swift behavior tests, strict TypeScript checking, ESLint, and the signed Release archive build. Apple accepted both the app bundle and DMG, and both notarization tickets were stapled and validated. The versioned DMG, latest alias, and appcast were uploaded successfully. The live appcast reports Version 3.1.2 with the release text “Bug fixes”.
+## Normalize Settings drawer geometry
+
+- [x] Audit every Settings card and control against Mail Notifier.
+- [x] Add failing presentation tests for row rhythm, dividers, and button sizing.
+- [x] Replace mixed native and custom layouts with shared Settings primitives.
+- [x] Verify the complete Swift suite and unsigned macOS build.
+- [x] Inspect the rebuilt Settings window and commit the focused correction.
+
+### Review
+
+The Settings drawer now uses the same card, row, divider, and control geometry throughout. Storage, update, restart, telemetry, and environment actions share compact Settings button primitives with visible keyboard focus. The header has the reference subtitle and boundary, Advanced is a card-aligned disclosure, and the content background separates cards from the drawer surface. The Apple design and clean-and-refactor passes also split reusable buttons into a focused file. Verification passed with 472 Swift tests, 1,332 server tests with 4 skipped, strict TypeScript checking, ESLint, the server build, and the unsigned Debug macOS build. The rebuilt drawer was inspected from the running local app.

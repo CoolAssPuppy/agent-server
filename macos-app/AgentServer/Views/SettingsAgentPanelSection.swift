@@ -20,36 +20,32 @@ struct SettingsAgentPanelSection: View {
                     .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
                     .foregroundStyle(theme.tokens.mutedForeground)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 6)
             }
+            SettingsRowDivider()
             SettingsValueRow(label: "Agent Panel connection") {
                 SettingsStatusPill(
                     isHealthy: connection == .connected,
                     label: connection.rawValue
                 )
             }
-            if requiresRestart { restartNotice }
+            if requiresRestart {
+                SettingsRestartNotice(action: onRestart)
+                    .padding(.top, 8)
+            }
             progressSettings
-        }
-    }
-
-    private var restartNotice: some View {
-        HStack(spacing: NSpacing.sm) {
-            Text("Restart Agent Server to use this change.")
-                .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
-                .foregroundStyle(theme.tokens.mutedForeground)
-            Spacer(minLength: NSpacing.xs)
-            Button("Restart now", action: onRestart)
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
         }
     }
 
     @ViewBuilder
     private var progressSettings: some View {
-        Divider().padding(.vertical, NSpacing.xs)
+        SettingsRowDivider()
         Text("Progress reporting")
-            .font(NTypography.labelMedium)
-            .foregroundStyle(theme.tokens.foreground)
+            .font(.system(size: 10, weight: .semibold))
+            .tracking(0.6)
+            .foregroundStyle(theme.tokens.mutedForeground)
+            .textCase(.uppercase)
+            .padding(.bottom, 10)
         SettingsValueRow(label: "Progress mode") {
             Picker("Progress mode", selection: telemetryMode) {
                 Text("Live").tag(TelemetryProgressMode.live)
@@ -57,20 +53,24 @@ struct SettingsAgentPanelSection: View {
             }
             .labelsHidden()
             .pickerStyle(.segmented)
+            .controlSize(.small)
             .frame(width: 140)
         }
+        SettingsRowDivider()
         SettingsValueRow(label: "Sample interval (s)") {
             Stepper(value: telemetrySampleSeconds, in: 1...600) {
                 monospacedValue(telemetry.sampleSeconds)
             }
-            .controlSize(.mini)
+            .controlSize(.small)
         }
+        SettingsRowDivider()
         SettingsValueRow(label: "Max progress entries") {
             Stepper(value: telemetryMaxEntries, in: 1...500) {
                 monospacedValue(telemetry.maxEntries)
             }
-            .controlSize(.mini)
+            .controlSize(.small)
         }
+        SettingsRowDivider()
         SettingsToggleRow(
             label: "Include progress metadata",
             isOn: telemetryIncludesMetadata
@@ -79,6 +79,7 @@ struct SettingsAgentPanelSection: View {
             .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
             .foregroundStyle(theme.tokens.mutedForeground)
             .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, 8)
     }
 
     private func monospacedValue(_ value: Int) -> some View {

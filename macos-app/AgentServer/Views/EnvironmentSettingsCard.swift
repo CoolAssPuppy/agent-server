@@ -15,11 +15,10 @@ struct EnvironmentSettingsCard: View {
 
     var body: some View {
         SettingsGroup(title: "Environment") {
-            Text("Advanced values used by the local server. Secrets stay on this Mac.")
-                .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
-                .foregroundStyle(theme.tokens.mutedForeground)
-
-            VStack(alignment: .leading, spacing: NSpacing.xs) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Advanced values used by the local server. Secrets stay on this Mac.")
+                    .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
+                    .foregroundStyle(theme.tokens.mutedForeground)
                 environmentGrid
                 gridToolbar
 
@@ -91,12 +90,13 @@ struct EnvironmentSettingsCard: View {
     }
 
     private var gridToolbar: some View {
-        HStack(spacing: 0) {
-            toolbarButton(systemName: "plus", help: "Add environment value", action: appendRow)
-
-            Divider().frame(height: 14).opacity(0.4)
-
-            toolbarButton(
+        HStack(spacing: 6) {
+            SettingsIconButton(
+                systemName: "plus",
+                help: "Add environment value",
+                action: appendRow
+            )
+            SettingsIconButton(
                 systemName: "minus",
                 help: "Remove selected environment value",
                 isDisabled: selectedIndex == nil,
@@ -105,32 +105,6 @@ struct EnvironmentSettingsCard: View {
 
             Spacer()
         }
-        .background(
-            RoundedRectangle(cornerRadius: NRadius.xs)
-                .stroke(theme.tokens.border, lineWidth: 1)
-        )
-    }
-
-    private func toolbarButton(
-        systemName: String,
-        help: String,
-        isDisabled: Bool = false,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(
-                    isDisabled
-                        ? theme.tokens.mutedForeground.opacity(0.5)
-                        : theme.tokens.foreground
-                )
-                .frame(width: 24, height: 22)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(isDisabled)
-        .help(help)
     }
 
     private func connectionRow(index: Int, pair: EnvPair) -> some View {
@@ -244,8 +218,8 @@ private extension View {
             .textFieldStyle(.plain)
             .font(.system(size: 11, design: .monospaced))
             .foregroundStyle(theme.tokens.foreground)
-            .padding(.horizontal, NSpacing.xs)
-            .padding(.vertical, 5)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
             .background(
                 RoundedRectangle(cornerRadius: NRadius.xs)
                     .fill(theme.tokens.background)

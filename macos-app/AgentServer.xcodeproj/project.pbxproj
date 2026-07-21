@@ -107,6 +107,7 @@
 		8D9A0C7374DD4D1B57E281E3 /* AgentsListBadgeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 689DD1451D8EBE1AF2A3FBE1 /* AgentsListBadgeViewModel.swift */; };
 		8EB773586E83249FC7A96C15 /* AgentSettingsSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0992875D58F93D1256CE2EF /* AgentSettingsSections.swift */; };
 		8F2CE02573C9F4CD344CDE70 /* AgentSecurityAnalyzerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 157F358524BFC2F586756006 /* AgentSecurityAnalyzerView.swift */; };
+		90A0FF6A7652F14A2849A650 /* SettingsButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEBD9D532ECC05B3315AE47F /* SettingsButtons.swift */; };
 		90D2742B2CD0C605C3181ED4 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B8C3600FDBE09650A796C7E /* main.swift */; };
 		91FD024F0CD4A3CE3C760815 /* NativeAuthorization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814BB589866FCCB37AAC13D1 /* NativeAuthorization.swift */; };
 		96EDE47844809725EF659B53 /* StatusMonitor+Guidance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F11E1CCD599C1743CC67546 /* StatusMonitor+Guidance.swift */; };
@@ -330,6 +331,7 @@
 		BB25C53352B4D27D90CC4C92 /* MarkdownHighlightRanges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownHighlightRanges.swift; sourceTree = "<group>"; };
 		BBF1B4A941CE9F9CD5925E4E /* LaunchAtLoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginManager.swift; sourceTree = "<group>"; };
 		BEB4ABEDF791380EFF9F2DA7 /* ServerProcessReliability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerProcessReliability.swift; sourceTree = "<group>"; };
+		BEBD9D532ECC05B3315AE47F /* SettingsButtons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsButtons.swift; sourceTree = "<group>"; };
 		BF167864F821C8B9892C0849 /* RunHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunHelpers.swift; sourceTree = "<group>"; };
 		BF267E78CF53DB3D651E8D62 /* AgentServer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AgentServer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BFAA637815723E9F56225239 /* SettingsAgentPanelSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAgentPanelSection.swift; sourceTree = "<group>"; };
@@ -558,6 +560,7 @@
 				817E918060B661BA51609EBB /* SecurityDashboardView.swift */,
 				DE79D9B93066560186CAA3DB /* SecurityFindingCard.swift */,
 				BFAA637815723E9F56225239 /* SettingsAgentPanelSection.swift */,
+				BEBD9D532ECC05B3315AE47F /* SettingsButtons.swift */,
 				EFADA9FC9D6124B5E87CD883 /* SettingsComponents.swift */,
 				509B360653F9527F4AD2986B /* SettingsDrawer.swift */,
 				988DAAC30F31860A55EC3572 /* SettingsDrawerPersistence.swift */,
@@ -1042,6 +1045,7 @@
 				D2837235002AFAAA229A8257 /* ServerProcessManager.swift in Sources */,
 				C471604134686030A7DE8D71 /* ServerProcessReliability.swift in Sources */,
 				4AAD1D4940512D7B27D874EA /* SettingsAgentPanelSection.swift in Sources */,
+				90A0FF6A7652F14A2849A650 /* SettingsButtons.swift in Sources */,
 				3104C952CBEADE8DD5D18B3A /* SettingsComponents.swift in Sources */,
 				74654F1887F112B76A275FC1 /* SettingsDraft.swift in Sources */,
 				67523C8BC19E45A92FA3799F /* SettingsDrawer.swift in Sources */,

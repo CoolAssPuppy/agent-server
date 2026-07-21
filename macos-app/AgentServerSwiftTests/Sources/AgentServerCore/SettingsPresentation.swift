@@ -52,6 +52,17 @@ public enum SettingsPresentation {
     public static let headerVerticalPadding: Double = 18
     public static let cardHorizontalPadding: Double = 20
     public static let cardVerticalPadding: Double = 18
+    public static let cardHeadingBottomPadding: Double = 12
+    public static let rowHorizontalSpacing: Double = 12
+    public static let rowTextSpacing: Double = 2
+    public static let rowDividerVerticalPadding: Double = 10
+    public static let secondaryButtonFontSize: Double = 11
+    public static let secondaryButtonHorizontalPadding: Double = 11
+    public static let secondaryButtonVerticalPadding: Double = 6
+    public static let secondaryButtonCornerRadius: Double = 8
+    public static let iconButtonFontSize: Double = 12
+    public static let iconButtonWidth: Double = 28
+    public static let iconButtonHeight: Double = 26
 
     public static let primarySections: [SettingsSection] = [
         .general,

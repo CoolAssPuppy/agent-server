@@ -49,6 +49,20 @@ final class SettingsPreferenceTests: XCTestCase {
         XCTAssertEqual(SettingsPresentation.headerVerticalPadding, 18)
         XCTAssertEqual(SettingsPresentation.cardHorizontalPadding, 20)
         XCTAssertEqual(SettingsPresentation.cardVerticalPadding, 18)
+        XCTAssertEqual(SettingsPresentation.cardHeadingBottomPadding, 12)
+        XCTAssertEqual(SettingsPresentation.rowHorizontalSpacing, 12)
+        XCTAssertEqual(SettingsPresentation.rowTextSpacing, 2)
+        XCTAssertEqual(SettingsPresentation.rowDividerVerticalPadding, 10)
+    }
+
+    func testSettingsUseOneCompactButtonGeometry() {
+        XCTAssertEqual(SettingsPresentation.secondaryButtonFontSize, 11)
+        XCTAssertEqual(SettingsPresentation.secondaryButtonHorizontalPadding, 11)
+        XCTAssertEqual(SettingsPresentation.secondaryButtonVerticalPadding, 6)
+        XCTAssertEqual(SettingsPresentation.secondaryButtonCornerRadius, 8)
+        XCTAssertEqual(SettingsPresentation.iconButtonFontSize, 12)
+        XCTAssertEqual(SettingsPresentation.iconButtonWidth, 28)
+        XCTAssertEqual(SettingsPresentation.iconButtonHeight, 26)
     }
 
     func testPrimarySettingsKeepUpdatesInTheRightColumn() {
