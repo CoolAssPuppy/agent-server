@@ -53,7 +53,7 @@ import {
   type RunDoneCallback,
   type TriggerRunOptions,
 } from './run-lifecycle.js';
-import { buildServiceRegistry } from '../services/registry.js';
+import { availableConnections, buildServiceRegistry } from '../services/registry.js';
 import { startManagedServices, type ManagedService } from './managed-services.js';
 import { createDownstreamTriggerHandler } from './downstream-triggers.js';
 
@@ -557,6 +557,12 @@ export function startServer(
   void connectionCache.refresh().catch(() => {});
   const agentWriter = createAgentWriter(config.agentsDir, {
     connections: () => connectionCache.servers(),
+    availableConnections: async () => availableConnections(buildServiceRegistry({
+      agents: await discoverAgents(config.agentsDir),
+      environment: loadEnvFile(join(config.agentsDir, '..'), process.env),
+      discovered: connectionCache.servers(),
+      profiles: await connectionProfileStore.list(),
+    })),
   });
   const guidanceModel = createLocalStructuredModel({
     codexExecutablePath: runtimePaths.codexExecutablePath,

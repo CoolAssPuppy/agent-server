@@ -10,7 +10,7 @@ import {
   redactAgentSecrets,
   type DiscoveredConnection,
 } from '../agents/capabilities.js';
-import { buildServiceRegistry } from '../services/registry.js';
+import { availableConnections, buildServiceRegistry } from '../services/registry.js';
 import { ConnectionProfileDraftSchema } from '../connections/profile.js';
 import type { ConnectionProfileStore } from '../connections/profile-store.js';
 import {
@@ -35,7 +35,7 @@ import {
 } from './security-utils.js';
 
 type EnvSource = Record<string, string | undefined>;
-const LOCAL_API_VERSION = 11;
+const LOCAL_API_VERSION = 12;
 
 type ConnectionSnapshot = {
   servers: DiscoveredConnection[];
@@ -305,10 +305,24 @@ export function createApi(deps: ApiDependencies): Hono {
   // YAML semantics.
   const getConnections = (): DiscoveredConnection[] => deps.connections?.get().servers ?? [];
 
-  function enrichAgent(agent: AgentConfig): Record<string, unknown> {
+  async function enrichAgent(
+    agent: AgentConfig,
+    agents: AgentConfig[] = [agent],
+  ): Promise<Record<string, unknown>> {
+    const registry = buildServiceRegistry({
+      agents,
+      environment: getEnv(),
+      discovered: getConnections(),
+      profiles: await deps.connectionProfiles?.list() ?? [],
+    });
     return {
       ...redactAgentSecrets(agent),
-      capabilities: deriveCapabilities(agent, getEnv(), getConnections()),
+      capabilities: deriveCapabilities(
+        agent,
+        getEnv(),
+        getConnections(),
+        availableConnections(registry),
+      ),
     };
   }
 
@@ -346,14 +360,14 @@ export function createApi(deps: ApiDependencies): Hono {
 
   app.get('/agents', async (c) => {
     const agents = await deps.getAgents();
-    return c.json(agents.map((agent) => enrichAgent(agent)));
+    return c.json(await Promise.all(agents.map((agent) => enrichAgent(agent, agents))));
   });
 
   app.get('/agents/:id', async (c) => {
     const agents = await deps.getAgents();
     const agent = agents.find((a) => a.id === c.req.param('id'));
     if (!agent) return c.json({ error: 'Agent not found' }, 404);
-    return c.json(enrichAgent(agent));
+    return c.json(await enrichAgent(agent, agents));
   });
 
   app.get('/capabilities', (c) => {
@@ -484,7 +498,7 @@ export function createApi(deps: ApiDependencies): Hono {
 
     try {
       const updated = await deps.agentWriter.update(c.req.param('id'), parsed.data);
-      return c.json(enrichAgent(updated));
+      return c.json(await enrichAgent(updated, await deps.getAgents()));
     } catch (err) {
       return agentWriteErrorResponse(c, err);
     }
@@ -505,7 +519,7 @@ export function createApi(deps: ApiDependencies): Hono {
 
     try {
       const created = await deps.agentWriter.create(parsed.data);
-      return c.json(enrichAgent(created), 201);
+      return c.json(await enrichAgent(created, await deps.getAgents()), 201);
     } catch (err) {
       return agentWriteErrorResponse(c, err);
     }

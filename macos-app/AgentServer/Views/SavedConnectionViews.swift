@@ -30,16 +30,21 @@ struct SavedConnectionRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(
-            "\(presentation.name), \(presentation.rowSummary), \(presentation.statusTitle)"
+            "\(presentation.name), \(presentation.category.label) connection, "
+                + "\(presentation.rowSummary), \(presentation.statusTitle)"
         )
         .accessibilityHint("Shows connection details")
     }
 
     private var identity: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(presentation.name)
-                .font(NTypography.bodyMedium)
-                .foregroundStyle(theme.tokens.foreground)
+            HStack(spacing: NSpacing.xs) {
+                Text(presentation.name)
+                    .font(NTypography.bodyMedium)
+                    .foregroundStyle(theme.tokens.foreground)
+                    .lineLimit(1)
+                ConnectionCategoryPill(category: presentation.category)
+            }
             Text(presentation.rowSummary)
                 .font(NTypography.caption)
                 .foregroundStyle(theme.tokens.mutedForeground)

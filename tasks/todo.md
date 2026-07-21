@@ -1,5 +1,30 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Connection category labels
+
+- [x] Add failing behavior tests for connection category derivation across API, MCP, File, Web, Command, and messaging connections.
+- [x] Add one shared compact category presentation and render it in Edit agent capability rows.
+- [x] Render the same category presentation beside connections shown from the Create workflow's Add connections panel.
+- [x] Verify the live Personal Notion agent binding is presented as API while Claude-account Notion is presented as MCP.
+- [x] Run focused tests, the full Swift suite, and an unsigned local macOS build.
+- [x] Relaunch the local app for manual testing without publishing, merging, or pushing.
+
+Assumptions and risks:
+
+- Category labels describe how the person connected the capability, not the lower-level protocol used behind an API-backed integration.
+- Existing agent configuration and connection identities must remain unchanged. This is a presentation fix, not a migration.
+- The local build must not enter the release or Sparkle publication flow.
+
+Review:
+
+- Category pills now label each connection or capability as API, MCP, File, Web, Command, Mac, Messaging, or Tool in Edit agent and the Create workflow connection surfaces.
+- Edit agent uses the app-wide connection registry. A saved Personal Notion API connection can be added to another agent, while a Claude account Notion connector keeps a separate identity and MCP category when available.
+- The live API exposes Personal Notion to agents that do not yet use it with `enabled: false`, so the toggle can attach the reviewed configuration without copying credentials into the agent file.
+- Verification: 1,320 server tests with 4 skips, 451 Swift behavior tests, 12 EventKit tests, ESLint, strict TypeScript checking, server compilation, and the unsigned macOS Debug build passed.
+- Local API version 12 is running from `/tmp/agent-server-local-20260721-connection-labels`. No release, publish, commit, merge, or push was performed.
+
+- Pending.
+
 ## Technical debt remediation loop
 
 - [x] Commit the audit report and this remediation baseline.

@@ -4,6 +4,7 @@ import {
   CAPABILITY_CATALOG,
   CapabilityError,
   type DiscoveredConnection,
+  type AvailableConnection,
   applyCapabilityChanges,
   catalogSummary,
   deriveCapabilities,
@@ -15,6 +16,34 @@ const EMPTY_ENV: Record<string, string | undefined> = {};
 
 const discovered = (...names: string[]): DiscoveredConnection[] =>
   names.map((name) => ({ name, status: 'connected' }));
+
+const personalNotionConfig = {
+  command: 'npx',
+  args: ['-y', '@notionhq/notion-mcp-server'],
+  env: { NOTION_TOKEN: '${NOTION_PERSONAL_API_KEY}' },
+} as const;
+
+const availableNotionConnections: AvailableConnection[] = [
+  {
+    id: 'mcp:notion-personal:one',
+    serviceId: 'notion',
+    name: 'Personal Notion',
+    source: 'configured_api',
+    status: 'connected',
+    requiredEnv: ['NOTION_PERSONAL_API_KEY'],
+    serverName: 'notion-personal',
+    config: personalNotionConfig,
+  },
+  {
+    id: 'runtime:claude.ai%20Notion',
+    serviceId: 'notion',
+    name: 'Notion (Claude account)',
+    source: 'account',
+    status: 'connected',
+    requiredEnv: [],
+    serverName: 'claude.ai Notion',
+  },
+];
 
 function capability(
   agent = makeAgent(),
@@ -131,6 +160,72 @@ describe('deriveCapabilities', () => {
     const missing = capability(agent, 'notion', { NOTION_API_KEY: 'wrong-account' });
     expect(missing.required_env).toEqual(['NOTION_PERSONAL_API_KEY']);
     expect(missing.env_ready).toBe(false);
+  });
+
+  it('identifies a named API-key connection instead of presenting it as generic MCP', () => {
+    const agent = makeAgent({
+      mcp_servers: {
+        'notion-personal': {
+          command: 'npx',
+          args: ['-y', '@notionhq/notion-mcp-server'],
+          env: { NOTION_TOKEN: '${NOTION_PERSONAL_API_KEY}' },
+        },
+      },
+    });
+
+    const notion = capability(
+      agent,
+      'notion',
+      { NOTION_PERSONAL_API_KEY: 'configured' },
+      discovered('notion-personal', 'claude.ai Notion'),
+    );
+
+    expect(notion).toMatchObject({
+      label: 'Personal Notion',
+      source: 'configured_api',
+      server_name: 'notion-personal',
+      status: 'connected',
+    });
+  });
+
+  it('identifies an account-backed catalog connection as MCP', () => {
+    const notion = capability(
+      makeAgent(),
+      'notion',
+      EMPTY_ENV,
+      discovered('claude.ai Notion'),
+    );
+
+    expect(notion).toMatchObject({
+      label: 'Notion (Claude account)',
+      source: 'account',
+      server_name: 'claude_ai_Notion',
+    });
+  });
+
+  it('keeps reusable Personal and Claude Notion connections separate for editing', () => {
+    const rows = deriveCapabilities(
+      makeAgent({ tools: ['Read'] }),
+      { NOTION_PERSONAL_API_KEY: 'configured' },
+      discovered('claude.ai Notion'),
+      availableNotionConnections,
+    ).filter((entry) => entry.label.includes('Notion'));
+
+    expect(rows).toEqual([
+      expect.objectContaining({
+        id: 'connection:mcp:notion-personal:one',
+        label: 'Personal Notion',
+        source: 'configured_api',
+        enabled: false,
+        custom: false,
+      }),
+      expect.objectContaining({
+        id: 'connection:runtime:claude.ai%20Notion',
+        label: 'Notion (Claude account)',
+        source: 'account',
+        custom: false,
+      }),
+    ]);
   });
 
   it('does not report a connection ready when its grants name tools that it does not expose', () => {
@@ -257,6 +352,20 @@ describe('deriveCapabilities', () => {
 });
 
 describe('applyCapabilityChanges', () => {
+  it('attaches an existing named API connection by its reviewed identity', () => {
+    const agent = makeAgent({ tools: ['Read'], permissions: { allow: ['Read'], deny: [] } });
+
+    const updates = applyCapabilityChanges(
+      agent,
+      [{ id: 'connection:mcp:notion-personal:one', enabled: true }],
+      { NOTION_PERSONAL_API_KEY: 'configured' },
+      [],
+      availableNotionConnections,
+    );
+
+    expect(updates.mcp_servers).toEqual({ 'notion-personal': personalNotionConfig });
+    expect(updates.permissions?.allow).toContain('mcp__notion-personal__API-post-page');
+  });
   it('removes file editing from the authoritative permissions policy', () => {
     const agent = makeAgent({
       tools: ['Read', 'Write', 'Edit', 'Bash'],

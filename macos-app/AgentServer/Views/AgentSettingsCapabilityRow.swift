@@ -21,6 +21,8 @@ struct AgentSettingsCapabilityRow: View {
                     Text(capability.label)
                         .font(NTypography.bodyMedium)
                         .foregroundStyle(theme.tokens.foreground)
+                        .lineLimit(1)
+                    ConnectionCategoryPill(category: capability.category)
                     if capability.custom {
                         Text("Custom")
                             .font(NTypography.caption)
@@ -59,7 +61,9 @@ struct AgentSettingsCapabilityRow: View {
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .labelsHidden()
-                .accessibilityLabel("Allow \(capability.label)")
+                .accessibilityLabel(
+                    "Allow \(capability.label), \(capability.category.label) connection"
+                )
                 .accessibilityValue(isEnabled ? "On" : "Off")
         }
     }

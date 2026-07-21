@@ -192,6 +192,7 @@ export const ProposalFallbackQuestionSchema = z.object({
   choices: z.array(z.object({
     label: z.string().trim().min(1).max(160),
     value: z.string().trim().min(1).max(300),
+    source: z.enum(['account', 'configured_api', 'mcp', 'macos']).optional(),
     disabled_reason: z.string().trim().min(1).max(300).optional(),
   }).strict()).max(128).optional(),
 }).strict();

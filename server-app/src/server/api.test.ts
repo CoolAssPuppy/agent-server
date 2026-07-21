@@ -705,7 +705,7 @@ describe('API routes', () => {
 
       const body = await res.json();
       expect(body.status).toBe('ok');
-      expect(body.api_version).toBe(11);
+      expect(body.api_version).toBe(12);
     });
 
     it('returns started_at timestamp when provided', async () => {
@@ -1186,10 +1186,49 @@ describe('API routes', () => {
       });
       const res = await authenticatedRequest(app, '/agents/test-agent');
       const body = await res.json();
-      const slack = body.capabilities.find((cap: { id: string }) => cap.id === 'slack');
+      const slack = body.capabilities.find(
+        (cap: { id: string }) => cap.id === 'connection:runtime:claude.ai%20Slack',
+      );
       expect(slack).toBeDefined();
+      expect(slack.source).toBe('account');
       expect(slack.server_name).toBe('claude_ai_Slack');
       expect(slack.status).toBe('connected');
+    });
+
+    it('offers Personal and Claude account Notion as separate edit choices', async () => {
+      const personal = makeAgent({
+        id: 'personal-source',
+        mcp_servers: {
+          'notion-personal': {
+            command: 'npx',
+            args: ['-y', '@notionhq/notion-mcp-server'],
+            env: { NOTION_TOKEN: '${NOTION_PERSONAL_API_KEY}' },
+          },
+        },
+      });
+      const target = makeAgent({ id: 'target' });
+      const snapshot = {
+        servers: [{ name: 'claude.ai Notion', status: 'connected' }],
+        discovered_at: '2026-07-18T00:00:00.000Z',
+      };
+      const app = createApi({
+        getAgents: async () => [personal, target],
+        store,
+        triggerRun,
+        getEnv: () => ({ NOTION_PERSONAL_API_KEY: 'configured' }),
+        connections: { get: () => snapshot, refresh: async () => snapshot },
+      });
+
+      const response = await authenticatedRequest(app, '/agents/target');
+      const body = await response.json();
+      const notion = body.capabilities.filter(
+        (capability: { label: string }) => capability.label.includes('Notion'),
+      );
+
+      expect(notion).toEqual([
+        expect.objectContaining({ label: 'Personal Notion', source: 'configured_api' }),
+        expect.objectContaining({ label: 'Notion (Claude account)', source: 'account' }),
+      ]);
     });
   });
 

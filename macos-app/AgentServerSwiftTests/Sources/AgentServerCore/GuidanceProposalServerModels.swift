@@ -331,10 +331,11 @@ private struct GuidanceQuestionPayload: Decodable, Equatable, Sendable {
     struct Choice: Decodable, Equatable, Sendable {
         let label: String
         let value: String
+        let source: String?
         let disabledReason: String?
 
         enum CodingKeys: String, CodingKey {
-            case label, value
+            case label, value, source
             case disabledReason = "disabled_reason"
         }
     }
@@ -358,7 +359,10 @@ private struct GuidanceQuestionPayload: Decodable, Equatable, Sendable {
             prompt: question,
             kind: kind,
             isRequired: required,
-            choiceValues: choices?.map(\.value) ?? []
+            choiceValues: choices?.map(\.value) ?? [],
+            choiceCategories: choices?.map { choice in
+                choice.source.map(ConnectionCategory.init(source:)) ?? .mcp
+            } ?? []
         )
     }
 

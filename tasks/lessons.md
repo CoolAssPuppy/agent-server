@@ -1,5 +1,7 @@
 # Lessons
 
+- When one service can be reached through several connection sources, never collapse source identity into a generic service label. Show a compact, server-derived category such as API or MCP anywhere the user reviews or selects that connection.
+
 - Validate runtime safety claims against the installed runtime, its current official documentation, and an enforcement probe before encoding them as disabled product choices. A wrapper's current limitation does not prove the underlying runtime lacks the capability.
 
 - Approved desktop card placement is a product contract, not an adaptive suggestion. At a fixed minimum window width, keep primary Settings cards in explicit columns and limit responsive reflow to surfaces that truly support narrower geometry.

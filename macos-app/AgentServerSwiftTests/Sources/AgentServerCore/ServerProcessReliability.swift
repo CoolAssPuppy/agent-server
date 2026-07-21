@@ -7,7 +7,7 @@ public enum LocalServerAction: Equatable, Sendable {
 }
 
 public enum LocalServerCompatibility {
-    public static let requiredAPIVersion = 11
+    public static let requiredAPIVersion = 12
 
     public static func shouldReplace(apiVersion: Int?) -> Bool {
         guard let apiVersion else { return true }

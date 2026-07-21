@@ -106,8 +106,8 @@ describe('guided agent proposal creation', () => {
     expect(result).toMatchObject({
       status: 'needs_information',
       questions: [
-        { id: 'connection-notion', service_name: 'Notion', choices: [{ value: 'notion-personal' }] },
-        { id: 'connection-linear', service_name: 'Linear', choices: [{ value: 'linear-work' }] },
+        { id: 'connection-notion', service_name: 'Notion', choices: [{ value: 'notion-personal', source: 'configured_api' }] },
+        { id: 'connection-linear', service_name: 'Linear', choices: [{ value: 'linear-work', source: 'account' }] },
       ],
     });
     if (result.status === 'needs_information') {

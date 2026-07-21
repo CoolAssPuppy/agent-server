@@ -25,6 +25,15 @@ import { mcpEnvironmentReferences, mcpServicePermissionTools } from './mcp-servi
  */
 
 export type CapabilityKind = 'tools' | 'mcp';
+export type CapabilitySource =
+  | 'file'
+  | 'command'
+  | 'web'
+  | 'tool'
+  | 'configured_api'
+  | 'account'
+  | 'mcp'
+  | 'macos';
 
 /**
  * How a connection authenticates, so the app can pick the right Connect flow:
@@ -43,6 +52,20 @@ export type CapabilityAuth = 'none' | 'api_key' | 'oauth';
  * dependency on the executor.
  */
 export type DiscoveredConnection = { name: string; status: string; error?: string };
+
+/** A reusable connection from the app-wide service registry. */
+export type AvailableConnection = {
+  id: string;
+  serviceId: string;
+  name: string;
+  source: Extract<CapabilitySource, 'account' | 'configured_api' | 'mcp' | 'macos'>;
+  status: 'connected' | 'needs_setup' | 'unavailable' | 'conflict';
+  requiredEnv: string[];
+  serverName: string;
+  config?: McpServerConfig;
+  /** Stable saved-profile id, when the connection is backed by a profile. */
+  connectionId?: string;
+};
 
 type EnvSource = Record<string, string | undefined>;
 
@@ -237,6 +260,7 @@ export type AgentCapability = {
   description: string;
   icon: string;
   kind: CapabilityKind;
+  source: CapabilitySource;
   auth: CapabilityAuth;
   enabled: boolean;
   custom: boolean;
@@ -255,6 +279,7 @@ export type CapabilityFieldUpdates = {
   tools?: string[];
   disallowed_tools?: string[];
   mcp_servers?: Record<string, McpServerConfig>;
+  connection_bindings?: Record<string, string>;
   permissions?: Permissions;
 };
 
@@ -353,6 +378,34 @@ function matchDiscovered(
   return candidates.find((d) => /^claude\.ai\s/i.test(d.name)) ?? candidates[0];
 }
 
+function matchDiscoveredServer(
+  serverKey: string,
+  discovered: DiscoveredConnection[],
+): DiscoveredConnection | undefined {
+  const normalizedKey = mcpServerKey(serverKey);
+  return discovered.find((connection) => mcpServerKey(connection.name) === normalizedKey);
+}
+
+function localCapabilitySource(id: string): CapabilitySource {
+  if (id === 'read-files' || id === 'write-files') return 'file';
+  if (id === 'run-commands') return 'command';
+  if (id === 'browse-web') return 'web';
+  return 'tool';
+}
+
+function namedConnectionLabel(serverKey: string, serviceLabel: string): string {
+  const tokens = serverKey.toLowerCase().split(/[^a-z0-9]+/);
+  if (tokens.includes('personal')) return `Personal ${serviceLabel}`;
+  if (tokens.includes('work')) return `Work ${serviceLabel}`;
+  return serviceLabel;
+}
+
+function accountConnectionLabel(connectionName: string, serviceLabel: string): string {
+  return /^claude\.ai\s/i.test(connectionName)
+    ? `${serviceLabel} (Claude account)`
+    : serviceLabel;
+}
+
 /** Human label for a discovered connector with no catalog entry. */
 function prettifyConnectionName(name: string): string {
   let rest = name.replace(/^claude\.ai\s+/i, '');
@@ -418,6 +471,7 @@ export function deriveCapabilities(
   agent: AgentConfig,
   env: EnvSource = process.env,
   discovered: DiscoveredConnection[] = [],
+  availableConnections: AvailableConnection[] = [],
 ): AgentCapability[] {
   const result: AgentCapability[] = [];
   const claimedServerKeys = new Set<string>();
@@ -434,6 +488,7 @@ export function deriveCapabilities(
         description: def.description,
         icon: def.icon,
         kind: 'tools',
+        source: localCapabilitySource(def.id),
         auth: resolveAuth(def),
         enabled: (def.tools ?? []).some((t) => isToolEffectivelyAllowed(agent, t)),
         custom: false,
@@ -444,9 +499,16 @@ export function deriveCapabilities(
       continue;
     }
 
+    // When the service registry is available it owns non-native connection
+    // rows. This preserves distinct identities such as Personal Notion and
+    // Notion from the Claude account instead of collapsing both to `notion`.
+    if (availableConnections.length > 0 && !def.builtin) continue;
+
     const existingKey = matchedServerKey(agent, def);
     if (existingKey) claimedServerKeys.add(existingKey);
-    const connector = matchDiscovered(def, discovered);
+    const connector = existingKey
+      ? matchDiscoveredServer(existingKey, discovered)
+      : matchDiscovered(def, discovered);
     if (connector) consumedConnectors.add(connector.name);
 
     // Hide a service the agent has no relationship to: not declared, not
@@ -465,10 +527,23 @@ export function deriveCapabilities(
     const requiredEnv = exactRequiredEnv.length > 0 ? exactRequiredEnv : def.requiredEnv ?? [];
     result.push({
       id: def.id,
-      label: def.label,
+      label: existingKey
+        ? namedConnectionLabel(existingKey, def.label)
+        : connector
+          ? accountConnectionLabel(connector.name, def.label)
+          : def.label,
       description: def.description,
       icon: def.icon,
       kind: 'mcp',
+      source: def.builtin
+        ? 'macos'
+        : existingConfig && mcpEnvironmentReferences(existingConfig).length > 0
+          ? 'configured_api'
+          : existingKey
+            ? 'mcp'
+            : connector
+              ? 'account'
+              : 'configured_api',
       auth: resolveAuth(def),
       enabled: present && isServerEnabled(
         agent,
@@ -484,6 +559,57 @@ export function deriveCapabilities(
     emittedIds.add(def.id);
   }
 
+  const configuredServiceIds = new Set(
+    availableConnections
+      .filter((connection) => connection.source === 'configured_api'
+        && !connection.id.startsWith('catalog:'))
+      .map((connection) => connection.serviceId),
+  );
+
+  for (const connection of availableConnections) {
+    if (connection.source === 'macos') continue;
+    if (connection.id.startsWith('catalog:') && configuredServiceIds.has(connection.serviceId)) {
+      continue;
+    }
+    const definition = CAPABILITY_CATALOG.find((candidate) => candidate.id === connection.serviceId);
+    const serverKey = connection.config
+      ? connection.serverName
+      : mcpServerKey(connection.serverName);
+    const existingConfig = agent.mcp_servers?.[connection.serverName];
+    const usesSavedBinding = Boolean(connection.connectionId)
+      && agent.connection_bindings?.[connection.serverName] === connection.connectionId;
+    const usesInlineConfig = Boolean(connection.config && existingConfig)
+      && JSON.stringify(connection.config) === JSON.stringify(existingConfig);
+    const isPresent = connection.source === 'account' || usesSavedBinding || usesInlineConfig;
+    const connector = matchDiscoveredServer(connection.serverName, discovered);
+    if (connector) consumedConnectors.add(connector.name);
+    if (connection.config && (usesSavedBinding || usesInlineConfig)) {
+      claimedServerKeys.add(connection.serverName);
+    }
+
+    const id = `connection:${connection.id}`;
+    result.push({
+      id,
+      label: connection.name,
+      description: definition?.description ?? `Connect through ${connection.name}`,
+      icon: definition?.icon ?? 'puzzlepiece.extension',
+      kind: 'mcp',
+      source: connection.source,
+      auth: connection.source === 'configured_api' ? 'api_key' : 'none',
+      enabled: isPresent && isServerEnabled(
+        agent,
+        serverKey,
+        mcpServicePermissionTools(serverKey, connection.config),
+      ),
+      custom: false,
+      required_env: connection.requiredEnv,
+      env_ready: connection.requiredEnv.every((name) => Boolean(env[name]?.trim())),
+      server_name: serverKey,
+      status: connector?.status ?? connection.status,
+    });
+    emittedIds.add(id);
+  }
+
   // Reachable connectors the catalog doesn't recognize (account connectors and
   // plugins without a branded entry). Skip any the agent also declares — the
   // per-agent loop below owns those.
@@ -493,15 +619,22 @@ export function deriveCapabilities(
     const id = `${CUSTOM_MCP_PREFIX}${key}`;
     if (emittedIds.has(id)) continue;
     if (agent.mcp_servers && key in agent.mcp_servers) continue;
+    const definition = CAPABILITY_CATALOG.find((candidate) => candidate.kind === 'mcp' && (
+      candidate.match?.test(connector.name)
+      || (candidate.serverName && mcpServerKey(candidate.serverName) === key)
+    ));
     result.push({
       id,
-      label: prettifyConnectionName(connector.name),
-      description: 'Available through your Claude connections',
-      icon: 'puzzlepiece.extension',
+      label: definition
+        ? accountConnectionLabel(connector.name, definition.label)
+        : prettifyConnectionName(connector.name),
+      description: definition?.description ?? 'Available through your Claude connections',
+      icon: definition?.icon ?? 'puzzlepiece.extension',
       kind: 'mcp',
+      source: 'account',
       auth: 'none',
       enabled: isServerEnabled(agent, key),
-      custom: true,
+      custom: !definition,
       required_env: [],
       env_ready: true,
       server_name: key,
@@ -514,12 +647,14 @@ export function deriveCapabilities(
     if (claimedServerKeys.has(key)) continue;
     const id = `${CUSTOM_MCP_PREFIX}${key}`;
     if (emittedIds.has(id)) continue;
+    const config = agent.mcp_servers?.[key];
     result.push({
       id,
       label: prettifyKey(key),
       description: `Custom connection: ${key}`,
       icon: 'puzzlepiece.extension',
       kind: 'mcp',
+      source: config && mcpEnvironmentReferences(config).length > 0 ? 'configured_api' : 'mcp',
       auth: 'none',
       enabled: isServerEnabled(agent, key),
       custom: true,
@@ -538,6 +673,7 @@ export function deriveCapabilities(
       description: `Custom tool: ${tool}`,
       icon: 'wrench.and.screwdriver',
       kind: 'tools',
+      source: 'tool',
       auth: 'none',
       enabled: isToolEffectivelyAllowed(agent, tool),
       custom: true,
@@ -634,10 +770,12 @@ export function applyCapabilityChanges(
   changes: CapabilityChange[],
   env: EnvSource = process.env,
   discovered: DiscoveredConnection[] = [],
+  availableConnections: AvailableConnection[] = [],
 ): CapabilityFieldUpdates {
   const tools = [...agent.tools];
   const disallowed = [...agent.disallowed_tools];
   const servers: Record<string, McpServerConfig> = { ...(agent.mcp_servers ?? {}) };
+  const connectionBindings: Record<string, string> = { ...(agent.connection_bindings ?? {}) };
   const permissions = agent.permissions ? {
     allow: [...agent.permissions.allow],
     deny: [...agent.permissions.deny],
@@ -645,6 +783,7 @@ export function applyCapabilityChanges(
   let toolsChanged = false;
   let disallowedChanged = false;
   let serversChanged = false;
+  let connectionBindingsChanged = false;
   let permissionsChanged = false;
 
   const markTools = (before: number): void => {
@@ -710,6 +849,44 @@ export function applyCapabilityChanges(
   };
 
   for (const change of changes) {
+    if (change.id.startsWith('connection:')) {
+      const connectionId = change.id.slice('connection:'.length);
+      const connection = availableConnections.find((candidate) => candidate.id === connectionId);
+      if (!connection || connection.source === 'macos') {
+        throw new CapabilityError(
+          `Unknown connection "${connectionId}" on agent "${agent.id}"`,
+          'unknown_capability',
+        );
+      }
+      const serverKey = connection.config
+        ? connection.serverName
+        : mcpServerKey(connection.serverName);
+      if (change.enabled) {
+        const missing = connection.requiredEnv.filter((name) => !env[name]?.trim());
+        if (missing.length > 0) {
+          throw new CapabilityError(
+            `Connection "${connection.name}" needs environment variables: ${missing.join(', ')}`,
+            'missing_env',
+            missing,
+          );
+        }
+        if (connection.config
+          && JSON.stringify(servers[connection.serverName]) !== JSON.stringify(connection.config)) {
+          servers[connection.serverName] = connection.config;
+          serversChanged = true;
+        }
+        if (connection.connectionId
+          && connectionBindings[connection.serverName] !== connection.connectionId) {
+          connectionBindings[connection.serverName] = connection.connectionId;
+          connectionBindingsChanged = true;
+        }
+        enableServer(serverKey, connection.config);
+      } else {
+        disableServer(serverKey);
+      }
+      continue;
+    }
+
     if (change.id.startsWith(CUSTOM_MCP_PREFIX)) {
       const key = change.id.slice(CUSTOM_MCP_PREFIX.length);
       // Either the agent declares this server, or the runtime reaches it as a
@@ -813,6 +990,7 @@ export function applyCapabilityChanges(
   if (toolsChanged) updates.tools = tools;
   if (disallowedChanged) updates.disallowed_tools = disallowed;
   if (serversChanged) updates.mcp_servers = servers;
+  if (connectionBindingsChanged) updates.connection_bindings = connectionBindings;
   if (permissionsChanged && permissions) updates.permissions = permissions;
   return updates;
 }

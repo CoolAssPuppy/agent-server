@@ -98,6 +98,7 @@ struct AgentCapability: Codable, Identifiable, Equatable {
     let description: String
     let icon: String
     let kind: String
+    let source: String?
     /// How this connection authenticates: "none", "api_key", or "oauth".
     /// Optional so agents from an older server still decode.
     let auth: ConnectionAuth?
@@ -112,10 +113,19 @@ struct AgentCapability: Codable, Identifiable, Equatable {
     let status: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, label, description, icon, kind, auth, enabled, custom, status
+        case id, label, description, icon, kind, source, auth, enabled, custom, status
         case requiredEnv = "required_env"
         case envReady = "env_ready"
         case serverName = "server_name"
+    }
+
+    var category: ConnectionCategory {
+        ConnectionCategory(
+            capabilityID: id,
+            kind: kind,
+            auth: auth?.rawValue ?? "none",
+            source: source
+        )
     }
 }
 

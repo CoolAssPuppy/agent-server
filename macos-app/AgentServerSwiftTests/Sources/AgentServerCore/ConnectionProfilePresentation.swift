@@ -63,6 +63,7 @@ public struct ConnectionProfilePresentation: Equatable, Identifiable, Sendable {
     public let credentialSummary: String
     public let credentialReferences: [String]
     public let status: Status
+    public let category: ConnectionCategory
 
     public var rowSummary: String {
         "\(connectionMethod) · \(credentialSummary)"
@@ -91,6 +92,7 @@ public struct ConnectionProfilePresentation: Equatable, Identifiable, Sendable {
         status = profile.credentials.allSatisfy {
             configuredEnvironmentVariables.contains($0.environmentVariable)
         } ? .ready : .needsCredentials
+        category = profile.credentials.isEmpty ? .mcp : .api
 
         switch profile.transport {
         case .http(let url, _):

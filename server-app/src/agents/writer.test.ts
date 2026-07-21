@@ -3,6 +3,7 @@ import { readFile, readdir, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { createTempDir, makeAgent } from '../test-factories.js';
 import { parseAgentFile } from './config.js';
+import type { AvailableConnection } from './capabilities.js';
 import { AgentWriteError, createAgentWriter, type AgentWriter } from './writer.js';
 
 const YAML_AGENT = `# Morning briefing agent
@@ -94,6 +95,36 @@ custom_setting: keep-me
     expect(content).toContain('command: old-notes-helper');
     expect(content).toContain('custom_setting: keep-me');
     expect(content).toContain(`notes: ${connectionId}`);
+  });
+
+  it('attaches a reusable API connection selected in agent settings', async () => {
+    const dir = createTempDir('writer-connection');
+    await writeFile(join(dir, 'briefing.yaml'), YAML_AGENT, 'utf-8');
+    const connection: AvailableConnection = {
+      id: 'mcp:notion-personal:one',
+      serviceId: 'notion',
+      name: 'Personal Notion',
+      source: 'configured_api',
+      status: 'connected',
+      requiredEnv: ['NOTION_PERSONAL_API_KEY'],
+      serverName: 'notion-personal',
+      config: {
+        command: 'npx',
+        args: ['-y', '@notionhq/notion-mcp-server'],
+        env: { NOTION_TOKEN: '${NOTION_PERSONAL_API_KEY}' },
+      },
+    };
+    const writer = createAgentWriter(dir, {
+      env: () => ({ NOTION_PERSONAL_API_KEY: 'configured' }),
+      availableConnections: async () => [connection],
+    });
+
+    const updated = await writer.update('briefing', {
+      capabilities: [{ id: `connection:${connection.id}`, enabled: true }],
+    });
+
+    expect(updated.mcp_servers?.['notion-personal']).toEqual(connection.config);
+    expect(updated.tools).toContain('mcp__notion-personal');
   });
 
   it('replaces the markdown body when patching the prompt', async () => {

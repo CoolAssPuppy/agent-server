@@ -138,10 +138,12 @@
 		C50620A0100222E11C258596 /* RuntimeChoicePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 330BE644298A2E224EF2C3D8 /* RuntimeChoicePicker.swift */; };
 		C50ED87A117F8CE8F29EB004 /* EnvironmentBooleanPreference.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0C5881B4E817C1D164D105A /* EnvironmentBooleanPreference.swift */; };
 		C57F8443BD1AD312F39219D2 /* CronNextFire.swift in Sources */ = {isa = PBXBuildFile; fileRef = D885EDB8362181BEA390FCF9 /* CronNextFire.swift */; };
+		C781FF82B23FC295BB0ECE84 /* ConnectionCategory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89B1BB8548CD893E9D6E560B /* ConnectionCategory.swift */; };
 		C877D7CD7E77223DE35B0A71 /* ApplicationMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 784AD265CBA4DB4DB19753E4 /* ApplicationMenu.swift */; };
 		C8F1D0FD73B7C40F0A2EAF71 /* GuidedAgentCreationCopy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B4F3553798E2486F4AB0B2F /* GuidedAgentCreationCopy.swift */; };
 		C982B2D86AD2BE30FB8DAC66 /* RunModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAE9947D3E921908B8C043B8 /* RunModel.swift */; };
 		CC20F093FA361FE81C47C993 /* AgentPromptDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FB65A68A7D65247566F5429 /* AgentPromptDocument.swift */; };
+		CD19ADACAE0745881E673C82 /* ConnectionCategoryPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5666C39D8C083EEB8EA3670B /* ConnectionCategoryPill.swift */; };
 		CEE1BDAE616D13B6256E75F5 /* ConsumerFlowsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 620104300614006FFD8BD074 /* ConsumerFlowsUITests.swift */; };
 		CF98F924FF6871E654D20235 /* NativeServiceGrantPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0AE4F8750CFC69C6D44996F /* NativeServiceGrantPolicy.swift */; };
 		D2837235002AFAAA229A8257 /* ServerProcessManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA7DF74260188E7ABD701D6 /* ServerProcessManager.swift */; };
@@ -252,6 +254,7 @@
 		540053000886185ADF319275 /* GenericConnectionSetupSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenericConnectionSetupSheet.swift; sourceTree = "<group>"; };
 		5612EB7955E03C4FF02F0B33 /* ConnectionProfileServerModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionProfileServerModels.swift; sourceTree = "<group>"; };
 		565C0CAB2653E2152AF0893D /* ConsumerFlowAccessibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsumerFlowAccessibility.swift; sourceTree = "<group>"; };
+		5666C39D8C083EEB8EA3670B /* ConnectionCategoryPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionCategoryPill.swift; sourceTree = "<group>"; };
 		56C58B0E041DC8B993A2922F /* SettingsDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDraft.swift; sourceTree = "<group>"; };
 		57ABDC589701B10A0E737A80 /* AgentPanelSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPanelSettings.swift; sourceTree = "<group>"; };
 		58A8FB8AFBC635F63133224F /* GuidanceDiagnosticServerModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidanceDiagnosticServerModels.swift; sourceTree = "<group>"; };
@@ -288,6 +291,7 @@
 		84D0610682024FD2CFA94E8A /* TopDrawerSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopDrawerSurface.swift; sourceTree = "<group>"; };
 		88023AE45743034C6E019D92 /* AgentSettingsConnectSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSettingsConnectSheet.swift; sourceTree = "<group>"; };
 		8916C804CDE2657D4C34C901 /* AgentSettingsCapabilityRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSettingsCapabilityRow.swift; sourceTree = "<group>"; };
+		89B1BB8548CD893E9D6E560B /* ConnectionCategory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionCategory.swift; sourceTree = "<group>"; };
 		8A39F8EC44F73E7FD02BB9B6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		8ADE39E580F94F63F2070A8B /* AgentFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentFile.swift; sourceTree = "<group>"; };
 		8AFC154965B3AC248A2AE55F /* AgentSettingsPatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSettingsPatch.swift; sourceTree = "<group>"; };
@@ -518,6 +522,7 @@
 				A0992875D58F93D1256CE2EF /* AgentSettingsSections.swift */,
 				8DAF4A42E82017D2EA925043 /* AgentSettingsView.swift */,
 				60FF47B3068DE16B2285FC43 /* CapabilityIconView.swift */,
+				5666C39D8C083EEB8EA3670B /* ConnectionCategoryPill.swift */,
 				BA442CD355C507032FB201DE /* ConnectionsComponents.swift */,
 				34C199697B17F6960D44E0CC /* ConnectionsView.swift */,
 				6E2C4E1EAA344668143F8889 /* ConsumerFlowComponents.swift */,
@@ -599,6 +604,7 @@
 				0B3AACD6067B9CE79B84D94B /* AgentTriggerPresentation.swift */,
 				784AD265CBA4DB4DB19753E4 /* ApplicationMenu.swift */,
 				3041189F9765AF060231C8FA /* BoundedIdentifierHistory.swift */,
+				89B1BB8548CD893E9D6E560B /* ConnectionCategory.swift */,
 				DF60949786F7149D9854AA42 /* ConnectionCredentialsPresentation.swift */,
 				F50CA8C247B1FCF3FA516F3D /* ConnectionProfilePresentation.swift */,
 				5612EB7955E03C4FF02F0B33 /* ConnectionProfileServerModels.swift */,
@@ -947,6 +953,8 @@
 				C877D7CD7E77223DE35B0A71 /* ApplicationMenu.swift in Sources */,
 				F7610AB492A625DD114561E9 /* BoundedIdentifierHistory.swift in Sources */,
 				7811CF34DE952EEB05F3F917 /* CapabilityIconView.swift in Sources */,
+				C781FF82B23FC295BB0ECE84 /* ConnectionCategory.swift in Sources */,
+				CD19ADACAE0745881E673C82 /* ConnectionCategoryPill.swift in Sources */,
 				EBF30BCA9AF757DC31E9E217 /* ConnectionCredentialsPresentation.swift in Sources */,
 				884B4BB8E2CFD7879CB6F636 /* ConnectionProfilePresentation.swift in Sources */,
 				13E4ACF17D3D0809E665D8E9 /* ConnectionProfileServerModels.swift in Sources */,

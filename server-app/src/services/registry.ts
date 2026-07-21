@@ -4,6 +4,7 @@ import { areApprovedMcpReferences, mcpCredentialOwner } from '../agents/environm
 import {
   CAPABILITY_CATALOG,
   mcpServerKey,
+  type AvailableConnection,
   type CapabilityDefinition,
   type DiscoveredConnection,
 } from '../agents/capabilities.js';
@@ -320,4 +321,23 @@ export function buildServiceRegistry(input: RegistryInput): ServiceRegistry {
     connections: [...saved.connections, ...configured.connections, ...catalog.connections, ...accounts, ...native],
     bindings: new Map([...saved.runtime, ...configured.runtime, ...catalog.runtime, ...accountBindings]),
   };
+}
+
+/** Converts the public registry into the identity-preserving capability input. */
+export function availableConnections(registry: ServiceRegistry): AvailableConnection[] {
+  return registry.connections.flatMap((connection): AvailableConnection[] => {
+    const binding = registry.bindings.get(connection.id);
+    if (!binding || connection.source === 'macos') return [];
+    return [{
+      id: connection.id,
+      serviceId: connection.service_id,
+      name: connection.name,
+      source: connection.source,
+      status: connection.status,
+      requiredEnv: connection.required_env,
+      serverName: binding.serverName,
+      ...(binding.config ? { config: binding.config } : {}),
+      ...(binding.connectionId ? { connectionId: binding.connectionId } : {}),
+    }];
+  });
 }

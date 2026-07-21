@@ -507,7 +507,11 @@ function unansweredConnectionQuestions(request: ProposalRequest): ProposalFallba
       control: 'service' as const,
       service_name: service.name,
       required: true,
-      choices: connections.map((connection) => ({ label: connection.name, value: connection.id })),
+      choices: connections.map((connection) => ({
+        label: connection.name,
+        value: connection.id,
+        ...('source' in connection && connection.source ? { source: connection.source } : {}),
+      })),
     }];
   });
 }

@@ -48,9 +48,13 @@ struct CredentialConnectionRow: View {
             CapabilityIconView(capability: iconCapability, size: 18, tint: theme.tokens.foreground)
                 .frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {
-                Text(row.name)
-                    .font(NTypography.bodyMedium)
-                    .foregroundStyle(theme.tokens.foreground)
+                HStack(spacing: NSpacing.xs) {
+                    Text(row.name)
+                        .font(NTypography.bodyMedium)
+                        .foregroundStyle(theme.tokens.foreground)
+                        .lineLimit(1)
+                    ConnectionCategoryPill(category: .api)
+                }
                 Text(row.action == .addAnother
                      ? "Add another account for this service"
                      : catalogEntry?.description ?? "Private service connection")
@@ -90,6 +94,7 @@ struct CredentialConnectionRow: View {
             description: "",
             icon: catalogEntry?.icon ?? "key",
             kind: "mcp",
+            source: "configured_api",
             auth: .apiKey,
             enabled: row.status == .connected,
             custom: false,
@@ -116,9 +121,13 @@ struct ConnectionRow: View {
                 .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(entry.label)
-                    .font(NTypography.bodyMedium)
-                    .foregroundStyle(theme.tokens.foreground)
+                HStack(spacing: NSpacing.xs) {
+                    Text(entry.label)
+                        .font(NTypography.bodyMedium)
+                        .foregroundStyle(theme.tokens.foreground)
+                        .lineLimit(1)
+                    ConnectionCategoryPill(category: entry.category)
+                }
                 Text(entry.description)
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
@@ -172,9 +181,13 @@ struct DiscoveredConnectionRow: View {
         HStack(spacing: NSpacing.md) {
             CapabilityIconView(capability: iconCapability, size: 18, tint: theme.tokens.foreground)
                 .frame(width: 24)
-            Text(connector.displayName)
-                .font(NTypography.bodyMedium)
-                .foregroundStyle(theme.tokens.foreground)
+            HStack(spacing: NSpacing.xs) {
+                Text(connector.displayName)
+                    .font(NTypography.bodyMedium)
+                    .foregroundStyle(theme.tokens.foreground)
+                    .lineLimit(1)
+                ConnectionCategoryPill(category: .mcp)
+            }
             Spacer()
             statusView
         }
@@ -185,7 +198,8 @@ struct DiscoveredConnectionRow: View {
     private var iconCapability: AgentCapability {
         AgentCapability(
             id: "conn:\(connector.name)", label: connector.displayName, description: "",
-            icon: "puzzlepiece.extension", kind: "mcp", auth: ConnectionAuth.none,
+            icon: "puzzlepiece.extension", kind: "mcp", source: "account",
+            auth: ConnectionAuth.none,
             enabled: connector.isConnected, custom: true, requiredEnv: [], envReady: true,
             serverName: connector.name, status: connector.status
         )
@@ -225,9 +239,19 @@ struct CatalogConnectTarget: Identifiable {
 }
 
 extension CapabilityCatalogEntry {
+    var category: ConnectionCategory {
+        ConnectionCategory(
+            capabilityID: id,
+            kind: kind,
+            auth: auth?.rawValue ?? "none",
+            source: nil
+        )
+    }
+
     var asCapability: AgentCapability {
         AgentCapability(
             id: id, label: label, description: description, icon: icon, kind: kind,
+            source: nil,
             auth: auth, enabled: envReady, custom: false,
             requiredEnv: requiredEnv, envReady: envReady, serverName: nil, status: nil
         )

@@ -19,6 +19,7 @@ import {
   applyCapabilityChanges,
   mcpServerKey,
   type CapabilityChange,
+  type AvailableConnection,
   type DiscoveredConnection,
 } from './capabilities.js';
 import {
@@ -154,6 +155,7 @@ function collectFieldWrites(
   patch: AgentPatch,
   env: EnvSource,
   discovered: DiscoveredConnection[],
+  availableConnections: AvailableConnection[],
 ): Map<string, unknown> {
   const fields = new Map<string, unknown>();
 
@@ -186,7 +188,13 @@ function collectFieldWrites(
     };
     let updates;
     try {
-      updates = applyCapabilityChanges(working, patch.capabilities as CapabilityChange[], env, discovered);
+      updates = applyCapabilityChanges(
+        working,
+        patch.capabilities as CapabilityChange[],
+        env,
+        discovered,
+        availableConnections,
+      );
     } catch (err) {
       if (err instanceof CapabilityError) {
         throw new AgentWriteError(
@@ -200,6 +208,7 @@ function collectFieldWrites(
     if (updates.tools) fields.set('tools', updates.tools);
     if (updates.disallowed_tools) fields.set('disallowed_tools', updates.disallowed_tools);
     if (updates.mcp_servers) fields.set('mcp_servers', updates.mcp_servers);
+    if (updates.connection_bindings) fields.set('connection_bindings', updates.connection_bindings);
     if (updates.permissions) fields.set('permissions', updates.permissions);
   }
 
@@ -226,10 +235,11 @@ export function applyPatchToContent(
   patch: AgentPatch,
   env: EnvSource,
   discovered: DiscoveredConnection[] = [],
+  availableConnections: AvailableConnection[] = [],
 ): string {
   if (patch.schedule) assertValidSchedule(patch.schedule);
 
-  const fields = collectFieldWrites(config, patch, env, discovered);
+  const fields = collectFieldWrites(config, patch, env, discovered, availableConnections);
   return renderLosslessAgentPatch(content, fields, patch.prompt);
 }
 
@@ -330,7 +340,11 @@ export function renderNewAgentFile(
 
 export function createAgentWriter(
   directory: string,
-  options?: { env?: () => EnvSource; connections?: () => DiscoveredConnection[] },
+  options?: {
+    env?: () => EnvSource;
+    connections?: () => DiscoveredConnection[];
+    availableConnections?: () => Promise<AvailableConnection[]>;
+  },
 ): AgentWriter {
   // Fresh read of ~/.agent-server/.env on every call so keys the user just
   // saved (e.g. via the app's Connect flow) are visible without a server
@@ -339,6 +353,8 @@ export function createAgentWriter(
   // Cached discovery snapshot so a toggle of an account connector resolves to
   // the runtime server key (and skips writing a bring-your-own server).
   const getConnections = options?.connections ?? ((): DiscoveredConnection[] => []);
+  const getAvailableConnections = options?.availableConnections
+    ?? (async (): Promise<AvailableConnection[]> => []);
 
   return {
     async update(id: string, patch: AgentPatch): Promise<AgentConfig> {
@@ -347,7 +363,14 @@ export function createAgentWriter(
         throw new AgentWriteError(`Agent not found: ${id}`, 'not_found');
       }
 
-      const newContent = applyPatchToContent(located.content, located.config, patch, getEnv(), getConnections());
+      const newContent = applyPatchToContent(
+        located.content,
+        located.config,
+        patch,
+        getEnv(),
+        getConnections(),
+        await getAvailableConnections(),
+      );
 
       let updated: AgentConfig;
       try {

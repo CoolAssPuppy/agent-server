@@ -2,6 +2,14 @@ import XCTest
 @testable import AgentServerCore
 
 final class ConnectionProfilePresentationTests: XCTestCase {
+    func testCredentialBackedProfileIsPresentedAsAPI() throws {
+        let presentation = ConnectionProfilePresentation(
+            profile: try makeProfile(),
+            configuredEnvironmentVariables: ["ARCHIVE_TOKEN"]
+        )
+
+        XCTAssertEqual(presentation.category, .api)
+    }
     func testSavedConnectionKeepsItsUserLabelAndShowsUsefulTechnicalDetails() throws {
         let profile = try makeProfile()
 

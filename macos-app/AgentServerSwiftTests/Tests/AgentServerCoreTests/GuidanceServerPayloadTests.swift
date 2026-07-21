@@ -204,6 +204,17 @@ final class GuidanceServerPayloadTests: XCTestCase {
         )
     }
 
+    func testConnectionQuestionKeepsSourceCategoryForEachChoice() throws {
+        let data = Data(#"{"status":"needs_information","questions":[{"id":"connection-notion","question":"Which Notion connection?","control":"service","service_name":"Notion","required":true,"choices":[{"label":"Personal Notion","value":"personal","source":"configured_api"},{"label":"Notion (Claude account)","value":"account","source":"account"}]}],"explanation":"Choose one.","usedFallback":true,"modelStatus":"unavailable"}"#.utf8)
+
+        let payload = try JSONDecoder().decode(GuidanceProposalResponse.self, from: data)
+        guard case .needsInformation(let questions, _) = payload else {
+            return XCTFail("Expected connection questions")
+        }
+
+        XCTAssertEqual(questions.first?.choiceCategories, [.api, .mcp])
+    }
+
     func testDiagnosisMapsRecommendationWithoutInventingApplicablePatch() throws {
         let payload = try JSONDecoder().decode(GuidanceDiagnosticPayload.self, from: Data(Self.diagnosisJSON.utf8))
         let diagnosis = payload.presentation

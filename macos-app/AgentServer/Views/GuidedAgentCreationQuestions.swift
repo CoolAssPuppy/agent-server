@@ -153,7 +153,10 @@ extension GuidedAgentCreationView {
                         serviceChoiceRow(
                             questionId: question.id,
                             label: label,
-                            value: value
+                            value: value,
+                            category: index < question.choiceCategories.count
+                                ? question.choiceCategories[index]
+                                : .mcp
                         )
                     }
                 }
@@ -162,7 +165,12 @@ extension GuidedAgentCreationView {
         .padding(.vertical, NSpacing.sm)
     }
 
-    func serviceChoiceRow(questionId: String, label: String, value: String) -> some View {
+    func serviceChoiceRow(
+        questionId: String,
+        label: String,
+        value: String,
+        category: ConnectionCategory
+    ) -> some View {
         let isSelected = model.flow.answers[questionId] == .string(value)
         return Button {
             model.answer(questionId: questionId, value: value)
@@ -175,6 +183,8 @@ extension GuidedAgentCreationView {
                 Text(label)
                     .font(NTypography.bodyMedium)
                     .foregroundStyle(theme.tokens.foreground)
+                    .lineLimit(1)
+                ConnectionCategoryPill(category: category)
                 Spacer()
                 Text("Connected")
                     .font(NTypography.captionSmall)
@@ -186,6 +196,7 @@ extension GuidedAgentCreationView {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("\(label), \(category.label) connection, Connected")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
