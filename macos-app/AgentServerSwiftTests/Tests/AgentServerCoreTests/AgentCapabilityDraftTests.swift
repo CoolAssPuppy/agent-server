@@ -26,6 +26,7 @@ final class AgentCapabilityDraftTests: XCTestCase {
         XCTAssertEqual(presentation.customCapabilityIndicator, .secondaryText)
         XCTAssertEqual(presentation.descriptionFieldStyle, .multilineFullWidth)
         XCTAssertTrue(presentation.usesUniformFieldLabelTypography)
+        XCTAssertTrue(presentation.preservesNativeScheduleControlAlignment)
         XCTAssertFalse(presentation.showsRedundantScheduleSummary)
         XCTAssertFalse(presentation.showsStandardRuntimeHint)
         XCTAssertEqual(presentation.rawFileActionPlacement, .instructionsHeaderTrailing)

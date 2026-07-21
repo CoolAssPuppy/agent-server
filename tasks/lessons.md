@@ -1,6 +1,7 @@
 # Lessons
 
-- Native Form defaults can produce right-aligned value fields and mismatched labels. For editable identity fields, use one explicit left-aligned field stack, one label type style, and remove helper text that merely repeats a picker selection.
+- In a native SwiftUI Form, changing one row from label-and-control structure to a full-width stack can move controls in every other row by changing the shared label column. Fix text alignment on the editor itself and preserve sibling row structure unless the whole section is being intentionally redesigned.
+- Native Form defaults can produce right-aligned editor text and mismatched custom labels. Preserve the native row and apply alignment to the editor itself, while giving custom labels the same type style.
 - A detail view nested under an agent already has identity context. Do not repeat the agent name, status label, or bulk actions in the run-detail header unless they add a distinct decision or capability.
 
 - Agent configuration has exactly two authoritative inputs: the Markdown file in `~/.agent-server/agents` and `~/.agent-server/.env`. App state, saved registries, runtime probes, and poll responses are derived views and must never overwrite or redefine them.

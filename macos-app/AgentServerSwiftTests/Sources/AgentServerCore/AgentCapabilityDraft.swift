@@ -101,6 +101,7 @@ public struct AgentSettingsSupportingSurfacePresentation: Equatable, Sendable {
     public let customCapabilityIndicator = AgentSettingsCustomIndicator.secondaryText
     public let descriptionFieldStyle = AgentSettingsDescriptionFieldStyle.multilineFullWidth
     public let usesUniformFieldLabelTypography = true
+    public let preservesNativeScheduleControlAlignment = true
     public let showsRedundantScheduleSummary = false
     public let showsStandardRuntimeHint = false
     public let rawFileActionPlacement = AgentSettingsRawFileActionPlacement.instructionsHeaderTrailing

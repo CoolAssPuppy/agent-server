@@ -1,5 +1,19 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Restore Edit agent schedule alignment
+
+- [x] Restore the native Name row structure so the Form keeps its established label column.
+- [x] Left-align only the Name editor and retain matching Name and Description label typography.
+- [x] Keep the redundant schedule summary removed without moving the schedule controls.
+- [x] Run Swift tests, rebuild and relaunch the unsigned local app, and commit without pushing.
+
+Review:
+
+- Added a regression contract that keeps the Schedule controls on the native Form label column.
+- Swift package: 467 tests passed.
+- Unsigned Debug app build passed and relaunched from `/tmp/agent-server-local-20260721-stabilized/Build/Products/Debug/Agent Server.app`.
+- Local server restarted successfully at `2026-07-21T07:31:58.041Z`.
+
 ## Edit agent form consistency
 
 - [x] Keep Name editing left aligned and use the same label typography for Name and Description.
