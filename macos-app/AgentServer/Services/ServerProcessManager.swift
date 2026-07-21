@@ -1,8 +1,11 @@
 import Foundation
+import Darwin
 
 @MainActor
 final class ServerProcessManager {
     private var serverProcess: Process?
+    private var ownedIdentity: ServerProcessIdentity?
+    private var shutdownTask: Task<Bool, Never>?
     private var lifecycle = ServerProcessLifecycle()
     private(set) var lastError: ServerProcessManagerError?
 
@@ -11,6 +14,10 @@ final class ServerProcessManager {
 
     private static let locationKey = "AGENT_SERVER_LOCATION"
     private static let nodePathKey = "AGENT_SERVER_NODE_PATH"
+    private static let processIdentityKey = "AGENT_SERVER_OWNED_PROCESS_IDENTITY"
+    private static let launchTokenKey = "AGENT_SERVER_LAUNCH_TOKEN"
+    private static let terminationGracePeriod = Duration.seconds(2)
+    private static let killGracePeriod = Duration.seconds(1)
 
     private var serverDirectory: String? {
         // Precedence: 1) UserDefaults, 2) .env, 3) bundled, 4) bundle-adjacent.
@@ -113,11 +120,9 @@ final class ServerProcessManager {
         launchServer(using: configuration)
     }
 
-    func stopIfWeStarted() {
-        guard lifecycle.shouldStopProcess, let process = serverProcess, process.isRunning else { return }
-        process.terminate()
-        serverProcess = nil
-        lifecycle.didStopServer()
+    func stopIfWeStarted() async {
+        guard lifecycle.shouldStopProcess, let identity = ownedIdentity else { return }
+        _ = await shutdownOnce(identity: identity)
     }
 
     func restart() async {
@@ -126,33 +131,108 @@ final class ServerProcessManager {
     }
 
     private func restart(using configuration: ServerLaunchConfiguration) async {
-        if let process = serverProcess, process.isRunning {
-            process.terminate()
-            await Self.waitUntilExit(process)
-            serverProcess = nil
-            lifecycle.didStopServer()
+        let didStop: Bool
+        if let identity = ownedIdentity {
+            didStop = await shutdownOnce(identity: identity)
         } else {
-            await killExternalServer()
+            didStop = await killExternalServer()
         }
-        guard !Task.isCancelled else { return }
+        guard didStop, !Task.isCancelled else { return }
         launchServer(using: configuration)
     }
 
-    private func killExternalServer() async {
-        guard await isServerRunning() else { return }
+    private func killExternalServer() async -> Bool {
+        guard await isServerRunning() else { return true }
 
         do {
             let pids = try await Self.externalServerPIDs()
             try Task.checkCancellation()
-            for pid in pids {
-                kill(pid, SIGTERM)
+            guard let identity = Self.storedProcessIdentity(), pids.contains(identity.pid) else {
+                record(.externalProcessNotOwned)
+                return false
             }
-            try? await Task.sleep(for: .seconds(1))
+            let didStop = await shutdownOnce(identity: identity)
+            return didStop
         } catch is CancellationError {
-            return
+            return false
         } catch {
             record(.externalProcessLookupFailed)
+            return false
         }
+    }
+
+    private func shutdownOnce(identity: ServerProcessIdentity) async -> Bool {
+        if let shutdownTask {
+            return await shutdownTask.value
+        }
+        let task = Task {
+            let didStop = await self.shutdown(identity: identity)
+            if didStop {
+                self.clearOwnedProcess()
+            }
+            return didStop
+        }
+        shutdownTask = task
+        let didStop = await task.value
+        shutdownTask = nil
+        return didStop
+    }
+
+    private func shutdown(identity: ServerProcessIdentity) async -> Bool {
+        let initialAction = await shutdownAction(for: identity, hasSentTerminate: false)
+        switch initialAction {
+        case .complete:
+            return true
+        case .identityMismatch:
+            record(.processIdentityMismatch)
+            return false
+        case .terminate:
+            guard kill(identity.pid, SIGTERM) == 0 || errno == ESRCH else {
+                record(.shutdownFailed)
+                return false
+            }
+        case .kill:
+            return false
+        }
+
+        if await Self.waitForExit(pid: identity.pid, timeout: Self.terminationGracePeriod) {
+            return true
+        }
+
+        let escalationAction = await shutdownAction(for: identity, hasSentTerminate: true)
+        switch escalationAction {
+        case .complete:
+            return true
+        case .identityMismatch:
+            record(.processIdentityMismatch)
+            return false
+        case .kill:
+            guard kill(identity.pid, SIGKILL) == 0 || errno == ESRCH else {
+                record(.shutdownFailed)
+                return false
+            }
+        case .terminate:
+            return false
+        }
+
+        guard await Self.waitForExit(pid: identity.pid, timeout: Self.killGracePeriod) else {
+            record(.shutdownTimedOut)
+            return false
+        }
+        return true
+    }
+
+    private func shutdownAction(
+        for identity: ServerProcessIdentity,
+        hasSentTerminate: Bool
+    ) async -> ServerShutdownAction {
+        let isRunning = Self.isProcessRunning(pid: identity.pid)
+        let matches = isRunning ? await Self.processMatches(identity) : false
+        return ServerShutdownPolicy.nextAction(
+            isRunning: isRunning,
+            identityMatches: matches,
+            hasSentTerminate: hasSentTerminate
+        )
     }
 
     private func isServerRunning() async -> Bool {
@@ -218,17 +298,27 @@ final class ServerProcessManager {
 
     private func launchServer(using configuration: ServerLaunchConfiguration) {
         let process = Process()
+        let launchToken = UUID().uuidString
+        var environment = configuration.environment
+        environment[Self.launchTokenKey] = launchToken
         process.executableURL = URL(fileURLWithPath: configuration.nodeExecutable)
         process.arguments = ["\(configuration.serverDirectory)/dist/cli.js", "start"]
         process.currentDirectoryURL = URL(fileURLWithPath: configuration.serverDirectory)
-        process.environment = configuration.environment
+        process.environment = environment
 
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
 
         do {
             try process.run()
+            let identity = ServerProcessIdentity(
+                pid: process.processIdentifier,
+                executablePath: Self.canonicalPath(configuration.nodeExecutable),
+                launchToken: launchToken
+            )
             serverProcess = process
+            ownedIdentity = identity
+            Self.storeProcessIdentity(identity)
             lifecycle.didLaunchServer()
             lastError = nil
         } catch {
@@ -236,17 +326,18 @@ final class ServerProcessManager {
         }
     }
 
-    private nonisolated static func waitUntilExit(_ process: Process) async {
-        await Task.detached(priority: .utility) {
-            process.waitUntilExit()
-        }.value
+    private func clearOwnedProcess() {
+        serverProcess = nil
+        ownedIdentity = nil
+        Self.storeProcessIdentity(nil)
+        lifecycle.didStopServer()
     }
 
     private nonisolated static func externalServerPIDs() async throws -> [Int32] {
         try await Task.detached(priority: .utility) {
             let task = Process()
             task.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
-            task.arguments = ["-ti", "tcp:47821"]
+            task.arguments = ExternalServerLookup.arguments(port: 47_821)
             let pipe = Pipe()
             task.standardOutput = pipe
             task.standardError = FileHandle.nullDevice
@@ -256,6 +347,74 @@ final class ServerProcessManager {
             let output = String(decoding: data, as: UTF8.self)
             return ExternalProcessPIDParser.parse(output)
         }.value
+    }
+
+    private nonisolated static func waitForExit(pid: Int32, timeout: Duration) async -> Bool {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while clock.now < deadline {
+            if !isProcessRunning(pid: pid) { return true }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        return !isProcessRunning(pid: pid)
+    }
+
+    private nonisolated static func isProcessRunning(pid: Int32) -> Bool {
+        guard kill(pid, 0) != 0 else { return true }
+        return errno == EPERM
+    }
+
+    private nonisolated static func processMatches(_ identity: ServerProcessIdentity) async -> Bool {
+        await Task.detached(priority: .utility) {
+            guard let executablePath = executablePath(pid: identity.pid),
+                  let environment = processArgumentsAndEnvironment(pid: identity.pid) else {
+                return false
+            }
+            return identity.matches(
+                pid: identity.pid,
+                executablePath: canonicalPath(executablePath),
+                environment: environment
+            )
+        }.value
+    }
+
+    private nonisolated static func executablePath(pid: Int32) -> String? {
+        var buffer = [CChar](repeating: 0, count: 4_096)
+        let length = proc_pidpath(pid, &buffer, UInt32(buffer.count))
+        guard length > 0 else { return nil }
+        return String(cString: buffer)
+    }
+
+    private nonisolated static func processArgumentsAndEnvironment(pid: Int32) -> String? {
+        var mib = [CTL_KERN, KERN_PROCARGS2, pid]
+        var size = 0
+        guard sysctl(&mib, UInt32(mib.count), nil, &size, nil, 0) == 0, size > 0 else {
+            return nil
+        }
+        var bytes = [UInt8](repeating: 0, count: size)
+        guard sysctl(&mib, UInt32(mib.count), &bytes, &size, nil, 0) == 0 else {
+            return nil
+        }
+        return String(decoding: bytes.prefix(size).map { $0 == 0 ? 32 : $0 }, as: UTF8.self)
+    }
+
+    private nonisolated static func canonicalPath(_ path: String) -> String {
+        URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path
+    }
+
+    private static func storedProcessIdentity() -> ServerProcessIdentity? {
+        guard let data = UserDefaults.standard.data(forKey: processIdentityKey) else { return nil }
+        return try? JSONDecoder().decode(ServerProcessIdentity.self, from: data)
+    }
+
+    private static func storeProcessIdentity(_ identity: ServerProcessIdentity?) {
+        guard let identity else {
+            UserDefaults.standard.removeObject(forKey: processIdentityKey)
+            return
+        }
+        if let data = try? JSONEncoder().encode(identity) {
+            UserDefaults.standard.set(data, forKey: processIdentityKey)
+        }
     }
 
     private func record(_ error: ServerProcessManagerError) {
@@ -277,6 +436,10 @@ enum ServerProcessManagerError: LocalizedError, Equatable {
     case nodeNotFound
     case launchFailed
     case externalProcessLookupFailed
+    case externalProcessNotOwned
+    case processIdentityMismatch
+    case shutdownFailed
+    case shutdownTimedOut
 
     var errorDescription: String? {
         switch self {
@@ -292,6 +455,14 @@ enum ServerProcessManagerError: LocalizedError, Equatable {
             return "The local server could not be started."
         case .externalProcessLookupFailed:
             return "The existing local server process could not be inspected."
+        case .externalProcessNotOwned:
+            return "The existing local server was not started by this app and was left running."
+        case .processIdentityMismatch:
+            return "The local server process changed before it could be stopped and was left running."
+        case .shutdownFailed:
+            return "The local server process could not be stopped."
+        case .shutdownTimedOut:
+            return "The local server process did not stop before the shutdown deadline."
         }
     }
 }

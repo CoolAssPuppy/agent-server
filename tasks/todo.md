@@ -9,7 +9,7 @@
 - [x] Batch 2 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun all server gates, and commit refinements.
 - [x] Batch 3: Upgrade vulnerable dependencies, add dependency auditing and native CI, make macOS build inputs reproducible, test the CLI, and ratchet coverage. Cover TD-07 through TD-11, TD-38, and TD-39.
 - [x] Batch 3 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun server, Swift, and build gates, and commit refinements.
-- [ ] Batch 4: Fix owned-process shutdown, decision polling and resolution, and stable run identity. Cover TD-13 through TD-17.
+- [x] Batch 4: Fix owned-process shutdown, decision polling and resolution, and stable run identity. Cover TD-13 through TD-17.
 - [ ] Batch 4 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun Swift and integration gates, and commit refinements.
 - [ ] Batch 5: Fix environment-file safety, Markdown Unicode ranges, EventKit timeouts and pagination, helper decomposition, and native integration coverage. Cover TD-18 through TD-22, TD-41, and TD-42.
 - [ ] Batch 5 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun Swift and app-build gates, and commit refinements.
@@ -38,6 +38,10 @@ Batch 3 removes the unused direct WebSocket dependencies, pins patched Hono and 
 The Batch 3 cleanup renames the compatibility module to the Agent Server-owned design system, removes unused public theme fields, tests that package in CI, and colocates trigger tests. It also preserves startup failures when cleanup fails, returns a nonzero exit for failed shutdown, logs listener success only after binding, and lets independent downstream triggers continue after one target fails.
 
 Verification through the Batch 3 cleanup passed with 1,290 server tests, 84.92% line coverage, strict type checking, ESLint, the server build, a frozen install, the production dependency audit, three design-system tests, 378 Swift tests, and an unsigned macOS app build. The dependency audit has no high or critical advisories; one low and two moderate transitive advisories remain. Remaining batches are pending.
+
+Batch 4 limits external process discovery to listeners, persists an owned PID/executable/launch-token identity, verifies that identity before both graceful termination and forced escalation, and bounds shutdown waits. Application termination now awaits that path and exposes failures. Decision refreshes coalesce behind a tracked generation, stop cancels stale work, and resolution mutates local state only after panel success. Run reconciliation uses exact run IDs end to end and no longer guesses by timestamp.
+
+Batch 4 verification passed with 1,291 server tests, strict type checking, ESLint, the server build, 392 Swift tests, and a fresh unsigned macOS app build.
 
 ## Tech debt audit
 

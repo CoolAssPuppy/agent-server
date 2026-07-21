@@ -190,39 +190,12 @@ struct AgentRunsView: View {
     }
 
     private func mergeRuns(panel: [Run], local: [Run]) -> [Run] {
-        let localById = Dictionary(local.map { ($0.runId, $0) }, uniquingKeysWith: { _, last in last })
-
-        // For each panel run, prefer local data if we can match by ID or start time.
-        // Active runs get local data (has live progress); completed runs keep panel data (has full result).
-        var matchedLocalStartTimes = Set<Int>()
-        var matchedLocalIds = Set<String>()
-
-        var merged = panel.map { panelRun -> Run in
-            // Exact ID match
-            if let localRun = localById[panelRun.runId] {
-                matchedLocalIds.insert(localRun.runId)
-                matchedLocalStartTimes.insert(Int(localRun.startedAt.timeIntervalSince1970))
-                return panelRun.isActive ? localRun : panelRun
-            }
-            // Fuzzy time match (panel and local use different IDs for the same run)
-            if let localRun = local.first(where: {
-                abs($0.startedAt.timeIntervalSince(panelRun.startedAt)) < 10
-            }) {
-                matchedLocalIds.insert(localRun.runId)
-                matchedLocalStartTimes.insert(Int(localRun.startedAt.timeIntervalSince1970))
-                return panelRun.isActive ? localRun : panelRun
-            }
-            return panelRun
-        }
-
-        // Add local-only runs not matched to any panel run
-        let localOnly = local.filter { localRun in
-            !matchedLocalIds.contains(localRun.runId) &&
-            !matchedLocalStartTimes.contains(Int(localRun.startedAt.timeIntervalSince1970))
-        }
-        merged.insert(contentsOf: localOnly, at: 0)
-
-        return merged
+        StableRunMerge.merge(
+            panel: panel,
+            local: local,
+            id: \Run.runId,
+            isActive: \Run.isActive
+        )
     }
 
     private func fetchFromPanel() async throws -> [Run]? {

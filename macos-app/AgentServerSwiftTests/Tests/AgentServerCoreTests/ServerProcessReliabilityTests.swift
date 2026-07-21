@@ -112,6 +112,96 @@ final class ServerProcessReliabilityTests: XCTestCase {
         XCTAssertEqual(ExternalProcessPIDParser.parse(output), [42, 73])
     }
 
+    func testExternalLookupOnlyReturnsListeningProcessesOnTheServerPort() {
+        XCTAssertEqual(
+            ExternalServerLookup.arguments(port: 47_821),
+            ["-nP", "-a", "-iTCP:47821", "-sTCP:LISTEN", "-t"]
+        )
+    }
+
+    func testOwnedProcessIdentityRequiresMatchingPIDExecutableAndLaunchToken() {
+        let expected = ServerProcessIdentity(
+            pid: 42,
+            executablePath: "/opt/homebrew/bin/node",
+            launchToken: "owned-token"
+        )
+
+        XCTAssertTrue(expected.matches(
+            pid: 42,
+            executablePath: "/opt/homebrew/bin/node",
+            environment: "PATH=/usr/bin AGENT_SERVER_LAUNCH_TOKEN=owned-token HOME=/tmp"
+        ))
+        XCTAssertFalse(expected.matches(
+            pid: 73,
+            executablePath: "/opt/homebrew/bin/node",
+            environment: "AGENT_SERVER_LAUNCH_TOKEN=owned-token"
+        ))
+        XCTAssertFalse(expected.matches(
+            pid: 42,
+            executablePath: "/usr/bin/node",
+            environment: "AGENT_SERVER_LAUNCH_TOKEN=owned-token"
+        ))
+        XCTAssertFalse(expected.matches(
+            pid: 42,
+            executablePath: "/opt/homebrew/bin/node",
+            environment: "AGENT_SERVER_LAUNCH_TOKEN=other-token"
+        ))
+    }
+
+    func testLaunchTokenMatchingDoesNotAcceptPrefixesOrDifferentVariables() {
+        let identity = ServerProcessIdentity(
+            pid: 42,
+            executablePath: "/opt/homebrew/bin/node",
+            launchToken: "owned-token"
+        )
+
+        XCTAssertFalse(identity.matches(
+            pid: 42,
+            executablePath: "/opt/homebrew/bin/node",
+            environment: "NOT_AGENT_SERVER_LAUNCH_TOKEN=owned-token"
+        ))
+        XCTAssertFalse(identity.matches(
+            pid: 42,
+            executablePath: "/opt/homebrew/bin/node",
+            environment: "AGENT_SERVER_LAUNCH_TOKEN=owned-token-extra"
+        ))
+    }
+
+    func testShutdownPolicyEscalatesOnlyWhileTheSameOwnedProcessIsRunning() {
+        XCTAssertEqual(
+            ServerShutdownPolicy.nextAction(
+                isRunning: false,
+                identityMatches: false,
+                hasSentTerminate: false
+            ),
+            .complete
+        )
+        XCTAssertEqual(
+            ServerShutdownPolicy.nextAction(
+                isRunning: true,
+                identityMatches: true,
+                hasSentTerminate: false
+            ),
+            .terminate
+        )
+        XCTAssertEqual(
+            ServerShutdownPolicy.nextAction(
+                isRunning: true,
+                identityMatches: true,
+                hasSentTerminate: true
+            ),
+            .kill
+        )
+        XCTAssertEqual(
+            ServerShutdownPolicy.nextAction(
+                isRunning: true,
+                identityMatches: false,
+                hasSentTerminate: true
+            ),
+            .identityMismatch
+        )
+    }
+
     func testLifecycleOnlyStopsProcessesStartedByThisApp() {
         var lifecycle = ServerProcessLifecycle()
         lifecycle.observedExistingServer()
@@ -119,6 +209,9 @@ final class ServerProcessReliabilityTests: XCTestCase {
 
         lifecycle.didLaunchServer()
         XCTAssertTrue(lifecycle.shouldStopProcess)
+
+        lifecycle.didStopServer()
+        XCTAssertFalse(lifecycle.shouldStopProcess)
 
         lifecycle.didStopServer()
         XCTAssertFalse(lifecycle.shouldStopProcess)

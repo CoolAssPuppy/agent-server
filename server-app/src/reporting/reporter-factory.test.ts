@@ -31,6 +31,7 @@ function makeConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
  * verify which precedence layer (agent > server > default) won.
  */
 function readReporterConfig(reporter: ReturnType<typeof createReporter>): {
+  endpoint: string;
   progressMode: 'live' | 'batched';
   progressSampleMs: number;
   maxProgressEntries: number;
@@ -38,6 +39,7 @@ function readReporterConfig(reporter: ReturnType<typeof createReporter>): {
 } {
   const inner = (reporter as unknown as { config: Record<string, unknown> }).config;
   return {
+    endpoint: inner.endpoint as string,
     progressMode: inner.progressMode as 'live' | 'batched',
     progressSampleMs: inner.progressSampleMs as number,
     maxProgressEntries: inner.maxProgressEntries as number,
@@ -66,6 +68,14 @@ describe('createReporter telemetry precedence', () => {
     expect(resolved.progressSampleMs).toBe(7_000);
     expect(resolved.maxProgressEntries).toBe(25);
     expect(resolved.includeProgressMetadata).toBe(true);
+  });
+
+  it('preserves the server run ID in the panel status endpoint', () => {
+    const reporter = createReporter(makeConfig(), 'stable-run-id', 'Test');
+
+    expect(readReporterConfig(reporter).endpoint).toBe(
+      'https://panel.example.com/api/runs/stable-run-id/status',
+    );
   });
 
   it('agent telemetry overrides server config field by field', () => {

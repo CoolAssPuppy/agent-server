@@ -90,6 +90,51 @@ public enum ExternalProcessPIDParser {
     }
 }
 
+public enum ExternalServerLookup {
+    public static func arguments(port: UInt16) -> [String] {
+        ["-nP", "-a", "-iTCP:\(port)", "-sTCP:LISTEN", "-t"]
+    }
+}
+
+public struct ServerProcessIdentity: Codable, Equatable, Sendable {
+    public let pid: Int32
+    public let executablePath: String
+    public let launchToken: String
+
+    public init(pid: Int32, executablePath: String, launchToken: String) {
+        self.pid = pid
+        self.executablePath = executablePath
+        self.launchToken = launchToken
+    }
+
+    public func matches(pid: Int32, executablePath: String, environment: String) -> Bool {
+        guard self.pid == pid, self.executablePath == executablePath else { return false }
+        let expectedToken = "AGENT_SERVER_LAUNCH_TOKEN=\(launchToken)"
+        return environment.split(whereSeparator: { $0.isWhitespace }).contains {
+            $0 == expectedToken
+        }
+    }
+}
+
+public enum ServerShutdownAction: Equatable, Sendable {
+    case complete
+    case terminate
+    case kill
+    case identityMismatch
+}
+
+public enum ServerShutdownPolicy {
+    public static func nextAction(
+        isRunning: Bool,
+        identityMatches: Bool,
+        hasSentTerminate: Bool
+    ) -> ServerShutdownAction {
+        guard isRunning else { return .complete }
+        guard identityMatches else { return .identityMismatch }
+        return hasSentTerminate ? .kill : .terminate
+    }
+}
+
 public struct ServerProcessLifecycle: Equatable, Sendable {
     public private(set) var shouldStopProcess = false
 

@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let themeManager = ThemeManager.shared
     private var cancellables = Set<AnyCancellable>()
     private var eventMonitor: Any?
+    private var isTerminationPending = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupMainMenu()
@@ -62,7 +63,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         monitor.stop()
-        serverProcess.stopIfWeStarted()
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard !isTerminationPending else { return .terminateLater }
+        isTerminationPending = true
+        monitor.stop()
+
+        Task {
+            await serverProcess.stopIfWeStarted()
+            if let error = serverProcess.lastError {
+                let alert = NSAlert()
+                alert.alertStyle = .warning
+                alert.messageText = "Agent Server could not finish shutting down"
+                alert.informativeText = error.localizedDescription
+                alert.addButton(withTitle: "Quit Anyway")
+                alert.runModal()
+            }
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
