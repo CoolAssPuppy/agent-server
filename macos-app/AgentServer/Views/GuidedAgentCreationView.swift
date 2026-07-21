@@ -1,45 +1,5 @@
 import SwiftUI
 import AgentServerDesignSystem
-import AppKit
-
-private extension CreationQuestion.NativeResource {
-    var unavailableTitle: String {
-        switch self {
-        case .calendar: "Calendar access is not available yet."
-        case .reminders: "Reminder access is not available yet."
-        case .contacts: "Contacts access is not available yet."
-        }
-    }
-
-    var recoveryMessage: String {
-        switch self {
-        case .calendar: "Allow Agent Server to view calendars in System Settings, then check again."
-        case .reminders: "Allow Agent Server to view reminders in System Settings, then check again."
-        case .contacts: "Allow Agent Server to view contacts in System Settings, then check again."
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .calendar: "calendar.badge.exclamationmark"
-        case .reminders: "list.bullet.clipboard"
-        case .contacts: "person.crop.circle.badge.exclamationmark"
-        }
-    }
-
-    var privacySettingsURL: String {
-        switch self {
-        case .calendar: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars"
-        case .reminders: "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders"
-        case .contacts: "x-apple.systempreferences:com.apple.preference.security?Privacy_Contacts"
-        }
-    }
-}
-
-enum CreationPreparation {
-    case questions([CreationQuestion])
-    case proposal(AgentProposalPresentation)
-}
 
 struct GuidedAgentCreationActions {
     let prepare: (String, [String: CreationAnswerValue]) async -> Result<CreationPreparation, ConsumerFlowFailure>
@@ -69,25 +29,16 @@ struct GuidedAgentCreationView: View {
     var copy: GuidedAgentCreationCopy = .newAgent
     var setUpConnections: ((@escaping () -> Void) -> Void)? = nil
 
-    @Environment(\.nTheme) private var theme
-    @State private var request = ""
-    @State private var answer = ""
-    @State private var scheduleAnswer = ScheduleDraft()
-    @State private var fileGrants: [CreationFileGrant] = []
-    @State private var pickerError: String?
-    @State private var flow = AgentCreationFlow(request: "")
-    @State private var pendingHighRiskSave: Bool?
-    @State private var unsupportedServiceTracker = UnsupportedServiceTelemetryTracker()
-    @State private var safeTestTask: Task<Void, Never>?
+    @Environment(\.nTheme) var theme
+    @State var model = GuidedAgentCreationModel()
+    @State var safeTestTask: Task<Void, Never>?
 
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
-                VStack(alignment: .leading, spacing: NSpacing.lg) {
-                    content
-                }
-                .frame(maxWidth: 720)
-                .padding(NSpacing.xl)
+                VStack(alignment: .leading, spacing: NSpacing.lg) { content }
+                    .frame(maxWidth: 720)
+                    .padding(NSpacing.xl)
             }
             footer
         }
@@ -98,53 +49,50 @@ struct GuidedAgentCreationView: View {
         .confirmationDialog(
             "Save a high-risk agent?",
             isPresented: Binding(
-                get: { pendingHighRiskSave != nil },
-                set: { if !$0 { pendingHighRiskSave = nil } }
-            ),
-            presenting: pendingHighRiskSave
-        ) { runSafeTest in
-            Button("Save reviewed agent") { save(runSafeTest: runSafeTest) }
-            Button("Cancel", role: .cancel) {}
-        } message: { _ in
-            Text(flow.proposal?.riskReason ?? "Review this agent's access before saving.")
+                get: { model.pendingHighRiskSave != nil },
+                set: { if !$0 { model.cancelHighRiskSave() } }
+            )
+        ) {
+            Button("Save reviewed agent", action: confirmHighRiskSave)
+            Button("Cancel", role: .cancel) { model.cancelHighRiskSave() }
+        } message: {
+            Text(model.flow.proposal?.riskReason ?? "Review this agent's access before saving.")
         }
-        .onDisappear { safeTestTask?.cancel() }
+        .onDisappear(perform: cancelSafeTestObservation)
     }
 
     @ViewBuilder
-    private var content: some View {
-        switch flow.phase {
-        case .request:
-            requestStep
-        case .questions:
-            questionStep
+    var content: some View {
+        switch model.flow.phase {
+        case .request: requestStep
+        case .questions: questionStep
         case .preparingProposal:
             ConsumerProgressView(
                 title: "Preparing your agent",
                 message: "Checking what it needs and choosing safe defaults."
             )
         case .proposal:
-            if let proposal = flow.proposal { proposalStep(proposal) }
+            if let proposal = model.flow.proposal { proposalStep(proposal) }
         case .saving:
-            ConsumerProgressView(title: "Saving your agent", message: "Your reviewed settings are being saved locally.")
+            ConsumerProgressView(
+                title: "Saving your agent",
+                message: "Your reviewed settings are being saved locally."
+            )
         case .testing:
             ConsumerProgressView(title: "Running a safe test")
         case .complete:
             completionStep
         case .failed:
-            if let failure = flow.failure {
+            if let failure = model.flow.failure {
                 ConsumerFlowFailureView(failure: failure, retry: failure.canRetry ? retry : nil)
             }
         }
     }
 
-    private var requestStep: some View {
+    var requestStep: some View {
         VStack(alignment: .leading, spacing: NSpacing.lg) {
-            ConsumerFlowHeader(
-                title: copy.title,
-                explanation: copy.explanation
-            )
-            TextEditor(text: $request)
+            ConsumerFlowHeader(title: copy.title, explanation: copy.explanation)
+            TextEditor(text: $model.request)
                 .font(.system(.title3))
                 .scrollContentBackground(.hidden)
                 .padding(NSpacing.md)
@@ -160,615 +108,115 @@ struct GuidedAgentCreationView: View {
         }
     }
 
-    @ViewBuilder
-    private var questionStep: some View {
-        if !flow.connectionQuestions.isEmpty {
-            connectionSetupStep
-        } else if let question = flow.nextQuestion {
-            ConsumerFlowHeader(
-                title: question.prompt,
-                explanation: question.kind == .fileAccess
-                    ? CreationFileAccessStepCopy.explanation
-                    : nil
-            )
-            questionControl(question)
-        }
-    }
-
-    private var connectionSetupStep: some View {
-        VStack(alignment: .leading, spacing: NSpacing.lg) {
-            ConsumerFlowHeader(
-                title: CreationConnectionStepCopy.title,
-                explanation: CreationConnectionStepCopy.explanation
-            )
-            ForEach(flow.connectionQuestions) { question in
-                if case .service(let serviceName, let choices) = question.kind {
-                    serviceChoice(question, serviceName: serviceName, choices: choices)
-                }
-            }
-            HStack {
-                Spacer()
-                Button("Set up later", action: deferConnectionSetup)
-                    .buttonStyle(.borderless)
-                    .controlSize(.small)
-                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationSetUpLater)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func questionControl(_ question: CreationQuestion) -> some View {
-        switch question.kind {
-        case .text:
-            TextField("Type your answer", text: $answer)
-                .textFieldStyle(.roundedBorder)
-        case .folder:
-            VStack(alignment: .leading, spacing: NSpacing.sm) {
-                HStack {
-                    Text(answer.isEmpty ? "No folder selected" : answer)
-                        .foregroundStyle(answer.isEmpty ? theme.tokens.mutedForeground : theme.tokens.foreground)
-                        .lineLimit(1)
-                    Spacer()
-                    Button("Choose folder") { presentResourcePicker(.folder) }
-                        .accessibilityIdentifier(ConsumerFlowAccessibility.creationFolderPicker)
-                }
-                pickerFailure
-            }
-        case .fileAccess:
-            fileAccessPicker
-        case .runtime(let options):
-            RuntimeChoicePicker(options: options, selection: $answer)
-        case .schedule:
-            ScheduleField(draft: $scheduleAnswer)
-                .accessibilityElement(children: .contain)
-                .accessibilityLabel("Choose when this agent runs")
-        case .choice(let choices):
-            if let unavailableResource = question.unavailableNativeResource {
-                VStack(alignment: .leading, spacing: NSpacing.sm) {
-                    Label(
-                        unavailableResource.unavailableTitle,
-                        systemImage: unavailableResource.systemImage
-                    )
-                    Text(unavailableResource.recoveryMessage)
-                        .font(NTypography.caption)
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                    HStack {
-                        Button("Allow access") { requestNativeAccess(unavailableResource) }
-                            .buttonStyle(.borderedProminent)
-                        Button("Open System Settings") { openPrivacySettings(for: unavailableResource) }
-                        Button("Check again", action: refreshQuestion)
-                    }
-                }
-            } else {
-                Picker("Choose one", selection: $answer) {
-                    Text("Choose…").tag("")
-                    ForEach(Array(choices.enumerated()), id: \.offset) { index, label in
-                        Text(label).tag(index < question.choiceValues.count ? question.choiceValues[index] : label)
-                    }
-                }
-            }
-        case .service(let serviceName, let choices):
-            serviceChoice(question, serviceName: serviceName, choices: choices)
-        case .confirmation:
-            Picker("Choose one", selection: $answer) {
-                Text("Choose…").tag("")
-                Text("Yes").tag("Yes")
-                Text("No").tag("No")
-            }
-        case .unavailable(let message):
-            VStack(alignment: .leading, spacing: NSpacing.sm) {
-                Label("No access was added", systemImage: "exclamationmark.triangle")
-                Text(message)
-                    .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                Button("Edit request") { flow.returnToRequest() }
-            }
-        }
-    }
-
-    private func serviceChoice(
-        _ question: CreationQuestion,
-        serviceName: String?,
-        choices: [String]
-    ) -> some View {
-        VStack(alignment: .leading, spacing: NSpacing.md) {
-            HStack(alignment: .top, spacing: NSpacing.md) {
-                serviceBrandIcon(serviceName)
-                VStack(alignment: .leading, spacing: NSpacing.xxs) {
-                    if let title = question.serviceContextTitle {
-                        Text(title).font(NTypography.headlineSmall)
-                    }
-                    if let explanation = question.serviceContextExplanation {
-                        Text(explanation)
-                            .font(NTypography.caption)
-                            .foregroundStyle(theme.tokens.mutedForeground)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-            VStack(spacing: NSpacing.xs) {
-                if choices.isEmpty {
-                    Button("Set up \(serviceName ?? "this app or service")", action: requestConnectionSetup)
-                        .buttonStyle(.borderedProminent)
-                } else {
-                    ForEach(Array(choices.enumerated()), id: \.offset) { index, label in
-                        let value = index < question.choiceValues.count ? question.choiceValues[index] : label
-                        serviceChoiceRow(questionId: question.id, label: label, value: value)
-                    }
-                }
-            }
-        }
-        .padding(.vertical, NSpacing.sm)
-    }
-
-    private var fileAccessPicker: some View {
-        VStack(alignment: .leading, spacing: NSpacing.xs) {
-            VStack(spacing: 0) {
-                if fileGrants.isEmpty {
-                    VStack(spacing: NSpacing.sm) {
-                        Image(systemName: "folder.badge.plus")
-                            .font(.system(size: 30, weight: .light))
-                            .foregroundStyle(theme.tokens.mutedForeground)
-                            .accessibilityHidden(true)
-                        Text("No files or folders selected")
-                            .font(NTypography.bodyMedium)
-                            .foregroundStyle(theme.tokens.foreground)
-                        Text("Nothing on this Mac is available to the agent until you choose it here.")
-                            .font(NTypography.caption)
-                            .foregroundStyle(theme.tokens.mutedForeground)
-                            .multilineTextAlignment(.center)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, NSpacing.xxl)
-                } else {
-                    VStack(spacing: 0) {
-                        ForEach(Array(fileGrants.enumerated()), id: \.element.id) { index, grant in
-                            if index > 0 { Divider().opacity(0.4) }
-                            fileGrantRow(grant)
-                        }
-                    }
-                }
-
-                Divider().opacity(0.4)
-                HStack {
-                    Button {
-                        presentResourcePicker(.filesAndFolders)
-                    } label: {
-                        Label(
-                            fileGrants.isEmpty ? "Choose files or folders…" : "Add files or folders…",
-                            systemImage: "plus"
-                        )
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationFolderPicker)
-                    Spacer()
-                    Text("View only is the safer default.")
-                        .font(NTypography.captionSmall)
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                }
-                .padding(NSpacing.md)
-            }
-            .background(theme.tokens.card)
-            .overlay(RoundedRectangle(cornerRadius: NRadius.md).stroke(theme.tokens.border))
-            .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
-            pickerFailure
-        }
-    }
-
-    private func fileGrantRow(_ grant: CreationFileGrant) -> some View {
-        HStack(spacing: NSpacing.md) {
-            Image(systemName: grant.kind == .folder ? "folder" : "doc")
-                .frame(width: 20)
-                .foregroundStyle(theme.tokens.mutedForeground)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(URL(fileURLWithPath: grant.path).lastPathComponent)
-                    .font(NTypography.bodyMedium)
-                Text(grant.path)
-                    .font(NTypography.captionSmall)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            Spacer()
-            Picker("Access for \(grant.path)", selection: accessBinding(for: grant)) {
-                Text("View only").tag(CreationFileGrant.Access.readOnly)
-                Text("Can make changes").tag(CreationFileGrant.Access.readWrite)
-            }
-            .labelsHidden()
-            .frame(width: 155)
-            Button("Remove \(grant.path)", systemImage: "minus.circle") {
-                fileGrants.removeAll { $0.id == grant.id }
-            }
-            .labelStyle(.iconOnly)
-            .buttonStyle(.plain)
-        }
-        .padding(NSpacing.md)
-    }
-
-    private func serviceChoiceRow(questionId: String, label: String, value: String) -> some View {
-        let isSelected = flow.answers[questionId] == .string(value)
-        return Button { flow.answer(questionId: questionId, value: value) } label: {
-            HStack(spacing: NSpacing.sm) {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isSelected ? theme.tokens.primary : theme.tokens.mutedForeground)
-                Text(label)
-                    .font(NTypography.bodyMedium)
-                    .foregroundStyle(theme.tokens.foreground)
-                Spacer()
-                Text("Connected")
-                    .font(NTypography.captionSmall)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-            }
-            .padding(NSpacing.md)
-            .background(isSelected ? theme.tokens.primary.opacity(0.08) : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-
-    @ViewBuilder
-    private func serviceBrandIcon(_ serviceName: String?) -> some View {
-        Group {
-            if let serviceName, let asset = CapabilityBrand.asset(forServiceName: serviceName) {
-                Image(asset)
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .foregroundStyle(theme.tokens.foreground)
-                    .padding(6)
-            } else {
-                Image(systemName: "app.connected.to.app.below.fill")
-                    .foregroundStyle(theme.tokens.foreground)
-            }
-        }
-        .frame(width: 36, height: 36)
-        .accessibilityHidden(true)
-    }
-
-    private func proposalStep(_ proposal: AgentProposalPresentation) -> some View {
-        VStack(alignment: .leading, spacing: NSpacing.lg) {
-            ConsumerFlowHeader(title: "Review your agent")
-            AgentProposalView(
-                proposal: proposal
-            )
-                .accessibilityIdentifier(ConsumerFlowAccessibility.creationReview)
-        }
-    }
-
-    private var completionStep: some View {
-        ConsumerSection("Agent saved") {
-            Label(completionMessage, systemImage: "checkmark.circle")
-                .font(NTypography.headlineSmall)
-                .foregroundStyle(theme.tokens.success)
-        }
-    }
-
-    private var completionMessage: String {
-        flow.safeTestState == .stopped
-            ? "Your agent is saved. The safe test was stopped."
-            : "Your agent is ready."
-    }
-
-    private var footer: some View {
-        HStack(spacing: NSpacing.sm) {
-            Spacer()
-            if flow.canGoBack {
-                Button("Back", action: goBack)
-                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationBack)
-                Spacer().frame(width: NSpacing.sm)
-            }
-            Button("Cancel", action: onCancel)
-                .keyboardShortcut(.cancelAction)
-                .disabled(isBusy)
-            footerActions
-        }
-        .padding(.horizontal, NSpacing.xl)
-        .padding(.vertical, NSpacing.md)
-        .background(.bar)
-    }
-
-    @ViewBuilder
-    private var footerActions: some View {
-        switch flow.phase {
-        case .request:
-            Button("Continue", action: startPreparation)
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .disabled(request.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .accessibilityIdentifier(ConsumerFlowAccessibility.creationContinue)
-        case .questions:
-            if !flow.connectionQuestions.isEmpty {
-                Button("Continue", action: submitConnectionSetup)
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(!flow.areConnectionQuestionsAnswered)
-                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationContinue)
-            } else if flow.nextQuestion?.requiresConnectionSetup != true,
-               flow.nextQuestion?.isUnavailable != true {
-                Button("Continue", action: answerQuestion)
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(!(flow.nextQuestion?.isAnswered(by: currentAnswerValue) ?? false))
-                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationContinue)
-            }
-        case .proposal:
-            if let proposal = flow.proposal, !proposal.readiness.canSave {
-                Button(proposal.readiness.primaryActionTitle, action: requestConnectionSetup)
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(setUpConnections == nil)
-                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationConnectionSetup)
-            } else {
-                Button("Save agent") { requestSave(runSafeTest: false) }
-                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationSave)
-                Button("Save and run a safe test") { requestSave(runSafeTest: true) }
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.defaultAction)
-                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationSaveAndTest)
-            }
-        case .testing:
-            if let runId = flow.safeTestRunId {
-                Button("Open run") { onOpenRun(runId) }
-                Button("Stop test") { stopSafeTest(runId) }
-                    .buttonStyle(.borderedProminent)
-            }
-        case .failed:
-            if let runId = flow.failedSafeTestRunId {
-                Button("Open Agent Debugger") { onTestFailed(runId) }
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.defaultAction)
-            }
-        case .complete:
-            Button("Done", action: onCancel)
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-        default:
-            EmptyView()
-        }
-    }
-
-    private func startPreparation() {
-        let unsupportedIDs = UnsupportedCreationServiceClassifier.serviceIDs(in: request)
-        let newIDs = unsupportedServiceTracker.newServiceIDs(from: unsupportedIDs)
-        if !newIDs.isEmpty {
+    func startPreparation() {
+        guard let request = model.startPreparation() else { return }
+        if !request.newUnsupportedServiceIDs.isEmpty {
             Telemetry.capture(
                 "agent_creation_unsupported_services_mentioned",
-                properties: ["service_ids": newIDs, "service_count": newIDs.count]
+                properties: [
+                    "service_ids": request.newUnsupportedServiceIDs,
+                    "service_count": request.newUnsupportedServiceIDs.count,
+                ]
             )
         }
-        flow.reviseRequest(request)
-        flow.beginProposalRequest()
-        prepare()
+        prepare(request)
     }
 
-    private func submitConnectionSetup() {
-        guard flow.areConnectionQuestionsAnswered, flow.canRequestProposal else { return }
-        flow.beginProposalRequest()
-        prepare()
+    func prepare(_ request: GuidedPreparationRequest) {
+        Task {
+            let result = await actions.prepare(request.request, request.answers)
+            model.receivePreparation(result, generation: request.generation)
+        }
     }
 
-    private func deferConnectionSetup() {
-        flow.deferConnectionSetup()
+    func submitConnectionSetup() {
+        guard model.flow.areConnectionQuestionsAnswered,
+              let request = model.requestProposal() else { return }
+        prepare(request)
+    }
+
+    func deferConnectionSetup() {
+        model.deferConnectionSetup()
         submitConnectionSetup()
     }
 
-    private func goBack() {
-        flow.goBack()
-        guard let question = flow.nextQuestion,
-              let savedAnswer = flow.answers[question.id] else { return }
-        switch savedAnswer {
-        case .string(let value):
-            if case .schedule = question.kind {
-                scheduleAnswer = ScheduleDraft(cron: value)
+    func answerQuestion() {
+        if let request = model.answerCurrentQuestion() { prepare(request) }
+    }
+
+    func refreshQuestion() {
+        if let request = model.refreshQuestion() { prepare(request) }
+    }
+
+    func retry() {
+        if let request = model.retry() { prepare(request) }
+    }
+
+    func goBack() {
+        model.goBack()
+    }
+
+    func requestSave(runSafeTest: Bool) {
+        guard let decision = model.requestSave(runSafeTest: runSafeTest) else { return }
+        if case .save(let request) = decision { save(request) }
+    }
+
+    func confirmHighRiskSave() {
+        guard let request = model.confirmHighRiskSave() else { return }
+        save(request)
+    }
+
+    func save(_ request: GuidedSaveRequest) {
+        Task {
+            let result = await actions.save(request.proposal, request.runSafeTest)
+            guard model.receiveSave(result, generation: request.generation) else { return }
+            guard case .success(let saved) = result else { return }
+            if let observation = model.safeTestObservation {
+                observeSafeTest(observation, result: saved)
             } else {
-                answer = value
-            }
-        case .fileGrants(let grants):
-            fileGrants = grants
-        }
-    }
-
-    private func refreshQuestion() {
-        guard flow.beginQuestionRefresh() else { return }
-        prepare()
-    }
-
-    private func requestNativeAccess(_ resource: CreationQuestion.NativeResource) {
-        Task {
-            await EventKitPermissionManager().requestAccess(for: resource)
-            refreshQuestion()
-        }
-    }
-
-    private func openPrivacySettings(for resource: CreationQuestion.NativeResource) {
-        guard let url = URL(string: resource.privacySettingsURL) else { return }
-        NSWorkspace.shared.open(url)
-    }
-
-    private func answerQuestion() {
-        guard let question = flow.nextQuestion, let currentAnswerValue else { return }
-        flow.answer(questionId: question.id, value: currentAnswerValue)
-        answer = ""
-        scheduleAnswer = ScheduleDraft()
-        fileGrants = []
-        pickerError = nil
-        if flow.canRequestProposal {
-            flow.beginProposalRequest()
-            prepare()
-        }
-    }
-
-    private func prepare() {
-        Task {
-            switch await actions.prepare(flow.request, flow.answers) {
-            case .success(.questions(let questions)):
-                flow.receiveQuestions(questions)
-                if flow.canRequestProposal {
-                    flow.fail(.init(
-                        title: "The suggestion needs another try",
-                        message: "The creation service could not finish a proposal from the answers you already provided.",
-                        recovery: "Try again. Your description and selected access will be kept.",
-                        technicalDetails: "The proposal service returned questions that were already answered.",
-                        didSave: false,
-                        canRetry: true
-                    ))
-                }
-            case .success(.proposal(let proposal)): flow.receiveProposal(proposal)
-            case .failure(let failure): flow.fail(failure)
+                onCreated(saved)
             }
         }
     }
 
-    private func save(runSafeTest: Bool) {
-        guard let proposal = flow.proposal else { return }
-        flow.beginSave(runSafeTest: runSafeTest)
-        Task {
-            switch await actions.save(proposal, runSafeTest) {
-            case .success(let result):
-                flow.didSave(result)
-                if let runId = result.safeTestRunId {
-                    observeSafeTest(runId: runId, result: result)
-                } else {
-                    onCreated(result)
-                }
-            case .failure(let failure): flow.fail(failure)
-            }
-        }
-    }
-
-    private func observeSafeTest(runId: String, result: SavedAgentPresentation) {
+    func observeSafeTest(
+        _ observation: GuidedSafeTestObservation,
+        result: SavedAgentPresentation
+    ) {
         safeTestTask?.cancel()
         safeTestTask = Task {
-            let observation = await RunTerminalObserver.wait {
-                await actions.safeTestState(runId)
+            let terminal = await RunTerminalObserver.wait {
+                await actions.safeTestState(observation.runId)
             }
             guard !Task.isCancelled else { return }
-            switch observation {
+            guard model.receiveSafeTest(
+                terminal,
+                generation: observation.generation
+            ) else { return }
+            switch terminal {
             case .success(let state):
-                flow.updateSafeTest(state)
                 if state == .completed { onCreated(result) }
-                if case .failed = state { onTestFailed(runId) }
-            case .failure(let failure):
-                flow.fail(failure)
+                if case .failed = state { onTestFailed(observation.runId) }
+            case .failure:
+                break
             }
         }
     }
 
-    private func stopSafeTest(_ runId: String) {
+    func stopSafeTest() {
+        guard let runId = model.stopSafeTest() else { return }
         actions.stopSafeTest(runId)
         safeTestTask?.cancel()
-        flow.updateSafeTest(.stopped)
     }
 
-    private func requestSave(runSafeTest: Bool) {
-        guard let risk = flow.proposal?.risk else { return }
-        if risk == .high || risk == .critical {
-            pendingHighRiskSave = runSafeTest
-        } else {
-            save(runSafeTest: runSafeTest)
-        }
+    func cancelSafeTestObservation() {
+        safeTestTask?.cancel()
+        model.cancelSafeTestObservation()
     }
 
-    private func requestConnectionSetup() {
+    func requestConnectionSetup() {
         setUpConnections? {
-            flow.beginProposalRequest()
-            prepare()
-        }
-    }
-
-    private var isBusy: Bool {
-        switch flow.phase {
-        case .preparingProposal, .saving, .testing: return true
-        default: return false
-        }
-    }
-
-    private func retry() {
-        flow.retry()
-        if flow.canRequestProposal {
-            flow.beginProposalRequest()
-            prepare()
-        }
-    }
-
-    private func chooseResources(_ urls: [URL], mode: CreationResourcePickerMode) {
-        pickerError = nil
-        if flow.nextQuestion?.kind == .folder {
-            guard let url = urls.first,
-                  (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else {
-                pickerError = "Choose a folder, not a file."
-                return
-            }
-            answer = url.path(percentEncoded: false)
-            return
-        }
-        let additions = urls.compactMap { url -> CreationFileGrant? in
-            guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey]),
-                  let isDirectory = values.isDirectory else {
-                pickerError = "One selected item could not be identified. Choose it again."
-                return nil
-            }
-            guard mode.accepts(isDirectory: isDirectory) else {
-                pickerError = "Choose a folder, not a file."
-                return nil
-            }
-            return CreationFileGrant(
-                path: url.path(percentEncoded: false),
-                kind: isDirectory ? .folder : .file,
-                access: .readOnly
-            )
-        }
-        let existing = Set(fileGrants.map(\.path))
-        fileGrants.append(contentsOf: additions.filter { !existing.contains($0.path) })
-    }
-
-    private func presentResourcePicker(_ mode: CreationResourcePickerMode) {
-        pickerError = nil
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = mode == .filesAndFolders
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = mode.allowsMultipleSelection
-        panel.canCreateDirectories = false
-        panel.prompt = "Choose"
-        panel.message = mode == .folder
-            ? "Choose the folder this agent should use."
-            : "Choose the files or folders this agent may use."
-        panel.begin { response in
-            guard response == .OK else { return }
-            chooseResources(panel.urls, mode: mode)
-        }
-    }
-
-    @ViewBuilder
-    private var pickerFailure: some View {
-        if let pickerError {
-            Label(pickerError, systemImage: "exclamationmark.triangle")
-                .font(NTypography.caption)
-                .foregroundStyle(theme.tokens.error)
-                .accessibilityLabel("File selection error: \(pickerError)")
-        }
-    }
-
-    private func accessBinding(for grant: CreationFileGrant) -> Binding<CreationFileGrant.Access> {
-        Binding(
-            get: { fileGrants.first(where: { $0.id == grant.id })?.access ?? grant.access },
-            set: { access in
-                guard let index = fileGrants.firstIndex(where: { $0.id == grant.id }) else { return }
-                fileGrants[index] = CreationFileGrant(path: grant.path, kind: grant.kind, access: access)
-            }
-        )
-    }
-
-    private var currentAnswerValue: CreationAnswerValue? {
-        switch flow.nextQuestion?.kind {
-        case .schedule: .string(scheduleAnswer.cronExpression ?? "manual")
-        case .fileAccess: .fileGrants(fileGrants)
-        case .none: nil
-        default: .string(answer)
+            if let request = model.requestProposal() { prepare(request) }
         }
     }
 }

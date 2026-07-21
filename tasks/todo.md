@@ -15,7 +15,7 @@
 - [x] Batch 5 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun Swift and app-build gates, and commit refinements.
 - [x] Batch 6: Make release publication verifiable and ordered, prevent stale feeds and unsafe interpolation, and replace obsolete build and release documentation. Cover TD-12, TD-33 through TD-37, and TD-46.
 - [x] Batch 6 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun script, documentation, server, Swift, and build gates, and commit refinements.
-- [ ] Batch 7: Split the three large SwiftUI surfaces along tested state and action boundaries. Cover TD-43.
+- [x] Batch 7: Split the three large SwiftUI surfaces along tested state and action boundaries. Cover TD-43.
 - [ ] Batch 7 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun all repository gates, and commit refinements.
 - [ ] Re-run the technical debt audit, prove every finding closed or explicitly retired, and record the final review.
 
@@ -52,6 +52,8 @@ The Batch 5 cleanup stops false-positive masking for trailing-underscore environ
 Batch 6 validates release versions and metadata through tested Python value objects, treats the live appcast as authoritative, rejects duplicate or stale releases, and builds XML without source interpolation. Publication now rechecks the live-feed digest before mutation, requires the immutable DMG key to be absent, verifies exact artifact length and all Sparkle fields, and updates the latest alias only after direct and short-link feeds pass. The R2 and DMG guide is canonical, README build steps match the root pnpm lock and deploy phase, and CI enforces release tooling and documentation contracts. Verification passed with 26 release-tool tests, 1,294 server tests, the coverage gate, strict TypeScript checking, ESLint, the server build, shell syntax checks, and real parsing of the 25-entry production appcast.
 
 The Batch 6 cleanup makes namespace matching exact, blocks real XML document types without rejecting harmless CDATA text, requires the actual English channel anchor, and narrows metadata APIs to parsed versions. Publication uses typed release plans, revalidates signed artifacts before network activity, confirms the enclosure and immutable URLs match, shares one atomic writer, and reports command failures with useful context. Documentation removes repeated version-specific instructions and tests stable manifest-derived facts. Verification passed with 37 release-tool tests, 1,294 server tests, the coverage gate, strict TypeScript checking, ESLint, the server build, Bash and ShellCheck validation, and real production appcast and metadata parsing.
+
+Batch 7 replaces the 774-line guided creation view, 700-line agent settings view, and 671-line settings drawer with 222-line, 158-line, and 145-line composition shells. Pure Core models now own creation generations and cancellation, resource selection, typed agent-settings drafts and patches, schedule state, environment validation, restart dirtiness, telemetry bounds, panel gating, and stale workspace reload rejection. AppKit panels and native side effects remain in focused app adapters. Verification passed with 437 Swift tests, 1,294 server tests, 37 release-tool tests, 3 design-system tests, 11 EventKit core tests, strict TypeScript checking, ESLint, the server build, and an unsigned macOS app build.
 
 ## Tech debt audit
 
