@@ -13,7 +13,7 @@
 #   8. Verifies everything is live
 #
 # Prerequisites:
-#   - notarytool keychain profile "agent-server" (see SPARKLE.md step 6c)
+#   - notarytool keychain profile "agent-server" (see docs/SPARKLE.md)
 #   - Sparkle sign_update at ~/bin/sparkle/sign_update
 #   - create-dmg installed (brew install create-dmg)
 #   - doppler CLI logged in with access to the agent-server/prd config
@@ -37,6 +37,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MACOS_APP="$REPO_ROOT/macos-app"
 DIST="$REPO_ROOT/dist"
 SCRIPTS="$REPO_ROOT/scripts"
+. "$SCRIPTS/release-helpers.sh"
 
 NOTARY_PROFILE="agent-server"
 SPARKLE_SIGN_UPDATE="${SPARKLE_SIGN_UPDATE:-$HOME/bin/sparkle/sign_update}"
@@ -160,15 +161,14 @@ run_notarytool() {
 
 if ! run_notarytool history >/dev/null 2>&1; then
   echo "Error: notarization keychain profile '$NOTARY_PROFILE' is missing or invalid."
-  echo "Store it with: xcrun notarytool store-credentials \"$NOTARY_PROFILE\" --apple-id ... --team-id ... --password ..."
+  echo "Store it with: xcrun notarytool store-credentials \"$NOTARY_PROFILE\" --apple-id ... --team-id ..."
+  echo "notarytool will request the app-specific password using a secure prompt."
   exit 1
 fi
 
 echo "==> Notarizing .app (takes a few minutes)"
 APP_ZIP="$DIST/export-$VERSION/AgentServer.app.zip"
-ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$APP_ZIP"
-run_notarytool submit "$APP_ZIP" --wait
-rm -f "$APP_ZIP"
+notarize_app_archive "$APP_PATH" "$APP_ZIP"
 
 echo "==> Stapling .app"
 xcrun stapler staple "$APP_PATH"

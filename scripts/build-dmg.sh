@@ -8,7 +8,8 @@
 #   2. `brew install create-dmg`
 #   3. Background TIFF at macos-app/dmg-assets/background.tiff
 #   4. A `notarytool` keychain profile stored via:
-#        xcrun notarytool store-credentials <profile-name> --apple-id ... --team-id ... --password ...
+#        xcrun notarytool store-credentials <profile-name> --apple-id ... --team-id ...
+#      notarytool requests the app-specific password using a secure prompt.
 #   5. Sparkle `sign_update` tool at ~/bin/sparkle/sign_update (see docs/SPARKLE.md).
 #
 # Usage:

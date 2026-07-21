@@ -31,9 +31,10 @@ The Cloudflare token must be able to write objects to the selected R2 bucket. St
 ```bash
 xcrun notarytool store-credentials agent-server \
   --apple-id "you@example.com" \
-  --team-id "955GSY56UT" \
-  --password "app-specific-password"
+  --team-id "955GSY56UT"
 ```
+
+Leave the password option unset. `notarytool` requests the app-specific password using a secure prompt and stores it in the Keychain profile.
 
 ## Cut a release
 

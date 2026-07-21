@@ -9,6 +9,7 @@ import type { NotificationData } from '../interaction/notification.js';
 import type { InteractionRequest } from '../interaction/schema.js';
 import type { RunStoreLike } from '../reporting/store.js';
 import { toErrorMessage } from '../util/errors.js';
+import { withTimeout } from '../util/with-timeout.js';
 import type { ProgressBroadcaster } from './websocket.js';
 import { createRunProgressReporter } from './run-progress-reporter.js';
 
@@ -339,19 +340,35 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
     if (runIds.length === 0) return true;
     console.log(`[shutdown] Aborting ${runIds.length} active run(s); draining terminals`);
     for (const controller of activeControllers.values()) controller.abort();
-    const waits = runIds.map((runId) => Promise.race([
+    const waits = runIds.map((runId) => withTimeoutFallback(
       waitForTerminal(runId).then(() => true),
-      delay(timeouts.perRunTimeoutMs).then(() => false),
-    ]));
-    return Promise.race([
+      timeouts.perRunTimeoutMs,
+      false,
+    ));
+    return withTimeoutFallback(
       Promise.all(waits).then((results) => results.every(Boolean)),
-      delay(timeouts.overallTimeoutMs).then(() => false),
-    ]);
+      timeouts.overallTimeoutMs,
+      false,
+    );
   }
 
   return { trigger, stopAccepting, cancel, waitForTerminal, drain };
 }
 
-function delay(durationMs: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, durationMs));
+async function withTimeoutFallback<T>(
+  promise: Promise<T>,
+  durationMs: number,
+  fallback: T,
+): Promise<T> {
+  let didTimeout = false;
+  try {
+    return await withTimeout(promise, {
+      timeoutMs: durationMs,
+      createError: () => new Error('Run drain timed out'),
+      onTimeout: () => { didTimeout = true; },
+    });
+  } catch (error) {
+    if (didTimeout) return fallback;
+    throw error;
+  }
 }

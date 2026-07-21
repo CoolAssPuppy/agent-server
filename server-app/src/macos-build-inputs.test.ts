@@ -60,4 +60,12 @@ describe('macOS build inputs', () => {
     expect(releaseScript).toContain('POSTHOG_PUBLIC_KEY=$(doppler secrets get POSTHOG_PUBLIC_KEY');
     expect(releaseScript.match(/POSTHOG_API_KEY="\$POSTHOG_PUBLIC_KEY"/g)).toHaveLength(2);
   });
+
+  it('fails the app build when the required EventKit helper is missing', async () => {
+    const project = await readRepositoryFile('macos-app/project.yml');
+
+    expect(project).toMatch(
+      /if \[ ! -f "\$HELPER_SRC" \]; then\s+echo "error: agent-server-eventkit not built at \$HELPER_SRC"\s+exit 1\s+fi/,
+    );
+  });
 });

@@ -355,4 +355,19 @@ describe('run lifecycle', () => {
 
     expect(store.get(runId)).toMatchObject({ status: 'failed', error: 'Canceled' });
   });
+
+  it('clears losing shutdown timers when terminal work drains early', async () => {
+    vi.useFakeTimers();
+    try {
+      const { lifecycle } = createHarness();
+      lifecycle.trigger(makeAgent());
+
+      await expect(lifecycle.drain({ overallTimeoutMs: 10_000, perRunTimeoutMs: 3_000 }))
+        .resolves.toBe(true);
+
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

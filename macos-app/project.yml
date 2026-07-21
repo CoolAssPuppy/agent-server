@@ -131,8 +131,8 @@ targets:
           HELPER_DEST="${HELPERS_DIR}/agent-server-eventkit"
 
           if [ ! -f "$HELPER_SRC" ]; then
-            echo "warning: agent-server-eventkit not built at $HELPER_SRC"
-            exit 0
+            echo "error: agent-server-eventkit not built at $HELPER_SRC"
+            exit 1
           fi
 
           mkdir -p "$HELPERS_DIR"
