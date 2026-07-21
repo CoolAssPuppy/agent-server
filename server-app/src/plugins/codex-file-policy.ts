@@ -1,5 +1,3 @@
-import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
 import type { AgentConfig } from '../agents/config.js';
 import { canonicalFileAccessPath } from '../execution/permissions.js';
 
@@ -29,13 +27,8 @@ export function buildCodexPermissionOverrides(agent: AgentConfig): string[] {
   ];
 }
 
-/** Resolve either the discovered executable or the SDK's bundled Codex CLI. */
+/** Resolve the installed Codex CLI required by file-scoped runs. */
 export function resolveCodexCommand(codexExecutablePath?: string): CodexCommand {
   if (codexExecutablePath) return { executable: codexExecutablePath, arguments: [] };
-  const sdkRequire = createRequire(import.meta.resolve('@openai/codex-sdk'));
-  const packageJson = sdkRequire.resolve('@openai/codex/package.json');
-  return {
-    executable: process.execPath,
-    arguments: [join(dirname(packageJson), 'bin', 'codex.js')],
-  };
+  throw new Error('Codex is not installed. Install Codex or choose another coding agent.');
 }

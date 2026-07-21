@@ -68,4 +68,16 @@ describe('macOS build inputs', () => {
       /if \[ ! -f "\$HELPER_SRC" \]; then\s+echo "error: agent-server-eventkit not built at \$HELPER_SRC"\s+exit 1\s+fi/,
     );
   });
+
+  it('ships SDK adapters without bundled Claude or Codex platform runtimes', async () => {
+    const project = await readRepositoryFile('macos-app/project.yml');
+    const pruningScript = await readRepositoryFile('scripts/prune-bundled-runtimes.sh');
+
+    expect(project).toContain('scripts/prune-bundled-runtimes.sh');
+    expect(project).toContain('SLIM_RUNTIME_RECIPE_VERSION=');
+    expect(pruningScript).toContain('@anthropic-ai/claude-agent-sdk-darwin-*');
+    expect(pruningScript).toContain('@openai/codex-darwin-*');
+    expect(pruningScript).not.toContain('@anthropic-ai/claude-agent-sdk"');
+    expect(pruningScript).not.toContain('@openai/codex-sdk"');
+  });
 });

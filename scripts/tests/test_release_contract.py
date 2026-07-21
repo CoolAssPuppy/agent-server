@@ -9,10 +9,15 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class ReleaseShellContractTests(unittest.TestCase):
-    def test_nested_runtimes_keep_their_required_entitlements_when_resigned(self) -> None:
+    def test_release_strips_platform_runtimes_but_keeps_sdk_adapters(self) -> None:
         project = (ROOT / "macos-app/project.yml").read_text()
+        pruning = (ROOT / "scripts/prune-bundled-runtimes.sh").read_text()
 
-        self.assertIn("--preserve-metadata=entitlements", project)
+        self.assertIn("scripts/prune-bundled-runtimes.sh", project)
+        self.assertIn("@anthropic-ai/claude-agent-sdk-darwin-*", pruning)
+        self.assertIn("@openai/codex-darwin-*", pruning)
+        self.assertNotIn('@anthropic-ai/claude-agent-sdk"', pruning)
+        self.assertNotIn('@openai/codex-sdk"', pruning)
 
     def test_notary_credentials_use_keychain_indirection_only(self) -> None:
         release = (ROOT / "scripts/release.sh").read_text()

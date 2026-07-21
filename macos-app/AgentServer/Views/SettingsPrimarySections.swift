@@ -56,18 +56,12 @@ struct SettingsGeneralSection: View {
 }
 
 struct SettingsRuntimeSection: View {
-    @Binding var usesInstalledClaude: Bool
-    @Binding var usesInstalledCodex: Bool
     @Binding var usesInstalledKimi: Bool
     let requiresRestart: Bool
     let onRestart: () -> Void
 
     var body: some View {
         SettingsGroup(title: SettingsSection.runtimes.title) {
-            SettingsToggleRow(label: "Use installed Claude", isOn: $usesInstalledClaude)
-            SettingsRowDivider()
-            SettingsToggleRow(label: "Use installed Codex", isOn: $usesInstalledCodex)
-            SettingsRowDivider()
             SettingsToggleRow(label: "Use installed Kimi", isOn: $usesInstalledKimi)
             if requiresRestart {
                 SettingsRestartNotice(action: onRestart)

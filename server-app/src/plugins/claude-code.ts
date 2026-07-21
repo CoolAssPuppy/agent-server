@@ -27,8 +27,8 @@ type ExecuteAgentExtra = {
   decisionContext?: DecisionContext;
   runId?: string;
   /**
-   * Path to the user's installed Claude executable. When set, the SDK uses it
-   * instead of the bundled runtime. Undefined keeps the bundled default.
+   * Path to the user's installed Claude executable. The app passes this key
+   * even when discovery fails so the executor can return setup guidance.
    */
   claudeExecutablePath?: string;
 };
@@ -38,6 +38,11 @@ export async function executeAgent(
   reporter: Reporter,
   extra?: ExecuteAgentExtra,
 ): Promise<ExecutionResult> {
+  if (extra && Object.hasOwn(extra, 'claudeExecutablePath') && !extra.claudeExecutablePath) {
+    throw new Error(
+      'Claude Code is not installed. Install Claude Code or choose another coding agent.',
+    );
+  }
   const cwd = agent.working_directory
     ? expandHome(agent.working_directory)
     : process.env.HOME ?? process.cwd();
@@ -69,8 +74,7 @@ export async function executeAgent(
       ? buildCanUseTool(effectivePermissions, fileAccess)
       : undefined,
     abortController,
-    // Use the user's installed Claude runtime when discovery found one;
-    // undefined falls back to the SDK's bundled executable.
+    // Use the user's installed Claude runtime and its subscription login.
     pathToClaudeCodeExecutable: extra?.claudeExecutablePath,
     // A custom provider points Claude at an Anthropic-compatible endpoint (e.g.
     // Moonshot for Kimi) for this run only, via per-session env — without

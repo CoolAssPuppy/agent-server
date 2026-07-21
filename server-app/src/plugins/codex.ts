@@ -18,8 +18,8 @@ import {
 type ExecuteCodexExtra = {
   abortController?: AbortController;
   /**
-   * Path to the user's installed Codex executable. When set, Codex uses it
-   * instead of the codex-sdk's bundled binary. Undefined keeps the default.
+   * Path to the user's installed Codex executable. The app passes this key
+   * even when discovery fails so the executor can return setup guidance.
    */
   codexExecutablePath?: string;
   disableMcpServers?: boolean;
@@ -50,6 +50,9 @@ export async function executeCodexAgent(
   reporter: Reporter,
   extra?: ExecuteCodexExtra,
 ): Promise<ExecutionResult> {
+  if (extra && Object.hasOwn(extra, 'codexExecutablePath') && !extra.codexExecutablePath) {
+    throw new Error('Codex is not installed. Install Codex or choose another coding agent.');
+  }
   const startedAt = performance.now();
   const state = createState();
   const environment = buildCodexChildEnvironment();
@@ -72,8 +75,7 @@ export async function executeCodexAgent(
   const codex = new Codex({
     env: environment,
     config,
-    // Use the user's installed Codex binary when discovery found one;
-    // undefined falls back to the codex-sdk's bundled binary.
+    // Use the user's installed Codex binary and its ChatGPT login.
     codexPathOverride: extra?.codexExecutablePath,
     // A custom provider points Codex at an OpenAI-compatible endpoint (e.g.
     // Moonshot for Kimi K3) instead of the ChatGPT subscription. Without a

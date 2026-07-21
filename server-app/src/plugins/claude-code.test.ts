@@ -53,6 +53,17 @@ beforeEach(() => {
 });
 
 describe('executeAgent with Agent SDK', () => {
+  it('fails clearly when the app cannot find installed Claude Code', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+
+    await expect(executeAgent(createAgentConfig(), createMockReporter(), {
+      claudeExecutablePath: undefined,
+    })).rejects.toThrow(
+      'Claude Code is not installed. Install Claude Code or choose another coding agent.',
+    );
+    expect(mockQuery).not.toHaveBeenCalled();
+  });
+
   it('returns execution result from a successful SDK run', async () => {
     const { executeAgent } = await import('./claude-code.js');
 

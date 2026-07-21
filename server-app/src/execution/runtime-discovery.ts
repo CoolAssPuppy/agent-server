@@ -14,14 +14,14 @@ export type RuntimeProbe = {
   which: (command: string) => string | undefined;
   /** The user's home directory. */
   home: string;
-  /** Environment, for opt-out flags and explicit path overrides. */
+  /** Environment, for explicit path overrides and the optional Kimi toggle. */
   env: Record<string, string | undefined>;
 };
 
 export type RuntimePaths = {
-  /** Resolved path to the user's Claude executable, or undefined for bundled. */
+  /** Resolved path to the user's Claude executable, or undefined when unavailable. */
   claudeExecutablePath?: string;
-  /** Resolved path to the user's Codex executable, or undefined for bundled. */
+  /** Resolved path to the user's Codex executable, or undefined when unavailable. */
   codexExecutablePath?: string;
   /** Resolved path to the user's installed Kimi Code executable. */
   kimiExecutablePath?: string;
@@ -56,12 +56,10 @@ export function createDefaultProbe(
 /**
  * Find the user's installed Claude executable, so runs use the binary (and
  * subscription login) they already have rather than the SDK's bundled one.
- * Resolution order: opt-out flag > explicit override > known user-local
- * installer paths > PATH. Returns undefined to fall back to the bundled runtime.
+ * Resolution order: explicit override > known user-local installer paths >
+ * PATH. Returns undefined when Claude Code is unavailable.
  */
 export function discoverClaudeExecutable(probe: RuntimeProbe): string | undefined {
-  if (probe.env.AGENT_SERVER_USE_INSTALLED_CLAUDE === 'false') return undefined;
-
   const explicit = probe.env.AGENT_SERVER_CLAUDE_PATH;
   if (explicit) return probe.isExecutable(explicit) ? explicit : undefined;
 
@@ -77,12 +75,10 @@ export function discoverClaudeExecutable(probe: RuntimeProbe): string | undefine
 }
 
 /**
- * Find the user's installed Codex executable. Resolution order: opt-out flag >
- * explicit override > PATH. Returns undefined to fall back to bundled.
+ * Find the user's installed Codex executable. Resolution order: explicit
+ * override > PATH. Returns undefined when Codex is unavailable.
  */
 export function discoverCodexExecutable(probe: RuntimeProbe): string | undefined {
-  if (probe.env.AGENT_SERVER_USE_INSTALLED_CODEX === 'false') return undefined;
-
   const explicit = probe.env.AGENT_SERVER_CODEX_PATH;
   if (explicit) return probe.isExecutable(explicit) ? explicit : undefined;
 

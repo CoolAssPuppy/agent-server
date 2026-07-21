@@ -5,11 +5,11 @@ final class SettingsDraftTests: XCTestCase {
     func testLoadedEnvironmentDerivesSettingsWithoutRestartDirtiness() {
         let draft = SettingsDraft(pairs: [
             EnvPair(key: SettingsDraft.catchUpKey, value: "false"),
-            EnvPair(key: SettingsDraft.useInstalledCodexKey, value: "false"),
+            EnvPair(key: SettingsDraft.useInstalledKimiKey, value: "false"),
         ])
 
         XCTAssertFalse(draft.resumeAfterWake)
-        XCTAssertFalse(draft.runtimeSelection.usesInstalledCodex)
+        XCTAssertFalse(draft.runtimeSelection.usesInstalledKimi)
         XCTAssertFalse(draft.requiresGeneralRestart)
         XCTAssertFalse(draft.requiresRuntimeRestart)
         XCTAssertFalse(draft.requiresPanelRestart)
@@ -19,11 +19,7 @@ final class SettingsDraftTests: XCTestCase {
         var draft = SettingsDraft(pairs: [EnvPair(key: "UNRELATED", value: "kept")])
 
         draft.setResumeAfterWake(false)
-        draft.setRuntimeSelection(RuntimeSelection(
-            usesInstalledClaude: true,
-            usesInstalledCodex: false,
-            usesInstalledKimi: true
-        ))
+        draft.setRuntimeSelection(RuntimeSelection(usesInstalledKimi: false))
 
         XCTAssertEqual(draft.pairs.first, EnvPair(key: "UNRELATED", value: "kept"))
         XCTAssertTrue(draft.requiresGeneralRestart)

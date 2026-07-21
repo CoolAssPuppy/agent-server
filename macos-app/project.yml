@@ -70,6 +70,7 @@ targets:
           ROOT_DIR="${SRCROOT}/.."
           STAGING="${SRCROOT}/.build-cache/server-bundle"
           HASH_FILE="$STAGING/.installed-lock-hash"
+          SLIM_RUNTIME_RECIPE_VERSION=1
 
           echo "Building the bundled server..."
           cd "$ROOT_DIR"
@@ -81,7 +82,8 @@ targets:
             exit 1
           fi
 
-          CURRENT_HASH=$(shasum -a 256 "$ROOT_DIR/pnpm-lock.yaml" | awk '{print $1}')
+          LOCK_HASH=$(shasum -a 256 "$ROOT_DIR/pnpm-lock.yaml" | awk '{print $1}')
+          CURRENT_HASH=$(printf '%s\n%s\n' "$LOCK_HASH" "$SLIM_RUNTIME_RECIPE_VERSION" | shasum -a 256 | awk '{print $1}')
           INSTALLED_HASH=""
           if [ -f "$HASH_FILE" ]; then
             INSTALLED_HASH=$(cat "$HASH_FILE")
@@ -102,6 +104,7 @@ targets:
           cd "$ROOT_DIR"
           pnpm --filter @agent-server/core --config.inject-workspace-packages=true deploy --prod --offline --config.node-linker=hoisted "$STAGING"
           find "$STAGING/node_modules" -name ".bin" -type d -prune -exec rm -rf {} + 2>/dev/null || true
+          "$ROOT_DIR/scripts/prune-bundled-runtimes.sh" "$STAGING/node_modules"
 
           echo "$CURRENT_HASH" > "$HASH_FILE"
           echo "Staged production node_modules (lock hash $CURRENT_HASH)"

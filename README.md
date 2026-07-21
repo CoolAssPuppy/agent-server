@@ -722,10 +722,8 @@ The CLI loads `~/.agent-server/.env` at startup. Shell environment variables tak
 | `AGENT_SERVER_DEFAULT_MAX_TURNS` | `20` | Default `max_turns` used when an agent omits `max_turns` |
 | `AGENT_SERVER_PROMPT_INJECTION_GUARD` | `true` | Wrap untrusted user context in guarded delimiters and policy instructions before execution |
 | `AGENT_SERVER_PROMPT_INJECTION_STRICT` | `false` | Reject suspicious user context (pattern-based) before execution |
-| `AGENT_SERVER_USE_INSTALLED_CLAUDE` | `true` | Set to `false` to use the Claude Agent SDK's bundled runtime |
-| `AGENT_SERVER_CLAUDE_PATH` |  | Exact path to the Claude Code executable |
-| `AGENT_SERVER_USE_INSTALLED_CODEX` | `true` | Set to `false` to use the Codex SDK's bundled runtime |
-| `AGENT_SERVER_CODEX_PATH` |  | Exact path to the Codex executable |
+| `AGENT_SERVER_CLAUDE_PATH` |  | Exact path to the required Claude Code executable |
+| `AGENT_SERVER_CODEX_PATH` |  | Exact path to the required Codex executable |
 | `AGENT_SERVER_USE_INSTALLED_KIMI` | `true` | Set to `false` to turn off installed Kimi Code discovery |
 | `AGENT_SERVER_KIMI_PATH` |  | Exact path to the `kimi` executable. An invalid explicit path fails closed. |
 | `ANTHROPIC_API_KEY` |  | Anthropic API key. Required for Telegram message routing (agent selection via Haiku). |

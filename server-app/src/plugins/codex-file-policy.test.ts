@@ -27,7 +27,13 @@ describe('Codex exact file policy', () => {
     ]);
   });
 
-  it('enforces reviewed read and write paths in the bundled macOS sandbox', async () => {
+  it('requires an installed Codex executable', () => {
+    expect(() => resolveCodexCommand()).toThrow(
+      'Codex is not installed. Install Codex or choose another coding agent.',
+    );
+  });
+
+  it('enforces reviewed read and write paths with the installed macOS sandbox', async () => {
     if (process.platform !== 'darwin') return;
     const root = await mkdtemp(join(tmpdir(), 'agent-server-codex-policy-'));
     const readOnly = join(root, 'read-only');
@@ -40,7 +46,7 @@ describe('Codex exact file policy', () => {
     ]);
 
     try {
-      const command = resolveCodexCommand();
+      const command = resolveCodexCommand(process.env.AGENT_SERVER_CODEX_PATH ?? 'codex');
       const overrides = buildCodexPermissionOverrides(makeAgent({
         file_access: [
           { path: readOnly, kind: 'folder', access: 'read_only' },

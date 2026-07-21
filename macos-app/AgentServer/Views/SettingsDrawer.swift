@@ -131,8 +131,6 @@ struct SettingsDrawer: View {
             )
         case .runtimes:
             SettingsRuntimeSection(
-                usesInstalledClaude: runtimeBinding(\.usesInstalledClaude),
-                usesInstalledCodex: runtimeBinding(\.usesInstalledCodex),
                 usesInstalledKimi: runtimeBinding(\.usesInstalledKimi),
                 requiresRestart: draft.requiresRuntimeRestart,
                 onRestart: restartForRuntimeChange

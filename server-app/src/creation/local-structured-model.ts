@@ -57,6 +57,9 @@ export function createLocalStructuredModel(options: RunnerOptions = {}): LocalSt
   return {
     handlesRetries: true,
     async generate(prompt, outputSchema, generationOptions = {}) {
+      if (Object.hasOwn(options, 'codexExecutablePath') && !options.codexExecutablePath) {
+        throw new Error('Codex is not installed. Install Codex or choose another coding agent.');
+      }
       const key = generationOptions.requestKey;
       if (key) active.get(key)?.abort();
       let lastError: unknown;

@@ -14,8 +14,6 @@ public enum AgentPanelConnection: String, Equatable, Sendable {
 
 public struct SettingsDraft {
     static let catchUpKey = "AGENT_SERVER_CATCH_UP"
-    static let useInstalledClaudeKey = "AGENT_SERVER_USE_INSTALLED_CLAUDE"
-    static let useInstalledCodexKey = "AGENT_SERVER_USE_INSTALLED_CODEX"
     static let useInstalledKimiKey = "AGENT_SERVER_USE_INSTALLED_KIMI"
 
     public var pairs: [EnvPair]
@@ -76,14 +74,6 @@ public struct SettingsDraft {
     }
 
     public mutating func setRuntimeSelection(_ selection: RuntimeSelection) {
-        pairs = Self.installedClaudePreference.updating(
-            pairs,
-            to: selection.usesInstalledClaude
-        )
-        pairs = Self.installedCodexPreference.updating(
-            pairs,
-            to: selection.usesInstalledCodex
-        )
         pairs = Self.installedKimiPreference.updating(
             pairs,
             to: selection.usesInstalledKimi
@@ -212,23 +202,11 @@ public struct SettingsDraft {
     }
 
     private static func runtimeSelection(in pairs: [EnvPair]) -> RuntimeSelection {
-        RuntimeSelection(
-            usesInstalledClaude: installedClaudePreference.value(in: pairs),
-            usesInstalledCodex: installedCodexPreference.value(in: pairs),
-            usesInstalledKimi: installedKimiPreference.value(in: pairs)
-        )
+        RuntimeSelection(usesInstalledKimi: installedKimiPreference.value(in: pairs))
     }
 
     private static let catchUpPreference = EnvironmentBooleanPreference(
         key: catchUpKey,
-        defaultValue: true
-    )
-    private static let installedClaudePreference = EnvironmentBooleanPreference(
-        key: useInstalledClaudeKey,
-        defaultValue: true
-    )
-    private static let installedCodexPreference = EnvironmentBooleanPreference(
-        key: useInstalledCodexKey,
         defaultValue: true
     )
     private static let installedKimiPreference = EnvironmentBooleanPreference(

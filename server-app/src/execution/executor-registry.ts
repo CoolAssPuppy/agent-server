@@ -9,11 +9,9 @@ export type ExecutorFnOptions = {
   decisionContext?: DecisionContext;
   /**
    * Path to the user's installed Claude executable (from runtime discovery).
-   * When set, the Claude executor uses it instead of the SDK's bundled runtime,
-   * so runs use the binary and subscription login the user already has.
    */
   claudeExecutablePath?: string;
-  /** Path to the user's installed Codex executable, or undefined for bundled. */
+  /** Path to the user's installed Codex executable, or undefined when unavailable. */
   codexExecutablePath?: string;
   /** Path to the user's installed Kimi Code executable. */
   kimiExecutablePath?: string;

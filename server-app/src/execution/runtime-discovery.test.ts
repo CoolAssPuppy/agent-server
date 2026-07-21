@@ -48,7 +48,7 @@ describe('discoverClaudeExecutable', () => {
     expect(discoverClaudeExecutable(probe)).toBe(onPath);
   });
 
-  it('returns undefined (bundled) when nothing is installed', () => {
+  it('reports Claude unavailable when nothing is installed', () => {
     expect(discoverClaudeExecutable(makeProbe())).toBeUndefined();
   });
 
@@ -69,13 +69,13 @@ describe('discoverClaudeExecutable', () => {
     expect(discoverClaudeExecutable(probe)).toBeUndefined();
   });
 
-  it('forces bundled when AGENT_SERVER_USE_INSTALLED_CLAUDE is false', () => {
+  it('ignores the obsolete bundled-runtime opt-out', () => {
     const local = join(HOME, '.claude', 'local', 'claude');
     const probe = makeProbe({
       isExecutable: (p) => p === local,
       env: { AGENT_SERVER_USE_INSTALLED_CLAUDE: 'false' },
     });
-    expect(discoverClaudeExecutable(probe)).toBeUndefined();
+    expect(discoverClaudeExecutable(probe)).toBe(local);
   });
 
   it('does not use a PATH result that is not executable', () => {
@@ -110,14 +110,14 @@ describe('discoverCodexExecutable', () => {
     expect(discoverCodexExecutable(probe)).toBe(custom);
   });
 
-  it('forces bundled when AGENT_SERVER_USE_INSTALLED_CODEX is false', () => {
+  it('ignores the obsolete bundled-runtime opt-out', () => {
     const onPath = '/opt/homebrew/bin/codex';
     const probe = makeProbe({
       isExecutable: (p) => p === onPath,
       which: () => onPath,
       env: { AGENT_SERVER_USE_INSTALLED_CODEX: 'false' },
     });
-    expect(discoverCodexExecutable(probe)).toBeUndefined();
+    expect(discoverCodexExecutable(probe)).toBe(onPath);
   });
 });
 

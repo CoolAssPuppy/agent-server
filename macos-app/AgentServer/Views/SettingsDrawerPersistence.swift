@@ -38,10 +38,6 @@ extension SettingsDrawer {
             set: { value in
                 let current = draft.runtimeSelection
                 let selection = RuntimeSelection(
-                    usesInstalledClaude: keyPath == \.usesInstalledClaude
-                        ? value : current.usesInstalledClaude,
-                    usesInstalledCodex: keyPath == \.usesInstalledCodex
-                        ? value : current.usesInstalledCodex,
                     usesInstalledKimi: keyPath == \.usesInstalledKimi
                         ? value : current.usesInstalledKimi
                 )

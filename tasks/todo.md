@@ -1691,3 +1691,19 @@ Daily Focus now opts into a server-enforced same-day rerun policy. Before model 
 ### Review
 
 Agent Server 3.3.1 build 34 passed 1,343 server tests with 4 expected skips, 473 Swift behavior tests, strict TypeScript checking, and ESLint. Apple accepted app submission `0935eb65-5f11-4218-befd-07de2c2ea15b` and DMG submission `f41ed84e-111e-4d79-af08-6fb9b05d63f7`; both tickets were stapled and validated. The Sparkle-signed DMG and appcast are live with the release text “Bug fixes”. The notarized Release app is installed locally, reports version 3.3.1 build 34, starts API version 12, and finds installed Claude, Codex, and Kimi runtimes. Twenty-four duplicate export, archive, DerivedData, and staging directories totaling about 15 GB were permanently removed; Spotlight now returns only `/Applications/Agent Server.app`.
+
+## Version 3.3.2 slim runtime release
+
+- [x] Add failing packaging and runtime-availability behavior tests.
+- [x] Remove Claude and Codex platform executables from the app bundle while retaining their JavaScript SDK adapters.
+- [x] Require installed Claude and Codex executables with clear setup errors when either runtime is missing.
+- [x] Build locally and prove Claude, Codex, and Kimi resolve from the installed app environment.
+- [x] Run server, Swift, release-contract, type-check, lint, and build gates.
+- [ ] Cut version 3.3.2 build 35 with release text “Bug fixes” and verify signing, notarization, publication, and bundle size.
+- [ ] Install the notarized release, clean temporary build products, commit, and push main.
+
+### Assumptions and risks
+
+- The product requires users to install and authenticate at least one supported coding-agent runtime.
+- SDK adapter packages remain bundled because Agent Server imports their JavaScript APIs, but their optional platform executable packages do not.
+- Missing runtimes must fail before execution with actionable guidance instead of falling through to an absent bundled executable.

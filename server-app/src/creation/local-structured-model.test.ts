@@ -31,6 +31,14 @@ function successfulFactory(captured: CapturedCall, response: unknown): LocalCode
 }
 
 describe('local structured model runner', () => {
+  it('fails clearly when guidance cannot find installed Codex', async () => {
+    const model = createLocalStructuredModel({ codexExecutablePath: undefined });
+
+    await expect(model.generate('Answer.', { type: 'object' })).rejects.toThrow(
+      'Codex is not installed. Install Codex or choose another coding agent.',
+    );
+  });
+
   it('runs Codex read-only without network, web search, MCP additions, or inherited secrets', async () => {
     const captured: CapturedCall = {};
     const model = createLocalStructuredModel({

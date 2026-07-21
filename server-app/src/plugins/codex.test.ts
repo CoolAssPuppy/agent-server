@@ -28,6 +28,17 @@ async function* streamEvents(events: ThreadEvent[]): AsyncGenerator<ThreadEvent>
 }
 
 describe('executeCodexAgent', () => {
+  it('fails clearly when the app cannot find installed Codex', async () => {
+    const { executeCodexAgent } = await import('./codex.js');
+
+    await expect(executeCodexAgent(makeAgent(), createMockReporter(), {
+      codexExecutablePath: undefined,
+    })).rejects.toThrow(
+      'Codex is not installed. Install Codex or choose another coding agent.',
+    );
+    expect(codexConstructor).not.toHaveBeenCalled();
+  });
+
   it('injects the bundled calendar helper with reviewed scope', async () => {
     const original = process.env.AGENT_SERVER_EVENTKIT_BIN;
     process.env.AGENT_SERVER_EVENTKIT_BIN = '/path/to/helper';
@@ -146,7 +157,10 @@ describe('executeCodexAgent', () => {
         { path: '/Users/test/Output', kind: 'folder', access: 'read_write' },
       ],
       codex_sandbox: 'workspace-write',
-    }), createMockReporter(), { scopedEventStream });
+    }), createMockReporter(), {
+      codexExecutablePath: '/usr/local/bin/codex',
+      scopedEventStream,
+    });
 
     expect(startThread).toHaveBeenCalledTimes(sdkCallsBefore);
     expect(scopedEventStream).toHaveBeenCalledWith(
