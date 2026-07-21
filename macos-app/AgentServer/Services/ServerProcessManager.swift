@@ -120,9 +120,12 @@ final class ServerProcessManager {
         launchServer(using: configuration)
     }
 
-    func stopIfWeStarted() async {
-        guard lifecycle.shouldStopProcess, let identity = ownedIdentity else { return }
-        _ = await shutdownOnce(identity: identity)
+    func stopIfWeStarted() async -> ServerProcessManagerError? {
+        lifecycle.beginAppTermination()
+        guard lifecycle.shouldStopProcess, let identity = ownedIdentity else { return nil }
+        lastError = nil
+        let didStop = await shutdownOnce(identity: identity)
+        return didStop ? nil : lastError
     }
 
     func restart() async {
@@ -137,7 +140,7 @@ final class ServerProcessManager {
         } else {
             didStop = await killExternalServer()
         }
-        guard didStop, !Task.isCancelled else { return }
+        guard didStop, !Task.isCancelled, lifecycle.canLaunchProcess else { return }
         launchServer(using: configuration)
     }
 
@@ -297,6 +300,7 @@ final class ServerProcessManager {
     }
 
     private func launchServer(using configuration: ServerLaunchConfiguration) {
+        guard lifecycle.canLaunchProcess else { return }
         let process = Process()
         let launchToken = UUID().uuidString
         var environment = configuration.environment
@@ -335,18 +339,36 @@ final class ServerProcessManager {
 
     private nonisolated static func externalServerPIDs() async throws -> [Int32] {
         try await Task.detached(priority: .utility) {
-            let task = Process()
-            task.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
-            task.arguments = ExternalServerLookup.arguments(port: 47_821)
-            let pipe = Pipe()
-            task.standardOutput = pipe
-            task.standardError = FileHandle.nullDevice
-            try task.run()
-            task.waitUntilExit()
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(decoding: data, as: UTF8.self)
-            return ExternalProcessPIDParser.parse(output)
+            try lookupExternalServerPIDs()
         }.value
+    }
+
+    private nonisolated static func lookupExternalServerPIDs() throws -> [Int32] {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
+        task.arguments = ExternalServerLookup.arguments(port: 47_821)
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
+        let didTerminate = DispatchSemaphore(value: 0)
+        task.terminationHandler = { _ in didTerminate.signal() }
+        try task.run()
+        guard didTerminate.wait(
+            timeout: .now() + .seconds(ExternalServerLookup.timeoutSeconds)
+        ) == .success else {
+            task.terminate()
+            if didTerminate.wait(timeout: .now() + .milliseconds(250)) == .timedOut {
+                kill(task.processIdentifier, SIGKILL)
+                _ = didTerminate.wait(timeout: .now() + .milliseconds(250))
+            }
+            throw ExternalProcessLookupError.timedOut
+        }
+        guard task.terminationStatus == 0 || task.terminationStatus == 1 else {
+            throw ExternalProcessLookupError.failed
+        }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(decoding: data, as: UTF8.self)
+        return ExternalProcessPIDParser.parse(output)
     }
 
     private nonisolated static func waitForExit(pid: Int32, timeout: Duration) async -> Bool {
@@ -385,17 +407,19 @@ final class ServerProcessManager {
         return String(cString: buffer)
     }
 
-    private nonisolated static func processArgumentsAndEnvironment(pid: Int32) -> String? {
+    private nonisolated static func processArgumentsAndEnvironment(pid: Int32) -> [String]? {
         var mib = [CTL_KERN, KERN_PROCARGS2, pid]
         var size = 0
-        guard sysctl(&mib, UInt32(mib.count), nil, &size, nil, 0) == 0, size > 0 else {
+        guard sysctl(&mib, UInt32(mib.count), nil, &size, nil, 0) == 0,
+              size > 0,
+              size <= 4 * 1_024 * 1_024 else {
             return nil
         }
         var bytes = [UInt8](repeating: 0, count: size)
         guard sysctl(&mib, UInt32(mib.count), &bytes, &size, nil, 0) == 0 else {
             return nil
         }
-        return String(decoding: bytes.prefix(size).map { $0 == 0 ? 32 : $0 }, as: UTF8.self)
+        return KernProcessEnvironmentParser.parse(Array(bytes.prefix(size)))
     }
 
     private nonisolated static func canonicalPath(_ path: String) -> String {
@@ -421,6 +445,11 @@ final class ServerProcessManager {
         lastError = error
         print("[ServerProcessManager] \(error.localizedDescription)")
     }
+}
+
+private enum ExternalProcessLookupError: Error {
+    case failed
+    case timedOut
 }
 
 private struct ServerLaunchConfiguration {

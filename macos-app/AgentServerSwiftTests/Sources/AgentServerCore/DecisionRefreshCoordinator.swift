@@ -51,14 +51,36 @@ struct DecisionRefreshCoordinator {
 }
 
 struct DecisionResolutionTransaction {
-    private var activeDecisionIds: Set<String> = []
-
-    mutating func begin(decisionId: String) -> Bool {
-        activeDecisionIds.insert(decisionId).inserted
+    struct Token: Equatable {
+        let decisionId: String
+        fileprivate let generation: Int
+        fileprivate let sequence: Int
     }
 
-    mutating func finish(decisionId: String, succeeded: Bool) -> Bool {
-        guard activeDecisionIds.remove(decisionId) != nil else { return false }
+    private var generation = 0
+    private var nextSequence = 0
+    private var activeTokens: [String: Token] = [:]
+
+    mutating func begin(decisionId: String) -> Token? {
+        guard activeTokens[decisionId] == nil else { return nil }
+        nextSequence += 1
+        let token = Token(
+            decisionId: decisionId,
+            generation: generation,
+            sequence: nextSequence
+        )
+        activeTokens[decisionId] = token
+        return token
+    }
+
+    mutating func finish(_ token: Token, succeeded: Bool) -> Bool? {
+        guard activeTokens[token.decisionId] == token else { return nil }
+        activeTokens[token.decisionId] = nil
         return succeeded
+    }
+
+    mutating func cancelAll() {
+        generation += 1
+        activeTokens.removeAll()
     }
 }

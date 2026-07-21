@@ -44,20 +44,31 @@ final class DecisionRefreshCoordinatorTests: XCTestCase {
         XCTAssertTrue(coordinator.finishRefresh(currentRefresh).shouldApply)
     }
 
-    func testFailedResolutionCanBeRetriedWithoutRemovingDecision() {
+    func testFailedResolutionCanBeRetriedWithoutRemovingDecision() throws {
         var transaction = DecisionResolutionTransaction()
 
-        XCTAssertTrue(transaction.begin(decisionId: "decision-1"))
-        XCTAssertFalse(transaction.begin(decisionId: "decision-1"))
-        XCTAssertFalse(transaction.finish(decisionId: "decision-1", succeeded: false))
-        XCTAssertTrue(transaction.begin(decisionId: "decision-1"))
+        let first = try XCTUnwrap(transaction.begin(decisionId: "decision-1"))
+        XCTAssertNil(transaction.begin(decisionId: "decision-1"))
+        XCTAssertEqual(transaction.finish(first, succeeded: false), false)
+        XCTAssertNotNil(transaction.begin(decisionId: "decision-1"))
     }
 
-    func testSuccessfulResolutionCommitsExactlyOnce() {
+    func testSuccessfulResolutionCommitsExactlyOnce() throws {
         var transaction = DecisionResolutionTransaction()
 
-        XCTAssertTrue(transaction.begin(decisionId: "decision-1"))
-        XCTAssertTrue(transaction.finish(decisionId: "decision-1", succeeded: true))
-        XCTAssertFalse(transaction.finish(decisionId: "decision-1", succeeded: true))
+        let token = try XCTUnwrap(transaction.begin(decisionId: "decision-1"))
+        XCTAssertEqual(transaction.finish(token, succeeded: true), true)
+        XCTAssertNil(transaction.finish(token, succeeded: true))
+    }
+
+    func testCancelledResolutionCannotCommitIntoANewGeneration() throws {
+        var transaction = DecisionResolutionTransaction()
+        let stale = try XCTUnwrap(transaction.begin(decisionId: "decision-1"))
+
+        transaction.cancelAll()
+        let current = try XCTUnwrap(transaction.begin(decisionId: "decision-1"))
+
+        XCTAssertNil(transaction.finish(stale, succeeded: true))
+        XCTAssertEqual(transaction.finish(current, succeeded: true), true)
     }
 }

@@ -36,6 +36,7 @@ final class StatusMonitor: ObservableObject {
     private var decisionPollTask: Task<Void, Never>?
     private var decisionRefreshCoordinator = DecisionRefreshCoordinator()
     private var decisionResolutionTransaction = DecisionResolutionTransaction()
+    private var decisionResolutionTasks: [String: Task<Void, Never>] = [:]
     private var webSocketTask: URLSessionWebSocketTask?
     private var webSocketSession: URLSession?
     private var webSocketDelegate: WebSocketOpenDelegate?
@@ -146,6 +147,7 @@ final class StatusMonitor: ObservableObject {
     }
 
     func start() {
+        guard !isMonitoring else { return }
         isMonitoring = true
         poll()
         pollDecisions()
@@ -169,6 +171,7 @@ final class StatusMonitor: ObservableObject {
         decisionRefreshCoordinator.stop()
         decisionPollTask?.cancel()
         decisionPollTask = nil
+        cancelDecisionResolutions()
         timer?.invalidate()
         timer = nil
         disconnectWebSocket()
@@ -187,38 +190,54 @@ final class StatusMonitor: ObservableObject {
             panelClient = PanelClient.fromEnv()
         }
         guard let panelClient else { return }
-        guard decisionResolutionTransaction.begin(decisionId: id) else { return }
+        guard let token = decisionResolutionTransaction.begin(decisionId: id) else { return }
 
-        Task { [weak self] in
-            guard let self else { return }
+        decisionResolutionTasks[id] = Task { [weak self] in
+            let succeeded: Bool
             do {
                 try await panelClient.resolveDecision(id: id, body: body)
-                guard self.decisionResolutionTransaction.finish(
-                    decisionId: id,
-                    succeeded: true
-                ) else { return }
-                self.pendingDecisions.removeAll { $0.id == id }
-                Telemetry.capture("decision_resolved", properties: ["decision_id": id])
-                self.pollDecisions()
+                succeeded = true
             } catch {
-                _ = self.decisionResolutionTransaction.finish(
-                    decisionId: id,
-                    succeeded: false
-                )
+                succeeded = false
             }
+            self?.finishDecisionResolution(token, succeeded: succeeded)
         }
     }
 
-    private func startDecisionRefresh(_ token: DecisionRefreshCoordinator.Token) {
-        decisionPollTask = Task { [weak self] in
-            guard let self else { return }
+    private func finishDecisionResolution(
+        _ token: DecisionResolutionTransaction.Token,
+        succeeded: Bool
+    ) {
+        guard let shouldCommit = decisionResolutionTransaction.finish(
+            token,
+            succeeded: succeeded
+        ) else { return }
 
+        decisionResolutionTasks[token.decisionId] = nil
+        guard shouldCommit else { return }
+        pendingDecisions.removeAll { $0.id == token.decisionId }
+        Telemetry.capture(
+            "decision_resolved",
+            properties: ["decision_id": token.decisionId]
+        )
+        pollDecisions()
+    }
+
+    private func cancelDecisionResolutions() {
+        decisionResolutionTransaction.cancelAll()
+        decisionResolutionTasks.values.forEach { $0.cancel() }
+        decisionResolutionTasks.removeAll()
+    }
+
+    private func startDecisionRefresh(_ token: DecisionRefreshCoordinator.Token) {
+        let client = client
+        decisionPollTask = Task { [weak self] in
             do {
-                let decisions = try await self.client.fetchPendingDecisions()
-                guard !Task.isCancelled else { return }
+                let decisions = try await client.fetchPendingDecisions()
+                guard let self, !Task.isCancelled else { return }
                 self.finishDecisionRefresh(token, decisions: decisions)
             } catch {
-                guard !Task.isCancelled else { return }
+                guard let self, !Task.isCancelled else { return }
                 self.finishDecisionRefresh(token, decisions: nil)
             }
         }
@@ -419,7 +438,7 @@ final class StatusMonitor: ObservableObject {
         print("[StatusMonitor] Server unreachable after \(Self.restartThreshold) checks, restarting...")
         Task {
             await serverProcess.startIfNeeded()
-            localAPISetupError = serverProcess.lastError?.localizedDescription
+            surfaceServerProcessError(from: serverProcess)
         }
     }
 
@@ -428,7 +447,7 @@ final class StatusMonitor: ObservableObject {
         disconnectWebSocket()
         Task {
             await serverProcess.restart()
-            localAPISetupError = serverProcess.lastError?.localizedDescription
+            surfaceServerProcessError(from: serverProcess)
             resetWebSocketConnection()
             try? await Task.sleep(nanoseconds: 2_000_000_000)
             poll()
@@ -436,8 +455,14 @@ final class StatusMonitor: ObservableObject {
     }
 
     func workspaceDidChange() {
+        cancelDecisionResolutions()
         panelClient = nil
         requestServerRestart()
+    }
+
+    private func surfaceServerProcessError(from serverProcess: ServerProcessManager) {
+        guard let error = serverProcess.lastError else { return }
+        localAPISetupError = error.localizedDescription
     }
 
     // MARK: - WebSocket

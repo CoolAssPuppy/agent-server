@@ -1,5 +1,3 @@
-import Foundation
-
 enum StableRunMerge {
     static func merge<Value>(
         panel: [Value],
@@ -11,22 +9,19 @@ enum StableRunMerge {
         var localIDOrder: [String] = []
         for run in local {
             let runID = run[keyPath: id]
-            if localByID[runID] == nil {
-                localIDOrder.append(runID)
-            }
+            guard localByID[runID] == nil else { continue }
+            localIDOrder.append(runID)
             localByID[runID] = run
         }
 
-        let panelIDs = Set(panel.map { $0[keyPath: id] })
-        var claimedPanelIDs = Set<String>()
-        let mergedPanel = panel.map { panelRun in
+        var panelIDs = Set<String>()
+        let mergedPanel: [Value] = panel.compactMap { panelRun in
             let runID = panelRun[keyPath: id]
-            guard claimedPanelIDs.insert(runID).inserted,
-                  panelRun[keyPath: isActive],
-                  let localRun = localByID[runID] else {
-                return panelRun
+            guard panelIDs.insert(runID).inserted else { return nil }
+            if panelRun[keyPath: isActive], let localRun = localByID[runID] {
+                return localRun
             }
-            return localRun
+            return panelRun
         }
 
         let localOnly = localIDOrder.compactMap { runID in

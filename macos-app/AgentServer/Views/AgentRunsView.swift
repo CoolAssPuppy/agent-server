@@ -172,7 +172,12 @@ struct AgentRunsView: View {
             let fetched: [Run]
             if let panelRuns = try await fetchFromPanel() {
                 let localRuns = (try? await fetchFromLocalServer()) ?? []
-                fetched = mergeRuns(panel: panelRuns, local: localRuns)
+                fetched = StableRunMerge.merge(
+                    panel: panelRuns,
+                    local: localRuns,
+                    id: \Run.runId,
+                    isActive: \Run.isActive
+                )
             } else {
                 fetched = try await fetchFromLocalServer()
             }
@@ -187,15 +192,6 @@ struct AgentRunsView: View {
             isLoading = false
             loadError = "Could not load runs"
         }
-    }
-
-    private func mergeRuns(panel: [Run], local: [Run]) -> [Run] {
-        StableRunMerge.merge(
-            panel: panel,
-            local: local,
-            id: \Run.runId,
-            isActive: \Run.isActive
-        )
     }
 
     private func fetchFromPanel() async throws -> [Run]? {

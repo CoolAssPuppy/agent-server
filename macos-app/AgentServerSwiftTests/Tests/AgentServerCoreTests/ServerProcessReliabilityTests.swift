@@ -117,6 +117,23 @@ final class ServerProcessReliabilityTests: XCTestCase {
             ExternalServerLookup.arguments(port: 47_821),
             ["-nP", "-a", "-iTCP:47821", "-sTCP:LISTEN", "-t"]
         )
+        XCTAssertEqual(ExternalServerLookup.timeoutSeconds, 2)
+    }
+
+    func testKernProcParserSeparatesEnvironmentFromExecutableArguments() throws {
+        let payload = kernProcPayload(
+            arguments: ["/opt/homebrew/bin/node", "AGENT_SERVER_LAUNCH_TOKEN=argument-spoof"],
+            environment: ["PATH=/usr/bin", "AGENT_SERVER_LAUNCH_TOKEN=owned-token"]
+        )
+
+        let environment = try XCTUnwrap(KernProcessEnvironmentParser.parse(payload))
+
+        XCTAssertEqual(environment, ["PATH=/usr/bin", "AGENT_SERVER_LAUNCH_TOKEN=owned-token"])
+    }
+
+    func testKernProcParserRejectsMalformedPayloads() {
+        XCTAssertNil(KernProcessEnvironmentParser.parse([]))
+        XCTAssertNil(KernProcessEnvironmentParser.parse([1, 0, 0, 0, 110, 111, 100, 101]))
     }
 
     func testOwnedProcessIdentityRequiresMatchingPIDExecutableAndLaunchToken() {
@@ -129,22 +146,22 @@ final class ServerProcessReliabilityTests: XCTestCase {
         XCTAssertTrue(expected.matches(
             pid: 42,
             executablePath: "/opt/homebrew/bin/node",
-            environment: "PATH=/usr/bin AGENT_SERVER_LAUNCH_TOKEN=owned-token HOME=/tmp"
+            environment: ["PATH=/usr/bin", "AGENT_SERVER_LAUNCH_TOKEN=owned-token", "HOME=/tmp"]
         ))
         XCTAssertFalse(expected.matches(
             pid: 73,
             executablePath: "/opt/homebrew/bin/node",
-            environment: "AGENT_SERVER_LAUNCH_TOKEN=owned-token"
+            environment: ["AGENT_SERVER_LAUNCH_TOKEN=owned-token"]
         ))
         XCTAssertFalse(expected.matches(
             pid: 42,
             executablePath: "/usr/bin/node",
-            environment: "AGENT_SERVER_LAUNCH_TOKEN=owned-token"
+            environment: ["AGENT_SERVER_LAUNCH_TOKEN=owned-token"]
         ))
         XCTAssertFalse(expected.matches(
             pid: 42,
             executablePath: "/opt/homebrew/bin/node",
-            environment: "AGENT_SERVER_LAUNCH_TOKEN=other-token"
+            environment: ["AGENT_SERVER_LAUNCH_TOKEN=other-token"]
         ))
     }
 
@@ -158,12 +175,17 @@ final class ServerProcessReliabilityTests: XCTestCase {
         XCTAssertFalse(identity.matches(
             pid: 42,
             executablePath: "/opt/homebrew/bin/node",
-            environment: "NOT_AGENT_SERVER_LAUNCH_TOKEN=owned-token"
+            environment: ["NOT_AGENT_SERVER_LAUNCH_TOKEN=owned-token"]
         ))
         XCTAssertFalse(identity.matches(
             pid: 42,
             executablePath: "/opt/homebrew/bin/node",
-            environment: "AGENT_SERVER_LAUNCH_TOKEN=owned-token-extra"
+            environment: ["AGENT_SERVER_LAUNCH_TOKEN=owned-token-extra"]
+        ))
+        XCTAssertFalse(identity.matches(
+            pid: 42,
+            executablePath: "/opt/homebrew/bin/node",
+            environment: []
         ))
     }
 
@@ -209,6 +231,10 @@ final class ServerProcessReliabilityTests: XCTestCase {
 
         lifecycle.didLaunchServer()
         XCTAssertTrue(lifecycle.shouldStopProcess)
+        XCTAssertTrue(lifecycle.canLaunchProcess)
+
+        lifecycle.beginAppTermination()
+        XCTAssertFalse(lifecycle.canLaunchProcess)
 
         lifecycle.didStopServer()
         XCTAssertFalse(lifecycle.shouldStopProcess)
@@ -216,4 +242,23 @@ final class ServerProcessReliabilityTests: XCTestCase {
         lifecycle.didStopServer()
         XCTAssertFalse(lifecycle.shouldStopProcess)
     }
+}
+
+private func kernProcPayload(arguments: [String], environment: [String]) -> [UInt8] {
+    var argumentCount = Int32(arguments.count)
+    var payload = withUnsafeBytes(of: &argumentCount) { Array($0) }
+    appendNullTerminated(arguments.first ?? "", to: &payload)
+    payload.append(0)
+    for argument in arguments {
+        appendNullTerminated(argument, to: &payload)
+    }
+    for entry in environment {
+        appendNullTerminated(entry, to: &payload)
+    }
+    return payload
+}
+
+private func appendNullTerminated(_ value: String, to payload: inout [UInt8]) {
+    payload.append(contentsOf: value.utf8)
+    payload.append(0)
 }

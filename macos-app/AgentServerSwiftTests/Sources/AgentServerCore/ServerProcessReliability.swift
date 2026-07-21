@@ -91,8 +91,50 @@ public enum ExternalProcessPIDParser {
 }
 
 public enum ExternalServerLookup {
+    public static let timeoutSeconds = 2
+
     public static func arguments(port: UInt16) -> [String] {
         ["-nP", "-a", "-iTCP:\(port)", "-sTCP:LISTEN", "-t"]
+    }
+}
+
+public enum KernProcessEnvironmentParser {
+    public static func parse(_ payload: [UInt8]) -> [String]? {
+        guard payload.count >= MemoryLayout<Int32>.size else { return nil }
+        let argumentCount = payload.prefix(MemoryLayout<Int32>.size).withUnsafeBytes {
+            $0.loadUnaligned(as: Int32.self)
+        }
+        guard argumentCount >= 0, argumentCount <= payload.count else { return nil }
+
+        var cursor = MemoryLayout<Int32>.size
+        guard readString(from: payload, cursor: &cursor) != nil else { return nil }
+        while cursor < payload.count, payload[cursor] == 0 {
+            cursor += 1
+        }
+        for _ in 0..<argumentCount {
+            guard readString(from: payload, cursor: &cursor) != nil else { return nil }
+        }
+
+        var environment: [String] = []
+        while cursor < payload.count {
+            if payload[cursor] == 0 {
+                cursor += 1
+                continue
+            }
+            guard let entry = readString(from: payload, cursor: &cursor) else { return nil }
+            environment.append(entry)
+        }
+        return environment
+    }
+
+    private static func readString(from payload: [UInt8], cursor: inout Int) -> String? {
+        guard cursor < payload.count,
+              let end = payload[cursor...].firstIndex(of: 0) else {
+            return nil
+        }
+        let value = String(decoding: payload[cursor..<end], as: UTF8.self)
+        cursor = end + 1
+        return value
     }
 }
 
@@ -107,12 +149,10 @@ public struct ServerProcessIdentity: Codable, Equatable, Sendable {
         self.launchToken = launchToken
     }
 
-    public func matches(pid: Int32, executablePath: String, environment: String) -> Bool {
+    public func matches(pid: Int32, executablePath: String, environment: [String]) -> Bool {
         guard self.pid == pid, self.executablePath == executablePath else { return false }
         let expectedToken = "AGENT_SERVER_LAUNCH_TOKEN=\(launchToken)"
-        return environment.split(whereSeparator: { $0.isWhitespace }).contains {
-            $0 == expectedToken
-        }
+        return environment.contains(expectedToken)
     }
 }
 
@@ -137,6 +177,7 @@ public enum ServerShutdownPolicy {
 
 public struct ServerProcessLifecycle: Equatable, Sendable {
     public private(set) var shouldStopProcess = false
+    public private(set) var canLaunchProcess = true
 
     public init() {}
 
@@ -150,5 +191,9 @@ public struct ServerProcessLifecycle: Equatable, Sendable {
 
     public mutating func didStopServer() {
         shouldStopProcess = false
+    }
+
+    public mutating func beginAppTermination() {
+        canLaunchProcess = false
     }
 }

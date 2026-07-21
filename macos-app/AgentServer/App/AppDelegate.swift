@@ -71,8 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         monitor.stop()
 
         Task {
-            await serverProcess.stopIfWeStarted()
-            if let error = serverProcess.lastError {
+            if let error = await serverProcess.stopIfWeStarted() {
                 let alert = NSAlert()
                 alert.alertStyle = .warning
                 alert.messageText = "Agent Server could not finish shutting down"
