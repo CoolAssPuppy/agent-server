@@ -20,6 +20,16 @@ enum MarkdownHighlightKind: Equatable {
 struct MarkdownHighlightSpan: Equatable {
     let kind: MarkdownHighlightKind
     let range: NSRange
+
+    func isValid(forUTF16Length utf16Length: Int) -> Bool {
+        guard utf16Length >= 0,
+              range.location >= 0,
+              range.length >= 0,
+              range.location <= utf16Length else {
+            return false
+        }
+        return range.length <= utf16Length - range.location
+    }
 }
 
 struct MarkdownLine: Equatable {
@@ -28,6 +38,22 @@ struct MarkdownLine: Equatable {
 }
 
 enum MarkdownHighlightRanges {
+    private static let bulletRegex = try? NSRegularExpression(
+        pattern: #"^\s*([-*] )"#
+    )
+    private static let yamlBulletRegex = try? NSRegularExpression(
+        pattern: #"^\s*(- )"#
+    )
+    private static let numberedListRegex = try? NSRegularExpression(
+        pattern: #"^\s*(\d+\. )"#
+    )
+    private static let inlineCodeRegex = try? NSRegularExpression(
+        pattern: #"`[^`]+`"#
+    )
+    private static let boldRegex = try? NSRegularExpression(
+        pattern: #"\*\*[^*]+\*\*"#
+    )
+
     static func lines(in text: String) -> [MarkdownLine] {
         let source = text as NSString
         var result: [MarkdownLine] = []
@@ -94,14 +120,10 @@ enum MarkdownHighlightRanges {
                 result.append(span(.heading(level: 2), line.range))
             } else if trimmed.hasPrefix("# ") {
                 result.append(span(.heading(level: 1), line.range))
-            } else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
-                if let marker = markerRange(in: line, length: 2) {
-                    result.append(span(.bullet, marker))
-                }
-            } else if isNumberedList(trimmed) {
-                if let marker = numberedMarkerRange(in: line) {
-                    result.append(span(.numberedList, marker))
-                }
+            } else if let marker = capturedRange(using: bulletRegex, in: line) {
+                result.append(span(.bullet, marker))
+            } else if let marker = capturedRange(using: numberedListRegex, in: line) {
+                result.append(span(.numberedList, marker))
             } else if trimmed.hasPrefix("#") {
                 result.append(span(.comment, line.range))
             }
@@ -139,9 +161,7 @@ enum MarkdownHighlightRanges {
             return result
         }
 
-        let trimmed = line.text.trimmingCharacters(in: .whitespaces)
-        guard trimmed.hasPrefix("- "),
-              let marker = markerRange(in: line, length: 2) else {
+        guard let marker = capturedRange(using: yamlBulletRegex, in: line) else {
             return result
         }
         result.append(span(.bullet, marker))
@@ -156,16 +176,16 @@ enum MarkdownHighlightRanges {
     }
 
     private static func inlineSpans(for line: MarkdownLine) -> [MarkdownHighlightSpan] {
-        inlineMatches(pattern: #"`[^`]+`"#, kind: .inlineCode, line: line)
-            + inlineMatches(pattern: #"\*\*[^*]+\*\*"#, kind: .bold, line: line)
+        inlineMatches(regex: inlineCodeRegex, kind: .inlineCode, line: line)
+            + inlineMatches(regex: boldRegex, kind: .bold, line: line)
     }
 
     private static func inlineMatches(
-        pattern: String,
+        regex: NSRegularExpression?,
         kind: MarkdownHighlightKind,
         line: MarkdownLine
     ) -> [MarkdownHighlightSpan] {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        guard let regex else { return [] }
         let length = (line.text as NSString).length
         return regex.matches(in: line.text, range: NSRange(location: 0, length: length)).map {
             span(
@@ -178,37 +198,22 @@ enum MarkdownHighlightRanges {
         }
     }
 
-    private static func markerRange(in line: MarkdownLine, length: Int) -> NSRange? {
-        let leadingLength = leadingWhitespaceLength(in: line.text)
-        guard leadingLength + length <= line.range.length else { return nil }
-        return NSRange(location: line.range.location + leadingLength, length: length)
-    }
-
-    private static func numberedMarkerRange(in line: MarkdownLine) -> NSRange? {
-        let content = line.text as NSString
-        let leadingLength = leadingWhitespaceLength(in: line.text)
-        let dot = content.range(of: ".", options: [], range: NSRange(
-            location: leadingLength,
-            length: content.length - leadingLength
-        ))
-        guard dot.location != NSNotFound else { return nil }
-        let length = min(dot.location - leadingLength + 2, content.length - leadingLength)
-        return NSRange(location: line.range.location + leadingLength, length: length)
-    }
-
-    private static func leadingWhitespaceLength(in text: String) -> Int {
-        let content = text as NSString
-        var length = 0
-        while length < content.length {
-            let character = content.character(at: length)
-            guard character == 0x20 || character == 0x09 else { break }
-            length += 1
-        }
-        return length
-    }
-
-    private static func isNumberedList(_ text: String) -> Bool {
-        text.range(of: #"^\d+\. "#, options: .regularExpression) != nil
+    private static func capturedRange(
+        using regex: NSRegularExpression?,
+        in line: MarkdownLine
+    ) -> NSRange? {
+        guard let regex else { return nil }
+        let utf16Length = (line.text as NSString).length
+        guard let match = regex.firstMatch(
+            in: line.text,
+            range: NSRange(location: 0, length: utf16Length)
+        ) else { return nil }
+        let markerRange = match.range(at: 1)
+        guard markerRange.location != NSNotFound else { return nil }
+        return NSRange(
+            location: line.range.location + markerRange.location,
+            length: markerRange.length
+        )
     }
 
     private static func span(

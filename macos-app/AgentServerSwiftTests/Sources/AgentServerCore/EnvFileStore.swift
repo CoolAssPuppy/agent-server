@@ -130,7 +130,10 @@ public enum EnvFileStore {
         guard !key.isEmpty else { return false }
         guard key.range(of: keyPattern, options: .regularExpression) != nil else { return false }
         guard key != "PUBLIC_KEY", !key.hasSuffix("_PUBLIC_KEY") else { return false }
-        guard let terminalName = key.split(separator: "_").last else { return false }
+        guard let terminalName = key.split(
+            separator: "_",
+            omittingEmptySubsequences: false
+        ).last else { return false }
         return secretTerminalNames.contains(String(terminalName))
     }
 
@@ -182,9 +185,7 @@ public enum EnvFileStore {
                (value.hasPrefix("'") && value.hasSuffix("'")) {
                 value = String(value.dropFirst().dropLast())
             }
-            guard seenKeys.insert(key).inserted else {
-                throw EnvFileStoreError.duplicateKey(key)
-            }
+            try recordUnique(key, in: &seenKeys)
             pairs.append(EnvPair(key: key, value: value, isSecret: isSecretKey(key)))
         }
         return pairs
@@ -194,7 +195,8 @@ public enum EnvFileStore {
 
     /// Atomically writes `pairs` to `url`, preserving comments and blank lines
     /// that already exist in the file. Existing keys retain their original
-    /// position; brand-new keys append to the end. Rejects any invalid key.
+    /// position; brand-new keys append to the end. Rejects invalid or duplicate
+    /// keys before rendering.
     public static func save(_ pairs: [EnvPair], to url: URL) throws {
         try save(pairs, to: url, secureTemporaryFile: applySecurePermissions)
     }
@@ -209,9 +211,7 @@ public enum EnvFileStore {
             guard isValidKey(pair.key) else {
                 throw EnvFileStoreError.invalidKey(pair.key)
             }
-            guard seenKeys.insert(pair.key).inserted else {
-                throw EnvFileStoreError.duplicateKey(pair.key)
-            }
+            try recordUnique(pair.key, in: &seenKeys)
         }
 
         let existingLines: [String] = {
@@ -321,12 +321,18 @@ public enum EnvFileStore {
             } else {
                 try FileManager.default.moveItem(at: tmpURL, to: url)
             }
-        } catch let error as EnvFileStoreError {
-            try? FileManager.default.removeItem(at: tmpURL)
-            throw error
         } catch {
             try? FileManager.default.removeItem(at: tmpURL)
+            if let storeError = error as? EnvFileStoreError {
+                throw storeError
+            }
             throw EnvFileStoreError.writeFailed(error.localizedDescription)
+        }
+    }
+
+    private static func recordUnique(_ key: String, in seenKeys: inout Set<String>) throws {
+        guard seenKeys.insert(key).inserted else {
+            throw EnvFileStoreError.duplicateKey(key)
         }
     }
 

@@ -38,6 +38,8 @@ final class EnvFileStoreTests: XCTestCase {
         XCTAssertFalse(EnvFileStore.isSecretKey("PASSWORD_FILE"))
         XCTAssertFalse(EnvFileStore.isSecretKey("AUTH_URL"))
         XCTAssertFalse(EnvFileStore.isSecretKey("SSH_PUBLIC_KEY"))
+        XCTAssertFalse(EnvFileStore.isSecretKey("PASSWORD_"))
+        XCTAssertFalse(EnvFileStore.isSecretKey("SSH_PUBLIC_KEY_"))
         XCTAssertFalse(EnvFileStore.isSecretKey(""))
         XCTAssertFalse(EnvFileStore.isSecretKey("lowercase_key"))
     }

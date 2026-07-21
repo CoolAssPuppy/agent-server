@@ -64,16 +64,7 @@ final class ReminderToolService: NativeToolService {
             predicate = dependencies.store.predicateForReminders(in: calendars)
         }
 
-        let fetched: [EKReminder]
-        do {
-            fetched = try BoundedCallback.wait(timeout: dependencies.callbackTimeout) { completion in
-                self.dependencies.store.fetchReminders(matching: predicate) { reminders in
-                    completion(.success(reminders ?? []))
-                }
-            }
-        } catch BoundedCallbackError.timedOut {
-            throw MCPError.toolFailed("Reminder fetch timed out after \(Int(dependencies.callbackTimeout)) seconds")
-        }
+        let fetched = try dependencies.authorization.fetchReminders(matching: predicate)
 
         let reminders = fetched.map { reminder -> [String: Any] in
             var item: [String: Any] = [
@@ -188,4 +179,3 @@ final class ReminderToolService: NativeToolService {
     }
 
 }
-

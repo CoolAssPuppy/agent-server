@@ -41,6 +41,29 @@ final class NativeToolCoreTests: XCTestCase {
         }
     }
 
+    func testPaginationRejectsNonPositiveLimit() {
+        XCTAssertThrowsError(
+            try PaginationPolicy(defaultLimit: 2, maximumLimit: 3).page(
+                [1, 2],
+                limit: 0,
+                cursor: nil
+            )
+        ) { error in
+            XCTAssertEqual(error as? PaginationError, .invalidLimit)
+        }
+    }
+
+    func testPaginationRejectsWrongArgumentTypes() {
+        let policy = PaginationPolicy(defaultLimit: 2, maximumLimit: 3)
+
+        XCTAssertThrowsError(try policy.page([1, 2], arguments: ["limit": "2"])) { error in
+            XCTAssertEqual(error as? PaginationError, .invalidLimitType)
+        }
+        XCTAssertThrowsError(try policy.page([1, 2], arguments: ["cursor": 1])) { error in
+            XCTAssertEqual(error as? PaginationError, .invalidCursorType)
+        }
+    }
+
     func testBoundedCallbackReturnsCompletedValue() throws {
         let result: String = try BoundedCallback.wait(timeout: 0.2) { complete in
             complete(.success("granted"))

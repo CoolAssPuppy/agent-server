@@ -5,7 +5,7 @@ public struct NativeTool {
     public let description: String
     public let inputSchema: [String: Any]
 
-    public init(name: String, description: String, inputSchema: [String: Any]) {
+    init(name: String, description: String, inputSchema: [String: Any]) {
         self.name = name
         self.description = description
         self.inputSchema = inputSchema
@@ -13,7 +13,7 @@ public struct NativeTool {
 }
 
 public struct NativeToolCatalog {
-    public let pagination: PaginationPolicy
+    private let pagination: PaginationPolicy
 
     public init(pagination: PaginationPolicy = .nativeData) {
         self.pagination = pagination

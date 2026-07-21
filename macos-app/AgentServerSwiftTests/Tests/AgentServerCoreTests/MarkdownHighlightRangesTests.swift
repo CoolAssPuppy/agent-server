@@ -26,6 +26,33 @@ final class MarkdownHighlightRangesTests: XCTestCase {
         XCTAssertEqual(try substring(for: .bold, in: text, spans: spans), "**done**")
     }
 
+    func testTabIndentedAsteriskAndNumberMarkersUseCapturedUTF16Ranges() throws {
+        let text = "\t* item\n\t42. item"
+        let spans = MarkdownHighlightRanges.spans(in: text)
+
+        XCTAssertEqual(try substring(for: .bullet, in: text, spans: spans), "* ")
+        XCTAssertEqual(try substring(for: .numberedList, in: text, spans: spans), "42. ")
+    }
+
+    func testSpanBoundsValidationRejectsNegativeOverflowingAndMismatchedRanges() {
+        XCTAssertFalse(
+            MarkdownHighlightSpan(kind: .bold, range: NSRange(location: -1, length: 1))
+                .isValid(forUTF16Length: 10)
+        )
+        XCTAssertFalse(
+            MarkdownHighlightSpan(kind: .bold, range: NSRange(location: 9, length: 2))
+                .isValid(forUTF16Length: 10)
+        )
+        XCTAssertFalse(
+            MarkdownHighlightSpan(kind: .bold, range: NSRange(location: Int.max, length: 1))
+                .isValid(forUTF16Length: 10)
+        )
+        XCTAssertTrue(
+            MarkdownHighlightSpan(kind: .bold, range: NSRange(location: 9, length: 1))
+                .isValid(forUTF16Length: 10)
+        )
+    }
+
     func testCRLFFrontmatterExcludesLineEndingsAndStylesUTF16Values() throws {
         let text = "---\r\ntítle🚀: \"Launch 🚀\"\r\nenabled: true\r\n---\r\nBody"
         let spans = MarkdownHighlightRanges.spans(in: text)

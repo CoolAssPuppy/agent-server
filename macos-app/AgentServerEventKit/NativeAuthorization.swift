@@ -25,7 +25,8 @@ final class NativeAuthorization {
         case .notDetermined:
             let granted: Bool = try awaitResult(label: "Contacts access request") { completion in
                 self.contactStore.requestAccess(for: .contacts) { granted, error in
-                    error.map { completion(.failure($0)) } ?? completion(.success(granted))
+                    if let error { completion(.failure(error)) }
+                    else { completion(.success(granted)) }
                 }
             }
             if !granted { throw MCPError.toolFailed("Contacts access not granted.") }
@@ -49,7 +50,8 @@ final class NativeAuthorization {
         }
         let granted: Bool = try awaitResult(label: "Access request") { completion in
             let callback: (Bool, Error?) -> Void = { granted, error in
-                error.map { completion(.failure($0)) } ?? completion(.success(granted))
+                if let error { completion(.failure(error)) }
+                else { completion(.success(granted)) }
             }
             if entity == .event { self.store.requestFullAccessToEvents(completion: callback) }
             else { self.store.requestFullAccessToReminders(completion: callback) }

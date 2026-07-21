@@ -295,6 +295,7 @@ enum EditorHighlighter {
         _ span: MarkdownHighlightSpan,
         to str: NSMutableAttributedString
     ) {
+        guard span.isValid(forUTF16Length: str.length) else { return }
         switch span.kind {
         case .frontmatterDelimiter:
             str.addAttribute(.foregroundColor, value: theme.frontmatterDelimiter, range: span.range)

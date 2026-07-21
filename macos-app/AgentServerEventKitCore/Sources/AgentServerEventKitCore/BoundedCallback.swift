@@ -20,7 +20,8 @@ public enum BoundedCallback {
         guard semaphore.wait(timeout: .now() + timeout) == .success else {
             throw BoundedCallbackError.timedOut
         }
-        return try state.result().get()
+        guard let result = state.result() else { throw BoundedCallbackError.timedOut }
+        return try result.get()
     }
 }
 
@@ -36,10 +37,9 @@ private final class CallbackState<Value>: @unchecked Sendable {
         return true
     }
 
-    func result() -> Result<Value, Error> {
+    func result() -> Result<Value, Error>? {
         lock.lock()
         defer { lock.unlock() }
-        precondition(value != nil)
-        return value!
+        return value
     }
 }

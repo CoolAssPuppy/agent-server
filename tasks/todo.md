@@ -12,7 +12,7 @@
 - [x] Batch 4: Fix owned-process shutdown, decision polling and resolution, and stable run identity. Cover TD-13 through TD-17.
 - [x] Batch 4 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun Swift and integration gates, and commit refinements.
 - [x] Batch 5: Fix environment-file safety, Markdown Unicode ranges, EventKit timeouts and pagination, helper decomposition, and native integration coverage. Cover TD-18 through TD-22, TD-41, and TD-42.
-- [ ] Batch 5 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun Swift and app-build gates, and commit refinements.
+- [x] Batch 5 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun Swift and app-build gates, and commit refinements.
 - [ ] Batch 6: Make release publication verifiable and ordered, prevent stale feeds and unsafe interpolation, and replace obsolete build and release documentation. Cover TD-12, TD-33 through TD-37, and TD-46.
 - [ ] Batch 6 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun script, documentation, server, Swift, and build gates, and commit refinements.
 - [ ] Batch 7: Split the three large SwiftUI surfaces along tested state and action boundaries. Cover TD-43.
@@ -46,6 +46,8 @@ Batch 4 verification passed with 1,291 server tests, strict type checking, ESLin
 The Batch 4 cleanup closes a quit-versus-restart relaunch race, parses only environment entries when verifying ownership tokens, bounds the listener lookup process, and prevents stale startup errors from appearing as shutdown failures. Decision writes are now tracked and generation-bound, monitoring start is idempotent, and duplicate run IDs follow a deterministic first-wins policy. Verification passed with 1,291 server tests, 396 Swift tests, and an unsigned macOS app build.
 
 Batch 5 rejects duplicate environment keys before rendering or saving, creates and verifies owner-only temporary secret files before atomic replacement, expands credential-name masking, and fully masks short secrets. Markdown highlighting now derives every AppKit range from UTF-16 offsets and covers composed Unicode, emoji, YAML, CRLF, and mixed Markdown. The EventKit helper now delegates through focused Calendar, Reminder, and Contacts services, bounds every callback wait, and caps sensitive list results with continuation metadata. Verification passed with 1,291 server tests, 405 Swift tests, 9 EventKit core tests, strict TypeScript checking, ESLint, the server build, direct EventKit helper type checking, and an unsigned macOS app build.
+
+The Batch 5 cleanup stops false-positive masking for trailing-underscore environment names, centralizes duplicate detection, and simplifies atomic-write cleanup. Markdown highlighting caches fixed regular expressions, shares one UTF-16 marker-range path, and validates overflow-safe ranges before AppKit applies attributes. EventKit removes an unused service abstraction, consolidates bounded reminder callbacks, reuses date formatters, narrows public APIs, and rejects invalid pagination types and nonpositive limits. Verification passed with 1,291 server tests, 407 Swift tests, 11 EventKit core tests, strict TypeScript checking, ESLint, the server build, direct helper type checking, and an unsigned macOS app build.
 
 ## Tech debt audit
 

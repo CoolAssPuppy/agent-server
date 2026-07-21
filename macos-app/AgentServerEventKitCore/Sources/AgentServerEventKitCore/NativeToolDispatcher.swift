@@ -23,20 +23,3 @@ public final class NativeToolDispatcher {
         return try service.call(name: name, arguments: arguments)
     }
 }
-
-public final class NativeToolClosureService: NativeToolService {
-    public let names: Set<String>
-    private let invoke: (String, [String: Any]) throws -> String
-
-    public init(
-        names: Set<String>,
-        invoke: @escaping (String, [String: Any]) throws -> String
-    ) {
-        self.names = names
-        self.invoke = invoke
-    }
-
-    public func call(name: String, arguments: [String: Any]) throws -> String {
-        try invoke(name, arguments)
-    }
-}

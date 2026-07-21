@@ -9,9 +9,10 @@ final class EventKitDependencies {
     let grantPolicy: NativeServiceGrantPolicy
     let calendarScope: [String: String]?
     let pagination: PaginationPolicy
-    let callbackTimeout: TimeInterval
     let authorization: NativeAuthorization
     let isoFormatter: ISO8601DateFormatter
+    private let fractionalISOFormatter: ISO8601DateFormatter
+    private let dateOnlyFormatter: DateFormatter
 
     init(
         store: EKEventStore = EKEventStore(),
@@ -28,7 +29,6 @@ final class EventKitDependencies {
         self.grantPolicy = grantPolicy
         self.calendarScope = calendarScope
         self.pagination = pagination
-        self.callbackTimeout = callbackTimeout
         authorization = NativeAuthorization(
             store: store,
             contactStore: contactStore,
@@ -37,27 +37,33 @@ final class EventKitDependencies {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         isoFormatter = formatter
+        let fractionalFormatter = ISO8601DateFormatter()
+        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        fractionalISOFormatter = fractionalFormatter
+        let dayFormatter = DateFormatter()
+        dayFormatter.dateFormat = "yyyy-MM-dd"
+        dayFormatter.timeZone = .current
+        dateOnlyFormatter = dayFormatter
     }
 
     func parseDate(_ value: Any?) -> Date? {
         guard let string = value as? String, !string.isEmpty else { return nil }
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = fractional.date(from: string) { return date }
-        let standard = ISO8601DateFormatter()
-        standard.formatOptions = [.withInternetDateTime]
-        if let date = standard.date(from: string) { return date }
-        let dateOnly = DateFormatter()
-        dateOnly.dateFormat = "yyyy-MM-dd"
-        dateOnly.timeZone = .current
-        return dateOnly.date(from: string)
+        return fractionalISOFormatter.date(from: string)
+            ?? isoFormatter.date(from: string)
+            ?? dateOnlyFormatter.date(from: string)
     }
 
     func page<Element>(_ values: [Element], args: [String: Any]) throws -> Page<Element> {
         do {
-            return try pagination.page(values, limit: args["limit"] as? Int, cursor: args["cursor"] as? String)
+            return try pagination.page(values, arguments: args)
         } catch PaginationError.invalidCursor {
             throw MCPError.invalidParams("cursor is invalid or no longer available")
+        } catch PaginationError.invalidLimit {
+            throw MCPError.invalidParams("limit must be greater than zero")
+        } catch PaginationError.invalidLimitType {
+            throw MCPError.invalidParams("limit must be an integer")
+        } catch PaginationError.invalidCursorType {
+            throw MCPError.invalidParams("cursor must be a string")
         }
     }
 
