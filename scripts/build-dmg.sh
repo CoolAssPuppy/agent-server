@@ -9,7 +9,7 @@
 #   3. Background TIFF at macos-app/dmg-assets/background.tiff
 #   4. A `notarytool` keychain profile stored via:
 #        xcrun notarytool store-credentials <profile-name> --apple-id ... --team-id ... --password ...
-#   5. Sparkle `sign_update` tool at ~/bin/sparkle/sign_update (see SPARKLE.md).
+#   5. Sparkle `sign_update` tool at ~/bin/sparkle/sign_update (see docs/SPARKLE.md).
 #
 # Usage:
 #   ./scripts/build-dmg.sh <path-to-Agent-Server.app> <version> <notarytool-profile>
@@ -67,7 +67,7 @@ fi
 
 if [[ ! -x "$SIGN_UPDATE" ]]; then
   echo "Error: Sparkle sign_update not found at $SIGN_UPDATE"
-  echo "Install it (see SPARKLE.md) or set SPARKLE_SIGN_UPDATE to its path."
+  echo "Install it (see docs/SPARKLE.md) or set SPARKLE_SIGN_UPDATE to its path."
   exit 1
 fi
 
@@ -139,9 +139,7 @@ echo "============================================================"
 echo "  DMG:           $DMG_OUT"
 echo "  Sparkle info:  $SPARKLE_OUT"
 echo ""
-echo "Next steps (see SPARKLE.md step 6d-6f):"
-echo "  1. Upload $DMG_OUT to the Supabase 'downloads' bucket."
-echo "  2. Add an <item> to appcast.xml using the edSignature and length"
-echo "     printed above, then re-upload appcast.xml."
-echo "  3. Smoke-test by running a previous version of the app and clicking"
-echo "     'Check for Updates...'."
+echo "Next steps:"
+echo "  scripts/release.sh continues with the Cloudflare R2 upload and appcast update."
+echo "  For a manual build, follow docs/SPARKLE.md, then test Check for Updates"
+echo "  from a previous version of the app."

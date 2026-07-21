@@ -53,6 +53,9 @@ jobs:
       - name: Test + coverage gate
         run: pnpm run test:coverage
 
+      - name: Test release tooling
+        run: python3 -m unittest discover -s scripts/tests -p 'test_*.py'
+
       - name: Build
         run: pnpm run build
 

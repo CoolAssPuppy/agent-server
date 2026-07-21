@@ -93,6 +93,14 @@ fi
 
 mkdir -p "$DIST"
 
+R2_PUBLIC_BASE=$(doppler secrets get R2_PUBLIC_BASE_URL \
+  --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" --plain 2>/dev/null || echo "https://downloads.strategicnerds.com")
+R2_APPCAST_URL="$R2_PUBLIC_BASE/apps/$APP_FOLDER/appcast.xml"
+LIVE_APPCAST="$DIST/appcast.live.xml"
+echo "==> Capturing and validating the live appcast baseline"
+BASELINE_DIGEST=$(PYTHONPATH="$SCRIPTS" python3 -m release_tools.cli snapshot \
+  --url "$R2_APPCAST_URL" --output "$LIVE_APPCAST")
+
 #----------------------------------------------------------------------
 # 1. Verify behavior before changing release metadata
 #----------------------------------------------------------------------
@@ -106,21 +114,11 @@ echo "==> Running macOS behavior checks"
 # 2. Bump version in project.yml
 #----------------------------------------------------------------------
 echo "==> Bumping version to $VERSION"
-CURRENT_BUILD=$(awk -F'"' '/CURRENT_PROJECT_VERSION:/ {print $2}' "$MACOS_APP/project.yml")
-NEW_BUILD=$((CURRENT_BUILD + 1))
-python3 - <<PY
-import json, re, pathlib
-p = pathlib.Path("$MACOS_APP/project.yml")
-text = p.read_text()
-text = re.sub(r'MARKETING_VERSION: "[^"]+"', 'MARKETING_VERSION: "$VERSION"', text)
-text = re.sub(r'CURRENT_PROJECT_VERSION: "[^"]+"', 'CURRENT_PROJECT_VERSION: "$NEW_BUILD"', text)
-p.write_text(text)
-
-package_path = pathlib.Path("$REPO_ROOT/server-app/package.json")
-package = json.loads(package_path.read_text())
-package["version"] = "$VERSION"
-package_path.write_text(json.dumps(package, indent=2) + "\n")
-PY
+NEW_BUILD=$(PYTHONPATH="$SCRIPTS" python3 -m release_tools.cli prepare \
+  --version "$VERSION" \
+  --project "$MACOS_APP/project.yml" \
+  --package "$REPO_ROOT/server-app/package.json" \
+  --live "$LIVE_APPCAST")
 echo "  MARKETING_VERSION=$VERSION CURRENT_PROJECT_VERSION=$NEW_BUILD"
 echo "  server-app/package.json version=$VERSION"
 
@@ -205,7 +203,7 @@ if [ ! -f "$DMG" ] || [ ! -f "$SPARKLE_TXT" ]; then
 fi
 
 #----------------------------------------------------------------------
-# 7. Fetch Cloudflare R2 credentials from Doppler
+# 7. Stage, validate, and publish in recoverable order
 #----------------------------------------------------------------------
 echo "==> Fetching Cloudflare R2 credentials from Doppler ($DOPPLER_PROJECT/$DOPPLER_CONFIG)"
 export CLOUDFLARE_API_TOKEN
@@ -216,95 +214,33 @@ CLOUDFLARE_ACCOUNT_ID=$(doppler secrets get CLOUDFLARE_ACCOUNT_ID \
   --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" --plain 2>/dev/null || true)
 R2_BUCKET=$(doppler secrets get R2_BUCKET_NAME \
   --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" --plain 2>/dev/null || echo "strategic-nerds-downloads")
-R2_PUBLIC_BASE=$(doppler secrets get R2_PUBLIC_BASE_URL \
-  --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" --plain 2>/dev/null || echo "https://downloads.strategicnerds.com")
-
 if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
   echo "Error: missing CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID in Doppler $DOPPLER_PROJECT/$DOPPLER_CONFIG"
   exit 1
 fi
 
-#----------------------------------------------------------------------
-# 8. Upload DMG to R2
-#----------------------------------------------------------------------
 DMG_NAME="AgentServer-$VERSION.dmg"
-R2_DMG_KEY="apps/$APP_FOLDER/$DMG_NAME"
-echo "==> Uploading $DMG_NAME to R2 ($R2_BUCKET/$R2_DMG_KEY)"
-"${WRANGLER[@]}" r2 object put "$R2_BUCKET/$R2_DMG_KEY" \
-  --file="$DMG" \
-  --content-type="application/x-apple-diskimage" \
-  --remote
-
-# Also upload as AgentServer-latest.dmg so the strategic-nerds site has a stable URL
-R2_LATEST_KEY="apps/$APP_FOLDER/AgentServer-latest.dmg"
-echo "==> Uploading latest.dmg alias to R2 ($R2_BUCKET/$R2_LATEST_KEY)"
-"${WRANGLER[@]}" r2 object put "$R2_BUCKET/$R2_LATEST_KEY" \
-  --file="$DMG" \
-  --content-type="application/x-apple-diskimage" \
-  --remote
-
-#----------------------------------------------------------------------
-# 9. Update appcast.xml and upload to R2
-#----------------------------------------------------------------------
-APPCAST="$DIST/appcast.xml"
-echo "==> Prepending new <item> to appcast.xml"
-
-ED_SIG=$(grep -oE 'sparkle:edSignature="[^"]+"' "$SPARKLE_TXT" | sed -E 's/.*"([^"]+)"/\1/')
-LENGTH=$(grep -oE 'length="[^"]+"' "$SPARKLE_TXT" | sed -E 's/.*"([^"]+)"/\1/')
-PUB_DATE=$(LC_ALL=C date -u +"%a, %d %b %Y %H:%M:%S +0000")
 ENCLOSURE_URL="$R2_PUBLIC_BASE/apps/$APP_FOLDER/$DMG_NAME"
+PUB_DATE=$(LC_ALL=C date -u +"%a, %d %b %Y %H:%M:%S +0000")
+STAGED_APPCAST="$DIST/appcast.staged.xml"
+APPCAST="$DIST/appcast.xml"
 
-python3 - <<PY
-import pathlib, re
+echo "==> Staging and validating appcast.xml"
+PYTHONPATH="$SCRIPTS" python3 -m release_tools.cli stage \
+  --version "$VERSION" --build "$NEW_BUILD" \
+  --url "$ENCLOSURE_URL" --pub-date "$PUB_DATE" --notes "$NOTES" \
+  --live "$LIVE_APPCAST" --signature-file "$SPARKLE_TXT" --dmg "$DMG" \
+  --output "$STAGED_APPCAST"
 
-p = pathlib.Path("$APPCAST")
-xml = p.read_text()
+echo "==> Publishing immutable DMG, appcast, then latest alias"
+PYTHONPATH="$SCRIPTS" python3 -m release_tools.cli publish \
+  --version "$VERSION" --build "$NEW_BUILD" \
+  --url "$ENCLOSURE_URL" --pub-date "$PUB_DATE" --notes "$NOTES" \
+  --signature-file "$SPARKLE_TXT" --dmg "$DMG" \
+  --staged-appcast "$STAGED_APPCAST" --tracked-appcast "$APPCAST" \
+  --baseline-digest "$BASELINE_DIGEST" --bucket "$R2_BUCKET" \
+  --public-base "$R2_PUBLIC_BASE" --dub-url "$DUB_SHORTLINK"
 
-new_item = f'''    <item>
-      <title>Version $VERSION</title>
-      <pubDate>$PUB_DATE</pubDate>
-      <sparkle:version>$NEW_BUILD</sparkle:version>
-      <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
-      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-      <description><![CDATA[
-        <ul>
-          $NOTES
-        </ul>
-      ]]></description>
-      <enclosure
-        url="$ENCLOSURE_URL"
-        sparkle:edSignature="$ED_SIG"
-        length="$LENGTH"
-        type="application/x-apple-diskimage" />
-    </item>
-'''
-
-marker = "<language>en</language>"
-if marker not in xml:
-    raise SystemExit("Could not find <language>en</language> insertion point in appcast.xml")
-xml = xml.replace(marker, marker + "\n" + new_item, 1)
-p.write_text(xml)
-PY
-
-R2_APPCAST_KEY="apps/$APP_FOLDER/appcast.xml"
-echo "==> Uploading appcast.xml to R2 ($R2_BUCKET/$R2_APPCAST_KEY)"
-"${WRANGLER[@]}" r2 object put "$R2_BUCKET/$R2_APPCAST_KEY" \
-  --file="$APPCAST" \
-  --content-type="application/xml; charset=utf-8" \
-  --remote
-
-#----------------------------------------------------------------------
-# 10. Verify
-#----------------------------------------------------------------------
-echo ""
-echo "==> Verifying uploaded DMG"
-curl -sI "$ENCLOSURE_URL" | grep -iE '^(HTTP|content-length)'
-echo ""
-echo "==> Verifying appcast at R2"
-curl -sI "$R2_PUBLIC_BASE/$R2_APPCAST_KEY" | grep -iE '^(HTTP|content-length)'
-echo ""
-echo "==> Verifying appcast via Dub shortlink"
-curl -sL "$DUB_SHORTLINK" | grep -E '<(title|sparkle:shortVersionString|enclosure)' | head -6
 
 echo ""
 echo "============================================================"
@@ -317,7 +253,7 @@ echo "  $APPCAST"
 echo ""
 echo "Live:"
 echo "  $ENCLOSURE_URL"
-echo "  $R2_PUBLIC_BASE/$R2_APPCAST_KEY"
+echo "  $R2_APPCAST_URL"
 echo "  $DUB_SHORTLINK"
 echo ""
 echo "Don't forget to commit: project.yml + dist/appcast.xml"

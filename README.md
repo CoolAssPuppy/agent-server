@@ -45,9 +45,10 @@ Agents can use local files, connected services, schedules, messaging channels, m
 ### 1. Build the server
 
 ```bash
-cd server-app
-pnpm install
+corepack enable
+pnpm install --frozen-lockfile
 pnpm run build
+cd server-app
 ```
 
 ### 2. Initialize the config directory
@@ -810,7 +811,7 @@ The LaunchAgent runs `agent-server start` with `KeepAlive: true` (restarts if it
 
 ## macOS menu bar app
 
-A native Swift app that lives in the menu bar for monitoring and controlling agents. No third-party dependencies.
+A native Swift app that lives in the menu bar for monitoring and controlling agents.
 
 ### Features
 
@@ -828,9 +829,10 @@ A native Swift app that lives in the menu bar for monitoring and controlling age
 
 ### Build
 
-Requires Xcode 15+, [xcodegen](https://github.com/yonaskolb/XcodeGen), and Node.js 20+ on PATH (needed at build time to stage production dependencies):
+Requires Xcode 15+, [xcodegen](https://github.com/yonaskolb/XcodeGen), Node.js 22.13+, and pnpm 11+ on PATH. Install dependencies from the repository root so pnpm uses the checked-in workspace lockfile:
 
 ```bash
+pnpm install --frozen-lockfile
 cd macos-app
 xcodegen generate
 xcodebuild -project AgentServer.xcodeproj -scheme AgentServer build
@@ -838,7 +840,7 @@ xcodebuild -project AgentServer.xcodeproj -scheme AgentServer build
 
 Or open `AgentServer.xcodeproj` in Xcode after running `xcodegen generate`.
 
-The first build runs `pnpm install --frozen-lockfile --omit=dev` in `macos-app/.build-cache/server-bundle/` to stage the production `node_modules/` that gets bundled into `Contents/Resources/`. Subsequent builds skip the install step when `server-app/package-lock.json` is unchanged (detected via a cached SHA-256 hash). `.build-cache/` is gitignored.
+The build consumes the root `pnpm-lock.yaml` and stages the production server with `pnpm --filter @agent-server/core deploy --prod --legacy`. The staged package is copied into `Contents/Resources/`, so the installed app does not download dependencies at runtime.
 
 ### Architecture
 
@@ -894,215 +896,15 @@ When both Settings and `.env` have a value, Settings wins. To fall back to `.env
 
 Target: macOS 14.0+, Swift 5.9+.
 
-### Deployment
+### Release and distribution
 
-Full release flow from source to a distributable DMG. Every step has to happen in order; skipping any of them produces a DMG that either won't launch on other Macs or gets blocked by Gatekeeper.
-
-#### Prerequisites (one-time)
-
-- A **paid** Apple Developer account (free personal teams cannot issue Developer ID certs).
-- A **Developer ID Application** certificate in your login Keychain, with its paired private key. Verify in Keychain Access → **My Certificates** (not "All Items"): the cert must have a disclosure triangle expanding to a private key. If it doesn't, Xcode → Settings → Accounts → your team → **Manage Certificates…** → **+** → **Developer ID Application**. This must be done *on the Mac you're building from* so the CSR's private key lives locally.
-- `brew install create-dmg`.
-- An app-specific password for notarization, stored in the keychain once:
-  ```bash
-  xcrun notarytool store-credentials agent-server-notary \
-    --apple-id "you@example.com" \
-    --team-id "955GSY56UT" \
-    --password "app-specific-password-from-appleid.apple.com"
-  ```
-
-> A note on signing UX: certs are scattered across Keychain, Xcode Settings, target settings, and the Organizer, each showing a different subset depending on build config and phase of the moon. "Sign to Run Locally" appearing as a first-class option next to real certs is peak Xcode. The Developer ID cert only shows up at the **Archive → Distribute** stage, not in the regular target's Signing & Capabilities dropdown. That's expected, not a bug.
-
-#### 1. Rebuild the server
-
-Any change under `server-app/` must be compiled before building the app, because the macOS app bundles `server-app/dist/` at build time.
+The supported release path is the repository release script. It builds and verifies the server and macOS app, signs and notarizes the app and DMG, publishes the DMG and appcast to Cloudflare R2, and verifies the public files.
 
 ```bash
-cd server-app
-pnpm run type-check
-pnpm test
-pnpm run build
+./scripts/release.sh 3.2.0 '<li>Now you can choose which LLM your agents use.</li>'
 ```
 
-#### 2. Archive the macOS app
-
-```bash
-cd ../macos-app
-xcodegen generate
-```
-
-Then in Xcode:
-
-1. Open `AgentServer.xcodeproj`.
-2. Scheme → **AgentServer**, destination → **Any Mac**.
-3. **Product → Scheme → Edit Scheme → Archive → Build Configuration** must be **Release**.
-4. **Product → Archive**. Wait for the Organizer to open.
-
-The `preBuildScripts` phase stages production `node_modules/` in `.build-cache/server-bundle/` the first time (or whenever `package-lock.json` changes). The post-build phase embeds `agent-server-eventkit` into `Contents/Helpers/` and re-signs vendored Mach-O binaries inside `node_modules/` with the hardened runtime.
-
-#### 3. Export with Developer ID
-
-In the Organizer:
-
-1. Select the archive → **Distribute App**.
-2. Choose **Direct Distribution** (or **Developer ID** in older Xcode versions).
-3. Pick the **Developer ID Application** cert. This is the step where it finally appears in the dropdown.
-4. Choose whether to let Xcode notarize automatically (slower, but done) or export unnotarized (faster, you notarize the DMG in step 5).
-5. Export to a folder (e.g. `~/Desktop/AgentServer-export/`). You get `Agent Server.app`.
-
-Verify the signature:
-
-```bash
-codesign --verify --deep --strict --verbose=2 ~/Desktop/AgentServer-export/"Agent Server.app"
-spctl --assess --type execute --verbose ~/Desktop/AgentServer-export/"Agent Server.app"
-```
-
-#### 4. Build the DMG
-
-```bash
-cd /path/to/agent-server
-./scripts/build-dmg.sh ~/Desktop/AgentServer-export/"Agent Server.app" 1.0.0
-```
-
-Output lands at `dist/AgentServer-1.0.0.dmg`. The script uses `create-dmg` with a custom background (`macos-app/dmg-assets/background.tiff`) and drop-zones for the app and an `/Applications` symlink. If you edit the background PNG, update the drop-zone coordinates at the bottom of `scripts/build-dmg.sh`.
-
-#### 5. Notarize the DMG (if not auto-notarized)
-
-Notarize the DMG so Gatekeeper stops blocking it. Stapling embeds the ticket into the DMG so users can launch offline.
-
-```bash
-xcrun notarytool submit dist/AgentServer-1.0.0.dmg \
-  --keychain-profile agent-server-notary \
-  --wait
-
-xcrun stapler staple dist/AgentServer-1.0.0.dmg
-xcrun stapler validate dist/AgentServer-1.0.0.dmg
-```
-
-If `notarytool` returns `Invalid`, pull the log:
-
-```bash
-xcrun notarytool log <submission-id> --keychain-profile agent-server-notary
-```
-
-Common failures: an unsigned Mach-O binary inside `node_modules/` (the post-build script should have re-signed them — rebuild and check the build log for "Re-signed N Mach-O binaries"), or the hardened runtime missing on the helper.
-
-#### 6. Sanity check on a clean Mac
-
-Copy the DMG to a machine that has never run the app before. Mount, drag to Applications, launch. First launch should show the standard "downloaded from the internet" prompt but **not** "cannot be opened because the developer cannot be verified" — that second message means notarization failed or didn't staple.
-
-Expect the usual macOS permission prompts on first run: Calendars, Reminders, Notifications. They use the usage descriptions from `Info.plist`.
-
-## Releasing updates
-
-The macOS app ships with [Sparkle 2](https://sparkle-project.org) for auto-updates. Every running copy checks an appcast hourly and prompts the user when a new version is available.
-
-The full release pipeline is automated. One command cuts a release:
-
-```bash
-./scripts/release.sh 1.0.3 "<li>Fix cron parsing bug.</li><li>New agent template.</li>"
-```
-
-That command bumps the version, archives in Xcode, exports a signed `.app`, notarizes it, builds a signed+notarized+stapled DMG, Sparkle-signs the DMG, uploads both the DMG and updated appcast to Supabase Storage, and verifies everything resolves through the Dub shortlink.
-
-### Architecture
-
-```
-Running app                Dub shortlink                 Supabase Storage
-(Info.plist SUFeedURL) →   coolasspuppy.com/        →    hlwjnusdotqtmtwrjidu/
-                           agent-server-updates          downloads/appcast.xml
-                                                         downloads/AgentServer-*.dmg
-```
-
-Why a shortlink: the feed URL is baked into every shipped app's `Info.plist` and can never be changed. Dub lets you repoint the destination to a different host later (R2, S3, GitHub Releases) by editing one link. The DMG URLs in the appcast point directly at Supabase — no need to shortlink them because the appcast is rewritten on every release anyway.
-
-Why Supabase: egress is cheap at our scale, the `downloads` bucket is public so Sparkle reaches it without auth, and we already store the service-role key in Doppler for uploads.
-
-### One-time setup
-
-These steps are done once per project. If you're taking over an existing setup, you only need step 4.
-
-**1. Generate the Ed25519 signing key.** Download Sparkle tools, generate a key pair, back up the private key, put the public key in `Info.plist`.
-
-```bash
-# Download Sparkle tools
-curl -L https://github.com/sparkle-project/Sparkle/releases/download/2.6.4/Sparkle-2.6.4.tar.xz | tar -xJ -C /tmp
-mkdir -p ~/bin/sparkle
-cp /tmp/bin/{generate_keys,sign_update,generate_appcast} ~/bin/sparkle/
-
-# Generate the key pair. Private key lives in your login keychain.
-# Public key is printed — paste it into macos-app/AgentServer/Info.plist under SUPublicEDKey.
-~/bin/sparkle/generate_keys
-
-# Back up the private key. If you lose it, every installed copy is stranded.
-~/bin/sparkle/generate_keys -x ~/sparkle-private-key-backup.txt
-# Then: paste the contents into 1Password as a secure note, delete the file.
-```
-
-**2. Create the Supabase `downloads` bucket.** In the Supabase dashboard: Storage → New bucket → name `downloads`, set Public ON, raise the file size limit to 200 MB. Upload an empty placeholder `appcast.xml` with just the `<channel>` wrapper (the release script prepends `<item>` entries).
-
-**3. Create a Dub shortlink.** Destination: the Supabase appcast URL. Short URL: something stable you won't want to change. Cloaking/frame OFF. Put this shortlink in `Info.plist` under `SUFeedURL`. You can repoint the destination URL later; the slug is forever.
-
-**4. Set up the notarytool profile, Doppler secret, and Sparkle tools on your machine.**
-
-```bash
-# App-specific password from appleid.apple.com → Sign-In and Security → App-Specific Passwords
-xcrun notarytool store-credentials "agent-server" \
-  --apple-id "you@example.com" \
-  --team-id "YOURTEAMID" \
-  --password "xxxx-xxxx-xxxx-xxxx"
-
-# Verify you can pull the Supabase key
-doppler secrets get SB_AGENT_PANEL_SERVICE_ROLE_KEY --project agent-server --config prd --plain
-
-# Confirm Sparkle tools are installed
-ls ~/bin/sparkle/  # generate_keys, sign_update, generate_appcast
-```
-
-### Per-release flow
-
-```bash
-./scripts/release.sh 1.0.3 "<li>Release note one.</li><li>Release note two.</li>"
-```
-
-The script runs these steps in order. Any failure aborts immediately.
-
-1. **Bump version** in `macos-app/project.yml` (`MARKETING_VERSION` → new value, `CURRENT_PROJECT_VERSION` → current + 1). The Info.plist uses `$(MARKETING_VERSION)` and `$(CURRENT_PROJECT_VERSION)` variable substitution, so Xcode and the runtime pick these up automatically.
-2. **Regenerate** the Xcode project with xcodegen.
-3. **Archive** with `xcodebuild archive` in Release configuration.
-4. **Export** a Developer ID signed `.app` from the archive (using `scripts/export-options.plist`).
-5. **Notarize + staple** the `.app`. Blocks until Apple returns "Accepted", then staples the ticket.
-6. **Build the DMG** via `scripts/build-dmg.sh`: create-dmg with the background art, codesign the DMG with Developer ID, submit for notarization, staple, verify with Gatekeeper (`spctl`), then Sparkle-sign it. Produces `dist/AgentServer-<version>.dmg` and `dist/AgentServer-<version>.sparkle.txt`.
-7. **Fetch the Supabase service-role key** via `doppler secrets get SB_AGENT_PANEL_SERVICE_ROLE_KEY --project agent-server --config prd`.
-8. **Upload the DMG** to the `downloads` bucket via Supabase's Storage REST API with both `Authorization: Bearer` and `apikey` headers (required by the new `sb_secret_*` key format).
-9. **Prepend a new `<item>`** to `dist/appcast.xml` with the RFC 822 pub date, new version/build, release notes, and the `edSignature` + `length` from the Sparkle signing step. Upload the updated appcast.
-10. **Verify** the uploaded DMG size matches what Sparkle signed and the Dub shortlink resolves to the new appcast.
-
-Wall time: ~5–8 minutes, most of it spent waiting for Apple's notary service.
-
-After the script finishes, commit `macos-app/project.yml` + `dist/appcast.xml` + any code changes. The DMG is gitignored.
-
-### What installed apps see
-
-All previously-installed copies check the appcast every 24 hours in the background, or immediately when the user clicks **Agent Server → Check for Updates…** in the app menu. Sparkle 2 handles the whole download → verify signature → mount DMG → swap `.app` → relaunch flow.
-
-When `./scripts/release.sh` finishes uploading the new appcast, the following things happen without any further action:
-
-- The `agent-panel` website (`web/app/agent-server/page.tsx`) fetches the appcast on the server with a 5-minute revalidate window. The download button's `href` and the visible version label update automatically within 5 minutes.
-- Running copies of Agent Server pick up the new version on their next scheduled check.
-
-### Troubleshooting
-
-- **`source=no usable signature` after notarization**: the DMG wasn't codesigned before notarization. Check that `scripts/build-dmg.sh` runs `codesign --force --sign "$SIGN_IDENTITY" --timestamp` before `notarytool submit`.
-- **`Invalid Compact JWS` on upload**: Supabase's new `sb_secret_*` key format needs both `Authorization: Bearer` and `apikey` headers. The release script sets both.
-- **Website still shows the old version**: Vercel's edge cache matches Next.js's `revalidate: 300`, so the first visitor after the 5-minute window triggers a re-render. Until then, `curl -sI` on the page shows `age:` counting up and `x-vercel-cache: HIT`. Either wait or purge the cache from the Vercel dashboard.
-- **`Cannot find generate_keys`**: the Sparkle tools aren't in `~/bin/sparkle/`. Re-run the download in setup step 1, or point `SPARKLE_SIGN_UPDATE` at your preferred location.
-- **Sparkle won't relaunch after install (a "pop" sound)**: macOS `NSBeep` — `NSApp.terminate` was blocked by an open sheet. `UpdaterManager.updaterWillRelaunchApplication` dismisses all sheets before terminate to handle this. If you reintroduce a modal somewhere, make sure it's dismissable from that delegate callback.
-- **`notarytool` says "Invalid Credentials"**: the keychain profile expired (app-specific passwords rotate). Regenerate one at appleid.apple.com and re-run `xcrun notarytool store-credentials "agent-server" …`.
-
-### Rolling back
-
-Never amend a released `<item>` entry — some clients may already have it cached. To retract a bad release, ship the next version with a fix. If you absolutely must make an installed app downgrade to a prior version, you'd need to bump the build number and ship the old source tree with a new version string — painful, which is why you just fix forward.
+See the [Sparkle release guide](docs/SPARKLE.md) for the required Apple, Sparkle, Doppler, and Cloudflare setup, plus verification and troubleshooting steps.
 
 ## Monitoring with Agent Panel
 
@@ -1394,15 +1196,15 @@ server-app/src/
 
 ## Development
 
-All development commands run from `server-app/`:
+Run workspace commands from the repository root. Node.js 22.13+ and pnpm 11+ are required.
 
 ```bash
-cd server-app
-pnpm install
-pnpm test              # 486 tests
-pnpm run type-check    # TypeScript strict mode
-pnpm run build         # Compile to dist/
-pnpm run dev           # Watch mode with tsx
+pnpm install --frozen-lockfile
+pnpm test
+pnpm run type-check
+pnpm run lint
+pnpm run build
+pnpm run dev
 ```
 
 Tests are colocated with source files (`*.test.ts`). The project uses TDD with factory functions for test data.
@@ -1428,11 +1230,13 @@ Tests are colocated with source files (`*.test.ts`). The project uses TDD with f
 
 - Swift 5.9+, macOS 14.0+
 - SwiftUI + AppKit (NSStatusBar, NSTextView)
-- No third-party dependencies
+- Sparkle 2 for signed application updates
+- PostHog for product analytics
 
 ## Requirements
 
-- Node.js 20+
+- Node.js 22.13+
+- pnpm 11+
 - At least one supported local runtime installed and authenticated: Claude Code, Codex, or Kimi Code
 
 ## License
