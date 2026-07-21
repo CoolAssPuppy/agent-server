@@ -100,6 +100,9 @@ public struct AgentSettingsSupportingSurfacePresentation: Equatable, Sendable {
     public let capabilityRowStyle = AgentSettingsCapabilityRowStyle.plain
     public let customCapabilityIndicator = AgentSettingsCustomIndicator.secondaryText
     public let descriptionFieldStyle = AgentSettingsDescriptionFieldStyle.multilineFullWidth
+    public let usesUniformFieldLabelTypography = true
+    public let showsRedundantScheduleSummary = false
+    public let showsStandardRuntimeHint = false
     public let rawFileActionPlacement = AgentSettingsRawFileActionPlacement.instructionsHeaderTrailing
     public let capabilityFooter: String? = nil
     public let areErrorsSelectable = true

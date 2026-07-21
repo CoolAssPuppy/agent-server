@@ -12,7 +12,7 @@ struct AgentSettingsForm: View {
     var body: some View {
         Form {
             Section("Basics") {
-                TextField("Name", text: $draft.name, prompt: Text("Agent name"))
+                nameField
                 descriptionField
                 LabeledContent("Schedule") { ScheduleField(draft: $draft.schedule) }
             }
@@ -25,11 +25,20 @@ struct AgentSettingsForm: View {
         .scrollContentBackground(.hidden)
     }
 
+    private var nameField: some View {
+        VStack(alignment: .leading, spacing: NSpacing.xs) {
+            fieldLabel("Name")
+            TextField("Agent name", text: $draft.name)
+                .labelsHidden()
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
     private var descriptionField: some View {
         VStack(alignment: .leading, spacing: NSpacing.xs) {
-            Text("Description")
-                .font(NTypography.caption)
-                .foregroundStyle(theme.tokens.mutedForeground)
+            fieldLabel("Description")
             TextField("What does this agent do?", text: $draft.descriptionText, axis: .vertical)
                 .labelsHidden()
                 .lineLimit(3...6)
@@ -38,6 +47,12 @@ struct AgentSettingsForm: View {
                 .accessibilityIdentifier("agent-settings-description")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func fieldLabel(_ text: String) -> some View {
+        Text(text)
+            .font(NTypography.bodyMedium)
+            .foregroundStyle(theme.tokens.foreground)
     }
 
     private var instructionsSection: some View {

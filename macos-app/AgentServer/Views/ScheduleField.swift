@@ -44,11 +44,6 @@ struct ScheduleField: View {
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.body, design: .monospaced))
             }
-            if let cron = draft.cronExpression, draft.frequency != .onDemand {
-                Text(CronEnglishFormatter.describe(cron))
-                    .font(NTypography.captionSmall)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-            }
         }
     }
 

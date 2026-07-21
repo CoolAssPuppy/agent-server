@@ -1,5 +1,8 @@
 # Lessons
 
+- Native Form defaults can produce right-aligned value fields and mismatched labels. For editable identity fields, use one explicit left-aligned field stack, one label type style, and remove helper text that merely repeats a picker selection.
+- A detail view nested under an agent already has identity context. Do not repeat the agent name, status label, or bulk actions in the run-detail header unless they add a distinct decision or capability.
+
 - Agent configuration has exactly two authoritative inputs: the Markdown file in `~/.agent-server/agents` and `~/.agent-server/.env`. App state, saved registries, runtime probes, and poll responses are derived views and must never overwrite or redefine them.
 - Account MCP availability belongs to the LLM or runtime selected in the agent Markdown. Never mix connectors discovered from one runtime into an agent configured for another runtime.
 - Expected access to a narrowly configured external service is configuration, not a security defect. Reserve warning colors for unsafe scope, unsafe transport, dangerous permission combinations, or stale review state.

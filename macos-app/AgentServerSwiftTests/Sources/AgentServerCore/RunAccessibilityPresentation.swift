@@ -161,6 +161,9 @@ enum RunDetailMetadataPlacement: Equatable, Sendable {
 enum RunDetailPresentation {
     static let headerMetadataPlacement = RunDetailMetadataPlacement.informationTab
     static var showsHeaderMetadata: Bool { headerMetadataPlacement == .header }
+    static let showsAgentName = false
+    static let showsStatus = false
+    static let showsCopyAll = false
 }
 
 struct RunNoticePresentation: Equatable, Sendable {

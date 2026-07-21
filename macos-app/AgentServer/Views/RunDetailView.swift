@@ -26,8 +26,10 @@ struct RunDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-            Divider()
+            if showsHeaderActions {
+                headerActions
+                Divider()
+            }
             statsBar
             Divider()
 
@@ -58,30 +60,15 @@ struct RunDetailView: View {
         }
     }
 
-    // MARK: - Header
+    // MARK: - Header actions
 
-    private var header: some View {
+    private var showsHeaderActions: Bool {
+        run.status == .running || (run.status == .failed && onDebug != nil)
+    }
+
+    private var headerActions: some View {
         HStack(spacing: NSpacing.md) {
-            VStack(alignment: .leading, spacing: NSpacing.xxxs) {
-                HStack(spacing: NSpacing.sm) {
-                    Text(run.agentName)
-                        .font(NTypography.titleLarge)
-                        .fontWeight(.semibold)
-                    StatusBadge(status: run.status)
-                }
-
-                if RunDetailPresentation.showsHeaderMetadata {
-                    Text("Run \(run.runId.prefix(8))")
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                        .textSelection(.enabled)
-                }
-
-            }
-
             Spacer()
-
-            CopyRunButton(run: run, logs: logs)
 
             if run.status == .failed, let onDebug {
                 Button(action: onDebug) {
@@ -332,61 +319,5 @@ struct RunDetailView: View {
     private func stopElapsedTimer() {
         elapsedTimer?.invalidate()
         elapsedTimer = nil
-    }
-}
-
-// MARK: - Copy run button
-
-private struct CopyRunButton: View {
-    let run: Run
-    let logs: [PanelLog]
-    @State private var copied = false
-
-    private var timelineEntries: [PanelLog] {
-        logs.filter { !$0.isHeartbeat }
-    }
-
-    private var clipboardText: String {
-        var s: [String] = []
-        s.append("Agent: \(run.agentName)")
-        s.append("Run ID: \(run.runId)")
-        s.append("Status: \(run.status.rawValue)")
-        if let model = run.model { s.append("Model: \(model)") }
-        if let trigger = run.trigger { s.append("Trigger: \(trigger)") }
-        s.append("Started: \(run.startedAt)")
-        if let completed = run.completedAt { s.append("Completed: \(completed)") }
-        if let duration = run.duration { s.append("Duration: \(formatDuration(duration))") }
-        s.append("Turns: \(run.turnCount)")
-        if let tokens = run.totalTokens { s.append("Tokens: \(tokens)") }
-        if let cost = run.estimatedCostUsd { s.append("Cost: \(formatCost(cost))") }
-        if let error = run.error { s.append("\n--- Error ---\n\(error)") }
-        if let summary = run.summary, !summary.isEmpty { s.append("\n--- Summary ---\n\(summary)") }
-        if !run.toolsUsed.isEmpty {
-            s.append("\n--- Tools (\(run.toolsUsed.count)) ---")
-            s.append(contentsOf: run.toolsUsed.map { "  \(formatToolName($0))" })
-        }
-        if !run.filesWritten.isEmpty {
-            s.append("\n--- Files written ---")
-            s.append(contentsOf: run.filesWritten)
-        }
-        if !timelineEntries.isEmpty {
-            s.append("\n--- Activity (\(timelineEntries.count) events) ---")
-            s.append(contentsOf: timelineEntries.map { "[\($0.level)] \($0.message)" })
-        }
-        return s.joined(separator: "\n")
-    }
-
-    var body: some View {
-        Button {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(clipboardText, forType: .string)
-            copied = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copied = false }
-        } label: {
-            Label(copied ? "Copied" : "Copy all", systemImage: copied ? "checkmark" : "doc.on.doc")
-                .font(NTypography.caption)
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.small)
     }
 }

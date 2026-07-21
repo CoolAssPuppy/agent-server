@@ -1,5 +1,20 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Edit agent form consistency
+
+- [x] Keep Name editing left aligned and use the same label typography for Name and Description.
+- [x] Remove the repeated natural-language schedule summary below the schedule controls.
+- [x] Remove runtime helper text that only restates the selected coding agent.
+- [x] Remove the repeated agent name, status badge, and Copy all action from run-history detail.
+- [x] Run Swift tests, rebuild the unsigned app, relaunch it locally, and commit the fix without pushing.
+
+Review:
+
+- Added behavior coverage for the Edit agent presentation and the stripped-down run-history detail header.
+- Swift package: 467 tests passed.
+- Unsigned Debug app build passed and relaunched from `/tmp/agent-server-local-20260721-stabilized/Build/Products/Debug/Agent Server.app`.
+- Local server restarted successfully at `2026-07-21T07:09:07.235Z`.
+
 ## Durable agent edits and LLM-scoped connections
 
 - [x] Add failing tests for stale polls after Save, stale live state, and overlapping Markdown writes.

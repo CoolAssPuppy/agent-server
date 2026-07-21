@@ -35,12 +35,8 @@ struct ModelField: View {
             .accessibilityIdentifier("agent-settings-coding-agent")
 
             switch draft.choice {
-            case .claudeCode:
-                hint("Runs on your Claude subscription.")
-            case .codex:
-                hint("Runs on your ChatGPT (Codex) subscription.")
-            case .kimiCode:
-                hint("Runs with your installed Kimi Code.")
+            case .claudeCode, .codex, .kimiCode:
+                EmptyView()
             case .kimiK3:
                 hint("Uses \(KimiModelPreset.keyVariable) from Settings.")
             case .custom:

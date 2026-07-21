@@ -87,6 +87,9 @@ final class RunAccessibilityPresentationTests: XCTestCase {
         XCTAssertTrue(presentation.disclosesTechnicalDetails)
         XCTAssertEqual(RunDetailPresentation.headerMetadataPlacement, .informationTab)
         XCTAssertFalse(RunDetailPresentation.showsHeaderMetadata)
+        XCTAssertFalse(RunDetailPresentation.showsAgentName)
+        XCTAssertFalse(RunDetailPresentation.showsStatus)
+        XCTAssertFalse(RunDetailPresentation.showsCopyAll)
     }
 
     func testUnconfirmedOutputUsesTruthfulConsumerCopyForEveryContractFailure() {
