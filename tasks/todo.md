@@ -1699,11 +1699,17 @@ Agent Server 3.3.1 build 34 passed 1,343 server tests with 4 expected skips, 473
 - [x] Require installed Claude and Codex executables with clear setup errors when either runtime is missing.
 - [x] Build locally and prove Claude, Codex, and Kimi resolve from the installed app environment.
 - [x] Run server, Swift, release-contract, type-check, lint, and build gates.
-- [ ] Cut version 3.3.2 build 35 with release text “Bug fixes” and verify signing, notarization, publication, and bundle size.
-- [ ] Install the notarized release, clean temporary build products, commit, and push main.
+- [x] Cut version 3.3.2 build 35 with release text “Bug fixes” and verify signing, notarization, publication, and bundle size.
+- [x] Install the notarized release, clean temporary build products, commit, and push main.
 
 ### Assumptions and risks
 
 - The product requires users to install and authenticate at least one supported coding-agent runtime.
 - SDK adapter packages remain bundled because Agent Server imports their JavaScript APIs, but their optional platform executable packages do not.
 - Missing runtimes must fail before execution with actionable guidance instead of falling through to an absent bundled executable.
+
+### Review
+
+Agent Server 3.3.2 build 35 retains the Claude and Codex JavaScript SDK adapters but removes their optional platform executable packages. The notarized Release app is 95 MB and its DMG is 18 MB, down from 619 MB and 193 MB in 3.3.1. Missing Claude or Codex installations now fail before SDK execution with direct setup guidance, and obsolete Settings choices for bundled fallbacks are gone.
+
+Verification passed with 1,348 server tests and 4 expected skips, 473 Swift tests, 49 release-contract tests, strict TypeScript checking, ESLint, the server build, and fresh Debug and Release app builds. Apple accepted app submission `6a570139-ae2d-43ba-8012-99aa938a769d` and DMG submission `f5b8d71a-07d4-42fe-b8ad-da9f3db2c541`; both tickets were stapled and validated. The live appcast reports version 3.3.2 build 35 with “Bug fixes”. The notarized app is installed, healthy on API version 12, and resolves Claude, Codex, and Kimi from their installed paths. Temporary archives, exports, build products, and the recoverable installation backup were removed. Spotlight returns only `/Applications/Agent Server.app`.
