@@ -1,21 +1,22 @@
 # Technical debt audit
 
-Audit date: 2026-07-20
+Initial audit: 2026-07-20
+
+Final repeat audit: 2026-07-21
 
 Scope: TypeScript server, native macOS app, EventKit helper, build and release scripts, CI, dependencies, tests, and user-facing documentation.
 
 ## Executive summary
 
-- Agent chaining follows the opposite direction from the README contract, and cycles have no ancestry or depth limit. A documented `A -> B` chain may not run as expected, while a reciprocal chain can run indefinitely.
-- A run timeout releases the agent lock as soon as abort is requested. An executor that does not stop promptly can continue side effects while a replacement run starts.
-- Terminal telemetry can be lost during a panel outage because `runAgent` stops the reporter immediately after scheduling its deferred retry.
-- Stored run evidence reaches memory and SQLite before redaction, contrary to the documented storage boundary for commands, progress, summaries, and errors.
-- The production dependency graph has 2 high and 11 moderate advisories. Direct `ws` and Hono versions are below patched releases, and dependency auditing is absent from CI.
-- CI validates only the TypeScript server on Ubuntu. The macOS app, Swift package, EventKit helper, release scripts, and native build are not merge-gated.
-- A clean macOS checkout depends on a sibling NerdsUI repository and an ignored `Info.plist`, so the shipped application cannot be reproduced from tracked inputs alone.
-- Several macOS lifecycle paths can hang, terminate unrelated processes, lose decision state, or reconcile concurrent runs incorrectly.
-- Release verification can accept HTTP error responses, publication is not transactional, and a stale local appcast can overwrite newer release history.
-- The architecture is sound in broad shape, but debt is concentrated in high-churn composition roots: `server.ts`, `api.ts`, `proposal-service.ts`, `EventKitHandler.swift`, and three large SwiftUI views.
+- All 46 initial findings are resolved. Two findings reopened during the repeat pass and were closed with direct behavior tests.
+- All 16 issues found during repeat auditing are resolved. The final read-only server, release, and native passes found no new or reopened actionable debt.
+- Production dependency auditing reports zero advisories across 157 production dependencies.
+- The server suite has 1,314 passing tests and 4 intentional installed-runtime skips. Overall coverage is 86.55% lines, 78.35% branches, 86.88% functions, and 84.68% statements.
+- The critical `server.ts` composition root now has real listener, schedule, watch, channel, interaction, trigger, cancellation, and shutdown coverage with per-file regression floors.
+- Shutdown closes run admission synchronously, bounds background and terminal draining, prevents late work, and clears losing timeout handles.
+- Native verification covers 446 Swift Core tests, 12 EventKit Core tests, 6 production EventKit service tests, 3 design-system tests, and an unsigned app build.
+- Release preparation, publication, resumption, signature validation, credential guidance, interruption cleanup, and live artifact verification are behavior-tested.
+- CI gates TypeScript, Python release tooling, dependency auditing, Swift packages, production EventKit services, documentation contracts, and the unsigned macOS build.
 
 ## Architectural mental model
 
@@ -32,21 +33,96 @@ The dependency direction is generally reasonable: configuration and discovery fe
 
 | Check | Result |
 |---|---|
-| Repository size | 71,797 TypeScript, Swift, and shell source lines |
+| Repository size | 79,331 tracked TypeScript, Swift, Python, and shell lines |
 | TypeScript strict check | Passed |
 | ESLint | Passed |
-| Server tests | 1,267 passed, 4 opt-in Kimi conformance tests skipped |
-| Server coverage | 81.19% statements, 76.55% branches, 84.11% functions, 82.81% lines |
-| Production dependency audit | 2 high and 11 moderate advisories |
-| Knip | Unused `ws`, unused `@types/ws`, unlisted `which` binary, and exported surface candidates |
-| Depcheck | Unused direct `ws` dependency |
-| Madge | One type-only cycle between `reporting/store.ts` and `reporting/run-normalization.ts` |
+| Server tests | 1,314 passed, 4 opt-in Kimi conformance tests skipped |
+| Server coverage | 84.68% statements, 78.35% branches, 86.88% functions, 86.55% lines |
+| Production dependency audit | Zero advisories across 157 dependencies |
+| Swift tests | 446 Core, 12 EventKit Core, 6 production EventKit services, and 3 design-system tests passed |
+| Release tests | 48 Python behavior and shell-contract tests passed |
+| Native build | Unsigned macOS application build passed from tracked inputs |
+| Optional static tools | Knip, Madge, Depcheck, ast-grep, ShellCheck, Ruff, Mypy, and pip-audit were unavailable and were not installed globally |
 
-The four skipped tests are opt-in installed-runtime conformance checks at `server-app/src/plugins/kimi-code.test.ts:50`, `:70`, `:96`, and `:120`. Their skip status is intentional and is not counted as ordinary missing coverage.
+The four skipped tests are opt-in installed-runtime conformance checks in `server-app/src/plugins/kimi-code.test.ts`. Their skip status is intentional and is not counted as ordinary missing coverage.
 
-## Findings
+## Final repeat-audit status
 
-Severity reflects product impact and likelihood. Effort uses S for less than a day, M for roughly one to three days, and L for a larger refactor.
+Every initial finding is marked resolved below. The original table remains after this section as a historical record of what was found on 2026-07-20.
+
+| Finding | Status | Current evidence |
+|---|---|---|
+| TD-01 | RESOLVED | Outgoing trigger edges are evaluated at `server-app/src/agents/triggers.ts:30-48`. |
+| TD-02 | RESOLVED | Chain ancestry, revisit rejection, and depth limits are enforced at `server-app/src/agents/triggers.ts:6-23,51-79`. |
+| TD-03 | RESOLVED | Timed-out execution retains ownership until settlement at `server-app/src/execution/runner.ts:198-225`. |
+| TD-04 | RESOLVED | Terminal payloads persist and replay at `server-app/src/reporting/reporter.ts:375-382,478-485,527-573`. |
+| TD-05 | RESOLVED | The run deadline includes reporter startup at `server-app/src/execution/runner.ts:134-184`. |
+| TD-06 | RESOLVED | Store boundaries sanitize evidence at `server-app/src/reporting/run-normalization.ts:23-60` and `server-app/src/reporting/sqlite-store.ts:103-122`. |
+| TD-07 | RESOLVED | The unused direct WebSocket dependency is gone; the production audit is clean at `server-app/package.json:36-52`. |
+| TD-08 | RESOLVED | Hono is patched and pinned through `server-app/package.json:50` and `pnpm-workspace.yaml:14-21`. |
+| TD-09 | RESOLVED | Real production composition behavior is covered at `server-app/src/server/start-server.test.ts:217-846`, with per-file floors at `server-app/vitest.config.ts:23-28`. |
+| TD-10 | RESOLVED | Server, release, Swift, EventKit, docs, and native build gates are defined at `.github/workflows/ci.yml:1-114`. |
+| TD-11 | RESOLVED | Native packages are exact-pinned at `macos-app/project.yml:8-18`; build inputs are generated and validated at `macos-app/project.yml:55-139`. |
+| TD-12 | RESOLVED | Exact published release verification lives at `scripts/release_tools/appcast.py:107-113` and `scripts/release_tools/publisher.py:52-83`. |
+| TD-13 | RESOLVED | Listener and owned-process identity checks live at `macos-app/AgentServer/Services/ServerProcessManager.swift:147-184,389-421`. |
+| TD-14 | RESOLVED | Shutdown uses bounded grace and verified escalation at `macos-app/AgentServer/Services/ServerProcessManager.swift:19-23,184-231`. |
+| TD-15 | RESOLVED | Decision polling has retained tasks and generation checks at `macos-app/AgentServer/Services/StatusMonitor.swift:160-242`. |
+| TD-16 | RESOLVED | Decision state changes only after a valid client and confirmed response at `macos-app/AgentServer/Services/StatusMonitor.swift:188-242`. |
+| TD-17 | RESOLVED | Local and panel rows reconcile by stable run ID at `macos-app/AgentServer/Views/AgentRunsView.swift:160-231`. |
+| TD-18 | RESOLVED | Environment parsing rejects duplicate keys at `macos-app/AgentServerSwiftTests/Sources/AgentServerCore/EnvFileStore.swift:25-35,172-204`. |
+| TD-19 | RESOLVED | Secret files are staged and verified as mode 0600 at `macos-app/AgentServerSwiftTests/Sources/AgentServerCore/EnvFileStore.swift:285-347`. |
+| TD-20 | RESOLVED | Markdown ranges use UTF-16 offsets at `macos-app/AgentServerSwiftTests/Sources/AgentServerCore/MarkdownHighlightRanges.swift:57-75,183-211`. |
+| TD-21 | RESOLVED | Native callback waits are bounded at `macos-app/AgentServerEventKitCore/Sources/AgentServerEventKitCore/BoundedCallback.swift:8-43`. |
+| TD-22 | RESOLVED | The helper is split into domain services and directly tested at `macos-app/AgentServerEventKit/EventKitHandler.swift:4-33` and `macos-app/AgentServerEventKitTests/NativeToolServiceTests.swift:5-179`. |
+| TD-23 | RESOLVED | Conversation input is stored and formatted once at `server-app/src/server/server.ts:809-821`. |
+| TD-24 | RESOLVED | Skipped runs use one terminal path at `server-app/src/server/run-lifecycle.ts:247-280`. |
+| TD-25 | RESOLVED | Interaction delivery is awaited and failed state is removed at `server-app/src/server/run-lifecycle.ts:188-189` and `server-app/src/server/server.ts:353-368`. |
+| TD-26 | RESOLVED | Startup rollback and shutdown are staged, admission-closed, drained, bounded, and idempotent at `server-app/src/server/server.ts:1000-1125`. |
+| TD-27 | RESOLVED | Request bytes are bounded while streaming at `server-app/src/server/api.ts:153-179,276-283`. |
+| TD-28 | RESOLVED | Authentication and rate-limit maps expire and cap entries at `server-app/src/server/security-utils.ts:123-168,177-253`. |
+| TD-29 | RESOLVED | Panel cleanup failures become typed errors and HTTP 502 at `server-app/src/reporting/panel-client.ts:23-69` and `server-app/src/server/api.ts:681-692`. |
+| TD-30 | RESOLVED | File-watch registrations reconcile dynamically at `server-app/src/agents/file-watcher.ts:117-192`. |
+| TD-31 | RESOLVED | Glob regex characters are escaped at `server-app/src/agents/file-watcher.ts:21-27`. |
+| TD-32 | RESOLVED | Discovery distinguishes missing, unreadable, and invalid sources at `server-app/src/agents/discovery.ts:18-80`. |
+| TD-33 | RESOLVED | Release publication validates the live-feed baseline and transition at `scripts/release_tools/publisher.py:52-64`. |
+| TD-34 | RESOLVED | Publication orders immutable DMG, verified appcast, then latest at `scripts/release_tools/publisher.py:65-83`. |
+| TD-35 | RESOLVED | Versions and XML are strictly parsed and escaped at `scripts/release_tools/models.py:47-75` and `scripts/release_tools/appcast.py:53-82,178-225`. |
+| TD-36 | RESOLVED | `docs/SPARKLE.md:1-70` is canonical and `macos-app/SPARKLE.md:1-3` points to it. |
+| TD-37 | RESOLVED | Build documentation matches the frozen install and lock-aware deploy at `README.md:830-843` and `macos-app/project.yml:55-104`. |
+| TD-38 | RESOLVED | The exported CLI factory is covered at `server-app/src/cli.test.ts:41-179`. |
+| TD-39 | RESOLVED | Overall and composition-root coverage floors are ratcheted at `server-app/vitest.config.ts:14-29`. |
+| TD-40 | RESOLVED | The required API key and generated environment contract are documented at `README.md:656-731`. |
+| TD-41 | RESOLVED | Secret detection and short-value masking live at `macos-app/AgentServerSwiftTests/Sources/AgentServerCore/EnvFileStore.swift:91-133`. |
+| TD-42 | RESOLVED | Sensitive list tools have bounded pagination at `macos-app/AgentServerEventKitCore/Sources/AgentServerEventKitCore/Pagination.swift:21-66`. |
+| TD-43 | RESOLVED | The three former view roots are focused shells at `macos-app/AgentServer/Views/GuidedAgentCreationView.swift:4`, `macos-app/AgentServer/Views/AgentSettingsView.swift:17`, and `macos-app/AgentServer/Views/SettingsDrawer.swift:4`. |
+| TD-44 | RESOLVED | Stable value normalization is shared at `server-app/src/util/stable-value.ts:2-7`. |
+| TD-45 | RESOLVED | The unused Telegram decision-bot path and production references were removed. |
+| TD-46 | RESOLVED | Runtime and Swift dependency requirements are current at `README.md:1206-1234`. |
+
+### Repeat-run findings
+
+| Finding | Status | Current evidence |
+|---|---|---|
+| RR-01 Dependency advisories | RESOLVED | SDK upgrades and compatible parser floors are at `server-app/package.json:38-39` and `pnpm-workspace.yaml:20-21`; production audit reports zero advisories. |
+| RR-02 WebSocket documentation auth | RESOLVED | The authenticated example is at `README.md:648-675`. |
+| RR-03 Release prepare and resume | RESOLVED | Multi-file rollback and resumable publication are at `scripts/release_tools/publisher.py:52-83,109-158`. |
+| RR-04 Sparkle signature length | RESOLVED | Signatures must decode to 64 bytes at `scripts/release_tools/appcast.py:219-225`. |
+| RR-05 Notarization credential exposure | RESOLVED | Keychain prompting is documented without password arguments at `docs/SPARKLE.md:24-38`; release scripts use the stored profile. |
+| RR-06 Unpinned release tools | RESOLVED | Only-Allow and Wrangler are pinned at `package.json:24-27`; release uses `pnpm exec` at `scripts/release.sh:49`. |
+| RR-07 Documentation CI coverage | RESOLVED | README and docs paths trigger CI at `.github/workflows/ci.yml:5-27`. |
+| RR-08 Notification documentation | RESOLVED | Native notification behavior is accurate at `README.md:817-823`. |
+| RR-09 Run-list refresh races | RESOLVED | Refresh task cancellation and generation checks are at `macos-app/AgentServer/Views/AgentRunsView.swift:94-103,177-210`. |
+| RR-10 Status monitor concentration | RESOLVED | `StatusMonitor.swift` is below 500 lines and WebSocket lifecycle is isolated in `StatusMonitor+WebSocket.swift`. |
+| RR-11 Native list materialization | RESOLVED | Contacts stop at page lookahead at `macos-app/AgentServerEventKit/EventKitDependencies.swift:45-62`; unavoidable EventKit arrays are bounded before mapping. |
+| RR-12 Decision error visibility | RESOLVED | Concurrent failure state is preserved at `macos-app/AgentServerSwiftTests/Sources/AgentServerCore/DecisionRefreshCoordinator.swift:53-95`. |
+| RR-13 Shutdown admission race | RESOLVED | Admission closes before ingress drains at `server-app/src/server/server.ts:1070-1111`; late trigger and callback paths recheck shutdown state. |
+| RR-14 Release temp-file cleanup | RESOLVED | Metadata staging cleans failed temporaries at `scripts/release_tools/publisher.py:109-158`; app notarization archive cleanup is scoped at `scripts/release-helpers.sh:5-25`. |
+| RR-15 Missing native helper | RESOLVED | A missing required EventKit helper fails the build at `macos-app/project.yml:129-136`. |
+| RR-16 Shutdown timer handles | RESOLVED | Drain deadlines use the shared cleared and unreferenced timeout primitive at `server-app/src/server/run-lifecycle.ts:336-374`. |
+
+## Initial findings (historical)
+
+These rows preserve the initial 2026-07-20 evidence. Their current status and replacement citations are in the final repeat-audit table above. Severity reflects initial product impact and likelihood. Effort uses S for less than a day, M for roughly one to three days, and L for a larger refactor.
 
 | ID | Category | File:Line | Severity | Effort | Description | Recommendation |
 |---|---|---|---|---|---|---|
@@ -97,7 +173,7 @@ Severity reflects product impact and likelihood. Effort uses S for less than a d
 | TD-45 | Dead architecture | `server-app/src/channels/telegram.ts:330-342`; `server-app/src/server/server.ts:857-862`; `server-app/src/channels/telegram-decision-bot.ts:210-233` | Low | M | The append-only Telegram decision bot is not wired by production server setup while a separate panel decision flow is active. | Confirm the intended decision architecture, then remove this path or wire and test it deliberately. |
 | TD-46 | Documentation accuracy | `README.md:1383`; `:1415-1421`; `server-app/package.json:21`; `macos-app/project.yml:8-16` | Low | S | The README claims 486 tests, Node 20+, and no third-party macOS dependencies. Current reality is 1,267 active server tests, Node 22.13+, and three declared Swift packages. | Remove volatile counts where possible and validate requirements against manifests during documentation checks. |
 
-## Top five refactor outlines
+## Initial top five refactor outlines (completed)
 
 ### 1. Make trigger direction and chain safety explicit
 
@@ -172,19 +248,19 @@ Record the spawned PID, canonical executable path, and a random launch token. Be
 
 ## Quick wins
 
-- [ ] Upgrade Hono to at least 4.12.25 and the effective `ws` version to at least 8.21.0.
-- [ ] Remove direct `ws` and `@types/ws` declarations if builds confirm they are redundant.
-- [ ] Add `pnpm audit --prod` to CI with an explicit advisory exception process.
-- [ ] Make release checks use `curl --fail` and validate the exact appcast version and build.
-- [ ] Reject duplicate `.env` keys before dictionary construction.
-- [ ] Always mask short secrets and expand secret-name detection.
-- [ ] Add a deadline to EventKit semaphore waits.
-- [ ] Propagate panel cleanup failures instead of returning zero.
-- [ ] Fix conversation history so the newest user message appears once.
-- [ ] Escape glob metacharacters or replace the custom compiler.
-- [ ] Ratchet coverage thresholds to the current baseline.
-- [ ] Correct Node requirements, test counts, dependency claims, and release-host documentation.
-- [ ] Add explicit least-privilege permissions and immutable action SHAs to CI.
+- [x] Upgrade Hono and the effective `ws` version to patched releases.
+- [x] Remove redundant direct `ws` and `@types/ws` declarations.
+- [x] Add the production dependency audit to CI.
+- [x] Make release checks fail HTTP errors and validate exact appcast fields.
+- [x] Reject duplicate environment keys before dictionary construction.
+- [x] Mask short secrets and expand conservative secret-name detection.
+- [x] Bound EventKit callback waits.
+- [x] Propagate panel cleanup failures instead of returning zero.
+- [x] Store the newest conversation message once.
+- [x] Escape glob metacharacters.
+- [x] Ratchet overall and composition-root coverage thresholds.
+- [x] Correct runtime, dependency, release, and build documentation.
+- [x] Use immutable action SHAs and least-privilege defaults in CI.
 
 ## Things that look bad but are actually fine
 
@@ -196,20 +272,11 @@ Record the spawned PID, canonical executable path, and a random launch token. Be
 - The generated Xcode project is ignored at `.gitignore:41`, and `scripts/release.sh:130` regenerates it from `project.yml`. Ignoring it is appropriate even if older generated files remain tracked.
 - Tracking `dist/appcast.xml:1` is intentional release history. The debt is the missing comparison with remote state, not the tracked file itself.
 - UI test scenario shortcuts in `macos-app/AgentServer/App/AppDelegate.swift:21-26` are guarded by `#if DEBUG` and cannot enter the release binary.
-- Timers and sockets in `macos-app/AgentServer/Services/StatusMonitor.swift:160-169` and `:435-444` have explicit cleanup. Their presence alone does not show a leak.
-- The EventKit dispatcher filters discovery and calls through the grant policy at `macos-app/AgentServerEventKit/EventKitHandler.swift:171-176`; a broad switch does not bypass native-service restrictions.
+- Timers and sockets in `macos-app/AgentServer/Services/StatusMonitor.swift:149-177` and `macos-app/AgentServer/Services/StatusMonitor+WebSocket.swift:33-47` have explicit cancellation and generation checks. Their presence alone does not show a leak.
+- The EventKit facade filters discovery and calls through the grant policy at `macos-app/AgentServerEventKit/EventKitHandler.swift:17-30`; dispatch does not bypass native-service restrictions.
 - The root package remains version 0.1.0 at `package.json:2`, while the shipped server is 3.2.0 at `server-app/package.json:2`. The root is a private workspace command facade and does not need product-version parity.
 - The four Kimi tests skipped by default require an installed external runtime. Keeping them opt-in is reasonable as long as ordinary adapter behavior remains covered by deterministic tests.
 
 ## Open questions
 
-- Which chaining direction is the compatibility contract: the README's outgoing-edge model or the current evaluator's incoming-reference model? Existing user agent files should be sampled before migration.
-- Should timed-out runtime processes be force-killed, or should the server quarantine the agent and require manual recovery when graceful abort fails?
-- Is durable terminal telemetry required when the panel is unavailable, or is local SQLite the authoritative record?
-- Which run evidence fields may be persisted locally, and what redaction rules apply to commands, paths, tool inputs, and third-party responses?
-- Is NerdsUI intended to remain a private sibling checkout, or can it become a pinned remote package?
-- Is the ignored macOS plist machine-specific because it contains a PostHog key? If so, should release tooling generate it from a tracked template and Doppler?
-- Is the public R2 hostname the current `r2.dev` endpoint or `downloads.strategicnerds.com`? The feed and documentation disagree.
-- Are `docs/FINAL_VERIFICATION.md`, `docs/BUILD_WEEK.md`, and the manual test matrix archival records or living instructions?
-- Does production use any Hono CORS, JWT, static-file, Lambda, or Lambda@Edge paths? That determines which advisories are reachable before the upgrade.
-- Is the append-only Telegram decision bot still planned, or can the panel-backed decision path replace it completely?
+None remain from this audit. Compatibility decisions were resolved in favor of the documented outgoing trigger model, durable local terminal evidence, one sanitizing storage boundary, tracked native build inputs, the panel-backed decision path, and the current R2/Sparkle publication flow.

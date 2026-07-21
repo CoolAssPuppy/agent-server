@@ -19,7 +19,7 @@
 - [x] Batch 7 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun all repository gates, and commit refinements.
 - [x] Batch 8: Close repeat-audit findings in server coverage and dependencies, release recovery and credential handling, native build reproducibility, EventKit production coverage and pagination, and macOS polling and status architecture.
 - [x] Batch 8 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun every repository gate, and commit refinements.
-- [ ] Re-run the technical debt audit, prove every finding closed or explicitly retired, and record the final review.
+- [x] Re-run the technical debt audit, prove every finding closed or explicitly retired, and record the final review.
 
 ### Remediation constraints
 
