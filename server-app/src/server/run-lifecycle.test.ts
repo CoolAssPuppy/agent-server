@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Reporter, RunResult } from '../execution/runner.js';
 import { RunStore } from '../reporting/store.js';
-import { makeAgent, makeExecutionResult } from '../test-factories.js';
+import { makeAgent, makeExecutionResult, makeStoredRun } from '../test-factories.js';
 import { ProgressBroadcaster, type ProgressEvent } from './websocket.js';
 import { createRunLifecycle } from './run-lifecycle.js';
 
@@ -20,6 +20,7 @@ function createHarness(
     filesWritten: ['/tmp/report.md'],
   }),
   onInteraction = vi.fn(),
+  now?: () => Date,
 ) {
   const store = new RunStore();
   const broadcaster = new ProgressBroadcaster();
@@ -28,6 +29,24 @@ function createHarness(
   const notify = vi.fn();
   const onTerminal = vi.fn();
   const createReporter = vi.fn(() => reporter);
+  const run = vi.fn(async (options) => {
+    const activeReporter = options.createReporter(
+      options.runId ?? 'missing-run-id',
+      options.agent.name,
+      options.conversationId,
+    );
+    if (runResult?.status === 'failed') {
+      await options.execute(options.agent, activeReporter, {
+        runId: options.runId ?? 'missing-run-id',
+      });
+      return runResult;
+    }
+    if (runResult) return runResult;
+    const result = await options.execute(options.agent, activeReporter, {
+      runId: options.runId ?? 'missing-run-id',
+    });
+    return { runId: options.runId, status: 'completed' as const, result };
+  });
   const lifecycle = createRunLifecycle({
     maxConcurrentRuns: 2,
     lockDir: '/tmp/agent-server-lifecycle-test-locks',
@@ -36,27 +55,11 @@ function createHarness(
     broadcaster,
     execute: vi.fn().mockResolvedValue(executionResult),
     createReporter,
-    run: vi.fn(async (options) => {
-      const activeReporter = options.createReporter(
-        options.runId ?? 'missing-run-id',
-        options.agent.name,
-        options.conversationId,
-      );
-      if (runResult?.status === 'failed') {
-        await options.execute(options.agent, activeReporter, {
-          runId: options.runId ?? 'missing-run-id',
-        });
-        return runResult;
-      }
-      if (runResult) return runResult;
-      const result = await options.execute(options.agent, activeReporter, {
-        runId: options.runId ?? 'missing-run-id',
-      });
-      return { runId: options.runId, status: 'completed', result };
-    }),
+    run,
     notify,
     onInteraction,
     onTerminal,
+    now,
   });
 
   return {
@@ -68,10 +71,108 @@ function createHarness(
     onInteraction,
     createReporter,
     executionResult,
+    run,
   };
 }
 
 describe('run lifecycle', () => {
+  it('skips an opted-in agent that already completed on the same local calendar day', async () => {
+    const now = new Date('2026-07-21T10:00:00.000Z');
+    const harness = createHarness(undefined, undefined, undefined, () => now);
+    const agent = makeAgent({
+      id: 'daily-focus',
+      timezone: 'Europe/Lisbon',
+      rerun_policy: 'skip_if_completed_today',
+    });
+    harness.store.add(makeStoredRun({
+      runId: 'earlier-run',
+      agentId: agent.id,
+      status: 'completed',
+      startedAt: new Date('2026-07-20T23:30:00.000Z'),
+      completedAt: new Date('2026-07-21T00:00:00.000Z'),
+    }));
+
+    const runId = harness.lifecycle.trigger(agent);
+    await harness.lifecycle.waitForTerminal(runId);
+
+    expect(harness.run).not.toHaveBeenCalled();
+    expect(harness.store.get(runId)).toMatchObject({
+      status: 'skipped',
+      code: 'already_completed_today',
+      summary: 'Already completed today.',
+      error: 'Already completed today.',
+    });
+    expect(harness.events.map((event) => event.type)).toEqual(['run_started', 'run_skipped']);
+  });
+
+  it('runs an opted-in agent when its last completion was on the prior local day', async () => {
+    const now = new Date('2026-07-21T10:00:00.000Z');
+    const harness = createHarness(undefined, undefined, undefined, () => now);
+    const agent = makeAgent({
+      id: 'daily-focus',
+      timezone: 'Europe/Lisbon',
+      rerun_policy: 'skip_if_completed_today',
+    });
+    harness.store.add(makeStoredRun({
+      runId: 'yesterday-run',
+      agentId: agent.id,
+      status: 'completed',
+      startedAt: new Date('2026-07-20T20:00:00.000Z'),
+      completedAt: new Date('2026-07-20T21:00:00.000Z'),
+    }));
+
+    const runId = harness.lifecycle.trigger(agent);
+    await harness.lifecycle.waitForTerminal(runId);
+
+    expect(harness.run).toHaveBeenCalledOnce();
+    expect(harness.store.get(runId)?.status).toBe('completed');
+  });
+
+  it('runs instead of stranding history when an opted-in agent has an invalid timezone', async () => {
+    const harness = createHarness();
+    const agent = makeAgent({
+      id: 'daily-focus',
+      timezone: 'Not/A-Timezone',
+      rerun_policy: 'skip_if_completed_today',
+    });
+    harness.store.add(makeStoredRun({
+      runId: 'earlier-run',
+      agentId: agent.id,
+      status: 'completed',
+    }));
+
+    const runId = harness.lifecycle.trigger(agent);
+    await harness.lifecycle.waitForTerminal(runId);
+
+    expect(harness.run).toHaveBeenCalledOnce();
+    expect(harness.store.get(runId)?.status).toBe('completed');
+  });
+
+  it('does not apply a daily rerun policy to safe tests or contextual runs', async () => {
+    const now = new Date('2026-07-21T10:00:00.000Z');
+    const harness = createHarness(undefined, undefined, undefined, () => now);
+    const agent = makeAgent({
+      id: 'daily-focus',
+      timezone: 'Europe/Lisbon',
+      rerun_policy: 'skip_if_completed_today',
+    });
+    harness.store.add(makeStoredRun({
+      runId: 'earlier-run',
+      agentId: agent.id,
+      status: 'completed',
+      completedAt: new Date('2026-07-21T07:00:00.000Z'),
+    }));
+
+    const safeTestId = harness.lifecycle.trigger(agent, { mode: 'safe_test' });
+    await harness.lifecycle.waitForTerminal(safeTestId);
+    const contextualId = harness.lifecycle.trigger(agent, { promptSuffix: 'Use this new context.' });
+    await harness.lifecycle.waitForTerminal(contextualId);
+
+    expect(harness.run).toHaveBeenCalledTimes(2);
+    expect(harness.store.get(safeTestId)?.status).toBe('completed');
+    expect(harness.store.get(contextualId)?.status).toBe('completed');
+  });
+
   it('records and broadcasts a run through its terminal state', async () => {
     const { lifecycle, store, events, notify, onTerminal } = createHarness();
     const agent = makeAgent();

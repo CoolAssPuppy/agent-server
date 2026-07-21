@@ -1666,3 +1666,16 @@ The 3.3.0 app relaunched with a sanitized PATH that omitted `~/.local/bin`, so i
 ### Review
 
 The Portuguese and French run completed successfully in 3 minutes 17 seconds with Personal Notion connected and both lesson pages created. The information chime came from the ambient Figma Claude plugin needing authentication, even though the agent could not use Figma. MCP authentication events are now filtered through the running agent's authoritative permissions, including broad deny rules and legacy unrestricted-agent behavior. The installed local app returns no alert for connected Personal Notion plus unrelated Figma needs-auth metadata. Verification passed with 1,338 server tests and 4 expected skips, 473 Swift tests, 49 release-contract tests, strict TypeScript checking, ESLint, the server build, the signed Debug macOS build, matching installed server hashes, and a successful local relaunch.
+
+## Skip completed daily reruns
+
+- [x] Add failing behavior tests for an explicit same-day completion policy.
+- [x] Enforce the policy from durable run history in the agent timezone before model execution.
+- [x] Enable the policy in the canonical Daily Focus Markdown file.
+- [x] Run focused and complete server tests, type-checking, lint, and builds.
+- [x] Install the local Debug app and prove Daily Focus records an immediate skipped run.
+- [x] Commit the focused correction without publishing it.
+
+### Review
+
+Daily Focus now opts into a server-enforced same-day rerun policy. Before model execution, the lifecycle checks durable completed history using the agent's configured timezone. A matching completion produces a visible skipped run with code `already_completed_today` and reason `Already completed today.` Safe tests, contextual runs, and explicit retries still execute. Invalid timezone text cannot strand a run in the running state. Verification passed with 1,343 server tests and 4 expected skips, strict TypeScript checking, ESLint, the server build, 473 Swift tests, 49 release checks, and a fresh signed Debug app build. The installed app reproduced the real Run now behavior with zero model turns, zero tools, and zero new execution log lines.

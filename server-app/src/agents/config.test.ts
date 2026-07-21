@@ -34,6 +34,18 @@ prompt: Do something.
 `;
 
 describe('AgentConfigSchema', () => {
+  it('accepts an explicit policy for skipping a completed local calendar day', () => {
+    const result = AgentConfigSchema.parse({
+      id: 'daily-focus',
+      name: 'Daily focus',
+      prompt: 'Create the daily focus report.',
+      timezone: 'Europe/Lisbon',
+      rerun_policy: 'skip_if_completed_today',
+    });
+
+    expect(result.rerun_policy).toBe('skip_if_completed_today');
+  });
+
   it('accepts a reviewed required output contract while preserving current output guidance', () => {
     const result = AgentConfigSchema.parse({
       id: 'daily-report',

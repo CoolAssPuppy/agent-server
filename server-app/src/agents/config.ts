@@ -267,6 +267,7 @@ export const AgentConfigSchema = z
     conversation: ConversationConfigSchema.optional(),
     telemetry: AgentTelemetrySchema.optional(),
     output: AgentOutputSchema.optional(),
+    rerun_policy: z.enum(['skip_if_completed_today']).optional(),
   })
   .passthrough()
   .superRefine((agent, ctx) => {

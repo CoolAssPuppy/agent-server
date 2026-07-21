@@ -73,7 +73,11 @@ type RunLifecycleDependencies = {
     chain: TriggerChain | undefined,
   ) => Promise<void> | void;
   createRunId?: () => string;
+  now?: () => Date;
 };
+
+const ALREADY_COMPLETED_TODAY_CODE = 'already_completed_today';
+const ALREADY_COMPLETED_TODAY_REASON = 'Already completed today.';
 
 function finiteNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
@@ -84,6 +88,7 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
   const terminalWaiters = new Map<string, Promise<void>>();
   const terminalResolvers = new Map<string, () => void>();
   const run = dependencies.run ?? runAgent;
+  const now = dependencies.now ?? (() => new Date());
   let isAccepting = true;
 
   function trigger(agent: AgentConfig, options: TriggerRunOptions = {}): string {
@@ -102,7 +107,16 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
     }));
     recordStart(runId, agent, options);
 
-    void executeRun(runId, agent, options, abortController).finally(() => {
+    const terminalWork = shouldSkipCompletedToday(agent, options)
+      ? recordSkipped(runId, agent, options, {
+        runId,
+        status: 'skipped',
+        code: ALREADY_COMPLETED_TODAY_CODE,
+        error: ALREADY_COMPLETED_TODAY_REASON,
+      })
+      : executeRun(runId, agent, options, abortController);
+
+    void terminalWork.finally(() => {
       activeControllers.delete(runId);
       terminalResolvers.get(runId)?.();
       terminalResolvers.delete(runId);
@@ -112,8 +126,25 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
     return runId;
   }
 
+  function shouldSkipCompletedToday(
+    agent: AgentConfig,
+    options: TriggerRunOptions,
+  ): boolean {
+    if (agent.rerun_policy !== 'skip_if_completed_today') return false;
+    if ((options.mode ?? 'normal') !== 'normal') return false;
+    if (options.promptSuffix || options.conversationId || options.retryOfRunId) return false;
+
+    const timeZone = agent.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const today = localDateKey(now(), timeZone);
+    if (!today) return false;
+    return dependencies.store.listByAgent(agent.id).some((storedRun) => {
+      if (storedRun.status !== 'completed') return false;
+      return localDateKey(storedRun.completedAt ?? storedRun.startedAt, timeZone) === today;
+    });
+  }
+
   function recordStart(runId: string, agent: AgentConfig, options: TriggerRunOptions): void {
-    const startedAt = new Date();
+    const startedAt = now();
     dependencies.store.add({
       runId,
       agentId: agent.id,
@@ -210,7 +241,7 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
     const usage = result.usage ?? {};
     dependencies.store.update(runId, {
       status: 'completed',
-      completedAt: new Date(),
+      completedAt: now(),
       summary: result.summary,
       turnCount: result.turnCount,
       toolsUsed: result.toolsUsed,
@@ -228,7 +259,7 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
       runId,
       agentId: agent.id,
       summary: result.summary,
-      timestamp: new Date().toISOString(),
+      timestamp: now().toISOString(),
     });
     dependencies.notify(agent, runId, {
       status: 'completed',
@@ -267,7 +298,7 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
     const reason = result.error ?? 'This run was skipped.';
     dependencies.store.update(runId, {
       status: 'skipped',
-      completedAt: new Date(),
+      completedAt: now(),
       summary: reason,
       error: reason,
       code: result.code,
@@ -278,7 +309,7 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
       agentId: agent.id,
       error: reason,
       code: result.code,
-      timestamp: new Date().toISOString(),
+      timestamp: now().toISOString(),
     });
     dependencies.notify(agent, runId, { status: 'skipped', error: reason });
     options.onDone?.({ status: 'skipped', error: reason });
@@ -294,14 +325,14 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
     error: string,
     code?: string,
   ): Promise<void> {
-    dependencies.store.update(runId, { status: 'failed', completedAt: new Date(), error, code });
+    dependencies.store.update(runId, { status: 'failed', completedAt: now(), error, code });
     dependencies.broadcaster.emit({
       type: 'run_failed',
       runId,
       agentId: agent.id,
       error,
       code,
-      timestamp: new Date().toISOString(),
+      timestamp: now().toISOString(),
     });
     dependencies.notify(agent, runId, { status: 'failed', error });
     options.onDone?.({ status: 'failed', error });
@@ -357,6 +388,21 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
   }
 
   return { trigger, stopAccepting, cancel, waitForTerminal, drain };
+}
+
+function localDateKey(date: Date, timeZone: string): string | undefined {
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+  } catch {
+    return undefined;
+  }
 }
 
 async function withTimeoutFallback<T>(
