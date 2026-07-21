@@ -1679,3 +1679,15 @@ The Portuguese and French run completed successfully in 3 minutes 17 seconds wit
 ### Review
 
 Daily Focus now opts into a server-enforced same-day rerun policy. Before model execution, the lifecycle checks durable completed history using the agent's configured timezone. A matching completion produces a visible skipped run with code `already_completed_today` and reason `Already completed today.` Safe tests, contextual runs, and explicit retries still execute. Invalid timezone text cannot strand a run in the running state. Verification passed with 1,343 server tests and 4 expected skips, strict TypeScript checking, ESLint, the server build, 473 Swift tests, 49 release checks, and a fresh signed Debug app build. The installed app reproduced the real Run now behavior with zero model turns, zero tools, and zero new execution log lines.
+
+## Version 3.3.1 release
+
+- [x] Run the release script with version 3.3.1 and release text “Bug fixes”.
+- [x] Verify signing, notarization, Sparkle signature, uploaded DMG, and live appcast.
+- [x] Confirm the installed app can update and start the bundled server.
+- [x] Remove stale Agent Server debug builds from Spotlight-visible locations.
+- [x] Commit release metadata and push main.
+
+### Review
+
+Agent Server 3.3.1 build 34 passed 1,343 server tests with 4 expected skips, 473 Swift behavior tests, strict TypeScript checking, and ESLint. Apple accepted app submission `0935eb65-5f11-4218-befd-07de2c2ea15b` and DMG submission `f41ed84e-111e-4d79-af08-6fb9b05d63f7`; both tickets were stapled and validated. The Sparkle-signed DMG and appcast are live with the release text “Bug fixes”. The notarized Release app is installed locally, reports version 3.3.1 build 34, starts API version 12, and finds installed Claude, Codex, and Kimi runtimes. Twenty-four duplicate export, archive, DerivedData, and staging directories totaling about 15 GB were permanently removed; Spotlight now returns only `/Applications/Agent Server.app`.
