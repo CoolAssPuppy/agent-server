@@ -6,16 +6,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from .models import AppcastRelease
+
 
 class PublicationError(RuntimeError):
     """Raised when publication cannot safely continue."""
 
 
 class FeedTools(Protocol):
-    def validate_staged(self, path: Path, expected: object) -> None: ...
+    def validate_staged(self, path: Path, expected: AppcastRelease) -> None: ...
     def digest(self, content: bytes) -> str: ...
-    def validate_transition(self, live: bytes, staged: bytes, expected: object) -> None: ...
-    def validate_published(self, content: bytes, expected: object) -> None: ...
+    def validate_transition(self, live: bytes, staged: bytes, expected: AppcastRelease) -> None: ...
+    def validate_published(self, content: bytes, expected: AppcastRelease) -> None: ...
 
 
 class PublicationRemote(Protocol):
@@ -30,7 +32,7 @@ class PublicationPlan:
     dmg: Path
     staged_appcast: Path
     tracked_appcast: Path
-    expected: object
+    expected: AppcastRelease
     baseline_digest: str
     versioned_key: str
     appcast_key: str
@@ -39,7 +41,6 @@ class PublicationPlan:
     direct_appcast_url: str
     dub_appcast_url: str
     latest_url: str
-    dmg_length: int
 
 
 class Publisher:
@@ -48,6 +49,7 @@ class Publisher:
         self._feeds = feeds
 
     def publish(self, plan: PublicationPlan) -> None:
+        self._validate_local_artifacts(plan)
         self._feeds.validate_staged(plan.staged_appcast, plan.expected)
         live = self._remote.read(plan.direct_appcast_url)
         if self._feeds.digest(live) != plan.baseline_digest:
@@ -57,7 +59,7 @@ class Publisher:
 
         self._remote.require_absent(plan.versioned_url)
         self._remote.upload(plan.dmg, plan.versioned_key, "application/x-apple-diskimage")
-        self._remote.require_length(plan.versioned_url, plan.dmg_length)
+        self._remote.require_length(plan.versioned_url, plan.expected.length)
 
         self._remote.upload(plan.staged_appcast, plan.appcast_key, "application/xml; charset=utf-8")
         self._feeds.validate_published(self._remote.read(plan.direct_appcast_url), plan.expected)
@@ -65,18 +67,37 @@ class Publisher:
 
         self._replace_tracked_feed(plan.staged_appcast, plan.tracked_appcast)
         self._remote.upload(plan.dmg, plan.latest_key, "application/x-apple-diskimage")
-        self._remote.require_length(plan.latest_url, plan.dmg_length)
+        self._remote.require_length(plan.latest_url, plan.expected.length)
+
+    @staticmethod
+    def _validate_local_artifacts(plan: PublicationPlan) -> None:
+        if plan.expected.enclosure_url != plan.versioned_url:
+            raise PublicationError("release enclosure URL does not match the versioned artifact URL")
+        if not plan.dmg.is_file():
+            raise PublicationError(f"DMG is missing: {plan.dmg}")
+        if not plan.staged_appcast.is_file():
+            raise PublicationError(f"staged appcast is missing: {plan.staged_appcast}")
+        actual_length = plan.dmg.stat().st_size
+        if actual_length != plan.expected.length:
+            raise PublicationError(
+                f"DMG length changed after signing: expected {plan.expected.length}, got {actual_length}"
+            )
 
     @staticmethod
     def _replace_tracked_feed(staged: Path, tracked: Path) -> None:
-        tracked.parent.mkdir(parents=True, exist_ok=True)
-        descriptor, temporary_name = tempfile.mkstemp(dir=tracked.parent, prefix=f".{tracked.name}.")
-        try:
-            with os.fdopen(descriptor, "wb") as destination:
-                destination.write(staged.read_bytes())
-                destination.flush()
-                os.fsync(destination.fileno())
-            os.replace(temporary_name, tracked)
-        except BaseException:
-            Path(temporary_name).unlink(missing_ok=True)
-            raise
+        atomic_write(tracked, staged.read_bytes())
+
+
+def atomic_write(path: Path, content: bytes) -> None:
+    """Replace one local file only after its complete contents reach disk."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
+    try:
+        with os.fdopen(descriptor, "wb") as destination:
+            destination.write(content)
+            destination.flush()
+            os.fsync(destination.fileno())
+        os.replace(temporary_name, path)
+    except BaseException:
+        Path(temporary_name).unlink(missing_ok=True)
+        raise

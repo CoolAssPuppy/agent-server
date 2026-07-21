@@ -97,6 +97,52 @@ class AppcastTests(unittest.TestCase):
         with self.assertRaises(AppcastError):
             parse_appcast("<rss><channel></rss>")
 
+    def test_rejects_foreign_namespaces_that_impersonate_sparkle_fields(self) -> None:
+        live = feed(item("3.2.0", 32)).replace(
+            'xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"',
+            'xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" '
+            'xmlns:foreign="https://example.invalid/not-sparkle"',
+        )
+        spoofed_tag = live.replace("<sparkle:version>", "<foreign:version>").replace(
+            "</sparkle:version>", "</foreign:version>"
+        )
+        spoofed_attribute = live.replace(" url=", " foreign:url=")
+
+        for xml_text in (spoofed_tag, spoofed_attribute):
+            with self.subTest(xml_text=xml_text), self.assertRaises(AppcastError):
+                parse_appcast(xml_text)
+
+    def test_rejects_document_type_declarations(self) -> None:
+        live = feed(item("3.2.0", 32))
+        with_doctype = live.replace(
+            '<rss version="2.0"',
+            '<!DOCTYPE rss [<!ENTITY release "3.2.0">]>\n<rss version="2.0"',
+        )
+
+        with self.assertRaises(AppcastError):
+            parse_appcast(with_doctype)
+
+    def test_allows_document_type_text_inside_release_notes(self) -> None:
+        live = feed(item("3.2.0", 32)).replace(
+            "Notes for 3.2.0", "Notes mention <!DOCTYPE rss> as text"
+        )
+
+        releases = parse_appcast(live)
+
+        self.assertIn("<!DOCTYPE rss>", releases[0].notes_html)
+
+    def test_requires_one_real_english_channel_language(self) -> None:
+        live = feed(item("3.2.0", 32))
+        missing_language = live.replace("    <language>en</language>\n", "")
+        comment_only = missing_language.replace(
+            "    <title>Agent Server</title>",
+            "    <title>Agent Server</title>\n    <!-- <language>en</language> -->",
+        )
+
+        for xml_text in (missing_language, comment_only):
+            with self.subTest(xml_text=xml_text), self.assertRaises(AppcastError):
+                parse_appcast(xml_text)
+
     def test_rejects_duplicate_or_stale_new_release(self) -> None:
         live = feed(item("3.2.0", 32), item("3.1", 31))
         duplicate = release(Version(3, 2, 0), 33)

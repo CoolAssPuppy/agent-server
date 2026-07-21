@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shlex
 import subprocess
 from pathlib import Path
 from typing import Sequence
@@ -12,12 +13,13 @@ CURL_READ_FLAGS = ("--fail", "--location", "--silent", "--show-error")
 
 class CommandRunner:
     def run(self, arguments: Sequence[str], *, check: bool = True) -> subprocess.CompletedProcess[bytes]:
-        return subprocess.run(
-            list(arguments),
-            check=check,
-            capture_output=True,
-            shell=False,
-        )
+        command = list(arguments)
+        try:
+            return subprocess.run(command, check=check, capture_output=True, shell=False)
+        except subprocess.CalledProcessError as error:
+            stderr = (error.stderr or b"").decode(errors="replace").strip()
+            detail = f": {stderr}" if stderr else ""
+            raise PublicationError(f"command failed: {shlex.join(command)}{detail}") from error
 
 
 class CurlWranglerRemote:
@@ -42,7 +44,11 @@ class CurlWranglerRemote:
             return
         if result.returncode == 0:
             raise PublicationError(f"immutable artifact already exists: {url}")
-        raise PublicationError(f"could not prove immutable artifact absence ({status or 'no status'}): {url}")
+        stderr = result.stderr.decode(errors="replace").strip()
+        detail = f"; {stderr}" if stderr else ""
+        raise PublicationError(
+            f"could not prove immutable artifact absence ({status or 'no status'}): {url}{detail}"
+        )
 
     def upload(self, source: Path, key: str, content_type: str) -> None:
         self._runner.run(

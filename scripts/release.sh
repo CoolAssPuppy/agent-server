@@ -40,8 +40,6 @@ SCRIPTS="$REPO_ROOT/scripts"
 
 NOTARY_PROFILE="agent-server"
 SPARKLE_SIGN_UPDATE="${SPARKLE_SIGN_UPDATE:-$HOME/bin/sparkle/sign_update}"
-SIGN_IDENTITY="Developer ID Application: Prashant Sridharan (955GSY56UT)"
-
 APP_FOLDER="agent-server"
 DUB_SHORTLINK="https://coolasspuppy.com/agent-server-updates"
 
@@ -95,6 +93,10 @@ mkdir -p "$DIST"
 
 R2_PUBLIC_BASE=$(doppler secrets get R2_PUBLIC_BASE_URL \
   --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" --plain 2>/dev/null || echo "https://downloads.strategicnerds.com")
+if [ -z "$R2_PUBLIC_BASE" ]; then
+  echo "Error: missing R2_PUBLIC_BASE_URL in Doppler $DOPPLER_PROJECT/$DOPPLER_CONFIG"
+  exit 1
+fi
 R2_APPCAST_URL="$R2_PUBLIC_BASE/apps/$APP_FOLDER/appcast.xml"
 LIVE_APPCAST="$DIST/appcast.live.xml"
 echo "==> Capturing and validating the live appcast baseline"
@@ -126,7 +128,7 @@ echo "==> Building bundled server"
 (cd "$REPO_ROOT/server-app" && pnpm run build)
 
 #----------------------------------------------------------------------
-# 2. Regenerate project
+# 3. Regenerate project
 #----------------------------------------------------------------------
 echo "==> Regenerating Xcode project"
 (cd "$MACOS_APP" && xcodegen generate)
@@ -140,7 +142,7 @@ if [ -z "$POSTHOG_PUBLIC_KEY" ]; then
 fi
 
 #----------------------------------------------------------------------
-# 3. Archive
+# 4. Archive
 #----------------------------------------------------------------------
 ARCHIVE="$DIST/AgentServer-$VERSION.xcarchive"
 rm -rf "$ARCHIVE"
@@ -159,7 +161,7 @@ xcodebuild -project "$MACOS_APP/AgentServer.xcodeproj" \
   archive >/dev/null
 
 #----------------------------------------------------------------------
-# 4. Export Developer ID .app
+# 5. Export Developer ID .app
 #----------------------------------------------------------------------
 EXPORT_DIR="$DIST/export-$VERSION"
 rm -rf "$EXPORT_DIR"
@@ -176,7 +178,7 @@ if [ ! -d "$APP_PATH" ]; then
 fi
 
 #----------------------------------------------------------------------
-# 5. Notarize + staple the .app
+# 6. Notarize + staple the .app
 #----------------------------------------------------------------------
 echo "==> Notarizing .app (takes a few minutes)"
 APP_ZIP="$DIST/export-$VERSION/AgentServer.app.zip"
@@ -189,7 +191,7 @@ xcrun stapler staple "$APP_PATH"
 xcrun stapler validate "$APP_PATH"
 
 #----------------------------------------------------------------------
-# 6. DMG + notarize + staple + Sparkle sign
+# 7. DMG + notarize + staple + Sparkle sign
 #----------------------------------------------------------------------
 echo "==> Building DMG"
 "$SCRIPTS/build-dmg.sh" "$APP_PATH" "$VERSION" "$NOTARY_PROFILE"
@@ -203,7 +205,7 @@ if [ ! -f "$DMG" ] || [ ! -f "$SPARKLE_TXT" ]; then
 fi
 
 #----------------------------------------------------------------------
-# 7. Stage, validate, and publish in recoverable order
+# 8. Stage, validate, and publish in recoverable order
 #----------------------------------------------------------------------
 echo "==> Fetching Cloudflare R2 credentials from Doppler ($DOPPLER_PROJECT/$DOPPLER_CONFIG)"
 export CLOUDFLARE_API_TOKEN
@@ -214,8 +216,8 @@ CLOUDFLARE_ACCOUNT_ID=$(doppler secrets get CLOUDFLARE_ACCOUNT_ID \
   --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" --plain 2>/dev/null || true)
 R2_BUCKET=$(doppler secrets get R2_BUCKET_NAME \
   --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" --plain 2>/dev/null || echo "strategic-nerds-downloads")
-if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-  echo "Error: missing CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID in Doppler $DOPPLER_PROJECT/$DOPPLER_CONFIG"
+if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ] || [ -z "$R2_BUCKET" ]; then
+  echo "Error: missing Cloudflare credentials or bucket in Doppler $DOPPLER_PROJECT/$DOPPLER_CONFIG"
   exit 1
 fi
 
@@ -240,7 +242,6 @@ PYTHONPATH="$SCRIPTS" python3 -m release_tools.cli publish \
   --staged-appcast "$STAGED_APPCAST" --tracked-appcast "$APPCAST" \
   --baseline-digest "$BASELINE_DIGEST" --bucket "$R2_BUCKET" \
   --public-base "$R2_PUBLIC_BASE" --dub-url "$DUB_SHORTLINK"
-
 
 echo ""
 echo "============================================================"

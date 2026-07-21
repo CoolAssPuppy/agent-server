@@ -65,6 +65,12 @@ class MetadataTests(unittest.TestCase):
         self.assertEqual(json.loads(updated_package)["version"], "3.3.0")
         self.assertTrue(updated_package.endswith("\n"))
 
+    def test_metadata_writers_require_parsed_version_values(self) -> None:
+        with self.assertRaises(VersionError):
+            update_project_metadata(PROJECT, "3.3.0", 33)
+        with self.assertRaises(VersionError):
+            update_server_package_version('{"version":"3.2.0"}', "3.3.0")
+
     def test_rejects_missing_duplicate_and_malformed_project_fields(self) -> None:
         with self.assertRaises(MetadataError):
             read_project_metadata('CURRENT_PROJECT_VERSION: "32"\n')

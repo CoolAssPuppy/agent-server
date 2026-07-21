@@ -26,6 +26,10 @@ _SIGNATURE_FIELD = re.compile(r'(?P<name>sparkle:edSignature|length)="(?P<value>
 _LANGUAGE_MARKER = re.compile(r"<language>\s*en\s*</language>")
 _NOTES_WRAPPER = re.compile(r"\s*<ul>\s*(?P<notes>.*?)\s*</ul>\s*", re.DOTALL)
 _DISK_IMAGE_CONTENT_TYPE = "application/x-apple-diskimage"
+_SPARKLE_NAMESPACE = "http://www.andymatuschak.org/xml-namespaces/sparkle"
+_SPARKLE_PREFIX = f"{{{_SPARKLE_NAMESPACE}}}"
+_DOCUMENT_TYPE = re.compile(r"<!\s*DOCTYPE\b", re.IGNORECASE)
+_COMMENT_OR_CDATA = re.compile(r"<!--.*?-->|<!\[CDATA\[.*?\]\]>", re.DOTALL)
 
 
 def parse_sparkle_signature(output: str) -> SparkleSignature:
@@ -48,20 +52,31 @@ def parse_sparkle_signature(output: str) -> SparkleSignature:
 
 def parse_appcast(xml_text: str) -> list[AppcastRelease]:
     """Parse and validate the live feed while retaining its declared item order."""
+    markup = _COMMENT_OR_CDATA.sub("", xml_text)
+    if _DOCUMENT_TYPE.search(markup):
+        raise AppcastError("Appcast document type declarations are not allowed.")
     try:
         root = ET.fromstring(xml_text)
     except ET.ParseError as error:
         raise AppcastError(f"Invalid appcast XML: {error}") from error
-    if _local_name(root.tag) != "rss":
+    if root.tag != "rss":
         raise AppcastError("Appcast root must be rss.")
-    channels = [child for child in root if _local_name(child.tag) == "channel"]
+    channels = [child for child in root if child.tag == "channel"]
     if len(channels) != 1:
         raise AppcastError(f"Expected one appcast channel, found {len(channels)}.")
+    channel = channels[0]
+    languages = [child for child in channel if child.tag == "language"]
+    if (
+        len(languages) != 1
+        or list(languages[0])
+        or (languages[0].text or "").strip() != "en"
+    ):
+        raise AppcastError("Appcast channel must contain one English language element.")
 
     releases = [
         _parse_item(element)
-        for element in channels[0]
-        if _local_name(element.tag) == "item"
+        for element in channel
+        if element.tag == "item"
     ]
     _validate_feed_order(releases)
     return releases
@@ -100,16 +115,16 @@ def verify_release(appcast_xml: str, expected: AppcastRelease) -> None:
 
 def _parse_item(element: ET.Element) -> AppcastRelease:
     title = _single_child_text(element, "title")
-    raw_version = _single_child_text(element, "shortVersionString")
+    raw_version = _single_child_text(element, _sparkle("shortVersionString"))
     version = Version.parse_legacy(raw_version)
     if title != f"Version {raw_version}":
         raise AppcastError(f"Title does not match version {raw_version}.")
 
-    build_text = _single_child_text(element, "version")
+    build_text = _single_child_text(element, _sparkle("version"))
     if re.fullmatch(r"[1-9][0-9]*", build_text) is None:
         raise BuildNumberError(f"Invalid appcast build: {build_text!r}")
     pub_date = _single_child_text(element, "pubDate")
-    minimum_system_version = _single_child_text(element, "minimumSystemVersion")
+    minimum_system_version = _single_child_text(element, _sparkle("minimumSystemVersion"))
     description = _single_child_text(element, "description", strip=False)
     notes_match = _NOTES_WRAPPER.fullmatch(description)
     if notes_match is None:
@@ -117,15 +132,15 @@ def _parse_item(element: ET.Element) -> AppcastRelease:
     notes_html = notes_match.group("notes").strip()
 
     enclosure = _single_child(element, "enclosure")
-    attributes = {_local_name(name): value for name, value in enclosure.attrib.items()}
-    required_attributes = {"url", "edSignature", "length", "type"}
+    attributes = enclosure.attrib
+    signature_attribute = _sparkle("edSignature")
+    required_attributes = {"url", signature_attribute, "length", "type"}
     if set(attributes) != required_attributes:
         raise AppcastError(
-            f"Enclosure attributes must be exactly {sorted(required_attributes)}, "
-            f"found {sorted(attributes)}."
+            "Enclosure must contain only url, sparkle:edSignature, length, and type."
         )
     url = attributes["url"]
-    signature = attributes["edSignature"]
+    signature = attributes[signature_attribute]
     length_text = attributes["length"]
     if re.fullmatch(r"[1-9][0-9]*", length_text) is None:
         raise AppcastError(f"Invalid enclosure length: {length_text!r}")
@@ -184,9 +199,12 @@ def _render_item(release: AppcastRelease, newline: str) -> str:
 
 
 def _single_child(element: ET.Element, name: str) -> ET.Element:
-    matches = [child for child in element if _local_name(child.tag) == name]
+    matches = [child for child in element if child.tag == name]
     if len(matches) != 1:
-        raise AppcastError(f"Expected one {name} in appcast item, found {len(matches)}.")
+        display_name = name.removeprefix(_SPARKLE_PREFIX)
+        raise AppcastError(
+            f"Expected one {display_name} in appcast item, found {len(matches)}."
+        )
     return matches[0]
 
 
@@ -226,5 +244,5 @@ def _validate_release_fields(release: AppcastRelease) -> None:
         )
 
 
-def _local_name(name: str) -> str:
-    return name.rsplit("}", 1)[-1].split(":", 1)[-1]
+def _sparkle(name: str) -> str:
+    return f"{_SPARKLE_PREFIX}{name}"

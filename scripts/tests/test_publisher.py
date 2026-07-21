@@ -1,12 +1,14 @@
+from dataclasses import replace
+from pathlib import Path
+import subprocess
 import tempfile
 import unittest
-import subprocess
 from unittest.mock import patch
-from pathlib import Path
 
-from scripts.release_tools.publisher import PublicationPlan, Publisher, PublicationError
-from scripts.release_tools.processes import CURL_READ_FLAGS, CommandRunner, CurlWranglerRemote
 from scripts.release_tools.cli import build_parser
+from scripts.release_tools.models import AppcastRelease, Version
+from scripts.release_tools.processes import CURL_READ_FLAGS, CommandRunner, CurlWranglerRemote
+from scripts.release_tools.publisher import PublicationError, PublicationPlan, Publisher
 
 
 class RecordingFeedTools:
@@ -14,17 +16,17 @@ class RecordingFeedTools:
         self.events = events
         self.digest_value = digest
 
-    def validate_staged(self, path: Path, expected: object) -> None:
+    def validate_staged(self, path: Path, expected: AppcastRelease) -> None:
         self.events.append("validate-staged")
 
     def digest(self, content: bytes) -> str:
         self.events.append("digest-live")
         return self.digest_value
 
-    def validate_transition(self, live: bytes, staged: bytes, expected: object) -> None:
+    def validate_transition(self, live: bytes, staged: bytes, expected: AppcastRelease) -> None:
         self.events.append("validate-transition")
 
-    def validate_published(self, content: bytes, expected: object) -> None:
+    def validate_published(self, content: bytes, expected: AppcastRelease) -> None:
         self.events.append(f"verify-feed:{content.decode()}")
 
 
@@ -108,6 +110,33 @@ class PublisherTests(unittest.TestCase):
             self.assertNotIn("require-absent", events)
             self.assertEqual(tracked.read_bytes(), b"old")
 
+    def test_dmg_length_change_stops_before_validation_or_network_activity(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            staged, tracked, dmg = create_files(Path(directory))
+            dmg.write_bytes(b"changed")
+            events: list[str] = []
+
+            with self.assertRaisesRegex(PublicationError, "DMG length"):
+                Publisher(RecordingRemote(events), RecordingFeedTools(events)).publish(
+                    make_plan(dmg=dmg, staged=staged, tracked=tracked)
+                )
+
+            self.assertEqual(events, [])
+
+    def test_enclosure_url_mismatch_stops_before_network_activity(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            staged, tracked, dmg = create_files(Path(directory))
+            events: list[str] = []
+            plan = replace(
+                make_plan(dmg=dmg, staged=staged, tracked=tracked),
+                versioned_url="https://direct/different.dmg",
+            )
+
+            with self.assertRaisesRegex(PublicationError, "enclosure URL"):
+                Publisher(RecordingRemote(events), RecordingFeedTools(events)).publish(plan)
+
+            self.assertEqual(events, [])
+
     def test_feed_verification_failure_keeps_tracked_feed_and_latest_unchanged(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -122,6 +151,36 @@ class PublisherTests(unittest.TestCase):
 
             self.assertEqual(tracked.read_bytes(), b"old")
             self.assertNotIn("upload:latest", events)
+
+    def test_versioned_length_failure_stops_before_feed_publication(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            staged, tracked, dmg = create_files(Path(directory))
+            events: list[str] = []
+            remote = RecordingRemote(
+                events, fail_at="length:https://direct/versioned.dmg:3"
+            )
+
+            with self.assertRaises(PublicationError):
+                Publisher(remote, RecordingFeedTools(events)).publish(
+                    make_plan(dmg=dmg, staged=staged, tracked=tracked)
+                )
+
+            self.assertNotIn("upload:appcast", events)
+            self.assertNotIn("upload:latest", events)
+            self.assertEqual(tracked.read_bytes(), b"old")
+
+    def test_latest_failure_keeps_tracked_feed_aligned_with_verified_remote_feed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            staged, tracked, dmg = create_files(Path(directory))
+            events: list[str] = []
+            remote = RecordingRemote(events, fail_at="upload:latest")
+
+            with self.assertRaises(PublicationError):
+                Publisher(remote, RecordingFeedTools(events)).publish(
+                    make_plan(dmg=dmg, staged=staged, tracked=tracked)
+                )
+
+            self.assertEqual(tracked.read_bytes(), b"staged")
 
 
 class RecordingRunner:
@@ -143,6 +202,12 @@ class RemoteProcessTests(unittest.TestCase):
         run.assert_called_once_with(
             ["tool", "argument"], check=True, capture_output=True, shell=False
         )
+
+    def test_command_runner_surfaces_command_and_stderr_on_failure(self) -> None:
+        failure = subprocess.CalledProcessError(2, ["tool"], stderr=b"useful failure")
+        with patch("scripts.release_tools.processes.subprocess.run", side_effect=failure):
+            with self.assertRaisesRegex(PublicationError, "tool.*useful failure"):
+                CommandRunner().run(["tool", "argument"])
 
     def test_every_http_read_uses_required_curl_flags(self) -> None:
         runner = RecordingRunner([
@@ -185,6 +250,17 @@ class RemoteProcessTests(unittest.TestCase):
                "--file=release.dmg", "--content-type=application/x-apple-diskimage", "--remote"], True)],
         )
 
+    def test_length_verification_rejects_missing_or_different_header(self) -> None:
+        for headers in (b"", b"content-length: 4\r\n"):
+            with self.subTest(headers=headers):
+                runner = RecordingRunner([
+                    subprocess.CompletedProcess([], 0, stdout=headers, stderr=b"")
+                ])
+                with self.assertRaisesRegex(PublicationError, "content length mismatch"):
+                    CurlWranglerRemote(runner, ["wrangler"], "bucket").require_length(
+                        "https://dmg", 3
+                    )
+
 
 def create_files(root: Path) -> tuple[Path, Path, Path]:
     staged = root / "staged.xml"
@@ -201,7 +277,7 @@ def make_plan(dmg: Path, staged: Path, tracked: Path) -> PublicationPlan:
         dmg=dmg,
         staged_appcast=staged,
         tracked_appcast=tracked,
-        expected=object(),
+        expected=expected_release(),
         baseline_digest="baseline",
         versioned_key="versioned",
         appcast_key="appcast",
@@ -210,7 +286,20 @@ def make_plan(dmg: Path, staged: Path, tracked: Path) -> PublicationPlan:
         direct_appcast_url="https://direct/appcast.xml",
         dub_appcast_url="https://dub/appcast.xml",
         latest_url="https://direct/latest.dmg",
-        dmg_length=3,
+    )
+
+
+def expected_release() -> AppcastRelease:
+    return AppcastRelease(
+        version=Version.parse("4.0.0"),
+        build=40,
+        pub_date="Tue, 21 Jul 2026 12:00:00 +0000",
+        minimum_system_version="14.0",
+        notes_html="<li>Test</li>",
+        enclosure_url="https://direct/versioned.dmg",
+        signature="dGVzdA==",
+        length=3,
+        content_type="application/x-apple-diskimage",
     )
 
 

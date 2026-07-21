@@ -829,7 +829,7 @@ A native Swift app that lives in the menu bar for monitoring and controlling age
 
 ### Build
 
-Requires Xcode 15+, [xcodegen](https://github.com/yonaskolb/XcodeGen), Node.js 22.13+, and pnpm 11+ on PATH. Install dependencies from the repository root so pnpm uses the checked-in workspace lockfile:
+Requires Xcode 15+ and [xcodegen](https://github.com/yonaskolb/XcodeGen), plus the Node.js and pnpm versions listed under [Requirements](#requirements). Install dependencies from the repository root so pnpm uses the checked-in workspace lockfile:
 
 ```bash
 pnpm install --frozen-lockfile
@@ -840,7 +840,7 @@ xcodebuild -project AgentServer.xcodeproj -scheme AgentServer build
 
 Or open `AgentServer.xcodeproj` in Xcode after running `xcodegen generate`.
 
-The build consumes the root `pnpm-lock.yaml` and stages the production server with `pnpm --filter @agent-server/core deploy --prod --legacy`. The staged package is copied into `Contents/Resources/`, so the installed app does not download dependencies at runtime.
+The build consumes the root `pnpm-lock.yaml` and stages the production server with `pnpm --filter @agent-server/core deploy --prod --legacy --config.node-linker=hoisted "$STAGING"`. The staged package is copied into `Contents/Resources/`, so the installed app does not download dependencies at runtime.
 
 ### Architecture
 
@@ -898,13 +898,7 @@ Target: macOS 14.0+, Swift 5.9+.
 
 ### Release and distribution
 
-The supported release path is the repository release script. It builds and verifies the server and macOS app, signs and notarizes the app and DMG, publishes the DMG and appcast to Cloudflare R2, and verifies the public files.
-
-```bash
-./scripts/release.sh 3.2.0 '<li>Now you can choose which LLM your agents use.</li>'
-```
-
-See the [Sparkle release guide](docs/SPARKLE.md) for the required Apple, Sparkle, Doppler, and Cloudflare setup, plus verification and troubleshooting steps.
+Use the [Sparkle release guide](docs/SPARKLE.md) for the release command, setup, publication, verification, and troubleshooting.
 
 ## Monitoring with Agent Panel
 
@@ -1196,7 +1190,7 @@ server-app/src/
 
 ## Development
 
-Run workspace commands from the repository root. Node.js 22.13+ and pnpm 11+ are required.
+Run workspace commands from the repository root with the versions listed under [Requirements](#requirements).
 
 ```bash
 pnpm install --frozen-lockfile

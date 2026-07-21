@@ -38,6 +38,7 @@ def read_project_metadata(project_text: str) -> tuple[Version, int]:
 def update_project_metadata(project_text: str, version: Version, build: int) -> str:
     """Update exact YAML scalar matches without evaluating or interpolating source text."""
     read_project_metadata(project_text)
+    _require_version(version)
     _require_positive_build(build)
     updated = _PROJECT_VERSION.sub(
         lambda match: f'{match.group("prefix")}"{version}"{match.group("suffix")}',
@@ -56,13 +57,11 @@ def read_server_package_version(package_text: str) -> Version:
     value = package.get("version")
     if not isinstance(value, str):
         raise MetadataError("server-app/package.json must contain one string version.")
-    try:
-        return Version.parse(value)
-    except VersionError:
-        raise
+    return Version.parse(value)
 
 
 def update_server_package_version(package_text: str, version: Version) -> str:
+    _require_version(version)
     package = _read_package(package_text)
     if not isinstance(package.get("version"), str):
         raise MetadataError("server-app/package.json must contain one string version.")
@@ -88,9 +87,13 @@ def validate_release_candidate(
     live_builds: Iterable[int],
 ) -> None:
     """Require both version and build to advance all local and live metadata."""
+    _require_version(version)
+    _require_version(local_version)
     _require_positive_build(build)
     _require_positive_build(local_build)
     versions = list(live_versions)
+    for live_version in versions:
+        _require_version(live_version)
     builds = list(live_builds)
     for live_build in builds:
         _require_positive_build(live_build)
@@ -113,6 +116,8 @@ def verify_release_metadata(
     expected_build: int,
 ) -> None:
     """Verify every local version/build field exactly matches the release."""
+    _require_version(expected_version)
+    _require_positive_build(expected_build)
     project_version, project_build = read_project_metadata(project_text)
     package_version = read_server_package_version(package_text)
     actual = (project_version, project_build, package_version)
@@ -137,6 +142,11 @@ def _positive_build(value: str) -> int:
 def _require_positive_build(build: int) -> None:
     if isinstance(build, bool) or not isinstance(build, int) or build <= 0:
         raise BuildNumberError("Build number must be a positive integer.")
+
+
+def _require_version(version: Version) -> None:
+    if not isinstance(version, Version):
+        raise VersionError("Release version must be a parsed Version value.")
 
 
 def _read_package(package_text: str) -> dict[str, Any]:

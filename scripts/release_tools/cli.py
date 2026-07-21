@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import os
 import shutil
-import tempfile
+import sys
 from pathlib import Path
 from typing import Sequence
 
@@ -17,27 +16,26 @@ from .metadata import (
     validate_release_candidate,
     verify_release_metadata,
 )
-from .models import AppcastRelease, Version
+from .models import AppcastRelease, ReleaseToolError, Version
 from .processes import CommandRunner, CurlWranglerRemote
-from .publisher import FeedTools, PublicationError, PublicationPlan, Publisher
+from .publisher import FeedTools, PublicationError, PublicationPlan, Publisher, atomic_write
 
 
 class AppcastFeedTools(FeedTools):
-    def validate_staged(self, path: Path, expected: object) -> None:
-        verify_release(path.read_text(), _release(expected))
+    def validate_staged(self, path: Path, expected: AppcastRelease) -> None:
+        verify_release(path.read_text(), expected)
 
     def digest(self, content: bytes) -> str:
         return hashlib.sha256(content).hexdigest()
 
-    def validate_transition(self, live: bytes, staged: bytes, expected: object) -> None:
-        release = _release(expected)
+    def validate_transition(self, live: bytes, staged: bytes, expected: AppcastRelease) -> None:
         live_releases = parse_appcast(live.decode())
         staged_releases = parse_appcast(staged.decode())
-        if staged_releases != [release, *live_releases]:
+        if staged_releases != [expected, *live_releases]:
             raise PublicationError("staged appcast does not preserve the verified live history")
 
-    def validate_published(self, content: bytes, expected: object) -> None:
-        verify_release(content.decode(), _release(expected))
+    def validate_published(self, content: bytes, expected: AppcastRelease) -> None:
+        verify_release(content.decode(), expected)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -79,7 +77,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "snapshot":
         content = CurlWranglerRemote(CommandRunner(), _wrangler(), "unused").read(args.url)
         parse_appcast(content.decode())
-        _atomic_write(args.output, content)
+        atomic_write(args.output, content)
         print(hashlib.sha256(content).hexdigest())
         return 0
     if args.command == "prepare":
@@ -93,8 +91,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             version, build, local_version, local_build,
             (item.version for item in releases), (item.build for item in releases),
         )
-        _atomic_write(args.project, update_project_metadata(project_text, version, build).encode())
-        _atomic_write(args.package, update_server_package_version(package_text, version).encode())
+        atomic_write(args.project, update_project_metadata(project_text, version, build).encode())
+        atomic_write(args.package, update_server_package_version(package_text, version).encode())
         verify_release_metadata(args.project.read_text(), args.package.read_text(), version, build)
         print(build)
         return 0
@@ -105,7 +103,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             raise PublicationError("Sparkle length does not match the staged DMG")
         staged = prepend_release(args.live.read_text(), release)
         verify_release(staged, release)
-        _atomic_write(args.output, staged.encode())
+        atomic_write(args.output, staged.encode())
         return 0
     if args.command == "publish":
         base = args.public_base.rstrip("/")
@@ -125,7 +123,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             direct_appcast_url=f"{base}/{prefix}/appcast.xml",
             dub_appcast_url=args.dub_url,
             latest_url=f"{base}/{prefix}/AgentServer-latest.dmg",
-            dmg_length=args.dmg.stat().st_size,
         ))
         return 0
     raise AssertionError(args.command)
@@ -148,29 +145,13 @@ def _expected_release(args: argparse.Namespace, signature: str, length: int) -> 
     )
 
 
-def _release(value: object) -> AppcastRelease:
-    if not isinstance(value, AppcastRelease):
-        raise TypeError("expected AppcastRelease")
-    return value
-
-
 def _wrangler() -> list[str]:
     return ["wrangler"] if shutil.which("wrangler") else ["pnpm", "dlx", "wrangler"]
 
 
-def _atomic_write(path: Path, content: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
-    try:
-        with os.fdopen(descriptor, "wb") as output:
-            output.write(content)
-            output.flush()
-            os.fsync(output.fileno())
-        os.replace(temporary, path)
-    except BaseException:
-        Path(temporary).unlink(missing_ok=True)
-        raise
-
-
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except (OSError, UnicodeError, PublicationError, ReleaseToolError) as error:
+        print(f"Error: {error}", file=sys.stderr)
+        raise SystemExit(1) from None
