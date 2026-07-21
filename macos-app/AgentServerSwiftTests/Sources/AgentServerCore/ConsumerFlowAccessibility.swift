@@ -25,3 +25,9 @@ public enum ConsumerFlowAccessibility {
     public static let agentDetailRun = "agentDetail.run"
     public static let agentDetailSecurity = "agentDetail.security"
 }
+
+public enum CreationRequestEditorPresentation {
+    public static let usesMarkdownEditor = true
+    public static let fillsAvailableSpace = true
+    public static let helperText = "Agents are Markdown files in which you describe what they do and how they do it."
+}

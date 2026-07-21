@@ -6,7 +6,7 @@ struct GuidedAgentCreationCopy {
     static let newAgent = Self(
         title: "What would you like this agent to do?",
         explanation: "Describe the result you want. You can include when it should run, what it should read, and where the result should go.",
-        example: "Example: Every Friday, review my GitHub activity and send me a short summary in Slack."
+        example: CreationRequestEditorPresentation.helperText
     )
 
     static let similarAgent = Self(

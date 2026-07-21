@@ -14,10 +14,10 @@ final class AgentCapabilityDraftTests: XCTestCase {
         XCTAssertEqual(AgentSettingsSaveFeedback.noChanges.message, "No changes to save")
     }
 
-    func testAgentSettingsUseOneFormWithFocusedEditingControls() {
+    func testAgentSettingsMatchTheCompactCardReferenceLayout() {
         let presentation = AgentSettingsSupportingSurfacePresentation()
 
-        XCTAssertEqual(presentation.containerStyle, .nativeForm)
+        XCTAssertEqual(presentation.containerStyle, .compactCards)
         XCTAssertEqual(
             presentation.sections,
             [.basics, .model, .instructions, .capabilities, .delete]
@@ -26,7 +26,13 @@ final class AgentCapabilityDraftTests: XCTestCase {
         XCTAssertEqual(presentation.customCapabilityIndicator, .secondaryText)
         XCTAssertEqual(presentation.descriptionFieldStyle, .multilineFullWidth)
         XCTAssertTrue(presentation.usesUniformFieldLabelTypography)
-        XCTAssertTrue(presentation.preservesNativeScheduleControlAlignment)
+        XCTAssertTrue(presentation.usesExplicitScheduleControlAlignment)
+        XCTAssertEqual(presentation.cardHeadingFontSize, 10)
+        XCTAssertEqual(presentation.rowTitleFontSize, 13)
+        XCTAssertEqual(presentation.supportingFontSize, 11)
+        XCTAssertEqual(presentation.interCardSpacing, 14)
+        XCTAssertTrue(presentation.isNameFieldLeadingFullWidth)
+        XCTAssertEqual(presentation.deleteActionStyle, .standaloneCompact)
         XCTAssertFalse(presentation.showsRedundantScheduleSummary)
         XCTAssertFalse(presentation.showsStandardRuntimeHint)
         XCTAssertEqual(presentation.rawFileActionPlacement, .instructionsHeaderTrailing)

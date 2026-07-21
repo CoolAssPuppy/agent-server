@@ -6,6 +6,7 @@ final class SidebarSortTests: XCTestCase {
         XCTAssertFalse(SidebarVisualPolicy.showsAgentCount)
         XCTAssertFalse(SidebarVisualPolicy.selectedRowHasBorder)
         XCTAssertTrue(SidebarVisualPolicy.honorsReducedMotion)
+        XCTAssertTrue(SidebarVisualPolicy.newAgentUsesStableAppearance)
     }
 
 

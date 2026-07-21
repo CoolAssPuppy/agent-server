@@ -66,6 +66,11 @@ public struct AgentCapabilityDraft: Equatable, Sendable {
 
 public enum AgentSettingsContainerStyle: Equatable, Sendable {
     case nativeForm
+    case compactCards
+}
+
+public enum AgentSettingsDeleteActionStyle: Equatable, Sendable {
+    case standaloneCompact
 }
 
 public enum AgentSettingsSection: Equatable, Sendable {
@@ -93,7 +98,7 @@ public enum AgentSettingsDescriptionFieldStyle: Equatable, Sendable {
 }
 
 public struct AgentSettingsSupportingSurfacePresentation: Equatable, Sendable {
-    public let containerStyle = AgentSettingsContainerStyle.nativeForm
+    public let containerStyle = AgentSettingsContainerStyle.compactCards
     public let sections: [AgentSettingsSection] = [
         .basics, .model, .instructions, .capabilities, .delete,
     ]
@@ -101,7 +106,13 @@ public struct AgentSettingsSupportingSurfacePresentation: Equatable, Sendable {
     public let customCapabilityIndicator = AgentSettingsCustomIndicator.secondaryText
     public let descriptionFieldStyle = AgentSettingsDescriptionFieldStyle.multilineFullWidth
     public let usesUniformFieldLabelTypography = true
-    public let preservesNativeScheduleControlAlignment = true
+    public let usesExplicitScheduleControlAlignment = true
+    public let cardHeadingFontSize = 10
+    public let rowTitleFontSize = 13
+    public let supportingFontSize = 11
+    public let interCardSpacing = 14
+    public let isNameFieldLeadingFullWidth = true
+    public let deleteActionStyle = AgentSettingsDeleteActionStyle.standaloneCompact
     public let showsRedundantScheduleSummary = false
     public let showsStandardRuntimeHint = false
     public let rawFileActionPlacement = AgentSettingsRawFileActionPlacement.instructionsHeaderTrailing

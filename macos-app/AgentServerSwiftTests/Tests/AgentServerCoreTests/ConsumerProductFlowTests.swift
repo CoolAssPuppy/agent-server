@@ -814,6 +814,15 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(ConsumerFlowAccessibility.failureDetails, "consumerFailure.details")
     }
 
+    func testCreationRequestUsesTheFullSizeMarkdownEditor() {
+        XCTAssertTrue(CreationRequestEditorPresentation.usesMarkdownEditor)
+        XCTAssertTrue(CreationRequestEditorPresentation.fillsAvailableSpace)
+        XCTAssertEqual(
+            CreationRequestEditorPresentation.helperText,
+            "Agents are Markdown files in which you describe what they do and how they do it."
+        )
+    }
+
     func testSidebarFooterKeepsStorageOutOfPrimaryNavigation() {
         XCTAssertEqual(SidebarFooterAction.allCases, [.newAgent])
         XCTAssertEqual(SidebarFooterAction.newAgent.title, "New Agent")

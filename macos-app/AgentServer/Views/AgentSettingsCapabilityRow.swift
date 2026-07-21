@@ -5,6 +5,7 @@ struct AgentSettingsCapabilityRow: View {
     let capability: AgentCapability
     let isEnabled: Bool
     let onToggle: (Bool) -> Void
+    var isCompact = false
     @Environment(\.nTheme) private var theme
 
     var body: some View {
@@ -47,7 +48,7 @@ struct AgentSettingsCapabilityRow: View {
             Spacer()
             control
         }
-        .padding(.horizontal, NSpacing.md)
+        .padding(.horizontal, isCompact ? 0 : NSpacing.md)
         .padding(.vertical, NSpacing.sm)
     }
 

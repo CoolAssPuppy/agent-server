@@ -36,10 +36,20 @@ struct GuidedAgentCreationView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: NSpacing.lg) { content }
-                    .frame(maxWidth: 720)
+            if model.flow.phase == .request {
+                requestStep
                     .padding(NSpacing.xl)
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: .infinity,
+                        alignment: .topLeading
+                    )
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: NSpacing.lg) { content }
+                        .frame(maxWidth: 720)
+                        .padding(NSpacing.xl)
+                }
             }
             footer
         }
@@ -93,11 +103,9 @@ struct GuidedAgentCreationView: View {
     var requestStep: some View {
         VStack(alignment: .leading, spacing: NSpacing.lg) {
             ConsumerFlowHeader(title: copy.title, explanation: copy.explanation)
-            TextEditor(text: $model.request)
-                .font(.system(.title3))
-                .scrollContentBackground(.hidden)
-                .padding(NSpacing.md)
-                .frame(minHeight: 180)
+            MarkdownEditor(text: $model.request)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(minHeight: 320)
                 .background(theme.tokens.card)
                 .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
                 .overlay { RoundedRectangle(cornerRadius: NRadius.md).strokeBorder(theme.tokens.border) }

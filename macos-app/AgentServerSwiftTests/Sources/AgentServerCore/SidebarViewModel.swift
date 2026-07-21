@@ -4,6 +4,7 @@ enum SidebarVisualPolicy {
     static let showsAgentCount = false
     static let selectedRowHasBorder = false
     static let honorsReducedMotion = true
+    static let newAgentUsesStableAppearance = true
 }
 
 enum SidebarFooterAction: CaseIterable, Equatable {

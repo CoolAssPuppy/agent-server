@@ -179,7 +179,7 @@ struct Sidebar: View {
 
     private var footer: some View {
         VStack(spacing: NSpacing.xxxs) {
-            footerButton(.newAgent, isSelected: router.isCreationOpen, action: onNewAgent)
+            footerButton(.newAgent, action: onNewAgent)
                 .accessibilityAddTraits(router.isCreationOpen ? .isSelected : [])
             .accessibilityLabel(SidebarFooterAction.newAgent.title)
             .accessibilityIdentifier(ConsumerFlowAccessibility.sidebarCreateAgent)
@@ -191,7 +191,6 @@ struct Sidebar: View {
 
     private func footerButton(
         _ item: SidebarFooterAction,
-        isSelected: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -202,11 +201,9 @@ struct Sidebar: View {
                 Spacer(minLength: 0)
             }
             .font(NTypography.bodyMedium)
-            .foregroundStyle(isSelected ? theme.tokens.primary : theme.tokens.foreground)
+            .foregroundStyle(theme.tokens.foreground)
             .padding(.horizontal, NSpacing.sm)
             .frame(maxWidth: .infinity, minHeight: 34)
-            .background(isSelected ? theme.tokens.primary.opacity(0.09) : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

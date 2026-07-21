@@ -30,6 +30,7 @@ struct ModelField: View {
             }
             .pickerStyle(.menu)
             .labelsHidden()
+            .controlSize(.small)
             .frame(width: 220, alignment: .leading)
             .accessibilityLabel("Coding agent")
             .accessibilityIdentifier("agent-settings-coding-agent")
@@ -43,12 +44,13 @@ struct ModelField: View {
                 VStack(alignment: .leading, spacing: NSpacing.xs) {
                     TextField("Endpoint URL, e.g. https://api.example.com/v1", text: $draft.customEndpoint)
                         .textFieldStyle(.roundedBorder)
-                        .font(.system(.body, design: .monospaced))
+                        .font(.system(size: 11, design: .monospaced))
                     TextField("Model name, e.g. llama-3.1-70b", text: $draft.customModel)
                         .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 11))
                     TextField("API key variable, e.g. MY_API_KEY", text: $draft.customKeyVariable)
                         .textFieldStyle(.roundedBorder)
-                        .font(.system(.body, design: .monospaced))
+                        .font(.system(size: 11, design: .monospaced))
                     hint("The key value lives in Settings as this variable, not in the agent file.")
                 }
             }
