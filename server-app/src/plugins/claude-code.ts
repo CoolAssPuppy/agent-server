@@ -155,8 +155,7 @@ export async function executeAgent(
               const output = 'content' in block
                 ? (block as { content: unknown }).content
                 : undefined;
-              const isError = 'is_error' in block
-                && (block as { is_error?: unknown }).is_error === true;
+              const isError = toolResultIsError(block, output);
               completedToolCalls.push({
                 name: started.name,
                 status: isError ? 'failed' : 'succeeded',
@@ -372,6 +371,35 @@ export async function executeAgent(
     // claiming success — otherwise the panel's stale-run sweep would flag it.
     throw new Error('Claude SDK stream ended without a result message');
   }
+}
+
+function toolResultIsError(block: object, output: unknown): boolean {
+  if ('is_error' in block && (block as { is_error?: unknown }).is_error === true) {
+    return true;
+  }
+  return containsStructuredToolError(output);
+}
+
+function containsStructuredToolError(value: unknown): boolean {
+  if (typeof value === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      return containsStructuredToolError(parsed);
+    } catch {
+      return false;
+    }
+  }
+  if (Array.isArray(value)) {
+    return value.some(containsStructuredToolError);
+  }
+  if (typeof value !== 'object' || value === null) return false;
+
+  const record = value as Record<string, unknown>;
+  if (record.status === 'error' || record.object === 'error') return true;
+  if (typeof record.status === 'number' && record.status >= 400) return true;
+  return record.type === 'text' && typeof record.text === 'string'
+    ? containsStructuredToolError(record.text)
+    : false;
 }
 
 type AssistantUsage = {

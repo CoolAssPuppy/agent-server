@@ -69,6 +69,38 @@ final class StableRunMergeTests: XCTestCase {
         XCTAssertEqual(merged, [localFirst, localSecond, panelFirst, panelSecond])
     }
 
+    func testUnavailablePanelKeepsDurableLocalHistory() {
+        let local = run(id: "local-1", source: "local", isActive: true)
+        let panel: [RunFixture]? = nil
+
+        let merged = StableRunMerge.merge(
+            panel: panel,
+            local: [local],
+            id: \RunFixture.id,
+            isActive: \RunFixture.isActive
+        )
+
+        XCTAssertEqual(merged, [local])
+    }
+
+    func testRefreshRevisionChangesWhenAnExistingRunFinishes() {
+        let active = run(id: "run-1", source: "local", isActive: true)
+        let completed = run(id: "run-1", source: "local", isActive: false)
+
+        let activeRevision = StableRunMerge.revision(
+            [active],
+            id: \RunFixture.id,
+            status: { $0.isActive ? "running" : "completed" }
+        )
+        let completedRevision = StableRunMerge.revision(
+            [completed],
+            id: \RunFixture.id,
+            status: { $0.isActive ? "running" : "completed" }
+        )
+
+        XCTAssertNotEqual(activeRevision, completedRevision)
+    }
+
     private func merge(panel: [RunFixture], local: [RunFixture]) -> [RunFixture] {
         StableRunMerge.merge(
             panel: panel,

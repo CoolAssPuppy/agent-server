@@ -34,6 +34,14 @@ struct AgentRunsView: View {
         runs.contains { $0.isActive }
     }
 
+    private var monitorHistoryRevision: [StableRunMerge.Revision] {
+        StableRunMerge.revision(
+            monitor.recentRuns,
+            id: \Run.runId,
+            status: { $0.status.rawValue }
+        )
+    }
+
     var body: some View {
         HStack(spacing: 0) {
             runList
@@ -58,7 +66,7 @@ struct AgentRunsView: View {
             stopPolling()
             requestRefresh()
         }
-        .onChange(of: monitor.activeRuns.count) { _, _ in
+        .onChange(of: monitorHistoryRevision) { _, _ in
             requestRefresh()
         }
         .onChange(of: hasActiveRuns) { _, isActive in
@@ -184,26 +192,17 @@ struct AgentRunsView: View {
             return
         }
         do {
-            let fetched: [Run]
-            if let panelRuns = try await fetchFromPanel(agentId: token.agentId) {
-                let localRuns = (try? await fetchFromLocalServer(agentId: token.agentId)) ?? []
-                fetched = StableRunMerge.merge(
-                    panel: panelRuns,
-                    local: localRuns,
-                    id: \Run.runId,
-                    isActive: \Run.isActive
-                )
-            } else {
-                fetched = try await fetchFromLocalServer(agentId: token.agentId)
-            }
-            guard refreshCoordinator.canApply(token), !Task.isCancelled else { return }
-            runs = fetched
-            isLoading = false
-            loadError = nil
+            let localRuns = try await fetchFromLocalServer(agentId: token.agentId)
+            guard applyRuns(localRuns, for: token) else { return }
 
-            if selectedRunId == nil, let first = fetched.first {
-                selectedRunId = first.runId
-            }
+            let panelRuns = await fetchFromPanel(agentId: token.agentId)
+            let merged = StableRunMerge.merge(
+                panel: panelRuns,
+                local: localRuns,
+                id: \Run.runId,
+                isActive: \Run.isActive
+            )
+            _ = applyRuns(merged, for: token)
         } catch {
             guard refreshCoordinator.canApply(token), !Task.isCancelled else { return }
             isLoading = false
@@ -211,11 +210,31 @@ struct AgentRunsView: View {
         }
     }
 
-    private func fetchFromPanel(agentId: String) async throws -> [Run]? {
+    @discardableResult
+    private func applyRuns(_ fetched: [Run], for token: RunRefreshCoordinator.Token) -> Bool {
+        guard refreshCoordinator.canApply(token), !Task.isCancelled else { return false }
+        runs = fetched
+        isLoading = false
+        loadError = nil
+        if selectedRunId == nil, let first = fetched.first {
+            selectedRunId = first.runId
+        }
+        return true
+    }
+
+    private func fetchFromPanel(agentId: String) async -> [Run]? {
         guard let panelClient,
               let name = monitor.agents.first(where: { $0.id == agentId })?.name else { return nil }
-        let panelRuns = try await panelClient.fetchRuns(agent: name)
-        return panelRuns.map { $0.toRun(agentId: agentId) }
+        do {
+            let panelRuns = try await panelClient.fetchRuns(agent: name)
+            return panelRuns.map { $0.toRun(agentId: agentId) }
+        } catch {
+            Telemetry.capture(
+                "run_history_panel_enrichment_failed",
+                properties: ["agent_id": agentId]
+            )
+            return nil
+        }
     }
 
     private func fetchFromLocalServer(agentId: String) async throws -> [Run] {

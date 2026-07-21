@@ -851,6 +851,35 @@ describe('executeAgent with Agent SDK', () => {
     ]);
   });
 
+  it('marks structured MCP service errors as failed when the server omits is_error', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createAssistantMessageWithTools([
+        { type: 'tool_use', id: 'tool-1', name: 'mcp__notion-personal__API-post-page', input: {} },
+      ]),
+      createUserMessageWithToolResult(
+        'tool-1',
+        JSON.stringify({ status: 400, object: 'error', code: 'validation_error' }),
+      ),
+      createAssistantMessageWithTools([
+        { type: 'tool_use', id: 'tool-2', name: 'mcp__notion-personal__API-post-page', input: {} },
+      ]),
+      createUserMessageWithToolResult(
+        'tool-2',
+        JSON.stringify({ status: 'error', message: 'Request rejected' }),
+      ),
+      createResultSuccess({ result: 'Stopped after errors', num_turns: 2 }),
+    ]));
+
+    const result = await executeAgent(createAgentConfig(), createMockReporter());
+
+    expect(result.toolCalls).toEqual([
+      expect.objectContaining({ name: 'mcp__notion-personal__API-post-page', status: 'failed' }),
+      expect.objectContaining({ name: 'mcp__notion-personal__API-post-page', status: 'failed' }),
+    ]);
+  });
+
   it('returns default summary when result text is empty', async () => {
     const { executeAgent } = await import('./claude-code.js');
 

@@ -1,5 +1,21 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Restore manual runs to Run history
+
+- [x] Reproduce the missing Portuguese and French run across the live API and macOS state.
+- [x] Add a failing behavior test at the layer that drops or hides the run.
+- [x] Make durable local run history load before optional Agent Panel enrichment.
+- [x] Refresh an open history tab when a run appears or changes status.
+- [x] Correct structured MCP service errors that omit the protocol error flag.
+- [x] Run affected and full tests, rebuild, relaunch locally, and commit without pushing.
+
+Review:
+
+- The manual Portuguese and French run was present in both `~/.agent-server/runs.db` and Agent Panel under the correct stable agent ID. The empty tab came from treating optional panel enrichment as a prerequisite for local history.
+- Run history now displays durable local rows first, tolerates panel failures, enriches afterward, and refreshes when a run appears or changes status.
+- Personal Notion contains exactly two lesson pages for July 21. Three earlier create attempts returned structured service errors, but Notion MCP omitted `isError`; Agent Server now classifies those attempts as failed instead of counting five successful outputs.
+- Verification passed with 1,332 server tests and 4 expected skips, 471 Swift tests, TypeScript checking, ESLint, server compilation, and an unsigned macOS Debug build.
+
 ## Match the actual Settings drawer and window footers
 
 - [x] Add behavior contracts for the compact Settings drawer typography and spacing.

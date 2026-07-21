@@ -1,4 +1,19 @@
 enum StableRunMerge {
+    struct Revision: Equatable {
+        let id: String
+        let status: String
+    }
+
+    static func merge<Value>(
+        panel: [Value]?,
+        local: [Value],
+        id: KeyPath<Value, String>,
+        isActive: KeyPath<Value, Bool>
+    ) -> [Value] {
+        guard let panel else { return local }
+        return merge(panel: panel, local: local, id: id, isActive: isActive)
+    }
+
     static func merge<Value>(
         panel: [Value],
         local: [Value],
@@ -28,5 +43,13 @@ enum StableRunMerge {
             panelIDs.contains(runID) ? nil : localByID[runID]
         }
         return localOnly + mergedPanel
+    }
+
+    static func revision<Value>(
+        _ values: [Value],
+        id: KeyPath<Value, String>,
+        status: (Value) -> String
+    ) -> [Revision] {
+        values.map { Revision(id: $0[keyPath: id], status: status($0)) }
     }
 }
