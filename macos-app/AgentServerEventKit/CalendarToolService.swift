@@ -62,7 +62,7 @@ final class CalendarToolService: NativeToolService {
         }
 
         let predicate = dependencies.store.predicateForEvents(withStart: start, end: end, calendars: calendars)
-        let events = dependencies.store.events(matching: predicate).map { event -> [String: Any] in
+        let events = try dependencies.events(matching: predicate, args: args).map { event -> [String: Any] in
             [
                 "id": event.eventIdentifier ?? "",
                 "title": event.title ?? "",

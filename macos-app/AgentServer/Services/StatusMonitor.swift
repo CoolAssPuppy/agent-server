@@ -14,9 +14,10 @@ final class StatusMonitor: ObservableObject {
     /// "failed last run" red indicator.
     @Published private(set) var lastRunByAgent: [String: Run] = [:]
     @Published private(set) var isServerReachable = false
-    @Published private(set) var localAPISetupError: String?
+    @Published var localAPISetupError: String?
     @Published var staleRunCount: Int = 0
     @Published private(set) var pendingDecisions: [Decision] = []
+    @Published private(set) var decisionResolutionError: String?
     @Published var securityAnalyses: [String: SecurityAnalysisPayload] = [:]
     @Published var securityScanState = SecurityBackgroundScanState.idle
     @Published var securityDashboard: SecurityDashboardPresentation?
@@ -37,16 +38,16 @@ final class StatusMonitor: ObservableObject {
     private var decisionRefreshCoordinator = DecisionRefreshCoordinator()
     private var decisionResolutionTransaction = DecisionResolutionTransaction()
     private var decisionResolutionTasks: [String: Task<Void, Never>] = [:]
-    private var webSocketTask: URLSessionWebSocketTask?
-    private var webSocketSession: URLSession?
-    private var webSocketDelegate: WebSocketOpenDelegate?
-    private var webSocketReconnectTask: Task<Void, Never>?
-    private var webSocketState = WebSocketReconnectState()
-    private var webSocketGeneration = 0
-    private var isMonitoring = false
+    var webSocketTask: URLSessionWebSocketTask?
+    var webSocketSession: URLSession?
+    var webSocketDelegate: WebSocketOpenDelegate?
+    var webSocketReconnectTask: Task<Void, Never>?
+    var webSocketState = WebSocketReconnectState()
+    var webSocketGeneration = 0
+    var isMonitoring = false
 
     private weak var serverProcess: ServerProcessManager?
-    private var notificationManager: NotificationManager?
+    var notificationManager: NotificationManager?
     private var consecutiveFailures = 0
     private static let restartThreshold = 3
     private var previousServerStartedAt: String?
@@ -189,8 +190,12 @@ final class StatusMonitor: ObservableObject {
         if panelClient == nil {
             panelClient = PanelClient.fromEnv()
         }
-        guard let panelClient else { return }
+        guard let panelClient else {
+            decisionResolutionError = DecisionResolutionFeedback.message(succeeded: false)
+            return
+        }
         guard let token = decisionResolutionTransaction.begin(decisionId: id) else { return }
+        decisionResolutionError = nil
 
         decisionResolutionTasks[id] = Task { [weak self] in
             let succeeded: Bool
@@ -214,6 +219,7 @@ final class StatusMonitor: ObservableObject {
         ) else { return }
 
         decisionResolutionTasks[token.decisionId] = nil
+        decisionResolutionError = DecisionResolutionFeedback.message(succeeded: shouldCommit)
         guard shouldCommit else { return }
         pendingDecisions.removeAll { $0.id == token.decisionId }
         Telemetry.capture(
@@ -430,7 +436,7 @@ final class StatusMonitor: ObservableObject {
         }
     }
 
-    private static let localAPISetupMessage =
+    static let localAPISetupMessage =
         "Secure local setup is incomplete. Restart Agent Server and try again."
 
     private func autoRestartServer() {
@@ -465,192 +471,4 @@ final class StatusMonitor: ObservableObject {
         localAPISetupError = error.localizedDescription
     }
 
-    // MARK: - WebSocket
-
-    private func connectWebSocket() {
-        guard isMonitoring, webSocketTask == nil else { return }
-        guard let url = LocalServerEndpoint.webSocketURL(port: 47821) else { return }
-        guard let request = try? LocalAPIAuthentication.authenticatedRequest(
-            URLRequest(url: url)
-        ) else {
-            // Secure local setup may still be in progress. Keep retrying so a
-            // key written by the daemon is picked up without relaunching.
-            localAPISetupError = Self.localAPISetupMessage
-            scheduleWebSocketReconnect()
-            return
-        }
-        webSocketGeneration += 1
-        let generation = webSocketGeneration
-        webSocketState.startedConnecting()
-
-        let delegate = WebSocketOpenDelegate { [weak self] in
-            Task { @MainActor [weak self] in
-                guard let self,
-                      generation == self.webSocketGeneration,
-                      self.webSocketTask != nil else { return }
-                self.webSocketState.confirmedOpen()
-                self.localAPISetupError = nil
-            }
-        }
-        let session = URLSession(
-            configuration: .default,
-            delegate: delegate,
-            delegateQueue: nil
-        )
-        let task = session.webSocketTask(with: request)
-        webSocketSession = session
-        webSocketDelegate = delegate
-        webSocketTask = task
-        task.resume()
-        receiveWebSocketMessage(generation: generation)
-    }
-
-    private func disconnectWebSocket() {
-        webSocketGeneration += 1
-        webSocketReconnectTask?.cancel()
-        webSocketReconnectTask = nil
-        webSocketTask?.cancel(with: .goingAway, reason: nil)
-        webSocketTask = nil
-        webSocketSession?.invalidateAndCancel()
-        webSocketSession = nil
-        webSocketDelegate = nil
-        webSocketState.reset()
-    }
-
-    private func resetWebSocketConnection() {
-        disconnectWebSocket()
-        connectWebSocket()
-    }
-
-    private func receiveWebSocketMessage(generation: Int) {
-        webSocketTask?.receive { [weak self] result in
-            Task { @MainActor [weak self] in
-                guard let self, generation == self.webSocketGeneration else { return }
-
-                switch result {
-                case .success(let message):
-                    // A received frame is also confirmation for platforms that
-                    // deliver it before the delegate's open callback.
-                    self.webSocketState.confirmedOpen()
-                    self.handleWebSocketMessage(message)
-                    self.receiveWebSocketMessage(generation: generation)
-                case .failure:
-                    self.webSocketTask = nil
-                    self.webSocketSession?.invalidateAndCancel()
-                    self.webSocketSession = nil
-                    self.webSocketDelegate = nil
-                    self.scheduleWebSocketReconnect()
-                }
-            }
-        }
-    }
-
-    private func handleWebSocketMessage(_ message: URLSessionWebSocketTask.Message) {
-        switch message {
-        case .string(let text):
-            guard let data = text.data(using: .utf8),
-                  let event = try? JSONDecoder().decode(ProgressEvent.self, from: data) else { return }
-
-            switch event.type {
-            case .runStarted:
-                poll()
-            case .runCompleted:
-                notificationManager?.notifyRunCompleted(
-                    agentName: agentName(for: event.agentId),
-                    summary: event.summary
-                )
-                poll()
-            case .runFailed:
-                if event.code == "run_timeout" {
-                    notificationManager?.notifyRunTimedOut(
-                        agentName: agentName(for: event.agentId)
-                    )
-                } else {
-                    notificationManager?.notifyRunFailed(
-                        agentName: agentName(for: event.agentId),
-                        error: event.error ?? event.message
-                    )
-                }
-                poll()
-            case .runSkipped:
-                poll()
-            case .mcpStatus:
-                let needsAuth = event.mcpNeedsAuthServers ?? []
-                if !needsAuth.isEmpty {
-                    notificationManager?.notifyMcpNeedsAuth(serverNames: needsAuth)
-                }
-            case .runProgress, .unknown:
-                break
-            }
-        case .data:
-            break
-        @unknown default:
-            break
-        }
-    }
-
-    private func agentName(for agentId: String) -> String {
-        agents.first(where: { $0.id == agentId })?.name ?? agentId
-    }
-
-    private func scheduleWebSocketReconnect() {
-        guard isMonitoring, webSocketReconnectTask == nil else { return }
-        let delay = webSocketState.recordFailure()
-        let nanoseconds = UInt64(delay * 1_000_000_000)
-
-        webSocketReconnectTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: nanoseconds)
-            guard !Task.isCancelled, let self else { return }
-            self.webSocketReconnectTask = nil
-            self.connectWebSocket()
-        }
-    }
-}
-
-private final class WebSocketOpenDelegate: NSObject, URLSessionWebSocketDelegate {
-    private let onOpen: @Sendable () -> Void
-
-    init(onOpen: @escaping @Sendable () -> Void) {
-        self.onOpen = onOpen
-    }
-
-    func urlSession(
-        _ session: URLSession,
-        webSocketTask: URLSessionWebSocketTask,
-        didOpenWithProtocol protocol: String?
-    ) {
-        onOpen()
-    }
-}
-
-enum ProgressEventType: String, Decodable {
-    case runStarted = "run_started"
-    case runProgress = "run_progress"
-    case runCompleted = "run_completed"
-    case runFailed = "run_failed"
-    case runSkipped = "run_skipped"
-    case mcpStatus = "mcp_status"
-    case unknown
-
-    init(from decoder: Decoder) throws {
-        let raw = try decoder.singleValueContainer().decode(String.self)
-        self = ProgressEventType(rawValue: raw) ?? .unknown
-    }
-}
-
-struct ProgressEvent: Decodable {
-    let type: ProgressEventType
-    let runId: String
-    let agentId: String
-    let timestamp: String
-    let message: String?
-    let error: String?
-    let summary: String?
-    let code: String?
-    let mcpNeedsAuthServers: [String]?
-
-    enum CodingKeys: String, CodingKey {
-        case type, runId, agentId, timestamp, message, error, summary, code
-        case mcpNeedsAuthServers = "mcp_needs_auth_servers"
-    }
 }

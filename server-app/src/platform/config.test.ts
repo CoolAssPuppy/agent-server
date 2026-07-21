@@ -146,6 +146,13 @@ describe('environment reference', () => {
     expect(readme).toContain('`AGENT_SERVER_API_KEY` is required for every server start.');
     expect(readme).toContain('`agent-server init` generates');
   });
+
+  it('documents authenticated WebSocket access and actual notification behavior', () => {
+    expect(readme).toContain(
+      'wscat -c ws://localhost:47821/ws -H "Authorization: Bearer $AGENT_SERVER_API_KEY"',
+    );
+    expect(readme).not.toContain('when any agent starts, completes, or fails');
+  });
 });
 
 function createTempDir(): string {

@@ -11,7 +11,7 @@
   },
   "packageManager": "pnpm@11.1.0+sha512.0c44e842e5686b2c061a81adda8b2258bd8818e9704b2cf2c63d56b931a7b2e910092e085027003b96ca3911ab56a07f6df5abaed2be9925034cdd686a535b14",
   "scripts": {
-    "preinstall": "pnpm dlx only-allow pnpm",
+    "preinstall": "only-allow pnpm",
     "dev": "pnpm --filter @agent-server/core run dev",
     "build": "pnpm --filter @agent-server/core run build",
     "start": "pnpm --filter @agent-server/core run start",
@@ -20,6 +20,10 @@
     "type-check": "pnpm --filter @agent-server/core run type-check",
     "test:coverage": "pnpm --filter @agent-server/core run test:coverage",
     "audit:prod": "pnpm audit --prod --audit-level high"
+  },
+  "devDependencies": {
+    "only-allow": "1.2.2",
+    "wrangler": "4.110.0"
   },
   "license": "MIT"
 }

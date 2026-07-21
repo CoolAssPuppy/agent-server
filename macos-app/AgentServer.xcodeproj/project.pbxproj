@@ -10,6 +10,7 @@
 		020992CF6B9FD98492D90C66 /* AgentDebuggerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41CFA48506BD54A97A2F80E7 /* AgentDebuggerView.swift */; };
 		02C20F87D5C7526ABDB06C67 /* RunDetailTabs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A98A3C8D660F909083764E1 /* RunDetailTabs.swift */; };
 		031CD7B1245E7A81848EF060 /* AgentPanelSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57ABDC589701B10A0E737A80 /* AgentPanelSettings.swift */; };
+		0560FF3286841457D984865B /* NativeToolServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FF6071AA077B501638BAECC /* NativeToolServiceTests.swift */; };
 		0684663469A89D89CA00F022 /* RunDecisionsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A846AEE9153B33BA7E15DB9 /* RunDecisionsViewModel.swift */; };
 		09F56CA1A2EA7A5D37A82130 /* EnvFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F352A0CB69BD6E6AEF7E49F /* EnvFileStore.swift */; };
 		0AAC871185073BB41D7800CC /* ConsumerFlowDemoFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 026219A0FADDF868D39086CA /* ConsumerFlowDemoFixtures.swift */; };
@@ -20,7 +21,7 @@
 		137C31455850001B7A34610F /* AgentEnabledFileEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1BCFCE737011048F3DAC1E5 /* AgentEnabledFileEditor.swift */; };
 		13E4ACF17D3D0809E665D8E9 /* ConnectionProfileServerModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5612EB7955E03C4FF02F0B33 /* ConnectionProfileServerModels.swift */; };
 		1400EF09293F8DB8A85BB909 /* SettingsPrimarySections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6384C54B60569A1940A1D591 /* SettingsPrimarySections.swift */; };
-		142B004902E78A73CD4D174B /* package.json in Resources */ = {isa = PBXBuildFile; fileRef = 34998C870C76F29FD6B67745 /* package.json */; };
+		14A59188BABD313140B4E0CA /* CalendarToolService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E391331085C63F3E2A8583CA /* CalendarToolService.swift */; };
 		14FFBE10B529863FAA1C6322 /* ScheduleDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C3FF9848DE69E91CE5C73B4 /* ScheduleDraft.swift */; };
 		173E55A9502E299FAE71C651 /* AgentPromptEditorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4809143EC5D2EAB2A2978E1C /* AgentPromptEditorModel.swift */; };
 		18DBB572B045AD41B966D76A /* SecurityFindingCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE79D9B93066560186CAA3DB /* SecurityFindingCard.swift */; };
@@ -36,6 +37,7 @@
 		286D0BA5C8914421646E03D9 /* MCPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FDC36BB13528F7FD3BE8F2C /* MCPServer.swift */; };
 		2982CBB9FECAB053E1BA6B31 /* MarkdownHighlightRanges.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB25C53352B4D27D90CC4C92 /* MarkdownHighlightRanges.swift */; };
 		29D4485448C4F74872E199F4 /* DemoMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE7410D6F6B48563664B0DDF /* DemoMode.swift */; };
+		2A199903B961A81B9E1224D9 /* EventKitDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 296DE96F4E3251BD34FF631E /* EventKitDependencies.swift */; };
 		2CDA922300E92E5825F5EEB1 /* PanelClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FE442CAD3D55ADB3B5F89D7 /* PanelClient.swift */; };
 		2E008138711D9291EF3ECE0C /* ContactsToolService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DA03AB85C50D39CFB7CD3AF /* ContactsToolService.swift */; };
 		2E7E4BD18DE37418D0472DBF /* UITestScenarioWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73C44228DBD88C29AA85C3AB /* UITestScenarioWindow.swift */; };
@@ -62,6 +64,7 @@
 		58A7C69B96F0E2B1A99A3C2E /* RuntimeSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C69CBD9DEF52B8367E593F5 /* RuntimeSelection.swift */; };
 		59592B3D24D39DD5E4D21714 /* AgentServerDesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = D8FE5892671A084E1325B152 /* AgentServerDesignSystem */; };
 		59831E5595B33F9E1EF1F7D3 /* Decision.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E3A0BC90A75E1C817A3238 /* Decision.swift */; };
+		59AFF54263536F1680FC3CF9 /* StatusMonitor+WebSocket.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BAF5FDA496C367774004D34 /* StatusMonitor+WebSocket.swift */; };
 		5A24411C1973C987BD646A0F /* ConnectionSetupDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D75937711DE0428A515A31C /* ConnectionSetupDraft.swift */; };
 		5BC8877B920A3BED9C410A8B /* StableRunMerge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B2EDB64F25F48A860F8C3B5 /* StableRunMerge.swift */; };
 		5D38B72ECB3313D9A9194288 /* SettingsDrawerPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 988DAAC30F31860A55EC3572 /* SettingsDrawerPersistence.swift */; };
@@ -72,6 +75,7 @@
 		67523C8BC19E45A92FA3799F /* SettingsDrawer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 509B360653F9527F4AD2986B /* SettingsDrawer.swift */; };
 		6DC305D1685AE6EBD82B7427 /* UpdaterManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C244E8EFAB9899352ECD2C /* UpdaterManager.swift */; };
 		70D439C6AB5421509D3A707E /* CalendarToolService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E391331085C63F3E2A8583CA /* CalendarToolService.swift */; };
+		7169004D74D21D411698DE6E /* ContactsToolService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DA03AB85C50D39CFB7CD3AF /* ContactsToolService.swift */; };
 		72A56ABEAF15047AF49BC28A /* GuidedAgentCreationReview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BC6DF2CA93E8A8FD82576FE /* GuidedAgentCreationReview.swift */; };
 		731A10A86AD33CE0772716FA /* GuidanceProposalServerModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 320DFB04CE4BF2487443296A /* GuidanceProposalServerModels.swift */; };
 		73C2DE5F4E6148DE94C2F81C /* InfoTooltip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C80B8DFDFC46D7C1A5157D4 /* InfoTooltip.swift */; };
@@ -85,10 +89,13 @@
 		7A01C939E76AF850AAD3EC4E /* PanelRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1166D983A336A4F217C9282E /* PanelRun.swift */; };
 		7AAC1C6BFDD7C4318C4E8FCB /* SchedulePreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDB22418EF86F5F4F13FAF67 /* SchedulePreset.swift */; };
 		7B15DE5C3DAF31547879B22E /* DrawerDragDismissal.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9BC93C3FF41E699B85E8B5A /* DrawerDragDismissal.swift */; };
+		7C27966308565AF826064776 /* AgentServerEventKitCore in Frameworks */ = {isa = PBXBuildFile; productRef = 10B271FAB51DB8B311EECE89 /* AgentServerEventKitCore */; };
 		7DE3E8D3D45ED52571C66590 /* AgentSafetyReadinessRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E4E66B179B45198682F1A3A /* AgentSafetyReadinessRow.swift */; };
 		7DFE33373ABAEA664501F320 /* AgentServerWorkspace.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF20AAD9B4C764E299F55F41 /* AgentServerWorkspace.swift */; };
+		801A46B8B2BD2E36EDEA8D87 /* ReminderToolService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF09429F38C7FA25904E0518 /* ReminderToolService.swift */; };
 		83868502556254BD90C98E38 /* AgentCreationFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 792B13A5DFC5DB882DA0608A /* AgentCreationFlow.swift */; };
 		83DD619B99906B7FDB630086 /* Telemetry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03E63276DE8706E5739FA6B7 /* Telemetry.swift */; };
+		85B5E209ED46373B7EC987A3 /* EventKitHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9098758BCD6B9EC571281A51 /* EventKitHandler.swift */; };
 		866C6F8A4D433A5BF0E23958 /* StatusMonitor+Security.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99286B9B2EE90BE821F68FBA /* StatusMonitor+Security.swift */; };
 		86D7A78B13F445F9CB9D5754 /* SettingsPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36E7C28685605B900B56E4DA /* SettingsPresentation.swift */; };
 		8707E33B58D0101837C5D8D0 /* RunSelectionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25662F3E02815D79079DCF72 /* RunSelectionCoordinator.swift */; };
@@ -96,12 +103,12 @@
 		884B4BB8E2CFD7879CB6F636 /* ConnectionProfilePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F50CA8C247B1FCF3FA516F3D /* ConnectionProfilePresentation.swift */; };
 		894EC630BF1BB8BF843C0744 /* agent-server-success.aiff in Resources */ = {isa = PBXBuildFile; fileRef = CA355B69E6B62F0433B2647C /* agent-server-success.aiff */; };
 		8952BBEC6C2E7723B78B683A /* AgentModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE7640067645F8E1352BCE04 /* AgentModel.swift */; };
+		8CB33B152099C8BB025BC4EE /* MCPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FDC36BB13528F7FD3BE8F2C /* MCPServer.swift */; };
 		8D9A0C7374DD4D1B57E281E3 /* AgentsListBadgeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 689DD1451D8EBE1AF2A3FBE1 /* AgentsListBadgeViewModel.swift */; };
 		8EB773586E83249FC7A96C15 /* AgentSettingsSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0992875D58F93D1256CE2EF /* AgentSettingsSections.swift */; };
 		8F2CE02573C9F4CD344CDE70 /* AgentSecurityAnalyzerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 157F358524BFC2F586756006 /* AgentSecurityAnalyzerView.swift */; };
-		8FCB715D7BFE32EFB9E8DBBD /* node_modules in Resources */ = {isa = PBXBuildFile; fileRef = 4AC0BFA54BF2C9E3FD945E78 /* node_modules */; };
 		90D2742B2CD0C605C3181ED4 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B8C3600FDBE09650A796C7E /* main.swift */; };
-		91E11BD741066906FB70BE46 /* dist in Resources */ = {isa = PBXBuildFile; fileRef = 98817ADC119A4121E0A3B079 /* dist */; };
+		91FD024F0CD4A3CE3C760815 /* NativeAuthorization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814BB589866FCCB37AAC13D1 /* NativeAuthorization.swift */; };
 		96EDE47844809725EF659B53 /* StatusMonitor+Guidance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F11E1CCD599C1743CC67546 /* StatusMonitor+Guidance.swift */; };
 		99DA993395D36324F62670AF /* AgentServerClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76D1FBFD51A44407DC395C7F /* AgentServerClient.swift */; };
 		9C811AAEE771157DCD82BE6D /* NativeServiceGrantPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0AE4F8750CFC69C6D44996F /* NativeServiceGrantPolicy.swift */; };
@@ -155,6 +162,7 @@
 		E883FEF25E1CA4ADE2A5E648 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66EAB07DB79E15BAC20F17E /* AppDelegate.swift */; };
 		E924C268BA7FE54C996042B8 /* GenericConnectionSetupSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 540053000886185ADF319275 /* GenericConnectionSetupSheet.swift */; };
 		EA2CE3675D53AF7C6C13C44E /* GuidedAgentCreationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3E8A93100DB8E38D44B85FE /* GuidedAgentCreationView.swift */; };
+		EA3FCC6D6C85D5CB92F2BB7A /* NativeServiceGrantPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0AE4F8750CFC69C6D44996F /* NativeServiceGrantPolicy.swift */; };
 		EAD009E0540FC761BB889F44 /* ConsumerFlowPreviews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E1191870D2F850C4A974C1 /* ConsumerFlowPreviews.swift */; };
 		EBF30BCA9AF757DC31E9E217 /* ConnectionCredentialsPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF60949786F7149D9854AA42 /* ConnectionCredentialsPresentation.swift */; };
 		EC23484CBAD27ADF3EE882DF /* SecurityBackgroundScanState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA5E29A51EBB871CA9ED8BC1 /* SecurityBackgroundScanState.swift */; };
@@ -222,7 +230,6 @@
 		320DFB04CE4BF2487443296A /* GuidanceProposalServerModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidanceProposalServerModels.swift; sourceTree = "<group>"; };
 		325C74DAF7BB5F1C25B3A733 /* SidebarViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarViewModel.swift; sourceTree = "<group>"; };
 		330BE644298A2E224EF2C3D8 /* RuntimeChoicePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeChoicePicker.swift; sourceTree = "<group>"; };
-		34998C870C76F29FD6B67745 /* package.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = package.json; sourceTree = "<group>"; };
 		34C199697B17F6960D44E0CC /* ConnectionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionsView.swift; sourceTree = "<group>"; };
 		36E7C28685605B900B56E4DA /* SettingsPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPresentation.swift; sourceTree = "<group>"; };
 		3933DD1F151D51274EA54DDA /* AgentServerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AgentServerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -237,7 +244,6 @@
 		4900D26B20B4FF31D3A37106 /* AgentServerPalettes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentServerPalettes.swift; sourceTree = "<group>"; };
 		4A846AEE9153B33BA7E15DB9 /* RunDecisionsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDecisionsViewModel.swift; sourceTree = "<group>"; };
 		4A98A3C8D660F909083764E1 /* RunDetailTabs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailTabs.swift; sourceTree = "<group>"; };
-		4AC0BFA54BF2C9E3FD945E78 /* node_modules */ = {isa = PBXFileReference; lastKnownFileType = folder; name = node_modules; path = ".build-cache/server-bundle/node_modules"; sourceTree = SOURCE_ROOT; };
 		4ADB33D19CFCCCE6AC45B049 /* AgentServer.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AgentServer.entitlements; sourceTree = "<group>"; };
 		4FBE8107A413656ED1B3C54B /* AgentServerDesignSystem */ = {isa = PBXFileReference; lastKnownFileType = folder; name = AgentServerDesignSystem; path = AgentServerDesignSystem; sourceTree = SOURCE_ROOT; };
 		4FE442CAD3D55ADB3B5F89D7 /* PanelClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelClient.swift; sourceTree = "<group>"; };
@@ -259,6 +265,7 @@
 		643CBD2E294E942C10398144 /* AgentRunsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRunsView.swift; sourceTree = "<group>"; };
 		689DD1451D8EBE1AF2A3FBE1 /* AgentsListBadgeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentsListBadgeViewModel.swift; sourceTree = "<group>"; };
 		691983804F92F4A89C92EBC6 /* ModelField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelField.swift; sourceTree = "<group>"; };
+		6BAF5FDA496C367774004D34 /* StatusMonitor+WebSocket.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StatusMonitor+WebSocket.swift"; sourceTree = "<group>"; };
 		6C69CBD9DEF52B8367E593F5 /* RuntimeSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeSelection.swift; sourceTree = "<group>"; };
 		6CA45D70B10EB543527A07B0 /* AgentProposalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentProposalView.swift; sourceTree = "<group>"; };
 		6DF962BADEAC09F5A5F46093 /* StatusMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusMonitor.swift; sourceTree = "<group>"; };
@@ -266,6 +273,7 @@
 		6E3DF3E008755335EFBF31C7 /* AgentSettingsDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSettingsDraft.swift; sourceTree = "<group>"; };
 		6E4E66B179B45198682F1A3A /* AgentSafetyReadinessRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSafetyReadinessRow.swift; sourceTree = "<group>"; };
 		6F7E8ED97EF202B704E9E0AC /* StatusMonitor+AgentActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StatusMonitor+AgentActions.swift"; sourceTree = "<group>"; };
+		6FF6071AA077B501638BAECC /* NativeToolServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeToolServiceTests.swift; sourceTree = "<group>"; };
 		71E6E3F09CECEE13A8C2B65D /* AgentSettingsAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentSettingsAdapter.swift; sourceTree = "<group>"; };
 		73C44228DBD88C29AA85C3AB /* UITestScenarioWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestScenarioWindow.swift; sourceTree = "<group>"; };
 		744252F976BBFD07D113817A /* agent-server-notification.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = "agent-server-notification.aiff"; sourceTree = "<group>"; };
@@ -288,7 +296,6 @@
 		9098758BCD6B9EC571281A51 /* EventKitHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventKitHandler.swift; sourceTree = "<group>"; };
 		90FD11ED8E05AE334B24E838 /* MarkdownContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownContentView.swift; sourceTree = "<group>"; };
 		910C0A86688961650CBD1821 /* SettingsDrawerShape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDrawerShape.swift; sourceTree = "<group>"; };
-		98817ADC119A4121E0A3B079 /* dist */ = {isa = PBXFileReference; lastKnownFileType = folder; name = dist; path = "../server-app/dist"; sourceTree = SOURCE_ROOT; };
 		988DAAC30F31860A55EC3572 /* SettingsDrawerPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDrawerPersistence.swift; sourceTree = "<group>"; };
 		99286B9B2EE90BE821F68FBA /* StatusMonitor+Security.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StatusMonitor+Security.swift"; sourceTree = "<group>"; };
 		9978ED2ADE2B6DA7E9F2E403 /* MainWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindow.swift; sourceTree = "<group>"; };
@@ -303,6 +310,7 @@
 		ACF4DF2407A9787F480AEEE7 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		AE7410D6F6B48563664B0DDF /* DemoMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoMode.swift; sourceTree = "<group>"; };
 		B00F566E57973BAC7955CF89 /* SecurityServerModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityServerModels.swift; sourceTree = "<group>"; };
+		B123F77EB667DAC336D95DDD /* AgentServerEventKitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AgentServerEventKitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B21BEF5E401D5885B7088847 /* MainPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainPane.swift; sourceTree = "<group>"; };
 		B240FF61BB85B6D6668CC375 /* AgentServerClient+Guidance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentServerClient+Guidance.swift"; sourceTree = "<group>"; };
 		B514CCB37C240E8BC2D16DAE /* MarkdownEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownEditor.swift; sourceTree = "<group>"; };
@@ -355,6 +363,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		95AD6579E9AA0D07A390CCA0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7C27966308565AF826064776 /* AgentServerEventKitCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D64933D504D816D7BA9CE94A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -395,6 +411,14 @@
 			path = AgentServerUITests;
 			sourceTree = "<group>";
 		};
+		1D0F2CBBDBBCC25FA85C0E8A /* AgentServerEventKitTests */ = {
+			isa = PBXGroup;
+			children = (
+				6FF6071AA077B501638BAECC /* NativeToolServiceTests.swift */,
+			);
+			path = AgentServerEventKitTests;
+			sourceTree = "<group>";
+		};
 		4EBEAA074F78415E8FD527AA /* Theme */ = {
 			isa = PBXGroup;
 			children = (
@@ -402,15 +426,6 @@
 				9B13E51E6E5B8B223735BD6B /* AgentServerTheme.swift */,
 			);
 			path = Theme;
-			sourceTree = "<group>";
-		};
-		5423C5A5A8FAB60711E72401 /* server-app */ = {
-			isa = PBXGroup;
-			children = (
-				34998C870C76F29FD6B67745 /* package.json */,
-			);
-			name = "server-app";
-			path = "../server-app";
 			sourceTree = "<group>";
 		};
 		652CC27383D083CB6A53C94C /* App */ = {
@@ -426,14 +441,12 @@
 		6E25A08092543BB4B04696F4 = {
 			isa = PBXGroup;
 			children = (
-				98817ADC119A4121E0A3B079 /* dist */,
-				4AC0BFA54BF2C9E3FD945E78 /* node_modules */,
 				A4C6DD20EC2DD9F19B4B0BEF /* AgentServer */,
 				F6B39A2CC067BCD5335D3A5D /* AgentServerCore */,
 				F8442B1515EB5212D1D69158 /* AgentServerEventKit */,
+				1D0F2CBBDBBCC25FA85C0E8A /* AgentServerEventKitTests */,
 				1CFDD29C00B11ABE819E0E4E /* AgentServerUITests */,
 				CDBA99D8972601D447FD2331 /* Packages */,
-				5423C5A5A8FAB60711E72401 /* server-app */,
 				C7AF683C4FC612BD0C84F3B0 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -454,6 +467,7 @@
 				6F7E8ED97EF202B704E9E0AC /* StatusMonitor+AgentActions.swift */,
 				0F11E1CCD599C1743CC67546 /* StatusMonitor+Guidance.swift */,
 				99286B9B2EE90BE821F68FBA /* StatusMonitor+Security.swift */,
+				6BAF5FDA496C367774004D34 /* StatusMonitor+WebSocket.swift */,
 				03E63276DE8706E5739FA6B7 /* Telemetry.swift */,
 				A1C244E8EFAB9899352ECD2C /* UpdaterManager.swift */,
 			);
@@ -551,6 +565,7 @@
 			children = (
 				BF267E78CF53DB3D651E8D62 /* AgentServer.app */,
 				C1C9BFADC1AEB3CEFB05D566 /* AgentServerEventKit */,
+				B123F77EB667DAC336D95DDD /* AgentServerEventKitTests.xctest */,
 				3933DD1F151D51274EA54DDA /* AgentServerUITests.xctest */,
 			);
 			name = Products;
@@ -699,6 +714,25 @@
 			productReference = BF267E78CF53DB3D651E8D62 /* AgentServer.app */;
 			productType = "com.apple.product-type.application";
 		};
+		E9C07EB6B27DC794F7C09E2D /* AgentServerEventKitTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E3563678FD475E951710A13D /* Build configuration list for PBXNativeTarget "AgentServerEventKitTests" */;
+			buildPhases = (
+				FA99B8EE80D7A649908849CC /* Sources */,
+				95AD6579E9AA0D07A390CCA0 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AgentServerEventKitTests;
+			packageProductDependencies = (
+				10B271FAB51DB8B311EECE89 /* AgentServerEventKitCore */,
+			);
+			productName = AgentServerEventKitTests;
+			productReference = B123F77EB667DAC336D95DDD /* AgentServerEventKitTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		EEB80CDA7CF1C61F053C80BE /* AgentServerUITests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 266A67279B5C34E9DC3B6C29 /* Build configuration list for PBXNativeTarget "AgentServerUITests" */;
@@ -734,6 +768,10 @@
 						DevelopmentTeam = 955GSY56UT;
 						ProvisioningStyle = Automatic;
 					};
+					E9C07EB6B27DC794F7C09E2D = {
+						DevelopmentTeam = 955GSY56UT;
+						ProvisioningStyle = Automatic;
+					};
 					EEB80CDA7CF1C61F053C80BE = {
 						DevelopmentTeam = 955GSY56UT;
 						ProvisioningStyle = Automatic;
@@ -763,6 +801,7 @@
 			targets = (
 				970F72FE0AEAC7C289BCF7E4 /* AgentServer */,
 				514E3624E8F18BC870E11B52 /* AgentServerEventKit */,
+				E9C07EB6B27DC794F7C09E2D /* AgentServerEventKitTests */,
 				EEB80CDA7CF1C61F053C80BE /* AgentServerUITests */,
 			);
 		};
@@ -777,9 +816,6 @@
 				335C9C3ED26B1D305D2C02EE /* agent-server-failure.aiff in Resources */,
 				F229F4BC6A49E9AA94083970 /* agent-server-notification.aiff in Resources */,
 				894EC630BF1BB8BF843C0744 /* agent-server-success.aiff in Resources */,
-				91E11BD741066906FB70BE46 /* dist in Resources */,
-				8FCB715D7BFE32EFB9E8DBBD /* node_modules in Resources */,
-				142B004902E78A73CD4D174B /* package.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -803,7 +839,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\nexport PATH=\"/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH\"\n\nif ! command -v pnpm >/dev/null 2>&1; then\n  echo \"error: pnpm not found on PATH; install pnpm before building (brew install pnpm or corepack enable)\"\n  exit 1\nfi\n\nROOT_DIR=\"${SRCROOT}/..\"\nSTAGING=\"${SRCROOT}/.build-cache/server-bundle\"\nHASH_FILE=\"$STAGING/.installed-lock-hash\"\n\nif [ ! -f \"$ROOT_DIR/pnpm-lock.yaml\" ]; then\n  echo \"error: pnpm-lock.yaml missing at $ROOT_DIR; run pnpm install at the agent-server root first\"\n  exit 1\nfi\n\nCURRENT_HASH=$(shasum -a 256 \"$ROOT_DIR/pnpm-lock.yaml\" | awk '{print $1}')\nINSTALLED_HASH=\"\"\nif [ -f \"$HASH_FILE\" ]; then\n  INSTALLED_HASH=$(cat \"$HASH_FILE\")\nfi\n\nif [ \"$CURRENT_HASH\" = \"$INSTALLED_HASH\" ] && [ -d \"$STAGING/node_modules\" ] && [ \"$(ls -A \"$STAGING/node_modules\" 2>/dev/null)\" ]; then\n  echo \"Staged node_modules already up to date (lock hash $CURRENT_HASH)\"\n  exit 0\nfi\n\necho \"Staging production node_modules via pnpm deploy...\"\nrm -rf \"$STAGING\"\n# node-linker=hoisted produces a FLAT node_modules. pnpm's default\n# isolated linker fills node_modules with .pnpm store symlinks, which\n# make the signed .app invalid — Gatekeeper reports the app as\n# \"damaged\". Then strip the .bin shims (the app runs `node dist/cli.js`\n# directly and never uses them) so ZERO symlinks remain in the bundle.\ncd \"$ROOT_DIR\"\npnpm --filter @agent-server/core deploy --prod --legacy --config.node-linker=hoisted \"$STAGING\"\nfind \"$STAGING/node_modules\" -name \".bin\" -type d -prune -exec rm -rf {} + 2>/dev/null || true\n\necho \"$CURRENT_HASH\" > \"$HASH_FILE\"\necho \"Staged production node_modules (lock hash $CURRENT_HASH)\"\n";
+			shellScript = "set -e\nexport PATH=\"/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH\"\n\nif ! command -v pnpm >/dev/null 2>&1; then\n  echo \"error: pnpm not found on PATH; install pnpm before building (brew install pnpm or corepack enable)\"\n  exit 1\nfi\n\nROOT_DIR=\"${SRCROOT}/..\"\nSTAGING=\"${SRCROOT}/.build-cache/server-bundle\"\nHASH_FILE=\"$STAGING/.installed-lock-hash\"\n\necho \"Building the bundled server...\"\ncd \"$ROOT_DIR\"\npnpm install --frozen-lockfile\npnpm --filter @agent-server/core build\n\nif [ ! -f \"$ROOT_DIR/pnpm-lock.yaml\" ]; then\n  echo \"error: pnpm-lock.yaml missing at $ROOT_DIR; run pnpm install at the agent-server root first\"\n  exit 1\nfi\n\nCURRENT_HASH=$(shasum -a 256 \"$ROOT_DIR/pnpm-lock.yaml\" | awk '{print $1}')\nINSTALLED_HASH=\"\"\nif [ -f \"$HASH_FILE\" ]; then\n  INSTALLED_HASH=$(cat \"$HASH_FILE\")\nfi\n\nif [ \"$CURRENT_HASH\" = \"$INSTALLED_HASH\" ] && [ -d \"$STAGING/node_modules\" ] && [ \"$(ls -A \"$STAGING/node_modules\" 2>/dev/null)\" ]; then\n  echo \"Staged node_modules already up to date (lock hash $CURRENT_HASH)\"\n  exit 0\nfi\n\necho \"Staging production node_modules via pnpm deploy...\"\nrm -rf \"$STAGING\"\n# node-linker=hoisted produces a FLAT node_modules. pnpm's default\n# isolated linker fills node_modules with .pnpm store symlinks, which\n# make the signed .app invalid — Gatekeeper reports the app as\n# \"damaged\". Then strip the .bin shims (the app runs `node dist/cli.js`\n# directly and never uses them) so ZERO symlinks remain in the bundle.\ncd \"$ROOT_DIR\"\npnpm --filter @agent-server/core --config.inject-workspace-packages=true deploy --prod --offline --config.node-linker=hoisted \"$STAGING\"\nfind \"$STAGING/node_modules\" -name \".bin\" -type d -prune -exec rm -rf {} + 2>/dev/null || true\n\necho \"$CURRENT_HASH\" > \"$HASH_FILE\"\necho \"Staged production node_modules (lock hash $CURRENT_HASH)\"\n";
 		};
 		F6E93F7C757E1D61DA9945A0 /* Embed and sign helper plus vendored binaries */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -822,7 +858,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\n\nHELPER_SRC=\"${BUILT_PRODUCTS_DIR}/agent-server-eventkit\"\nHELPERS_DIR=\"${BUILT_PRODUCTS_DIR}/${WRAPPER_NAME}/Contents/Helpers\"\nHELPER_DEST=\"${HELPERS_DIR}/agent-server-eventkit\"\n\nif [ ! -f \"$HELPER_SRC\" ]; then\n  echo \"warning: agent-server-eventkit not built at $HELPER_SRC\"\n  exit 0\nfi\n\nmkdir -p \"$HELPERS_DIR\"\ncp -f \"$HELPER_SRC\" \"$HELPER_DEST\"\n\nif [ \"${CODE_SIGNING_ALLOWED:-YES}\" = \"NO\" ]; then\n  echo \"Code signing disabled, skipping embedded binary signing\"\n  exit 0\nfi\n\nIDENTITY=\"${EXPANDED_CODE_SIGN_IDENTITY:-}\"\nif [ -z \"$IDENTITY\" ]; then\n  IDENTITY=\"-\"\nfi\n\necho \"Signing embedded binaries with identity: $IDENTITY (hardened runtime)\"\n\ncodesign --force --options runtime --sign \"$IDENTITY\" \"$HELPER_DEST\"\n\nNODE_MODULES=\"${BUILT_PRODUCTS_DIR}/${WRAPPER_NAME}/Contents/Resources/node_modules\"\nif [ ! -d \"$NODE_MODULES\" ]; then\n  exit 0\nfi\n\nCOUNT_FILE=\"$(mktemp)\"\necho 0 > \"$COUNT_FILE\"\n\nfind \"$NODE_MODULES\" -type f -perm -u+x 2>/dev/null | while IFS= read -r bin; do\n  if file \"$bin\" 2>/dev/null | head -1 | grep -q \"Mach-O\"; then\n    if codesign --force --options runtime --sign \"$IDENTITY\" \"$bin\" >/dev/null 2>&1; then\n      count=$(cat \"$COUNT_FILE\")\n      echo $((count + 1)) > \"$COUNT_FILE\"\n    else\n      echo \"warning: failed to sign $bin\"\n    fi\n  fi\ndone\n\nsigned_count=$(cat \"$COUNT_FILE\")\nrm -f \"$COUNT_FILE\"\necho \"Re-signed $signed_count Mach-O binaries inside node_modules\"\n";
+			shellScript = "set -e\n\nROOT_DIR=\"${SRCROOT}/..\"\nRESOURCES_DIR=\"${BUILT_PRODUCTS_DIR}/${WRAPPER_NAME}/Contents/Resources\"\nSTAGING=\"${SRCROOT}/.build-cache/server-bundle\"\n\nif [ ! -f \"$ROOT_DIR/server-app/dist/cli.js\" ] || [ ! -d \"$STAGING/node_modules\" ]; then\n  echo \"error: bundled server inputs are missing; the pre-build phase did not complete\"\n  exit 1\nfi\n\nmkdir -p \"$RESOURCES_DIR\"\nrm -rf \"$RESOURCES_DIR/dist\" \"$RESOURCES_DIR/node_modules\"\ncp -R \"$ROOT_DIR/server-app/dist\" \"$RESOURCES_DIR/dist\"\ncp \"$ROOT_DIR/server-app/package.json\" \"$RESOURCES_DIR/package.json\"\ncp -R \"$STAGING/node_modules\" \"$RESOURCES_DIR/node_modules\"\n\nHELPER_SRC=\"${BUILT_PRODUCTS_DIR}/agent-server-eventkit\"\nHELPERS_DIR=\"${BUILT_PRODUCTS_DIR}/${WRAPPER_NAME}/Contents/Helpers\"\nHELPER_DEST=\"${HELPERS_DIR}/agent-server-eventkit\"\n\nif [ ! -f \"$HELPER_SRC\" ]; then\n  echo \"warning: agent-server-eventkit not built at $HELPER_SRC\"\n  exit 0\nfi\n\nmkdir -p \"$HELPERS_DIR\"\ncp -f \"$HELPER_SRC\" \"$HELPER_DEST\"\n\nif [ \"${CODE_SIGNING_ALLOWED:-YES}\" = \"NO\" ]; then\n  echo \"Code signing disabled, skipping embedded binary signing\"\n  exit 0\nfi\n\nIDENTITY=\"${EXPANDED_CODE_SIGN_IDENTITY:-}\"\nif [ -z \"$IDENTITY\" ]; then\n  IDENTITY=\"-\"\nfi\n\necho \"Signing embedded binaries with identity: $IDENTITY (hardened runtime)\"\n\ncodesign --force --options runtime --sign \"$IDENTITY\" \"$HELPER_DEST\"\n\nNODE_MODULES=\"${BUILT_PRODUCTS_DIR}/${WRAPPER_NAME}/Contents/Resources/node_modules\"\nif [ ! -d \"$NODE_MODULES\" ]; then\n  exit 0\nfi\n\nCOUNT_FILE=\"$(mktemp)\"\necho 0 > \"$COUNT_FILE\"\n\nfind \"$NODE_MODULES\" -type f -perm -u+x 2>/dev/null | while IFS= read -r bin; do\n  if file \"$bin\" 2>/dev/null | head -1 | grep -q \"Mach-O\"; then\n    if codesign --force --options runtime --sign \"$IDENTITY\" \"$bin\" >/dev/null 2>&1; then\n      count=$(cat \"$COUNT_FILE\")\n      echo $((count + 1)) > \"$COUNT_FILE\"\n    else\n      echo \"warning: failed to sign $bin\"\n    fi\n  fi\ndone\n\nsigned_count=$(cat \"$COUNT_FILE\")\nrm -f \"$COUNT_FILE\"\necho \"Re-signed $signed_count Mach-O binaries inside node_modules\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -848,6 +884,22 @@
 				CF98F924FF6871E654D20235 /* NativeServiceGrantPolicy.swift in Sources */,
 				39EE132C5D81F63BD94C9197 /* ReminderToolService.swift in Sources */,
 				90D2742B2CD0C605C3181ED4 /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FA99B8EE80D7A649908849CC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				14A59188BABD313140B4E0CA /* CalendarToolService.swift in Sources */,
+				7169004D74D21D411698DE6E /* ContactsToolService.swift in Sources */,
+				2A199903B961A81B9E1224D9 /* EventKitDependencies.swift in Sources */,
+				85B5E209ED46373B7EC987A3 /* EventKitHandler.swift in Sources */,
+				8CB33B152099C8BB025BC4EE /* MCPServer.swift in Sources */,
+				91FD024F0CD4A3CE3C760815 /* NativeAuthorization.swift in Sources */,
+				EA3FCC6D6C85D5CB92F2BB7A /* NativeServiceGrantPolicy.swift in Sources */,
+				0560FF3286841457D984865B /* NativeToolServiceTests.swift in Sources */,
+				801A46B8B2BD2E36EDEA8D87 /* ReminderToolService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -988,6 +1040,7 @@
 				583A9241EFF2D90D211E6822 /* StatusMonitor+AgentActions.swift in Sources */,
 				96EDE47844809725EF659B53 /* StatusMonitor+Guidance.swift in Sources */,
 				866C6F8A4D433A5BF0E23958 /* StatusMonitor+Security.swift in Sources */,
+				59AFF54263536F1680FC3CF9 /* StatusMonitor+WebSocket.swift in Sources */,
 				470120920161412825893DBC /* StatusMonitor.swift in Sources */,
 				83DD619B99906B7FDB630086 /* Telemetry.swift in Sources */,
 				C2B13D9B947515949F0C0A5A /* TelemetryProgressSettings.swift in Sources */,
@@ -1068,6 +1121,23 @@
 				PRODUCT_NAME = "agent-server-eventkit";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		53E3CCEF30FE3B8D6E8DEC3E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AgentServerEventKit/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.strategicnerds.agent-server.eventkit-tests";
+				SDKROOT = macosx;
 			};
 			name = Release;
 		};
@@ -1187,6 +1257,23 @@
 			};
 			name = Release;
 		};
+		DF65F684B20D94AC17FC243C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AgentServerEventKit/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.strategicnerds.agent-server.eventkit-tests";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
 		E301A43E761E0FCA01605A78 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1292,6 +1379,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
+		E3563678FD475E951710A13D /* Build configuration list for PBXNativeTarget "AgentServerEventKitTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DF65F684B20D94AC17FC243C /* Debug */,
+				53E3CCEF30FE3B8D6E8DEC3E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -1310,21 +1406,25 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sparkle-project/Sparkle";
 			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.6.0;
+				kind = exactVersion;
+				version = 2.9.1;
 			};
 		};
 		C841370E8698BA4281C2B22F /* XCRemoteSwiftPackageReference "posthog-ios" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/PostHog/posthog-ios";
 			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 3.0.0;
+				kind = exactVersion;
+				version = 3.50.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		10B271FAB51DB8B311EECE89 /* AgentServerEventKitCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AgentServerEventKitCore;
+		};
 		58B105279D910EF305E7E4BE /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 0793D742AA9538F857ADBE9E /* XCRemoteSwiftPackageReference "Sparkle" */;

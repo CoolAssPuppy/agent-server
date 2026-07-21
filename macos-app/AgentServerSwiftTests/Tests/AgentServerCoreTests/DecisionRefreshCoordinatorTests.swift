@@ -2,6 +2,26 @@ import XCTest
 @testable import AgentServerCore
 
 final class DecisionRefreshCoordinatorTests: XCTestCase {
+    func testRunRefreshOnlyAcceptsTheLatestAgentGeneration() {
+        var coordinator = RunRefreshCoordinator()
+        let first = coordinator.begin(agentId: "first")
+        let second = coordinator.begin(agentId: "second")
+
+        XCTAssertFalse(coordinator.canApply(first))
+        XCTAssertTrue(coordinator.canApply(second))
+
+        coordinator.cancel()
+        XCTAssertFalse(coordinator.canApply(second))
+    }
+
+    func testDecisionFailureFeedbackIsUserVisibleAndSuccessClearsIt() {
+        XCTAssertEqual(
+            DecisionResolutionFeedback.message(succeeded: false),
+            "Could not send your decision. Check the Agent Panel connection and try again."
+        )
+        XCTAssertNil(DecisionResolutionFeedback.message(succeeded: true))
+    }
+
     func testConcurrentRefreshRequestsCoalesceIntoOneFollowUp() throws {
         var coordinator = DecisionRefreshCoordinator()
 

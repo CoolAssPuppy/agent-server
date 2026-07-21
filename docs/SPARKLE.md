@@ -25,9 +25,8 @@ The default public origin is `https://downloads.strategicnerds.com`. Installed a
    - `R2_BUCKET_NAME`, if the default bucket is not used
    - `R2_PUBLIC_BASE_URL`, if the default public origin is not used
    - `POSTHOG_PUBLIC_KEY`
-   - `SPARKLE_APP_SPECIFIC_PASSWORD`, unless the `agent-server` notarytool keychain profile is configured
 
-The Cloudflare token must be able to write objects to the selected R2 bucket. If Doppler does not provide an app-specific password, configure the fallback notarization profile:
+The Cloudflare token must be able to write objects to the selected R2 bucket. Store notarization credentials in the macOS Keychain so the release scripts never pass the app-specific password through process arguments or child environments:
 
 ```bash
 xcrun notarytool store-credentials agent-server \
@@ -78,7 +77,7 @@ curl -fsSIL https://coolasspuppy.com/agent-server-updates
 
 ## Troubleshooting
 
-- If notarization authentication fails, refresh `SPARKLE_APP_SPECIFIC_PASSWORD` in Doppler or recreate the `agent-server` keychain profile.
+- If notarization authentication fails, recreate the `agent-server` keychain profile.
 - If Sparkle signature generation fails, confirm `SPARKLE_SIGN_UPDATE` points to an executable `sign_update` tool with access to the release key.
 - If R2 upload fails, confirm the Cloudflare token, account ID, bucket name, and public origin in Doppler.
 - If the appcast works but the DMG fails to install, compare its byte length and Ed25519 signature with the enclosure in `dist/appcast.xml`.

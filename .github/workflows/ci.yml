@@ -10,6 +10,8 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - 'scripts/**'
+      - 'README.md'
+      - 'docs/**'
       - 'dist/appcast.xml'
       - '.github/workflows/**'
   pull_request:
@@ -21,6 +23,8 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - 'scripts/**'
+      - 'README.md'
+      - 'docs/**'
       - 'dist/appcast.xml'
       - '.github/workflows/**'
 
@@ -85,6 +89,18 @@ jobs:
 
       - name: Test design compatibility package
         run: swift test --package-path macos-app/AgentServerDesignSystem
+
+      - name: Test EventKit core package
+        run: swift test --package-path macos-app/AgentServerEventKitCore
+
+      - name: Test native EventKit services
+        run: >-
+          xcodebuild
+          -project macos-app/AgentServer.xcodeproj
+          -scheme AgentServerEventKitTests
+          -destination 'platform=macOS'
+          CODE_SIGNING_ALLOWED=NO
+          test
 
       - name: Build unsigned macOS app
         run: >-

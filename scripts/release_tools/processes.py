@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import shlex
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Sequence
 
@@ -31,7 +33,7 @@ class CurlWranglerRemote:
     def read(self, url: str) -> bytes:
         return self._runner.run(("curl", *CURL_READ_FLAGS, url)).stdout
 
-    def require_absent(self, url: str) -> None:
+    def exists(self, url: str) -> bool:
         result = self._runner.run(
             (
                 "curl", *CURL_READ_FLAGS, "--output", "/dev/null",
@@ -41,13 +43,13 @@ class CurlWranglerRemote:
         )
         status = result.stdout.decode().strip()
         if result.returncode == 22 and status == "404":
-            return
-        if result.returncode == 0:
-            raise PublicationError(f"immutable artifact already exists: {url}")
+            return False
+        if result.returncode == 0 and status == "200":
+            return True
         stderr = result.stderr.decode(errors="replace").strip()
         detail = f"; {stderr}" if stderr else ""
         raise PublicationError(
-            f"could not prove immutable artifact absence ({status or 'no status'}): {url}{detail}"
+            f"could not determine artifact state ({status or 'no status'}): {url}{detail}"
         )
 
     def upload(self, source: Path, key: str, content_type: str) -> None:
@@ -68,3 +70,14 @@ class CurlWranglerRemote:
         if not lengths or lengths[-1] != str(expected):
             actual = lengths[-1] if lengths else "missing"
             raise PublicationError(f"content length mismatch for {url}: expected {expected}, got {actual}")
+
+    def require_sha256(self, url: str, expected: str) -> None:
+        with tempfile.TemporaryDirectory(prefix="agent-server-release-") as directory:
+            downloaded = Path(directory) / "artifact.dmg"
+            self._runner.run(("curl", *CURL_READ_FLAGS, "--output", str(downloaded), url))
+            with downloaded.open("rb") as source:
+                actual = hashlib.file_digest(source, "sha256").hexdigest()
+        if actual != expected:
+            raise PublicationError(
+                f"SHA-256 mismatch for immutable artifact {url}: expected {expected}, got {actual}"
+            )

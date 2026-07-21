@@ -64,6 +64,16 @@ final class NativeToolCoreTests: XCTestCase {
         }
     }
 
+    func testPaginationReportsTheMaximumSourceItemsNeededForARequestedPage() throws {
+        let policy = PaginationPolicy(defaultLimit: 2, maximumLimit: 3)
+
+        XCTAssertEqual(try policy.requiredItemCount(arguments: [:]), 3)
+        XCTAssertEqual(
+            try policy.requiredItemCount(arguments: ["limit": 3, "cursor": "4"]),
+            8
+        )
+    }
+
     func testBoundedCallbackReturnsCompletedValue() throws {
         let result: String = try BoundedCallback.wait(timeout: 0.2) { complete in
             complete(.success("granted"))

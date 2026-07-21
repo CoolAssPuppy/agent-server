@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import tempfile
 from dataclasses import dataclass
@@ -22,9 +23,10 @@ class FeedTools(Protocol):
 
 class PublicationRemote(Protocol):
     def read(self, url: str) -> bytes: ...
-    def require_absent(self, url: str) -> None: ...
+    def exists(self, url: str) -> bool: ...
     def upload(self, source: Path, key: str, content_type: str) -> None: ...
     def require_length(self, url: str, expected: int) -> None: ...
+    def require_sha256(self, url: str, expected: str) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -52,16 +54,27 @@ class Publisher:
         self._validate_local_artifacts(plan)
         self._feeds.validate_staged(plan.staged_appcast, plan.expected)
         live = self._remote.read(plan.direct_appcast_url)
-        if self._feeds.digest(live) != plan.baseline_digest:
-            raise PublicationError("live appcast changed after release staging")
         staged = plan.staged_appcast.read_bytes()
-        self._feeds.validate_transition(live, staged, plan.expected)
+        is_feed_published = live == staged
+        if is_feed_published:
+            self._feeds.validate_published(live, plan.expected)
+        else:
+            if self._feeds.digest(live) != plan.baseline_digest:
+                raise PublicationError("live appcast changed after release staging")
+            self._feeds.validate_transition(live, staged, plan.expected)
 
-        self._remote.require_absent(plan.versioned_url)
-        self._remote.upload(plan.dmg, plan.versioned_key, "application/x-apple-diskimage")
+        if self._remote.exists(plan.versioned_url):
+            self._remote.require_sha256(plan.versioned_url, _sha256_file(plan.dmg))
+        else:
+            self._remote.upload(plan.dmg, plan.versioned_key, "application/x-apple-diskimage")
         self._remote.require_length(plan.versioned_url, plan.expected.length)
 
-        self._remote.upload(plan.staged_appcast, plan.appcast_key, "application/xml; charset=utf-8")
+        if not is_feed_published:
+            self._remote.upload(
+                plan.staged_appcast,
+                plan.appcast_key,
+                "application/xml; charset=utf-8",
+            )
         self._feeds.validate_published(self._remote.read(plan.direct_appcast_url), plan.expected)
         self._feeds.validate_published(self._remote.read(plan.dub_appcast_url), plan.expected)
 
@@ -90,14 +103,48 @@ class Publisher:
 
 def atomic_write(path: Path, content: bytes) -> None:
     """Replace one local file only after its complete contents reach disk."""
+    atomic_write_many(((path, content),))
+
+
+def atomic_write_many(updates: tuple[tuple[Path, bytes], ...]) -> None:
+    """Replace related local files together, restoring all originals on failure."""
+    originals = {path: path.read_bytes() if path.exists() else None for path, _ in updates}
+    staged: list[tuple[Path, str]] = []
+    committed: list[Path] = []
+    try:
+        for path, content in updates:
+            staged.append((path, _stage_file(path, content)))
+        for path, temporary in staged:
+            os.replace(temporary, path)
+            committed.append(path)
+    except BaseException as error:
+        try:
+            for path in reversed(committed):
+                original = originals[path]
+                if original is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    os.replace(_stage_file(path, original), path)
+        except BaseException as rollback_error:
+            raise PublicationError(
+                f"metadata update failed and rollback was incomplete: {rollback_error}"
+            ) from error
+        raise
+    finally:
+        for _, temporary in staged:
+            Path(temporary).unlink(missing_ok=True)
+
+
+def _stage_file(path: Path, content: bytes) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
-    try:
-        with os.fdopen(descriptor, "wb") as destination:
-            destination.write(content)
-            destination.flush()
-            os.fsync(destination.fileno())
-        os.replace(temporary_name, path)
-    except BaseException:
-        Path(temporary_name).unlink(missing_ok=True)
-        raise
+    with os.fdopen(descriptor, "wb") as destination:
+        destination.write(content)
+        destination.flush()
+        os.fsync(destination.fileno())
+    return temporary_name
+
+
+def _sha256_file(path: Path) -> str:
+    with path.open("rb") as source:
+        return hashlib.file_digest(source, "sha256").hexdigest()

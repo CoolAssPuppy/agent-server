@@ -221,8 +221,8 @@ def _validate_signature(signature: str) -> None:
         decoded = base64.b64decode(signature, validate=True)
     except (ValueError, binascii.Error) as error:
         raise SparkleSignatureError("Sparkle signature is not valid base64.") from error
-    if not decoded:
-        raise SparkleSignatureError("Sparkle signature is empty.")
+    if len(decoded) != 64:
+        raise SparkleSignatureError("Sparkle Ed25519 signature must decode to 64 bytes.")
 
 
 def _validate_release_fields(release: AppcastRelease) -> None:

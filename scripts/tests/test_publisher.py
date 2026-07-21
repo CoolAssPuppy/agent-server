@@ -1,11 +1,12 @@
 from dataclasses import replace
+import hashlib
 from pathlib import Path
 import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
 
-from scripts.release_tools.cli import build_parser
+from scripts.release_tools.cli import _wrangler, build_parser
 from scripts.release_tools.models import AppcastRelease, Version
 from scripts.release_tools.processes import CURL_READ_FLAGS, CommandRunner, CurlWranglerRemote
 from scripts.release_tools.publisher import PublicationError, PublicationPlan, Publisher
@@ -45,8 +46,9 @@ class RecordingRemote:
         self._record(event)
         return url.rsplit("/", 1)[-1].encode()
 
-    def require_absent(self, url: str) -> None:
-        self._record("require-absent")
+    def exists(self, url: str) -> bool:
+        self._record("exists")
+        return False
 
     def upload(self, source: Path, key: str, content_type: str) -> None:
         self._record(f"upload:{key}")
@@ -54,11 +56,71 @@ class RecordingRemote:
     def require_length(self, url: str, expected: int) -> None:
         self._record(f"length:{url}:{expected}")
 
+    def require_sha256(self, url: str, expected: str) -> None:
+        self._record(f"sha256:{url}:{expected}")
+
+
+class ExistingArtifactRemote(RecordingRemote):
+    def exists(self, url: str) -> bool:
+        self._record("exists")
+        return True
+
+    def require_sha256(self, url: str, expected: str) -> None:
+        raise PublicationError("SHA-256 mismatch for immutable artifact")
+
+
+class ContentDigestFeedTools:
+    def validate_staged(self, path: Path, expected: AppcastRelease) -> None:
+        return None
+
+    def digest(self, content: bytes) -> str:
+        return content.decode()
+
+    def validate_transition(self, live: bytes, staged: bytes, expected: AppcastRelease) -> None:
+        if (live, staged) != (b"old", b"staged"):
+            raise PublicationError("unexpected feed transition")
+
+    def validate_published(self, content: bytes, expected: AppcastRelease) -> None:
+        if content != b"staged":
+            raise PublicationError("published feed mismatch")
+
+
+class ResumableRemote:
+    def __init__(self) -> None:
+        self.feed = b"old"
+        self.present: set[str] = set()
+        self.uploads: list[str] = []
+        self.has_failed_shortlink = False
+
+    def read(self, url: str) -> bytes:
+        if url == "https://dub/appcast.xml" and not self.has_failed_shortlink:
+            self.has_failed_shortlink = True
+            raise PublicationError("transient shortlink failure")
+        return self.feed
+
+    def exists(self, url: str) -> bool:
+        return "versioned" in self.present
+
+    def upload(self, source: Path, key: str, content_type: str) -> None:
+        self.uploads.append(key)
+        self.present.add(key)
+        if key == "appcast":
+            self.feed = source.read_bytes()
+
+    def require_length(self, url: str, expected: int) -> None:
+        return None
+
+    def require_sha256(self, url: str, expected: str) -> None:
+        return None
+
 
 class PublisherTests(unittest.TestCase):
     def test_cli_parser_constructs_without_option_conflicts(self) -> None:
         parser = build_parser()
         self.assertIn("snapshot", parser.format_help())
+
+    def test_uses_only_the_workspace_pinned_wrangler(self) -> None:
+        self.assertEqual(_wrangler(), ["pnpm", "exec", "wrangler"])
 
     def test_publishes_in_safe_order_and_updates_tracked_feed_after_both_verifications(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -82,7 +144,7 @@ class PublisherTests(unittest.TestCase):
                     "read:https://direct/appcast.xml",
                     "digest-live",
                     "validate-transition",
-                    "require-absent",
+                    "exists",
                     "upload:versioned",
                     "length:https://direct/versioned.dmg:3",
                     "upload:appcast",
@@ -107,7 +169,7 @@ class PublisherTests(unittest.TestCase):
                     make_plan(dmg=dmg, staged=staged, tracked=tracked)
                 )
 
-            self.assertNotIn("require-absent", events)
+            self.assertNotIn("exists", events)
             self.assertEqual(tracked.read_bytes(), b"old")
 
     def test_dmg_length_change_stops_before_validation_or_network_activity(self) -> None:
@@ -169,6 +231,19 @@ class PublisherTests(unittest.TestCase):
             self.assertNotIn("upload:latest", events)
             self.assertEqual(tracked.read_bytes(), b"old")
 
+    def test_existing_same_length_versioned_artifact_must_match_local_sha256(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            staged, tracked, dmg = create_files(Path(directory))
+            events: list[str] = []
+
+            with self.assertRaisesRegex(PublicationError, "SHA-256 mismatch"):
+                Publisher(ExistingArtifactRemote(events), RecordingFeedTools(events)).publish(
+                    make_plan(dmg=dmg, staged=staged, tracked=tracked)
+                )
+
+            self.assertNotIn("upload:appcast", events)
+            self.assertEqual(tracked.read_bytes(), b"old")
+
     def test_latest_failure_keeps_tracked_feed_aligned_with_verified_remote_feed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             staged, tracked, dmg = create_files(Path(directory))
@@ -180,6 +255,26 @@ class PublisherTests(unittest.TestCase):
                     make_plan(dmg=dmg, staged=staged, tracked=tracked)
                 )
 
+            self.assertEqual(tracked.read_bytes(), b"staged")
+
+    def test_retry_resumes_after_feed_publication_without_reuploading_immutable_dmg(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            staged, tracked, dmg = create_files(Path(directory))
+            remote = ResumableRemote()
+            feeds = ContentDigestFeedTools()
+            plan = replace(
+                make_plan(dmg=dmg, staged=staged, tracked=tracked),
+                baseline_digest="old",
+            )
+
+            with self.assertRaisesRegex(PublicationError, "transient shortlink failure"):
+                Publisher(remote, feeds).publish(plan)
+
+            Publisher(remote, feeds).publish(plan)
+
+            self.assertEqual(remote.uploads.count("versioned"), 1)
+            self.assertEqual(remote.uploads.count("appcast"), 1)
+            self.assertEqual(remote.uploads.count("latest"), 1)
             self.assertEqual(tracked.read_bytes(), b"staged")
 
 
@@ -222,33 +317,57 @@ class RemoteProcessTests(unittest.TestCase):
         for arguments, _ in runner.calls:
             self.assertEqual(arguments[:5], ["curl", *CURL_READ_FLAGS])
 
-    def test_immutable_absence_accepts_only_curl_fail_404(self) -> None:
+    def test_artifact_state_accepts_only_success_or_curl_fail_404(self) -> None:
         accepted = RecordingRunner([
-            subprocess.CompletedProcess([], 22, stdout=b"404", stderr=b"not found")
+            subprocess.CompletedProcess([], 22, stdout=b"404", stderr=b"not found"),
+            subprocess.CompletedProcess([], 0, stdout=b"200", stderr=b""),
         ])
-        CurlWranglerRemote(accepted, ["wrangler"], "bucket").require_absent("https://dmg")
+        remote = CurlWranglerRemote(accepted, ["wrangler"], "bucket")
+        self.assertFalse(remote.exists("https://missing"))
+        self.assertTrue(remote.exists("https://present"))
 
         for result in (
-            subprocess.CompletedProcess([], 0, stdout=b"200", stderr=b""),
             subprocess.CompletedProcess([], 22, stdout=b"403", stderr=b"forbidden"),
             subprocess.CompletedProcess([], 6, stdout=b"000", stderr=b"dns"),
         ):
             with self.subTest(returncode=result.returncode, status=result.stdout):
                 runner = RecordingRunner([result])
                 with self.assertRaises(PublicationError):
-                    CurlWranglerRemote(runner, ["wrangler"], "bucket").require_absent("https://dmg")
+                    CurlWranglerRemote(runner, ["wrangler"], "bucket").exists("https://dmg")
 
     def test_upload_uses_argument_array_without_shell(self) -> None:
         runner = RecordingRunner([subprocess.CompletedProcess([], 0, stdout=b"", stderr=b"")])
-        remote = CurlWranglerRemote(runner, ["pnpm", "dlx", "wrangler"], "bucket")
+        remote = CurlWranglerRemote(runner, ["pnpm", "exec", "wrangler"], "bucket")
 
         remote.upload(Path("release.dmg"), "key", "application/x-apple-diskimage")
 
         self.assertEqual(
             runner.calls,
-            [(["pnpm", "dlx", "wrangler", "r2", "object", "put", "bucket/key",
+            [(["pnpm", "exec", "wrangler", "r2", "object", "put", "bucket/key",
                "--file=release.dmg", "--content-type=application/x-apple-diskimage", "--remote"], True)],
         )
+
+    def test_sha256_verification_downloads_to_a_cleaned_temporary_file(self) -> None:
+        runner = CommandRunner()
+        download_paths: list[Path] = []
+
+        def download(arguments: object, *, check: bool = True) -> subprocess.CompletedProcess[bytes]:
+            command = list(arguments)
+            output = Path(command[command.index("--output") + 1])
+            output.write_bytes(b"dmg")
+            download_paths.append(output)
+            return subprocess.CompletedProcess(command, 0, stdout=b"", stderr=b"")
+
+        expected = hashlib.sha256(b"dmg").hexdigest()
+        with patch.object(runner, "run", side_effect=download) as run:
+            CurlWranglerRemote(runner, ["wrangler"], "bucket").require_sha256(
+                "https://dmg", expected
+            )
+
+        command = list(run.call_args.args[0])
+        self.assertEqual(command[:5], ["curl", *CURL_READ_FLAGS])
+        self.assertIn("--output", command)
+        self.assertFalse(download_paths[0].exists())
 
     def test_length_verification_rejects_missing_or_different_header(self) -> None:
         for headers in (b"", b"content-length: 4\r\n"):
@@ -297,7 +416,7 @@ def expected_release() -> AppcastRelease:
         minimum_system_version="14.0",
         notes_html="<li>Test</li>",
         enclosure_url="https://direct/versioned.dmg",
-        signature="dGVzdA==",
+        signature="YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYQ==",
         length=3,
         content_type="application/x-apple-diskimage",
     )

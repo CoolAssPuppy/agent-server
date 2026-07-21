@@ -3,16 +3,28 @@ import Contacts
 import EventKit
 import Foundation
 
+protocol NativeAuthorizationProviding {
+    func ensureEventAccess() throws
+    func ensureReminderAccess() throws
+    func ensureContactAccess() throws
+    func fetchReminders(matching predicate: NSPredicate) throws -> [EKReminder]
+}
+
+typealias EventFetcher = (NSPredicate) -> [EKEvent]
+typealias ContactFetcher = (NSPredicate, [CNKeyDescriptor], Int) throws -> [CNContact]
+
 final class EventKitDependencies {
     let store: EKEventStore
     let contactStore: CNContactStore
     let grantPolicy: NativeServiceGrantPolicy
     let calendarScope: [String: String]?
     let pagination: PaginationPolicy
-    let authorization: NativeAuthorization
+    let authorization: any NativeAuthorizationProviding
     let isoFormatter: ISO8601DateFormatter
     private let fractionalISOFormatter: ISO8601DateFormatter
     private let dateOnlyFormatter: DateFormatter
+    private let eventFetcher: EventFetcher
+    private let contactFetcher: ContactFetcher
 
     init(
         store: EKEventStore = EKEventStore(),
@@ -22,18 +34,31 @@ final class EventKitDependencies {
         ),
         calendarScope: [String: String]? = EventKitDependencies.calendarScopeFromEnvironment(),
         pagination: PaginationPolicy = .nativeData,
-        callbackTimeout: TimeInterval = 30
+        callbackTimeout: TimeInterval = 30,
+        authorization: (any NativeAuthorizationProviding)? = nil,
+        eventFetcher: EventFetcher? = nil,
+        contactFetcher: ContactFetcher? = nil
     ) {
         self.store = store
         self.contactStore = contactStore
         self.grantPolicy = grantPolicy
         self.calendarScope = calendarScope
         self.pagination = pagination
-        authorization = NativeAuthorization(
-            store: store,
-            contactStore: contactStore,
-            timeout: callbackTimeout
+        self.authorization = authorization ?? NativeAuthorization(
+            store: store, contactStore: contactStore, timeout: callbackTimeout
         )
+        self.eventFetcher = eventFetcher ?? { store.events(matching: $0) }
+        self.contactFetcher = contactFetcher ?? { predicate, keys, maximumCount in
+            var contacts: [CNContact] = []
+            let request = CNContactFetchRequest(keysToFetch: keys)
+            request.predicate = predicate
+            request.unifyResults = false
+            try contactStore.enumerateContacts(with: request) { contact, stop in
+                contacts.append(contact)
+                if contacts.count >= maximumCount { stop.pointee = true }
+            }
+            return contacts
+        }
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         isoFormatter = formatter
@@ -51,6 +76,35 @@ final class EventKitDependencies {
         return fractionalISOFormatter.date(from: string)
             ?? isoFormatter.date(from: string)
             ?? dateOnlyFormatter.date(from: string)
+    }
+
+    func events(matching predicate: NSPredicate, args: [String: Any]) throws -> [EKEvent] {
+        let required = try requiredItemCount(args: args)
+        // EventKit has no bounded event query. Keep only the requested page
+        // plus one lookahead item as soon as its materialized array returns.
+        return Array(eventFetcher(predicate).prefix(required))
+    }
+
+    func contacts(
+        matching predicate: NSPredicate,
+        keys: [CNKeyDescriptor],
+        args: [String: Any]
+    ) throws -> [CNContact] {
+        try contactFetcher(predicate, keys, requiredItemCount(args: args))
+    }
+
+    func requiredItemCount(args: [String: Any]) throws -> Int {
+        do {
+            return try pagination.requiredItemCount(arguments: args)
+        } catch PaginationError.invalidCursor {
+            throw MCPError.invalidParams("cursor is invalid or no longer available")
+        } catch PaginationError.invalidLimit {
+            throw MCPError.invalidParams("limit must be greater than zero")
+        } catch PaginationError.invalidLimitType {
+            throw MCPError.invalidParams("limit must be an integer")
+        } catch PaginationError.invalidCursorType {
+            throw MCPError.invalidParams("cursor must be a string")
+        }
     }
 
     func page<Element>(_ values: [Element], args: [String: Any]) throws -> Page<Element> {

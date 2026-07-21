@@ -305,11 +305,13 @@ describe('ScheduleSync', () => {
     appendFileSync(join(dir, 'a.yaml'), '\n# touch 2\n');
     writeAgent('b.yaml', 'id: y\nname: Y\nprompt: q\n');
 
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await vi.waitFor(
+      () => expect(fetchFn.mock.calls.length).toBeGreaterThanOrEqual(2),
+      { timeout: 1_000 },
+    );
 
     sync.stop();
 
-    expect(fetchFn.mock.calls.length).toBeGreaterThanOrEqual(2);
     expect(fetchFn.mock.calls.length).toBeLessThanOrEqual(3);
   });
 

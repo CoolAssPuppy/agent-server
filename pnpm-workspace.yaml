@@ -14,6 +14,11 @@ overrides:
   hono: 4.12.30
   # GHSA-96hv-2xvq-fx4p applies to the /ws endpoint through @hono/node-ws.
   ws: 8.21.0
+  # MCP SDK currently resolves Express through advisory-affected parser helpers.
+  # These compatible patch floors keep the bundled runtime's production graph
+  # clear until the upstream range advances.
+  body-parser: 2.3.0
+  qs: 6.15.2
 
 allowBuilds:
   # esbuild's postinstall fetches the platform-specific binary used by
@@ -22,3 +27,7 @@ allowBuilds:
   # @parcel/watcher's prebuilt binary keeps tsx --watch fast; falls
   # back to polling without it.
   '@parcel/watcher': true
+  # Wrangler uses sharp for image handling and workerd for its pinned local
+  # runtime. Both install platform-specific binaries required by the CLI.
+  sharp: true
+  workerd: true

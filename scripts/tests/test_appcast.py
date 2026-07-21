@@ -18,7 +18,10 @@ from scripts.release_tools.models import (
 )
 
 
-def item(version: str, build: int, signature: str = "YWFh") -> str:
+VALID_SIGNATURE = "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYQ=="
+
+
+def item(version: str, build: int, signature: str = VALID_SIGNATURE) -> str:
     return f'''    <item>
       <title>Version {version}</title>
       <pubDate>Mon, 20 Jul 2026 21:05:22 +0000</pubDate>
@@ -50,8 +53,10 @@ def feed(*items: str) -> str:
 
 class SparkleSignatureTests(unittest.TestCase):
     def test_parses_signature_and_positive_length(self) -> None:
-        parsed = parse_sparkle_signature('sparkle:edSignature="YWFh" length="191714452"')
-        self.assertEqual(parsed.signature, "YWFh")
+        parsed = parse_sparkle_signature(
+            f'sparkle:edSignature="{VALID_SIGNATURE}" length="191714452"'
+        )
+        self.assertEqual(parsed.signature, VALID_SIGNATURE)
         self.assertEqual(parsed.length, 191714452)
 
     def test_rejects_missing_duplicate_or_malformed_signature_fields(self) -> None:
@@ -60,6 +65,7 @@ class SparkleSignatureTests(unittest.TestCase):
             'sparkle:edSignature="%%%" length="123"',
             'sparkle:edSignature="YWFh" length="0"',
             'sparkle:edSignature="YWFh" sparkle:edSignature="YWFh" length="123"',
+            'sparkle:edSignature="YWFh" length="123"',
         )
         for sample in samples:
             with self.subTest(sample=sample), self.assertRaises(SparkleSignatureError):
@@ -204,7 +210,7 @@ def release(version: Version, build: int, notes: str = "<li>New release</li>") -
         minimum_system_version="14.0",
         notes_html=notes,
         enclosure_url=f"https://downloads.example/AgentServer-{version}.dmg",
-        signature="YWFh",
+        signature=VALID_SIGNATURE,
         length=456,
         content_type="application/x-apple-diskimage",
     )

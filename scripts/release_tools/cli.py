@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import shutil
 import sys
 from pathlib import Path
 from typing import Sequence
@@ -18,7 +17,14 @@ from .metadata import (
 )
 from .models import AppcastRelease, ReleaseToolError, Version
 from .processes import CommandRunner, CurlWranglerRemote
-from .publisher import FeedTools, PublicationError, PublicationPlan, Publisher, atomic_write
+from .publisher import (
+    FeedTools,
+    PublicationError,
+    PublicationPlan,
+    Publisher,
+    atomic_write,
+    atomic_write_many,
+)
 
 
 class AppcastFeedTools(FeedTools):
@@ -91,9 +97,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             version, build, local_version, local_build,
             (item.version for item in releases), (item.build for item in releases),
         )
-        atomic_write(args.project, update_project_metadata(project_text, version, build).encode())
-        atomic_write(args.package, update_server_package_version(package_text, version).encode())
-        verify_release_metadata(args.project.read_text(), args.package.read_text(), version, build)
+        updated_project = update_project_metadata(project_text, version, build)
+        updated_package = update_server_package_version(package_text, version)
+        verify_release_metadata(updated_project, updated_package, version, build)
+        atomic_write_many((
+            (args.project, updated_project.encode()),
+            (args.package, updated_package.encode()),
+        ))
         print(build)
         return 0
     signature = parse_sparkle_signature(args.signature_file.read_text())
@@ -146,7 +156,7 @@ def _expected_release(args: argparse.Namespace, signature: str, length: int) -> 
 
 
 def _wrangler() -> list[str]:
-    return ["wrangler"] if shutil.which("wrangler") else ["pnpm", "dlx", "wrangler"]
+    return ["pnpm", "exec", "wrangler"]
 
 
 if __name__ == "__main__":

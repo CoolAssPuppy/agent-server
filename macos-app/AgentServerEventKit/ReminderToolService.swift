@@ -64,7 +64,10 @@ final class ReminderToolService: NativeToolService {
             predicate = dependencies.store.predicateForReminders(in: calendars)
         }
 
-        let fetched = try dependencies.authorization.fetchReminders(matching: predicate)
+        let required = try dependencies.requiredItemCount(args: args)
+        // EventKit's reminder callback has no limit parameter. Bound its full
+        // callback result before constructing response dictionaries.
+        let fetched = try dependencies.authorization.fetchReminders(matching: predicate).prefix(required)
 
         let reminders = fetched.map { reminder -> [String: Any] in
             var item: [String: Any] = [

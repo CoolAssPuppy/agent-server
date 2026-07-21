@@ -28,15 +28,9 @@ APP_PATH="${1:?Usage: $0 <path-to-Agent-Server.app> <version> <notarytool-profil
 VERSION="${2:?Usage: $0 <path-to-Agent-Server.app> <version> <notarytool-profile>}"
 NOTARY_PROFILE="${3:?Usage: $0 <path-to-Agent-Server.app> <version> <notarytool-profile>}"
 
-# Notarization auth: inline Doppler credentials (exported by release.sh) when
-# available, else the keychain profile passed as $3.
-if [ -n "${NOTARY_PASSWORD:-}" ]; then
-  NOTARY_AUTH=(--apple-id "${NOTARY_APPLE_ID:?NOTARY_APPLE_ID required with NOTARY_PASSWORD}" \
-    --team-id "${NOTARY_TEAM_ID:?NOTARY_TEAM_ID required with NOTARY_PASSWORD}" \
-    --password "$NOTARY_PASSWORD")
-else
-  NOTARY_AUTH=(--keychain-profile "$NOTARY_PROFILE")
-fi
+run_notarytool() {
+  xcrun notarytool "$@" --keychain-profile "$NOTARY_PROFILE"
+}
 
 SIGN_UPDATE="${SPARKLE_SIGN_UPDATE:-$HOME/bin/sparkle/sign_update}"
 
@@ -116,7 +110,7 @@ codesign --force --sign "$SIGN_IDENTITY" --timestamp "$DMG_OUT"
 # Notarize the DMG. Sparkle 2 refuses to install an un-notarized DMG on macOS,
 # so this is required, not optional.
 echo "Notarizing DMG (this can take several minutes)..."
-xcrun notarytool submit "$DMG_OUT" "${NOTARY_AUTH[@]}" --wait
+run_notarytool submit "$DMG_OUT" --wait
 
 echo ""
 echo "Stapling notarization ticket..."

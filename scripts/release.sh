@@ -18,7 +18,7 @@
 #   - create-dmg installed (brew install create-dmg)
 #   - doppler CLI logged in with access to the agent-server/prd config
 #     (provides CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, R2_BUCKET_NAME, R2_PUBLIC_BASE_URL)
-#   - wrangler available (npm i -g wrangler) or npx on PATH
+#   - workspace dependencies installed with pnpm
 #   - python3 on PATH (for appcast manipulation)
 #   - xcodegen on PATH
 #
@@ -46,26 +46,7 @@ DUB_SHORTLINK="https://coolasspuppy.com/agent-server-updates"
 DOPPLER_PROJECT="agent-server"
 DOPPLER_CONFIG="prd"
 
-# Notarization auth. Prefer inline credentials sourced from Doppler so a release
-# works on any machine with Doppler access — no per-machine `notarytool
-# store-credentials` keychain bootstrap required. Falls back to the keychain
-# profile when the app-specific password isn't in Doppler.
-NOTARY_APPLE_ID="${NOTARY_APPLE_ID:-prashant_sridharan@hotmail.com}"
-NOTARY_TEAM_ID="955GSY56UT"
-NOTARY_PASSWORD="$(doppler secrets get SPARKLE_APP_SPECIFIC_PASSWORD \
-  --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" --plain 2>/dev/null || true)"
-if [ -n "$NOTARY_PASSWORD" ]; then
-  NOTARY_AUTH=(--apple-id "$NOTARY_APPLE_ID" --team-id "$NOTARY_TEAM_ID" --password "$NOTARY_PASSWORD")
-else
-  NOTARY_AUTH=(--keychain-profile "$NOTARY_PROFILE")
-fi
-export NOTARY_APPLE_ID NOTARY_TEAM_ID NOTARY_PASSWORD
-
-if command -v wrangler >/dev/null 2>&1; then
-  WRANGLER=(wrangler)
-else
-  WRANGLER=(pnpm dlx wrangler)
-fi
+WRANGLER=(pnpm exec wrangler)
 
 #----------------------------------------------------------------------
 # Preflight
@@ -78,14 +59,7 @@ for tool in xcodebuild xcodegen create-dmg doppler python3 "$SPARKLE_SIGN_UPDATE
 done
 
 if ! "${WRANGLER[@]}" --version >/dev/null 2>&1; then
-  echo "Error: wrangler not available. Install with: npm i -g wrangler"
-  exit 1
-fi
-
-if ! xcrun notarytool history "${NOTARY_AUTH[@]}" >/dev/null 2>&1; then
-  echo "Error: notarization credentials invalid (using ${NOTARY_AUTH[0]})."
-  echo "Ensure SPARKLE_APP_SPECIFIC_PASSWORD is set in Doppler $DOPPLER_PROJECT/$DOPPLER_CONFIG,"
-  echo "or store a keychain profile: xcrun notarytool store-credentials \"$NOTARY_PROFILE\" --apple-id ... --team-id ... --password ..."
+  echo "Error: pinned wrangler is unavailable. Run pnpm install --frozen-lockfile."
   exit 1
 fi
 
@@ -180,10 +154,20 @@ fi
 #----------------------------------------------------------------------
 # 6. Notarize + staple the .app
 #----------------------------------------------------------------------
+run_notarytool() {
+  xcrun notarytool "$@" --keychain-profile "$NOTARY_PROFILE"
+}
+
+if ! run_notarytool history >/dev/null 2>&1; then
+  echo "Error: notarization keychain profile '$NOTARY_PROFILE' is missing or invalid."
+  echo "Store it with: xcrun notarytool store-credentials \"$NOTARY_PROFILE\" --apple-id ... --team-id ... --password ..."
+  exit 1
+fi
+
 echo "==> Notarizing .app (takes a few minutes)"
 APP_ZIP="$DIST/export-$VERSION/AgentServer.app.zip"
 ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$APP_ZIP"
-xcrun notarytool submit "$APP_ZIP" "${NOTARY_AUTH[@]}" --wait
+run_notarytool submit "$APP_ZIP" --wait
 rm -f "$APP_ZIP"
 
 echo "==> Stapling .app"

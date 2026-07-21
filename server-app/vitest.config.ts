@@ -20,6 +20,12 @@ export default defineConfig({
         functions: 83.5,
         branches: 76.5,
         statements: 82,
+        'src/server/server.ts': {
+          lines: 65,
+          functions: 58,
+          branches: 55,
+          statements: 65,
+        },
       },
     },
   },

@@ -46,17 +46,17 @@ final class ContactsToolService: NativeToolService {
         } else {
             predicate = CNContact.predicateForContactsInGroup(withIdentifier: groupId)
         }
-        var contacts: [CNContact] = []
         do {
-            let request = CNContactFetchRequest(keysToFetch: keys)
-            request.predicate = predicate
-            request.unifyResults = false
-            try dependencies.contactStore.enumerateContacts(with: request) { contact, _ in
-                contacts.append(contact)
-            }
+            let contacts = try dependencies.contacts(matching: predicate, keys: keys, args: args)
+            return try response(contacts: contacts, fields: fields, args: args)
+        } catch let error as MCPError {
+            throw error
         } catch {
             throw MCPError.toolFailed("Failed to read the selected contact group: \(error.localizedDescription)")
         }
+    }
+
+    private func response(contacts: [CNContact], fields: Set<String>, args: [String: Any]) throws -> String {
         let values = contacts.map { contact -> [String: Any] in
             var value: [String: Any] = [:]
             if fields.contains("name") {
@@ -74,4 +74,3 @@ final class ContactsToolService: NativeToolService {
     }
 
 }
-

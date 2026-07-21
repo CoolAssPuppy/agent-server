@@ -39,13 +39,11 @@ function minimumVersion(engineRequirement: string): string {
   return match[1];
 }
 
-function scriptCommand(script: string, commandPrefix: string): string {
-  const command = script
+function findPnpmDeployCommand(script: string): string | undefined {
+  return script
     .split('\n')
     .map((line) => line.trim())
-    .find((line) => line.startsWith(commandPrefix));
-  if (!command) throw new Error(`Command not found in project script: ${commandPrefix}`);
-  return command;
+    .find((line) => line.startsWith('pnpm ') && line.includes(' deploy --prod'));
 }
 
 describe('release documentation policy', () => {
@@ -62,16 +60,14 @@ describe('release documentation policy', () => {
     const readme = await readRepositoryFile('README.md');
     const nodeMinimum = minimumVersion(manifest.engines.node);
     const pnpmMinimum = minimumVersion(manifest.engines.pnpm);
-    const bundleScript = project.targets.AgentServer.preBuildScripts
-      .map(({ script }) => script)
-      .find((script) => script.includes('pnpm --filter @agent-server/core deploy'));
-    if (!bundleScript) {
+    const bundle = project.targets.AgentServer.preBuildScripts
+      .map(({ script }) => ({ script, command: findPnpmDeployCommand(script) }))
+      .find(({ command }) => command !== undefined);
+    if (!bundle?.command) {
       throw new Error('Production bundle script not found in macos-app/project.yml');
     }
-    const bundleCommand = scriptCommand(
-      bundleScript,
-      'pnpm --filter @agent-server/core deploy',
-    );
+    const bundleScript = bundle.script;
+    const bundleCommand = bundle.command;
 
     expect(serverManifest.version).toBe(
       project.targets.AgentServer.settings.base.MARKETING_VERSION,

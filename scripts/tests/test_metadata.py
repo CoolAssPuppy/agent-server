@@ -1,6 +1,10 @@
 import json
+from pathlib import Path
+import tempfile
 import unittest
+from unittest.mock import patch
 
+from scripts.release_tools.cli import main
 from scripts.release_tools.metadata import (
     compute_next_build,
     read_project_metadata,
@@ -28,6 +32,26 @@ settings:
     POSTHOG_API_KEY: "$(POSTHOG_API_KEY)"
 '''.lstrip()
 
+LIVE_APPCAST = '''<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Agent Server</title>
+    <language>en</language>
+    <item>
+      <title>Version 3.2.0</title>
+      <pubDate>Mon, 20 Jul 2026 21:05:22 +0000</pubDate>
+      <sparkle:version>32</sparkle:version>
+      <sparkle:shortVersionString>3.2.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<ul><li>Existing</li></ul>]]></description>
+      <enclosure url="https://downloads.example/AgentServer-3.2.0.dmg"
+        sparkle:edSignature="YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYQ=="
+        length="123" type="application/x-apple-diskimage" />
+    </item>
+  </channel>
+</rss>
+'''
+
 
 class VersionTests(unittest.TestCase):
     def test_new_versions_require_three_numeric_components(self) -> None:
@@ -49,6 +73,33 @@ class VersionTests(unittest.TestCase):
 
 
 class MetadataTests(unittest.TestCase):
+    def test_prepare_rolls_back_both_metadata_files_when_second_replace_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            project = root / "project.yml"
+            package = root / "package.json"
+            live = root / "appcast.xml"
+            project.write_text(PROJECT)
+            original_package = '{"name":"agent-server","version":"3.2.0"}\n'
+            package.write_text(original_package)
+            live.write_text(LIVE_APPCAST)
+            real_replace = __import__("os").replace
+
+            def fail_package_replace(source: object, destination: object) -> None:
+                if Path(destination) == package:
+                    raise OSError("simulated package replace failure")
+                real_replace(source, destination)
+
+            with patch("scripts.release_tools.publisher.os.replace", side_effect=fail_package_replace):
+                with self.assertRaisesRegex(OSError, "simulated package replace failure"):
+                    main([
+                        "prepare", "--version", "3.3.0", "--project", str(project),
+                        "--package", str(package), "--live", str(live),
+                    ])
+
+            self.assertEqual(project.read_text(), PROJECT)
+            self.assertEqual(package.read_text(), original_package)
+
     def test_reads_and_updates_project_and_package_metadata(self) -> None:
         version, build = read_project_metadata(PROJECT)
         self.assertEqual(version, Version(3, 2, 0))

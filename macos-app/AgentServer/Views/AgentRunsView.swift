@@ -11,6 +11,8 @@ struct AgentRunsView: View {
     @State private var loadError: String?
     @State private var pollTimer: Timer?
     @State private var selectionCoordinator = RunSelectionCoordinator()
+    @State private var refreshCoordinator = RunRefreshCoordinator()
+    @State private var refreshTask: Task<Void, Never>?
     @ObservedObject private var router = DrawerRouter.shared
 
     @Environment(\.nTheme) private var theme
@@ -28,10 +30,6 @@ struct AgentRunsView: View {
         _selectedRunId = State(initialValue: initiallySelectedRunId)
     }
 
-    private var agentName: String? {
-        monitor.agents.first(where: { $0.id == agentId })?.name
-    }
-
     private var hasActiveRuns: Bool {
         runs.contains { $0.isActive }
     }
@@ -47,7 +45,7 @@ struct AgentRunsView: View {
                     .frame(maxWidth: .infinity)
             }
         }
-        .task(id: agentId) { await fetchRuns() }
+        .task(id: agentId) { requestRefresh() }
         .onChange(of: agentId) { _, _ in
             // Switching agents while the Runs tab is open must reset the
             // selection and list — otherwise the header updates to the new
@@ -58,15 +56,19 @@ struct AgentRunsView: View {
             isLoading = true
             loadError = nil
             stopPolling()
+            requestRefresh()
         }
         .onChange(of: monitor.activeRuns.count) { _, _ in
-            Task { await fetchRuns() }
+            requestRefresh()
         }
         .onChange(of: hasActiveRuns) { _, isActive in
             if isActive { startPolling() } else { stopPolling() }
         }
         .task(id: selectedRunId) { await loadSelectedRun(selectedRunId) }
-        .onDisappear { stopPolling() }
+        .onDisappear {
+            stopPolling()
+            cancelRefresh()
+        }
     }
 
     // MARK: - Polling
@@ -75,7 +77,7 @@ struct AgentRunsView: View {
         stopPolling()
         pollTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { _ in
             Task { @MainActor in
-                await fetchRuns()
+                requestRefresh()
                 if let id = selectedRunId,
                    runs.first(where: { $0.runId == id })?.isActive == true {
                     await loadSelectedRun(id)
@@ -87,6 +89,18 @@ struct AgentRunsView: View {
     private func stopPolling() {
         pollTimer?.invalidate()
         pollTimer = nil
+    }
+
+    private func requestRefresh() {
+        refreshTask?.cancel()
+        let token = refreshCoordinator.begin(agentId: agentId)
+        refreshTask = Task { await fetchRuns(token) }
+    }
+
+    private func cancelRefresh() {
+        refreshCoordinator.cancel()
+        refreshTask?.cancel()
+        refreshTask = nil
     }
 
     // MARK: - Run list
@@ -132,7 +146,7 @@ struct AgentRunsView: View {
                     Task {
                         monitor.cancelRun(id: selectedRunId)
                         try? await Task.sleep(nanoseconds: 1_000_000_000)
-                        await fetchRuns()
+                        requestRefresh()
                     }
                 },
                 onDelete: {
@@ -141,7 +155,7 @@ struct AgentRunsView: View {
                             try? await localClient.deleteRun(id: selectedRunId)
                         }
                         self.selectedRunId = nil
-                        await fetchRuns()
+                        requestRefresh()
                     }
                 },
                 onDebug: run.status == .failed ? {
@@ -160,8 +174,9 @@ struct AgentRunsView: View {
 
     // MARK: - Data fetching
 
-    private func fetchRuns() async {
-        if let demoRuns = monitor.demoRuns(for: agentId) {
+    private func fetchRuns(_ token: RunRefreshCoordinator.Token) async {
+        if let demoRuns = monitor.demoRuns(for: token.agentId) {
+            guard refreshCoordinator.canApply(token), !Task.isCancelled else { return }
             runs = demoRuns
             isLoading = false
             loadError = nil
@@ -170,8 +185,8 @@ struct AgentRunsView: View {
         }
         do {
             let fetched: [Run]
-            if let panelRuns = try await fetchFromPanel() {
-                let localRuns = (try? await fetchFromLocalServer()) ?? []
+            if let panelRuns = try await fetchFromPanel(agentId: token.agentId) {
+                let localRuns = (try? await fetchFromLocalServer(agentId: token.agentId)) ?? []
                 fetched = StableRunMerge.merge(
                     panel: panelRuns,
                     local: localRuns,
@@ -179,8 +194,9 @@ struct AgentRunsView: View {
                     isActive: \Run.isActive
                 )
             } else {
-                fetched = try await fetchFromLocalServer()
+                fetched = try await fetchFromLocalServer(agentId: token.agentId)
             }
+            guard refreshCoordinator.canApply(token), !Task.isCancelled else { return }
             runs = fetched
             isLoading = false
             loadError = nil
@@ -189,18 +205,20 @@ struct AgentRunsView: View {
                 selectedRunId = first.runId
             }
         } catch {
+            guard refreshCoordinator.canApply(token), !Task.isCancelled else { return }
             isLoading = false
             loadError = "Could not load runs"
         }
     }
 
-    private func fetchFromPanel() async throws -> [Run]? {
-        guard let panelClient, let name = agentName else { return nil }
+    private func fetchFromPanel(agentId: String) async throws -> [Run]? {
+        guard let panelClient,
+              let name = monitor.agents.first(where: { $0.id == agentId })?.name else { return nil }
         let panelRuns = try await panelClient.fetchRuns(agent: name)
         return panelRuns.map { $0.toRun(agentId: agentId) }
     }
 
-    private func fetchFromLocalServer() async throws -> [Run] {
+    private func fetchFromLocalServer(agentId: String) async throws -> [Run] {
         try await localClient.runsForAgent(id: agentId)
     }
 

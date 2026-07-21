@@ -84,3 +84,33 @@ struct DecisionResolutionTransaction {
         activeTokens.removeAll()
     }
 }
+
+struct RunRefreshCoordinator {
+    struct Token: Equatable {
+        let agentId: String
+        fileprivate let generation: Int
+    }
+
+    private var generation = 0
+
+    mutating func begin(agentId: String) -> Token {
+        generation += 1
+        return Token(agentId: agentId, generation: generation)
+    }
+
+    func canApply(_ token: Token) -> Bool {
+        token.generation == generation
+    }
+
+    mutating func cancel() {
+        generation += 1
+    }
+}
+
+enum DecisionResolutionFeedback {
+    static func message(succeeded: Bool) -> String? {
+        succeeded
+            ? nil
+            : "Could not send your decision. Check the Agent Panel connection and try again."
+    }
+}

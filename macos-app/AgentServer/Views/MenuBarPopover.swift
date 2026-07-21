@@ -137,6 +137,14 @@ struct MenuBarPopover: View {
                 )
                 .padding(.horizontal, NSpacing.md)
             }
+            if let message = monitor.decisionResolutionError {
+                Text(message)
+                    .font(NTypography.captionSmall)
+                    .foregroundStyle(theme.tokens.error)
+                    .padding(.horizontal, NSpacing.lg)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityLabel("Decision error: \(message)")
+            }
         }
         .padding(.bottom, NSpacing.md)
     }

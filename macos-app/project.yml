@@ -12,10 +12,10 @@ packages:
     path: AgentServerDesignSystem
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
-    from: "2.6.0"
+    exactVersion: "2.9.1"
   PostHog:
     url: https://github.com/PostHog/posthog-ios
-    from: "3.0.0"
+    exactVersion: "3.50.0"
 
 settings:
   base:
@@ -36,14 +36,6 @@ targets:
     sources:
       - path: AgentServer
       - path: AgentServerSwiftTests/Sources/AgentServerCore
-      - path: ../server-app/dist
-        buildPhase: resources
-        type: folder
-      - path: ../server-app/package.json
-        buildPhase: resources
-      - path: .build-cache/server-bundle/node_modules
-        buildPhase: resources
-        type: folder
     dependencies:
       - package: AgentServerDesignSystem
       - package: Sparkle
@@ -79,6 +71,11 @@ targets:
           STAGING="${SRCROOT}/.build-cache/server-bundle"
           HASH_FILE="$STAGING/.installed-lock-hash"
 
+          echo "Building the bundled server..."
+          cd "$ROOT_DIR"
+          pnpm install --frozen-lockfile
+          pnpm --filter @agent-server/core build
+
           if [ ! -f "$ROOT_DIR/pnpm-lock.yaml" ]; then
             echo "error: pnpm-lock.yaml missing at $ROOT_DIR; run pnpm install at the agent-server root first"
             exit 1
@@ -103,7 +100,7 @@ targets:
           # "damaged". Then strip the .bin shims (the app runs `node dist/cli.js`
           # directly and never uses them) so ZERO symlinks remain in the bundle.
           cd "$ROOT_DIR"
-          pnpm --filter @agent-server/core deploy --prod --legacy --config.node-linker=hoisted "$STAGING"
+          pnpm --filter @agent-server/core --config.inject-workspace-packages=true deploy --prod --offline --config.node-linker=hoisted "$STAGING"
           find "$STAGING/node_modules" -name ".bin" -type d -prune -exec rm -rf {} + 2>/dev/null || true
 
           echo "$CURRENT_HASH" > "$HASH_FILE"
@@ -113,6 +110,21 @@ targets:
       - name: Embed and sign helper plus vendored binaries
         script: |
           set -e
+
+          ROOT_DIR="${SRCROOT}/.."
+          RESOURCES_DIR="${BUILT_PRODUCTS_DIR}/${WRAPPER_NAME}/Contents/Resources"
+          STAGING="${SRCROOT}/.build-cache/server-bundle"
+
+          if [ ! -f "$ROOT_DIR/server-app/dist/cli.js" ] || [ ! -d "$STAGING/node_modules" ]; then
+            echo "error: bundled server inputs are missing; the pre-build phase did not complete"
+            exit 1
+          fi
+
+          mkdir -p "$RESOURCES_DIR"
+          rm -rf "$RESOURCES_DIR/dist" "$RESOURCES_DIR/node_modules"
+          cp -R "$ROOT_DIR/server-app/dist" "$RESOURCES_DIR/dist"
+          cp "$ROOT_DIR/server-app/package.json" "$RESOURCES_DIR/package.json"
+          cp -R "$STAGING/node_modules" "$RESOURCES_DIR/node_modules"
 
           HELPER_SRC="${BUILT_PRODUCTS_DIR}/agent-server-eventkit"
           HELPERS_DIR="${BUILT_PRODUCTS_DIR}/${WRAPPER_NAME}/Contents/Helpers"
@@ -180,6 +192,23 @@ targets:
         CREATE_INFOPLIST_SECTION_IN_BINARY: YES
         SKIP_INSTALL: YES
         ENABLE_HARDENED_RUNTIME: true
+
+  AgentServerEventKitTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - AgentServerEventKitTests
+      - path: AgentServerEventKit
+        excludes:
+          - main.swift
+          - Info.plist
+      - path: AgentServerSwiftTests/Sources/AgentServerCore/NativeServiceGrantPolicy.swift
+    dependencies:
+      - package: AgentServerEventKitCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.strategicnerds.agent-server.eventkit-tests
+        GENERATE_INFOPLIST_FILE: YES
 
   AgentServerUITests:
     type: bundle.ui-testing

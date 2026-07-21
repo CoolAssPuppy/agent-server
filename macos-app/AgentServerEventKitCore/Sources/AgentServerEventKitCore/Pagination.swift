@@ -59,6 +59,20 @@ public struct PaginationPolicy: Sendable {
         return try page(values, limit: limit, cursor: cursor)
     }
 
+    /// Number of source records needed to produce a page and determine whether
+    /// another page exists. Fetchers that support early termination should stop
+    /// after this many records instead of materializing the full data set.
+    public func requiredItemCount(arguments: [String: Any]) throws -> Int {
+        let requestedLimit = try typedValue(arguments["limit"], as: Int.self, error: .invalidLimitType)
+        let cursor = try typedValue(arguments["cursor"], as: String.self, error: .invalidCursorType)
+        let offset = try decode(cursor)
+        if let requestedLimit, requestedLimit < 1 { throw PaginationError.invalidLimit }
+        let limit = min(requestedLimit ?? defaultLimit, maximumLimit)
+        let (pageEnd, overflowed) = offset.addingReportingOverflow(limit)
+        guard !overflowed, pageEnd < Int.max else { throw PaginationError.invalidCursor }
+        return pageEnd + 1
+    }
+
     private func decode(_ cursor: String?) throws -> Int {
         guard let cursor else { return 0 }
         guard let offset = Int(cursor), offset >= 0 else {

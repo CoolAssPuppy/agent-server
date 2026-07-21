@@ -648,7 +648,7 @@ curl -X POST http://localhost:47821/runs/{runId}/cancel
 curl http://localhost:47821/health
 
 # WebSocket for real-time run progress
-wscat -c ws://localhost:47821/ws
+wscat -c ws://localhost:47821/ws -H "Authorization: Bearer $AGENT_SERVER_API_KEY"
 ```
 
 The trigger endpoint returns `202 Accepted` with `{ "runId": "...", "agentId": "..." }`. The run executes asynchronously. Poll `/runs/{runId}` for status, or connect to the WebSocket for real-time events.
@@ -672,7 +672,7 @@ The server also applies a secure-enough-soon control set by default:
 
 ### WebSocket streaming
 
-Connect to `ws://localhost:47821/ws` for real-time run events. Events are JSON objects with type `run_started`, `run_progress`, `run_completed`, or `run_failed`:
+Connect to `ws://localhost:47821/ws` with the same API-key header for real-time run events. Events are JSON objects with type `run_started`, `run_progress`, `run_completed`, or `run_failed`:
 
 ```json
 {
@@ -817,7 +817,7 @@ A native Swift app that lives in the menu bar for monitoring and controlling age
 
 - **Menu bar monitoring**: Icon shows server status at a glance. Turns yellow when agents are actively running. Dropdown shows active runs and scheduled agent count.
 - **Real-time updates**: Connects to the server via WebSocket (`ws://localhost:47821/ws`) for instant run progress. Falls back to HTTP polling if WebSocket disconnects.
-- **Native notifications**: Fires a macOS notification when any agent starts, completes, or fails. Completion notifications include a brief summary from the agent's final message. Uses `UNUserNotificationCenter` and prompts for authorization on first launch.
+- **Native notifications**: Fires a macOS notification when an agent completes, fails, or times out. Completion notifications include a brief summary from the agent's final message. Uses `UNUserNotificationCenter` and prompts for authorization on first launch.
 - **Calendar and Reminders integration**: Bundled `agent-server-eventkit` helper binary exposes EventKit to agents through a stdio MCP server. Every agent run gets automatic access to tools like `list_events`, `create_event`, `list_reminders`, and `create_reminder`. Calendar and Reminders permissions are requested on first launch via `EKEventStore.requestFullAccess*`.
 - **Agent list**: All discovered agents with kind-based icons and colors (scheduled, interactive, watcher, chained, on-demand). Disabled agents show a "Disabled" pill.
 - **Agent editor**: View and edit agent definition files with Markdown and YAML syntax highlighting. Save with Cmd+S. Enable/disable agents with a toggle.
@@ -840,7 +840,7 @@ xcodebuild -project AgentServer.xcodeproj -scheme AgentServer build
 
 Or open `AgentServer.xcodeproj` in Xcode after running `xcodegen generate`.
 
-The build consumes the root `pnpm-lock.yaml` and stages the production server with `pnpm --filter @agent-server/core deploy --prod --legacy --config.node-linker=hoisted "$STAGING"`. The staged package is copied into `Contents/Resources/`, so the installed app does not download dependencies at runtime.
+The build consumes the root `pnpm-lock.yaml` and stages the production server with `pnpm --filter @agent-server/core --config.inject-workspace-packages=true deploy --prod --offline --config.node-linker=hoisted "$STAGING"`. The staged package is copied into `Contents/Resources/`, so the installed app does not download dependencies at runtime.
 
 ### Architecture
 
