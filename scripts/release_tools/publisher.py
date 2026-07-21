@@ -64,7 +64,7 @@ class Publisher:
             self._feeds.validate_transition(live, staged, plan.expected)
 
         if self._remote.exists(plan.versioned_url):
-            self._remote.require_sha256(plan.versioned_url, _sha256_file(plan.dmg))
+            self._remote.require_sha256(plan.versioned_url, sha256_file(plan.dmg))
         else:
             self._remote.upload(plan.dmg, plan.versioned_key, "application/x-apple-diskimage")
         self._remote.require_length(plan.versioned_url, plan.expected.length)
@@ -124,7 +124,11 @@ def atomic_write_many(updates: tuple[tuple[Path, bytes], ...]) -> None:
                 if original is None:
                     path.unlink(missing_ok=True)
                 else:
-                    os.replace(_stage_file(path, original), path)
+                    restoration = _stage_file(path, original)
+                    try:
+                        os.replace(restoration, path)
+                    finally:
+                        Path(restoration).unlink(missing_ok=True)
         except BaseException as rollback_error:
             raise PublicationError(
                 f"metadata update failed and rollback was incomplete: {rollback_error}"
@@ -138,13 +142,17 @@ def atomic_write_many(updates: tuple[tuple[Path, bytes], ...]) -> None:
 def _stage_file(path: Path, content: bytes) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
-    with os.fdopen(descriptor, "wb") as destination:
-        destination.write(content)
-        destination.flush()
-        os.fsync(destination.fileno())
-    return temporary_name
+    try:
+        with os.fdopen(descriptor, "wb") as destination:
+            destination.write(content)
+            destination.flush()
+            os.fsync(destination.fileno())
+        return temporary_name
+    except BaseException:
+        Path(temporary_name).unlink(missing_ok=True)
+        raise
 
 
-def _sha256_file(path: Path) -> str:
+def sha256_file(path: Path) -> str:
     with path.open("rb") as source:
         return hashlib.file_digest(source, "sha256").hexdigest()

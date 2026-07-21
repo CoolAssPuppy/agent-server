@@ -60,9 +60,13 @@ struct DecisionResolutionTransaction {
     private var generation = 0
     private var nextSequence = 0
     private var activeTokens: [String: Token] = [:]
+    private var failedDecisionIds: Set<String> = []
+
+    var hasFailures: Bool { !failedDecisionIds.isEmpty }
 
     mutating func begin(decisionId: String) -> Token? {
         guard activeTokens[decisionId] == nil else { return nil }
+        failedDecisionIds.remove(decisionId)
         nextSequence += 1
         let token = Token(
             decisionId: decisionId,
@@ -76,12 +80,18 @@ struct DecisionResolutionTransaction {
     mutating func finish(_ token: Token, succeeded: Bool) -> Bool? {
         guard activeTokens[token.decisionId] == token else { return nil }
         activeTokens[token.decisionId] = nil
+        if succeeded {
+            failedDecisionIds.remove(token.decisionId)
+        } else {
+            failedDecisionIds.insert(token.decisionId)
+        }
         return succeeded
     }
 
     mutating func cancelAll() {
         generation += 1
         activeTokens.removeAll()
+        failedDecisionIds.removeAll()
     }
 }
 
@@ -108,9 +118,6 @@ struct RunRefreshCoordinator {
 }
 
 enum DecisionResolutionFeedback {
-    static func message(succeeded: Bool) -> String? {
-        succeeded
-            ? nil
-            : "Could not send your decision. Check the Agent Panel connection and try again."
-    }
+    static let failureMessage =
+        "Could not send your decision. Check the Agent Panel connection and try again."
 }

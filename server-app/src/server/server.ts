@@ -79,6 +79,20 @@ const MANAGED_SERVICE_STOP_TIMEOUT_MS = 10_000;
 const DEFAULT_INTERACTION_TIMEOUT_MS = 30 * 60 * 1000;
 const DEFAULT_CONVERSATION_TTL_MS = 30 * 60 * 1000;
 
+export async function drainPendingTasks(
+  tasks: ReadonlySet<Promise<void>>,
+  timeoutMs: number,
+): Promise<boolean> {
+  if (tasks.size === 0) return true;
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => resolve(false), timeoutMs);
+    void Promise.allSettled([...tasks]).then(() => {
+      clearTimeout(timeout);
+      resolve(true);
+    });
+  });
+}
+
 export { extractMcpNeedsAuthServers } from './run-lifecycle.js';
 
 /**
@@ -260,6 +274,23 @@ export function startServer(
   const conversationStore = new ConversationStore();
   const channelDispatcher = new ChannelDispatcher();
   const port = config.port;
+  const backgroundTasks = new Set<Promise<void>>();
+  let isStopping = false;
+
+  function startBackgroundTask(
+    work: () => Promise<void>,
+    onError: (error: unknown) => void,
+  ): void {
+    if (isStopping) return;
+    const task = work()
+      .catch(onError)
+      .finally(() => backgroundTasks.delete(task));
+    backgroundTasks.add(task);
+  }
+
+  function isExpectedShutdownError(error: unknown): boolean {
+    return isStopping && toErrorMessage(error) === 'Server is shutting down.';
+  }
 
   const executorRegistry = createDefaultExecutorRegistry();
   const connectionProfileStore = new ConnectionProfileStore(join(config.agentsDir, '..', 'connections.json'));
@@ -374,6 +405,7 @@ export function startServer(
   const fireDownstreamTriggers = createDownstreamTriggerHandler({
     discover: () => discoverAgents(config.agentsDir),
     trigger: async (agent, chain) => {
+      if (isStopping) return;
       await checkedTriggerRunForAgent(agent, { chain }, 'chain');
     },
     maxDepth: config.maxTriggerDepth,
@@ -407,7 +439,10 @@ export function startServer(
     resolveTimeoutMs: (agent) => resolveRunTimeoutMs(agent, config),
     notify: sendNotification,
     onInteraction: handleInteractionResult,
-    onTerminal: fireDownstreamTriggers,
+    onTerminal: (agent, status, chain) => {
+      if (isStopping) return;
+      return fireDownstreamTriggers(agent, status, chain);
+    },
   });
 
   function triggerRunForAgent(agent: AgentConfig, options: TriggerRunOptions = {}): string {
@@ -474,7 +509,9 @@ export function startServer(
   const SLEEP_GAP_MULTIPLIER = 2;
 
   async function runDueAgents(): Promise<void> {
+    if (isStopping) return;
     const agents = await discoverAgents(config.agentsDir);
+    if (isStopping) return;
     const now = new Date();
 
     if (config.catchUp) {
@@ -483,10 +520,12 @@ export function startServer(
         console.log(`[catch-up] Detected sleep gap of ${Math.round(gap / 1000)}s, checking for missed agents`);
         const missedAgents = agents.filter((agent) => hasMissedRun(agent, lastCheckedAt, now));
         for (const agent of missedAgents) {
+          if (isStopping) break;
           try {
             console.log(`[catch-up] Triggering missed agent: ${agent.id}`);
             await checkedTriggerRunForAgent(agent, {}, 'schedule');
           } catch (err) {
+            if (isExpectedShutdownError(err)) break;
             console.error(`[catch-up] ${agent.id}: error - ${err}`);
           }
         }
@@ -501,9 +540,11 @@ export function startServer(
     console.log(`[${now.toISOString()}] ${dueAgents.length} agent(s) due: ${dueAgents.map((a) => a.id).join(', ')}`);
 
     for (const agent of dueAgents) {
+      if (isStopping) break;
       try {
         await checkedTriggerRunForAgent(agent, {}, 'schedule');
       } catch (err) {
+        if (isExpectedShutdownError(err)) break;
         console.error(`  ${agent.id}: error - ${err}`);
       }
     }
@@ -714,10 +755,17 @@ export function startServer(
     const manager = new AgentFileWatchManager({
       agentsDir: config.agentsDir,
       onChange: (agentId, filePath) => {
-        console.log(`[file-watch] ${filePath} changed, triggering ${agentId}`);
-        void triggerAutomaticRun(agentId, undefined, 'watcher').catch((err) => {
-          console.error(`[file-watch] Failed to trigger ${agentId}: ${err}`);
-        });
+        startBackgroundTask(
+          async () => {
+            console.log(`[file-watch] ${filePath} changed, triggering ${agentId}`);
+            await triggerAutomaticRun(agentId, undefined, 'watcher');
+          },
+          (error) => {
+            if (!isExpectedShutdownError(error)) {
+              console.error(`[file-watch] Failed to trigger ${agentId}: ${error}`);
+            }
+          },
+        );
       },
       onReconcile: (watchCount) => {
         console.log(`  File watches: ${watchCount} path(s)`);
@@ -755,6 +803,7 @@ export function startServer(
   }
 
   async function handleChannelMessage(text: string, sink: ChatChannelSink): Promise<void> {
+    if (isStopping) return;
     try {
       const activeConv = conversationStore.findActiveByChat(sink.chatKey);
       if (activeConv) {
@@ -820,6 +869,7 @@ export function startServer(
       await sink.notifyText(`Running ${agent.name}...`);
     } catch (err) {
       const msg = toErrorMessage(err);
+      if (isExpectedShutdownError(err)) return;
       console.error(`[${sink.channelName}] Message routing failed: ${msg}`);
       void sink.notifyText(`Error: ${msg}`);
     }
@@ -827,6 +877,7 @@ export function startServer(
 
   // Route an interaction reply (button tap / free text) to the on_reply agent.
   function handleInteractionReply(channelName: string, reply: { interactionId: string; selectedValue?: string; freeText?: string }): void {
+    if (isStopping) return;
     const interaction = interactionStore.get(reply.interactionId);
     if (!interaction || interaction.status !== 'pending') return;
 
@@ -835,9 +886,14 @@ export function startServer(
     if (!promptSuffix) return;
 
     console.log(`[${channelName}] Reply for ${interaction.agentId}, triggering ${interaction.replyAgentId}`);
-    void triggerAutomaticRun(interaction.replyAgentId, promptSuffix, 'interaction').catch((err) => {
-      console.error(`[${channelName}] Failed to trigger ${interaction.replyAgentId}: ${err}`);
-    });
+    startBackgroundTask(
+      () => triggerAutomaticRun(interaction.replyAgentId, promptSuffix, 'interaction').then(() => {}),
+      (error) => {
+        if (!isExpectedShutdownError(error)) {
+          console.error(`[${channelName}] Failed to trigger ${interaction.replyAgentId}: ${error}`);
+        }
+      },
+    );
   }
 
   async function setupTelegram(): Promise<void> {
@@ -858,12 +914,15 @@ export function startServer(
     telegramChannel.onMessage((text) => {
       const chatId = telegramChannel.getChatId();
       if (!chatId) return;
-      void handleChannelMessage(text, {
-        channelName: 'telegram',
-        chatKey: chatId,
-        notifyText: (m) => telegramChannel.notifyText(m),
-        notify: (d) => telegramChannel.notify(d),
-      });
+      startBackgroundTask(
+        () => handleChannelMessage(text, {
+          channelName: 'telegram',
+          chatKey: chatId,
+          notifyText: (m) => telegramChannel.notifyText(m),
+          notify: (d) => telegramChannel.notify(d),
+        }),
+        (error) => console.error(`[telegram] Message routing failed: ${toErrorMessage(error)}`),
+      );
     });
 
     channelDispatcher.register(telegramChannel);
@@ -889,12 +948,15 @@ export function startServer(
     slackChannel.onMessage((text) => {
       const channelId = slackChannel.getChannelId();
       if (!channelId) return;
-      void handleChannelMessage(text, {
-        channelName: 'slack',
-        chatKey: chatKeyFromString(channelId),
-        notifyText: (m) => slackChannel.notifyText(m),
-        notify: (d) => slackChannel.notify(d),
-      });
+      startBackgroundTask(
+        () => handleChannelMessage(text, {
+          channelName: 'slack',
+          chatKey: chatKeyFromString(channelId),
+          notifyText: (m) => slackChannel.notifyText(m),
+          notify: (d) => slackChannel.notify(d),
+        }),
+        (error) => console.error(`[slack] Message routing failed: ${toErrorMessage(error)}`),
+      );
     });
 
     channelDispatcher.register(slackChannel);
@@ -959,7 +1021,6 @@ export function startServer(
   let stopManagedServices = async (): Promise<void> => {};
   let interval: NodeJS.Timeout | undefined;
   let expiryInterval: NodeJS.Timeout | undefined;
-  let isStopping = false;
   let startupFailed = false;
   let stopping: Promise<void> | undefined;
 
@@ -976,13 +1037,17 @@ export function startServer(
         return;
       }
 
-      void runDueAgents().catch((error) => {
-        console.error(`[scheduler] Initial schedule check failed: ${toErrorMessage(error)}`);
-      });
+      startBackgroundTask(
+        runDueAgents,
+        (error) => console.error(
+          `[scheduler] Initial schedule check failed: ${toErrorMessage(error)}`,
+        ),
+      );
       interval = setInterval(() => {
-        void runDueAgents().catch((error) => {
-          console.error(`[scheduler] Schedule check failed: ${toErrorMessage(error)}`);
-        });
+        startBackgroundTask(
+          runDueAgents,
+          (error) => console.error(`[scheduler] Schedule check failed: ${toErrorMessage(error)}`),
+        );
       }, config.checkIntervalMs);
       expiryInterval = setInterval(expireStaleState, 60_000);
     } catch (error) {
@@ -1003,12 +1068,12 @@ export function startServer(
     if (stopping) return stopping;
     stopping = (async () => {
       isStopping = true;
-      await ready.catch(() => {});
-      if (startupFailed) return;
-
+      runLifecycle.stopAccepting();
       if (interval) clearInterval(interval);
       if (expiryInterval) clearInterval(expiryInterval);
       if (pendingReplayInterval) clearInterval(pendingReplayInterval);
+      await ready.catch(() => {});
+      if (startupFailed) return;
 
       const shutdownErrors: Error[] = [];
       const attempt = async (operation: () => Promise<void> | void): Promise<void> => {
@@ -1022,12 +1087,26 @@ export function startServer(
       await attempt(() => closeHttpServer(httpServer));
       await attempt(stopManagedServices);
       await attempt(() => triggerHandler?.drain());
-      await attempt(() => runLifecycle.drain({
-        overallTimeoutMs: SHUTDOWN_DRAIN_TIMEOUT_MS,
-        perRunTimeoutMs: SHUTDOWN_PER_RUN_TIMEOUT_MS,
-      }));
-      await attempt(() => store.close());
-      await attempt(() => analysisRuntime.close());
+      let didDrainBackgroundTasks = false;
+      await attempt(async () => {
+        didDrainBackgroundTasks = await drainPendingTasks(
+          backgroundTasks,
+          SHUTDOWN_DRAIN_TIMEOUT_MS,
+        );
+      });
+      let didDrainRuns = false;
+      await attempt(async () => {
+        didDrainRuns = await runLifecycle.drain({
+          overallTimeoutMs: SHUTDOWN_DRAIN_TIMEOUT_MS,
+          perRunTimeoutMs: SHUTDOWN_PER_RUN_TIMEOUT_MS,
+        });
+      });
+      if (didDrainBackgroundTasks && didDrainRuns) {
+        await attempt(() => store.close());
+        await attempt(() => analysisRuntime.close());
+      } else {
+        console.warn('[shutdown] Work drain timed out; keeping stores open for terminal bookkeeping');
+      }
 
       console.log('Agent Server stopped.');
       if (shutdownErrors.length === 1) throw shutdownErrors[0];

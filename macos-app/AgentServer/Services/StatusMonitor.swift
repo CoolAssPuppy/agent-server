@@ -40,7 +40,6 @@ final class StatusMonitor: ObservableObject {
     private var decisionResolutionTasks: [String: Task<Void, Never>] = [:]
     var webSocketTask: URLSessionWebSocketTask?
     var webSocketSession: URLSession?
-    var webSocketDelegate: WebSocketOpenDelegate?
     var webSocketReconnectTask: Task<Void, Never>?
     var webSocketState = WebSocketReconnectState()
     var webSocketGeneration = 0
@@ -191,11 +190,11 @@ final class StatusMonitor: ObservableObject {
             panelClient = PanelClient.fromEnv()
         }
         guard let panelClient else {
-            decisionResolutionError = DecisionResolutionFeedback.message(succeeded: false)
+            decisionResolutionError = DecisionResolutionFeedback.failureMessage
             return
         }
         guard let token = decisionResolutionTransaction.begin(decisionId: id) else { return }
-        decisionResolutionError = nil
+        updateDecisionResolutionError()
 
         decisionResolutionTasks[id] = Task { [weak self] in
             let succeeded: Bool
@@ -219,7 +218,7 @@ final class StatusMonitor: ObservableObject {
         ) else { return }
 
         decisionResolutionTasks[token.decisionId] = nil
-        decisionResolutionError = DecisionResolutionFeedback.message(succeeded: shouldCommit)
+        updateDecisionResolutionError()
         guard shouldCommit else { return }
         pendingDecisions.removeAll { $0.id == token.decisionId }
         Telemetry.capture(
@@ -231,8 +230,15 @@ final class StatusMonitor: ObservableObject {
 
     private func cancelDecisionResolutions() {
         decisionResolutionTransaction.cancelAll()
+        updateDecisionResolutionError()
         decisionResolutionTasks.values.forEach { $0.cancel() }
         decisionResolutionTasks.removeAll()
+    }
+
+    private func updateDecisionResolutionError() {
+        decisionResolutionError = decisionResolutionTransaction.hasFailures
+            ? DecisionResolutionFeedback.failureMessage
+            : nil
     }
 
     private func startDecisionRefresh(_ token: DecisionRefreshCoordinator.Token) {

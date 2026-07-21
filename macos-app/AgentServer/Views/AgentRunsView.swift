@@ -45,7 +45,7 @@ struct AgentRunsView: View {
                     .frame(maxWidth: .infinity)
             }
         }
-        .task(id: agentId) { requestRefresh() }
+        .onAppear { requestRefresh() }
         .onChange(of: agentId) { _, _ in
             // Switching agents while the Runs tab is open must reset the
             // selection and list — otherwise the header updates to the new

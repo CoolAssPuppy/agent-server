@@ -315,4 +315,44 @@ describe('run lifecycle', () => {
     expect(store.get(runId)).toMatchObject({ status: 'failed', error: 'Canceled' });
     expect(lifecycle.cancel(runId)).toBe(false);
   });
+
+  it('rejects new runs as soon as shutdown admission closes', async () => {
+    const { lifecycle, store } = createHarness();
+
+    lifecycle.stopAccepting();
+
+    expect(() => lifecycle.trigger(makeAgent())).toThrow('Server is shutting down.');
+    expect(store.list()).toEqual([]);
+  });
+
+  it('reports when terminal work remains after the bounded drain', async () => {
+    let finishRun: ((result: RunResult) => void) | undefined;
+    const run = vi.fn(() => new Promise<RunResult>((resolve) => {
+      finishRun = resolve;
+    }));
+    const store = new RunStore();
+    const lifecycle = createRunLifecycle({
+      maxConcurrentRuns: 1,
+      lockDir: '/tmp/agent-server-lifecycle-test-locks',
+      runTimeoutMs: 30_000,
+      store,
+      broadcaster: new ProgressBroadcaster(),
+      execute: vi.fn(),
+      createReporter: () => reporter,
+      run,
+      notify: vi.fn(),
+      onInteraction: vi.fn(),
+      onTerminal: vi.fn(),
+    });
+
+    const runId = lifecycle.trigger(makeAgent());
+    lifecycle.stopAccepting();
+
+    await expect(lifecycle.drain({ overallTimeoutMs: 5, perRunTimeoutMs: 5 }))
+      .resolves.toBe(false);
+    finishRun?.({ runId, status: 'failed', error: 'Canceled' });
+    await lifecycle.waitForTerminal(runId);
+
+    expect(store.get(runId)).toMatchObject({ status: 'failed', error: 'Canceled' });
+  });
 });

@@ -31,9 +31,10 @@ export type TriggerRunOptions = {
 
 export type RunLifecycle = {
   trigger: (agent: AgentConfig, options?: TriggerRunOptions) => string;
+  stopAccepting: () => void;
   cancel: (runId: string) => boolean;
   waitForTerminal: (runId: string) => Promise<void>;
-  drain: (timeouts: { overallTimeoutMs: number; perRunTimeoutMs: number }) => Promise<void>;
+  drain: (timeouts: { overallTimeoutMs: number; perRunTimeoutMs: number }) => Promise<boolean>;
 };
 
 type RunLifecycleDependencies = {
@@ -79,8 +80,12 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
   const terminalWaiters = new Map<string, Promise<void>>();
   const terminalResolvers = new Map<string, () => void>();
   const run = dependencies.run ?? runAgent;
+  let isAccepting = true;
 
   function trigger(agent: AgentConfig, options: TriggerRunOptions = {}): string {
+    if (!isAccepting) {
+      throw new Error('Server is shutting down.');
+    }
     if (activeControllers.size >= dependencies.maxConcurrentRuns) {
       throw new Error('Too many active runs. Please retry later.');
     }
@@ -319,23 +324,32 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
     return true;
   }
 
+  function stopAccepting(): void {
+    isAccepting = false;
+  }
+
   function waitForTerminal(runId: string): Promise<void> {
     return terminalWaiters.get(runId) ?? Promise.resolve();
   }
 
-  async function drain(timeouts: { overallTimeoutMs: number; perRunTimeoutMs: number }): Promise<void> {
+  async function drain(
+    timeouts: { overallTimeoutMs: number; perRunTimeoutMs: number },
+  ): Promise<boolean> {
     const runIds = [...activeControllers.keys()];
-    if (runIds.length === 0) return;
+    if (runIds.length === 0) return true;
     console.log(`[shutdown] Aborting ${runIds.length} active run(s); draining terminals`);
     for (const controller of activeControllers.values()) controller.abort();
     const waits = runIds.map((runId) => Promise.race([
-      waitForTerminal(runId),
-      delay(timeouts.perRunTimeoutMs),
+      waitForTerminal(runId).then(() => true),
+      delay(timeouts.perRunTimeoutMs).then(() => false),
     ]));
-    await Promise.race([Promise.all(waits).then(() => undefined), delay(timeouts.overallTimeoutMs)]);
+    return Promise.race([
+      Promise.all(waits).then((results) => results.every(Boolean)),
+      delay(timeouts.overallTimeoutMs).then(() => false),
+    ]);
   }
 
-  return { trigger, cancel, waitForTerminal, drain };
+  return { trigger, stopAccepting, cancel, waitForTerminal, drain };
 }
 
 function delay(durationMs: number): Promise<void> {

@@ -25,7 +25,6 @@ extension StatusMonitor {
         let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
         let task = session.webSocketTask(with: request)
         webSocketSession = session
-        webSocketDelegate = delegate
         webSocketTask = task
         task.resume()
         receiveWebSocketMessage(generation: generation)
@@ -39,7 +38,6 @@ extension StatusMonitor {
         webSocketTask = nil
         webSocketSession?.invalidateAndCancel()
         webSocketSession = nil
-        webSocketDelegate = nil
         webSocketState.reset()
     }
 
@@ -61,7 +59,6 @@ extension StatusMonitor {
                     self.webSocketTask = nil
                     self.webSocketSession?.invalidateAndCancel()
                     self.webSocketSession = nil
-                    self.webSocketDelegate = nil
                     self.scheduleWebSocketReconnect()
                 }
             }
@@ -117,7 +114,7 @@ extension StatusMonitor {
     }
 }
 
-final class WebSocketOpenDelegate: NSObject, URLSessionWebSocketDelegate {
+private final class WebSocketOpenDelegate: NSObject, URLSessionWebSocketDelegate {
     private let onOpen: @Sendable () -> Void
 
     init(onOpen: @escaping @Sendable () -> Void) { self.onOpen = onOpen }
@@ -131,7 +128,7 @@ final class WebSocketOpenDelegate: NSObject, URLSessionWebSocketDelegate {
     }
 }
 
-enum ProgressEventType: String, Decodable {
+private enum ProgressEventType: String, Decodable {
     case runStarted = "run_started"
     case runProgress = "run_progress"
     case runCompleted = "run_completed"
@@ -146,7 +143,7 @@ enum ProgressEventType: String, Decodable {
     }
 }
 
-struct ProgressEvent: Decodable {
+private struct ProgressEvent: Decodable {
     let type: ProgressEventType
     let runId: String
     let agentId: String

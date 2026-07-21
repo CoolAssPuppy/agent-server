@@ -15,7 +15,6 @@ typealias ContactFetcher = (NSPredicate, [CNKeyDescriptor], Int) throws -> [CNCo
 
 final class EventKitDependencies {
     let store: EKEventStore
-    let contactStore: CNContactStore
     let grantPolicy: NativeServiceGrantPolicy
     let calendarScope: [String: String]?
     let pagination: PaginationPolicy
@@ -40,7 +39,6 @@ final class EventKitDependencies {
         contactFetcher: ContactFetcher? = nil
     ) {
         self.store = store
-        self.contactStore = contactStore
         self.grantPolicy = grantPolicy
         self.calendarScope = calendarScope
         self.pagination = pagination
@@ -94,22 +92,22 @@ final class EventKitDependencies {
     }
 
     func requiredItemCount(args: [String: Any]) throws -> Int {
-        do {
-            return try pagination.requiredItemCount(arguments: args)
-        } catch PaginationError.invalidCursor {
-            throw MCPError.invalidParams("cursor is invalid or no longer available")
-        } catch PaginationError.invalidLimit {
-            throw MCPError.invalidParams("limit must be greater than zero")
-        } catch PaginationError.invalidLimitType {
-            throw MCPError.invalidParams("limit must be an integer")
-        } catch PaginationError.invalidCursorType {
-            throw MCPError.invalidParams("cursor must be a string")
+        try translatingPaginationErrors {
+            try pagination.requiredItemCount(arguments: args)
         }
     }
 
     func page<Element>(_ values: [Element], args: [String: Any]) throws -> Page<Element> {
+        try translatingPaginationErrors {
+            try pagination.page(values, arguments: args)
+        }
+    }
+
+    private func translatingPaginationErrors<Value>(
+        _ operation: () throws -> Value
+    ) throws -> Value {
         do {
-            return try pagination.page(values, arguments: args)
+            return try operation()
         } catch PaginationError.invalidCursor {
             throw MCPError.invalidParams("cursor is invalid or no longer available")
         } catch PaginationError.invalidLimit {

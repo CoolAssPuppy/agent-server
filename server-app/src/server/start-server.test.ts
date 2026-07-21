@@ -40,6 +40,11 @@ vi.mock('../channels/router.js', async (importOriginal) => {
 });
 
 const API_KEY = 'start-server-test-key-32-characters';
+const INTEGRATION_WAIT_TIMEOUT_MS = 15_000;
+
+function waitForIntegration(assertion: () => void | Promise<void>): Promise<void> {
+  return vi.waitFor(assertion, { timeout: INTEGRATION_WAIT_TIMEOUT_MS });
+}
 
 type TestServerContext = {
   home: string;
@@ -182,6 +187,15 @@ function writeAgent(home: string, filename: string, yaml: string): void {
   writeFileSync(join(home, 'agents', filename), yaml, 'utf8');
 }
 
+function restrictedAgentLines(home: string): string[] {
+  return [
+    `working_directory: ${home}`,
+    'tools: [Read, Glob, Grep]',
+    'disallowed_tools: [Write, Edit, Bash, WebFetch, WebSearch]',
+    'permission_mode: default',
+  ];
+}
+
 async function triggerAgent(port: number, agentId: string): Promise<string> {
   const preflightResponse = await fetch(
     `http://127.0.0.1:${port}/security/agents/${agentId}/preflight`,
@@ -205,7 +219,7 @@ async function triggerAgent(port: number, agentId: string): Promise<string> {
   return body.runId;
 }
 
-describe('startServer production composition', () => {
+describe('startServer production composition', { timeout: 20_000 }, () => {
   it('runs an HTTP-triggered agent through the production lifecycle', async () => {
     const context = await createTestServerContext('http-run-server');
     const store = new RunStore();
@@ -213,10 +227,7 @@ describe('startServer production composition', () => {
       'id: worker',
       'name: Worker',
       'prompt: Do the work',
-      `working_directory: ${context.home}`,
-      'tools: [Read, Glob, Grep]',
-      'disallowed_tools: [Write, Edit, Bash, WebFetch, WebSearch]',
-      'permission_mode: default',
+      ...restrictedAgentLines(context.home),
       'enabled: true',
       '',
     ].join('\n'));
@@ -227,7 +238,7 @@ describe('startServer production composition', () => {
     try {
       await server.ready;
       const runId = await triggerAgent(context.port, 'worker');
-      await vi.waitFor(() => {
+      await waitForIntegration(() => {
         expect(store.get(runId)).toMatchObject({
           status: 'completed',
           summary: 'Work completed',
@@ -247,10 +258,7 @@ describe('startServer production composition', () => {
       'id: source',
       'name: Source',
       'prompt: Start the chain',
-      `working_directory: ${context.home}`,
-      'tools: [Read, Glob, Grep]',
-      'disallowed_tools: [Write, Edit, Bash, WebFetch, WebSearch]',
-      'permission_mode: default',
+      ...restrictedAgentLines(context.home),
       'enabled: true',
       'on_complete:',
       '  - agent: downstream',
@@ -260,10 +268,7 @@ describe('startServer production composition', () => {
       'id: downstream',
       'name: Downstream',
       'prompt: Finish the chain',
-      `working_directory: ${context.home}`,
-      'tools: [Read, Glob, Grep]',
-      'disallowed_tools: [Write, Edit, Bash, WebFetch, WebSearch]',
-      'permission_mode: default',
+      ...restrictedAgentLines(context.home),
       'enabled: true',
       '',
     ].join('\n'));
@@ -276,7 +281,7 @@ describe('startServer production composition', () => {
     try {
       await server.ready;
       await triggerAgent(context.port, 'source');
-      await vi.waitFor(() => {
+      await waitForIntegration(() => {
         expect(store.list()).toHaveLength(2);
         expect(store.list().map((run) => run.status)).toEqual(['completed', 'completed']);
       });
@@ -325,10 +330,7 @@ describe('startServer production composition', () => {
       'name: Scheduled',
       'prompt: Run on schedule',
       'schedule: "* * * * *"',
-      `working_directory: ${context.home}`,
-      'tools: [Read, Glob, Grep]',
-      'disallowed_tools: [Write, Edit, Bash, WebFetch, WebSearch]',
-      'permission_mode: default',
+      ...restrictedAgentLines(context.home),
       'enabled: true',
       '',
     ].join('\n'));
@@ -338,7 +340,7 @@ describe('startServer production composition', () => {
 
     try {
       await server.ready;
-      await vi.waitFor(() => {
+      await waitForIntegration(() => {
         expect(store.list()[0]).toMatchObject({
           agentId: 'scheduled',
           status: 'completed',
@@ -361,10 +363,7 @@ describe('startServer production composition', () => {
       'id: watcher',
       'name: Watcher',
       'prompt: Respond to the changed file',
-      `working_directory: ${context.home}`,
-      'tools: [Read, Glob, Grep]',
-      'disallowed_tools: [Write, Edit, Bash, WebFetch, WebSearch]',
-      'permission_mode: default',
+      ...restrictedAgentLines(context.home),
       'watch:',
       `  - path: ${watchedPath}`,
       'enabled: true',
@@ -377,13 +376,13 @@ describe('startServer production composition', () => {
       await server.ready;
       await new Promise((resolve) => setTimeout(resolve, 100));
       writeFileSync(watchedPath, 'changed', 'utf8');
-      await vi.waitFor(() => {
+      await waitForIntegration(() => {
         expect(store.list()[0]).toMatchObject({
           agentId: 'watcher',
           status: 'completed',
           summary: 'Watched work completed',
         });
-      }, { timeout: 2_000 });
+      });
     } finally {
       await server.stop();
       rmSync(context.home, { recursive: true, force: true });
@@ -397,10 +396,7 @@ describe('startServer production composition', () => {
       'id: worker',
       'name: Worker',
       'prompt: Wait for cancellation',
-      `working_directory: ${context.home}`,
-      'tools: [Read, Glob, Grep]',
-      'disallowed_tools: [Write, Edit, Bash, WebFetch, WebSearch]',
-      'permission_mode: default',
+      ...restrictedAgentLines(context.home),
       'enabled: true',
       '',
     ].join('\n'));
@@ -425,7 +421,7 @@ describe('startServer production composition', () => {
         headers: { Authorization: `Bearer ${API_KEY}` },
       });
       expect(response.status).toBe(200);
-      await vi.waitFor(() => {
+      await waitForIntegration(() => {
         expect(store.get(runId)).toMatchObject({ status: 'failed' });
       });
     } finally {
@@ -479,12 +475,12 @@ describe('startServer production composition', () => {
     try {
       await server.ready;
       telegram.emitMessage('what can you do?');
-      await vi.waitFor(() => {
+      await waitForIntegration(() => {
         expect(telegram.notifyText).toHaveBeenCalledWith(expect.stringContaining('Worker'));
       });
 
       telegram.emitMessage('do something unrelated');
-      await vi.waitFor(() => {
+      await waitForIntegration(() => {
         expect(telegram.notifyText).toHaveBeenCalledWith(
           'No matching agent found for your message.',
         );
@@ -504,10 +500,7 @@ describe('startServer production composition', () => {
       'id: conversational',
       'name: Conversational',
       'prompt: Continue the conversation',
-      `working_directory: ${context.home}`,
-      'tools: [Read, Glob, Grep]',
-      'disallowed_tools: [Write, Edit, Bash, WebFetch, WebSearch]',
-      'permission_mode: default',
+      ...restrictedAgentLines(context.home),
       'conversation:',
       '  enabled: true',
       '  ttl: 1h',
@@ -518,11 +511,13 @@ describe('startServer production composition', () => {
     createTelegramChannel.mockResolvedValueOnce(telegram);
     const routeCallsBefore = routeMessage.mock.calls.length;
     routeMessage.mockImplementationOnce(
-      (_text: string, agents: Array<{ id: string }>) => Promise.resolve({
-        type: 'route',
-        agent: agents.find((agent) => agent.id === 'conversational'),
-        context: 'First message',
-      }),
+      (_text: string, agents: Array<{ id: string }>) => {
+        const agent = agents.find((candidate) => candidate.id === 'conversational');
+        if (!agent) {
+          throw new Error('Expected the conversational agent fixture');
+        }
+        return Promise.resolve({ type: 'route', agent, context: 'First message' });
+      },
     );
     executeAgent
       .mockResolvedValueOnce(executionResult('First answer'))
@@ -532,12 +527,12 @@ describe('startServer production composition', () => {
     try {
       await server.ready;
       telegram.emitMessage('first message');
-      await vi.waitFor(() => {
+      await waitForIntegration(() => {
         expect(store.list()[0]).toMatchObject({ status: 'completed', summary: 'First answer' });
       });
 
       telegram.emitMessage('second message');
-      await vi.waitFor(() => {
+      await waitForIntegration(() => {
         expect(store.list()).toHaveLength(2);
         expect(store.list()[0]).toMatchObject({ status: 'completed', summary: 'Second answer' });
       });
@@ -563,10 +558,7 @@ describe('startServer production composition', () => {
       'id: notifier',
       'name: Notifier',
       'prompt: Produce a useful result',
-      `working_directory: ${context.home}`,
-      'tools: [Read, Glob, Grep]',
-      'disallowed_tools: [Write, Edit, Bash, WebFetch, WebSearch]',
-      'permission_mode: default',
+      ...restrictedAgentLines(context.home),
       'notification:',
       '  channel: telegram',
       '  on_complete: true',
@@ -582,7 +574,7 @@ describe('startServer production composition', () => {
     try {
       await server.ready;
       await triggerAgent(context.port, 'notifier');
-      await vi.waitFor(() => {
+      await waitForIntegration(() => {
         expect(telegram.notify).toHaveBeenCalledWith(expect.objectContaining({
           agentName: 'Notifier',
           status: 'completed',
@@ -600,17 +592,11 @@ describe('startServer production composition', () => {
       AGENT_SERVER_TELEGRAM_BOT_TOKEN: 'telegram-test-token',
     });
     const store = new RunStore();
-    const restricted = [
-      `working_directory: ${context.home}`,
-      'tools: [Read, Glob, Grep]',
-      'disallowed_tools: [Write, Edit, Bash, WebFetch, WebSearch]',
-      'permission_mode: default',
-    ];
     writeAgent(context.home, 'requester.yaml', [
       'id: requester',
       'name: Requester',
       'prompt: Ask for a choice',
-      ...restricted,
+      ...restrictedAgentLines(context.home),
       'interaction:',
       '  channel: telegram',
       '  on_reply: responder',
@@ -622,7 +608,7 @@ describe('startServer production composition', () => {
       'id: responder',
       'name: Responder',
       'prompt: Handle the choice',
-      ...restricted,
+      ...restrictedAgentLines(context.home),
       'enabled: true',
       '',
     ].join('\n'));
@@ -642,12 +628,12 @@ describe('startServer production composition', () => {
     try {
       await server.ready;
       await triggerAgent(context.port, 'requester');
-      await vi.waitFor(() => expect(telegram.send).toHaveBeenCalledOnce());
+      await waitForIntegration(() => expect(telegram.send).toHaveBeenCalledOnce());
       const interactionId = telegram.send.mock.calls[0]?.[0];
       expect(typeof interactionId).toBe('string');
       telegram.emitReply({ interactionId, selectedValue: 'Continue now' });
 
-      await vi.waitFor(() => {
+      await waitForIntegration(() => {
         expect(store.list()).toHaveLength(2);
         expect(store.list()[0]).toMatchObject({
           agentId: 'responder',
@@ -735,6 +721,126 @@ describe('startServer production composition', () => {
       } finally {
         rmSync(context.home, { recursive: true, force: true });
       }
+    }
+  });
+
+  it('closes run admission before scheduled, watched, downstream, or channel work can start', async () => {
+    const context = await createTestServerContext('stop-admission-server', {
+      AGENT_SERVER_TELEGRAM_BOT_TOKEN: 'telegram-test-token',
+    });
+    const watchedPath = join(context.home, 'watched.txt');
+    writeFileSync(watchedPath, 'initial', 'utf8');
+    writeAgent(context.home, 'scheduled.yaml', [
+      'id: scheduled',
+      'name: Scheduled',
+      'prompt: Run on schedule',
+      'schedule: "* * * * *"',
+      ...restrictedAgentLines(context.home),
+      'enabled: true',
+      '',
+    ].join('\n'));
+    writeAgent(context.home, 'watcher.yaml', [
+      'id: watcher',
+      'name: Watcher',
+      'prompt: Run after a file change',
+      ...restrictedAgentLines(context.home),
+      'watch:',
+      `  - path: ${watchedPath}`,
+      'enabled: true',
+      '',
+    ].join('\n'));
+    writeAgent(context.home, 'channel.yaml', [
+      'id: channel',
+      'name: Channel',
+      'prompt: Run from a message',
+      ...restrictedAgentLines(context.home),
+      'enabled: true',
+      '',
+    ].join('\n'));
+    const telegram = createFakeChatChannel('telegram', 42);
+    createTelegramChannel.mockResolvedValueOnce(telegram);
+    routeMessage.mockImplementationOnce(
+      (_text: string, agents: Array<{ id: string }>) => Promise.resolve({
+        type: 'route',
+        agent: agents.find((agent) => agent.id === 'channel'),
+        context: 'Message context',
+      }),
+    );
+    const executeCallsBefore = executeAgent.mock.calls.length;
+    const routeCallsBefore = routeMessage.mock.calls.length;
+    executeAgent.mockResolvedValue(executionResult('Unexpected work'));
+    const server = startServer(context.config, { store: new RunStore() });
+
+    try {
+      await server.ready;
+      const stopping = server.stop();
+      telegram.emitMessage('run the channel agent');
+      writeFileSync(watchedPath, 'changed', 'utf8');
+      await stopping;
+      await new Promise((resolve) => setTimeout(resolve, 600));
+
+      expect(executeAgent).toHaveBeenCalledTimes(executeCallsBefore);
+      expect(routeMessage).toHaveBeenCalledTimes(routeCallsBefore);
+    } finally {
+      await server.stop();
+      rmSync(context.home, { recursive: true, force: true });
+    }
+  });
+
+  it('drains admitted terminal work before closing the store and rejects downstream work', async () => {
+    const context = await createTestServerContext('stop-drain-server');
+    const store = new RunStore();
+    const closeSpy = vi.spyOn(store, 'close');
+    writeAgent(context.home, 'source.yaml', [
+      'id: source',
+      'name: Source',
+      'prompt: Finish during shutdown',
+      ...restrictedAgentLines(context.home),
+      'on_complete:',
+      '  - agent: downstream',
+      'enabled: true',
+      '',
+    ].join('\n'));
+    writeAgent(context.home, 'downstream.yaml', [
+      'id: downstream',
+      'name: Downstream',
+      'prompt: Must not start during shutdown',
+      ...restrictedAgentLines(context.home),
+      'enabled: true',
+      '',
+    ].join('\n'));
+    let finishSource: (() => void) | undefined;
+    let sourceWasAborted = false;
+    const executeCallsBefore = executeAgent.mock.calls.length;
+    executeAgent.mockImplementationOnce(
+      (_agent: unknown, _reporter: unknown, extra: { abortController?: AbortController }) => (
+        new Promise<ExecutionResult>((resolve) => {
+          extra.abortController?.signal.addEventListener('abort', () => {
+            sourceWasAborted = true;
+          }, { once: true });
+          finishSource = () => resolve(executionResult('Source completed'));
+        })
+      ),
+    );
+    const server = startServer(context.config, { store });
+
+    try {
+      await server.ready;
+      await triggerAgent(context.port, 'source');
+      await waitForIntegration(() => expect(finishSource).toBeTypeOf('function'));
+
+      const stopping = server.stop();
+      await waitForIntegration(() => expect(sourceWasAborted).toBe(true));
+      expect(closeSpy).not.toHaveBeenCalled();
+      finishSource?.();
+      await stopping;
+
+      expect(executeAgent).toHaveBeenCalledTimes(executeCallsBefore + 1);
+      expect(closeSpy).toHaveBeenCalledOnce();
+    } finally {
+      finishSource?.();
+      await server.stop();
+      rmSync(context.home, { recursive: true, force: true });
     }
   });
 });

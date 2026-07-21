@@ -9,11 +9,16 @@ class ReleaseShellContractTests(unittest.TestCase):
     def test_notary_credentials_use_keychain_indirection_only(self) -> None:
         release = (ROOT / "scripts/release.sh").read_text()
         dmg = (ROOT / "scripts/build-dmg.sh").read_text()
+        executable_lines = "\n".join(
+            line.strip()
+            for script in (release, dmg)
+            for line in script.splitlines()
+            if not line.strip().startswith(("#", "echo "))
+        )
 
         self.assertNotIn("AGENT_SERVER_NOTARY_PASSWORD", release)
         self.assertNotIn("AGENT_SERVER_NOTARY_PASSWORD", dmg)
-        self.assertNotIn('notarytool "$@" --password', release)
-        self.assertNotIn('notarytool "$@" --password', dmg)
+        self.assertNotIn("--password", executable_lines)
         self.assertIn('--keychain-profile "$NOTARY_PROFILE"', release)
         self.assertIn('--keychain-profile "$NOTARY_PROFILE"', dmg)
 

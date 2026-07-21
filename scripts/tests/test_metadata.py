@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -22,6 +23,7 @@ from scripts.release_tools.models import (
     Version,
     VersionError,
 )
+from scripts.release_tools.publisher import PublicationError, atomic_write_many
 
 
 PROJECT = '''
@@ -73,6 +75,49 @@ class VersionTests(unittest.TestCase):
 
 
 class MetadataTests(unittest.TestCase):
+    def test_atomic_metadata_staging_cleans_up_when_fsync_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "project.yml"
+            path.write_bytes(b"original")
+
+            with patch("scripts.release_tools.publisher.os.fsync", side_effect=OSError("disk")):
+                with self.assertRaisesRegex(OSError, "disk"):
+                    atomic_write_many(((path, b"updated"),))
+
+            self.assertEqual(path.read_bytes(), b"original")
+            self.assertEqual(list(path.parent.glob(".project.yml.*")), [])
+
+    def test_atomic_metadata_rollback_cleans_up_when_restore_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            project = root / "project.yml"
+            package = root / "package.json"
+            project.write_bytes(b"original project")
+            package.write_bytes(b"original package")
+            real_replace = os.replace
+
+            def fail_commit_and_restore(source: object, destination: object) -> None:
+                source_path = Path(source)
+                destination_path = Path(destination)
+                if destination_path == package or source_path.read_bytes() == b"original project":
+                    raise OSError("simulated replace failure")
+                real_replace(source, destination)
+
+            with patch(
+                "scripts.release_tools.publisher.os.replace",
+                side_effect=fail_commit_and_restore,
+            ):
+                with self.assertRaisesRegex(PublicationError, "rollback was incomplete"):
+                    atomic_write_many(
+                        ((project, b"updated project"), (package, b"updated package"))
+                    )
+
+            leftovers = [
+                *root.glob(".project.yml.*"),
+                *root.glob(".package.json.*"),
+            ]
+            self.assertEqual(leftovers, [])
+
     def test_prepare_rolls_back_both_metadata_files_when_second_replace_fails(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -83,7 +128,7 @@ class MetadataTests(unittest.TestCase):
             original_package = '{"name":"agent-server","version":"3.2.0"}\n'
             package.write_text(original_package)
             live.write_text(LIVE_APPCAST)
-            real_replace = __import__("os").replace
+            real_replace = os.replace
 
             def fail_package_replace(source: object, destination: object) -> None:
                 if Path(destination) == package:

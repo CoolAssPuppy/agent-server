@@ -32,7 +32,10 @@ final class ContactsToolService: NativeToolService {
         let fields = Set(dependencies.grantPolicy.availableFields(service: .contacts, resourceId: groupId))
         var keys: [CNKeyDescriptor] = []
         if fields.contains("name") {
-            keys.append(contentsOf: [CNContactGivenNameKey as CNKeyDescriptor, CNContactFamilyNameKey as CNKeyDescriptor])
+            keys.append(contentsOf: [
+                CNContactGivenNameKey as CNKeyDescriptor,
+                CNContactFamilyNameKey as CNKeyDescriptor,
+            ])
         }
         if fields.contains("email") { keys.append(CNContactEmailAddressesKey as CNKeyDescriptor) }
         if fields.contains("phone") { keys.append(CNContactPhoneNumbersKey as CNKeyDescriptor) }
@@ -60,7 +63,9 @@ final class ContactsToolService: NativeToolService {
         let values = contacts.map { contact -> [String: Any] in
             var value: [String: Any] = [:]
             if fields.contains("name") {
-                value["name"] = [contact.givenName, contact.familyName].filter { !$0.isEmpty }.joined(separator: " ")
+                value["name"] = [contact.givenName, contact.familyName]
+                    .filter { !$0.isEmpty }
+                    .joined(separator: " ")
             }
             if fields.contains("email") { value["emails"] = contact.emailAddresses.map { $0.value as String } }
             if fields.contains("phone") { value["phones"] = contact.phoneNumbers.map { $0.value.stringValue } }
@@ -70,7 +75,9 @@ final class ContactsToolService: NativeToolService {
             return value
         }
         let page = try dependencies.page(values, args: args)
-        return try dependencies.jsonString(["contacts": page.items, "pagination": dependencies.paginationObject(page.metadata)])
+        return try dependencies.jsonString([
+            "contacts": page.items,
+            "pagination": dependencies.paginationObject(page.metadata),
+        ])
     }
-
 }

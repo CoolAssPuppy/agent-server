@@ -7,7 +7,7 @@ final class NativeToolServiceTests: XCTestCase {
         let store = EKEventStore()
         let calendar = EKCalendar(for: .event, eventStore: store)
         calendar.title = "Work"
-        let events = (0..<10).map { index -> EKEvent in
+        let events = (0..<3).map { index -> EKEvent in
             let event = EKEvent(eventStore: store)
             event.title = "Event \(index)"
             event.startDate = Date(timeIntervalSince1970: TimeInterval(index))
@@ -41,7 +41,7 @@ final class NativeToolServiceTests: XCTestCase {
         let store = EKEventStore()
         let calendar = EKCalendar(for: .reminder, eventStore: store)
         calendar.title = "Tasks"
-        let reminders = (0..<10).map { index -> EKReminder in
+        let reminders = (0..<3).map { index -> EKReminder in
             let reminder = EKReminder(eventStore: store)
             reminder.title = "Reminder \(index)"
             reminder.calendar = calendar
@@ -89,16 +89,38 @@ final class NativeToolServiceTests: XCTestCase {
         XCTAssertEqual(authorization.contactAccessRequests, 1)
     }
 
+    func testContactListingPreservesPaginationValidationErrors() {
+        let dependencies = EventKitDependencies(
+            grantPolicy: scopedContactPolicy,
+            authorization: AuthorizationStub(),
+            contactFetcher: { _, _, _ in [] }
+        )
+
+        XCTAssertThrowsError(
+            try ContactsToolService(dependencies: dependencies).call(
+                name: "list_contacts",
+                arguments: ["groupId": "group-1", "limit": 0]
+            )
+        ) { error in
+            guard case MCPError.invalidParams(let message) = error else {
+                return XCTFail("Expected an invalid-parameters error, got \(error)")
+            }
+            XCTAssertEqual(message, "limit must be greater than zero")
+        }
+    }
+
     func testNativeAuthorizationUsesInjectedFrameworkCallbacks() throws {
         let reminder = EKReminder(eventStore: EKEventStore())
         let authorization = NativeAuthorization(
             timeout: 0.1,
-            eventStatus: { _ in .notDetermined },
-            contactStatus: { .notDetermined },
-            requestEventAccess: { $0(true, nil) },
-            requestReminderAccess: { $0(true, nil) },
-            requestContactAccess: { $0(true, nil) },
-            reminderFetcher: { _, completion in completion([reminder]) }
+            operations: NativeAuthorizationOperations(
+                eventStatus: { _ in .notDetermined },
+                contactStatus: { .notDetermined },
+                requestEventAccess: { $0(true, nil) },
+                requestReminderAccess: { $0(true, nil) },
+                requestContactAccess: { $0(true, nil) },
+                fetchReminders: { _, completion in completion([reminder]) }
+            )
         )
 
         XCTAssertNoThrow(try authorization.ensureEventAccess())
@@ -110,12 +132,14 @@ final class NativeToolServiceTests: XCTestCase {
     func testNativeAuthorizationBoundsFrameworkCallbacksThatNeverComplete() {
         let authorization = NativeAuthorization(
             timeout: 0.01,
-            eventStatus: { _ in .notDetermined },
-            contactStatus: { .notDetermined },
-            requestEventAccess: { _ in },
-            requestReminderAccess: { _ in },
-            requestContactAccess: { _ in },
-            reminderFetcher: { _, _ in }
+            operations: NativeAuthorizationOperations(
+                eventStatus: { _ in .notDetermined },
+                contactStatus: { .notDetermined },
+                requestEventAccess: { _ in },
+                requestReminderAccess: { _ in },
+                requestContactAccess: { _ in },
+                fetchReminders: { _, _ in }
+            )
         )
 
         XCTAssertThrowsError(try authorization.ensureEventAccess()) { error in

@@ -2,11 +2,26 @@ import { describe, it, expect } from 'vitest';
 import { makeAgent } from '../test-factories.js';
 import {
   chatKeyFromString,
+  drainPendingTasks,
   extractMcpNeedsAuthServers,
   shouldDispatchNotification,
   shouldSendChannelRunNotification,
   shouldSendTelegramRunNotification,
 } from './server.js';
+
+describe('drainPendingTasks', () => {
+  it('reports a timeout without waiting forever for stalled background work', async () => {
+    const stalledTask = new Promise<void>(() => {});
+
+    await expect(drainPendingTasks(new Set([stalledTask]), 5)).resolves.toBe(false);
+  });
+
+  it('reports success after every admitted background task settles', async () => {
+    const tasks = new Set([Promise.resolve(), Promise.resolve()]);
+
+    await expect(drainPendingTasks(tasks, 50)).resolves.toBe(true);
+  });
+});
 
 describe('shouldSendTelegramRunNotification', () => {
   it('returns false when completion notification is already configured for telegram', () => {

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import hashlib
 import shlex
 import subprocess
 import tempfile
 from pathlib import Path
 from typing import Sequence
 
-from .publisher import PublicationError
+from .publisher import PublicationError, sha256_file
 
 
 CURL_READ_FLAGS = ("--fail", "--location", "--silent", "--show-error")
@@ -75,8 +74,7 @@ class CurlWranglerRemote:
         with tempfile.TemporaryDirectory(prefix="agent-server-release-") as directory:
             downloaded = Path(directory) / "artifact.dmg"
             self._runner.run(("curl", *CURL_READ_FLAGS, "--output", str(downloaded), url))
-            with downloaded.open("rb") as source:
-                actual = hashlib.file_digest(source, "sha256").hexdigest()
+            actual = sha256_file(downloaded)
         if actual != expected:
             raise PublicationError(
                 f"SHA-256 mismatch for immutable artifact {url}: expected {expected}, got {actual}"

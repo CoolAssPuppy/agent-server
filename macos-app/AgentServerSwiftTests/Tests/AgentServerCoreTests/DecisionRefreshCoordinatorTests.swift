@@ -14,12 +14,11 @@ final class DecisionRefreshCoordinatorTests: XCTestCase {
         XCTAssertFalse(coordinator.canApply(second))
     }
 
-    func testDecisionFailureFeedbackIsUserVisibleAndSuccessClearsIt() {
+    func testDecisionFailureFeedbackIsUserVisible() {
         XCTAssertEqual(
-            DecisionResolutionFeedback.message(succeeded: false),
+            DecisionResolutionFeedback.failureMessage,
             "Could not send your decision. Check the Agent Panel connection and try again."
         )
-        XCTAssertNil(DecisionResolutionFeedback.message(succeeded: true))
     }
 
     func testConcurrentRefreshRequestsCoalesceIntoOneFollowUp() throws {
@@ -79,6 +78,20 @@ final class DecisionRefreshCoordinatorTests: XCTestCase {
         let token = try XCTUnwrap(transaction.begin(decisionId: "decision-1"))
         XCTAssertEqual(transaction.finish(token, succeeded: true), true)
         XCTAssertNil(transaction.finish(token, succeeded: true))
+    }
+
+    func testSuccessfulDecisionDoesNotHideAnotherDecisionFailure() throws {
+        var transaction = DecisionResolutionTransaction()
+        let failed = try XCTUnwrap(transaction.begin(decisionId: "failed"))
+        let succeeded = try XCTUnwrap(transaction.begin(decisionId: "succeeded"))
+
+        XCTAssertEqual(transaction.finish(failed, succeeded: false), false)
+        XCTAssertTrue(transaction.hasFailures)
+        XCTAssertEqual(transaction.finish(succeeded, succeeded: true), true)
+        XCTAssertTrue(transaction.hasFailures)
+
+        XCTAssertNotNil(transaction.begin(decisionId: "failed"))
+        XCTAssertFalse(transaction.hasFailures)
     }
 
     func testCancelledResolutionCannotCommitIntoANewGeneration() throws {
