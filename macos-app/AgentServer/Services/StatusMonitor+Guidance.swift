@@ -201,7 +201,8 @@ extension StatusMonitor {
         request: String,
         answers: [String: CreationAnswerValue]
     ) async throws -> GuidanceProposalRequest {
-        let connectedServices = try await client.services().connectedServices
+        let executor = CreationConnectionScope.executor(from: answers)
+        let connectedServices = try await client.services(executor: executor).connectedServices
         let answerPayloads = answers.sorted(by: { $0.key < $1.key }).map {
             GuidanceProposalAnswer(questionId: $0.key, value: Self.guidanceValue($0.value))
         }

@@ -70,7 +70,7 @@ import SwiftUI
             )) },
             applyFix: { _ in .success(ConsumerFlowDemoFixtures.securityScan) },
             ignore: { _, _ in .success(ConsumerFlowDemoFixtures.securityScan) },
-            markReviewed: { .success(ConsumerFlowDemoFixtures.securityScan) }
+            approveAutomaticRuns: { .success(ConsumerFlowDemoFixtures.securityScan) }
         )
     )
     .frame(width: 780, height: 700)

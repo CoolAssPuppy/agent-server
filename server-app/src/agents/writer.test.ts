@@ -44,6 +44,44 @@ async function seededWriter(files: Record<string, string>, env: Record<string, s
 }
 
 describe('AgentWriter.update', () => {
+  it('serializes writes to the same Markdown agent so concurrent patches cannot revert each other', async () => {
+    const dir = createTempDir('writer-concurrent-update');
+    await writeFile(join(dir, 'reporter.md'), MD_AGENT, 'utf-8');
+    let releaseFirstLookup: (() => void) | undefined;
+    let markFirstLookupStarted: (() => void) | undefined;
+    let lookupCount = 0;
+    const firstLookup = new Promise<void>((resolve) => {
+      releaseFirstLookup = resolve;
+    });
+    const firstLookupStarted = new Promise<void>((resolve) => {
+      markFirstLookupStarted = resolve;
+    });
+    const writer = createAgentWriter(dir, {
+      availableConnections: async () => {
+        lookupCount += 1;
+        if (lookupCount === 1) {
+          markFirstLookupStarted?.();
+          await firstLookup;
+        }
+        return [];
+      },
+    });
+
+    const rename = writer.update('reporter', { name: 'Durable Reporter' });
+    await firstLookupStarted;
+    const describe = writer.update('reporter', { description: 'Keeps every saved field' });
+    await Promise.race([
+      describe,
+      new Promise((resolve) => setTimeout(resolve, 100)),
+    ]);
+    releaseFirstLookup?.();
+    await Promise.all([rename, describe]);
+
+    const saved = parseAgentFile(await readFile(join(dir, 'reporter.md'), 'utf-8'));
+    expect(saved.name).toBe('Durable Reporter');
+    expect(saved.description).toBe('Keeps every saved field');
+  });
+
   it('updates a field in a pure YAML agent and preserves comments', async () => {
     const { dir, writer } = await seededWriter({ 'briefing.yaml': YAML_AGENT });
 
@@ -125,6 +163,31 @@ custom_setting: keep-me
 
     expect(updated.mcp_servers?.['notion-personal']).toEqual(connection.config);
     expect(updated.tools).toContain('mcp__notion-personal');
+  });
+
+  it('resolves account MCP choices against the LLM saved in the current Markdown agent', async () => {
+    const dir = createTempDir('writer-account-connection');
+    await writeFile(join(dir, 'briefing.yaml'), YAML_AGENT, 'utf-8');
+    const accountConnection: AvailableConnection = {
+      id: 'runtime:claude.ai%20Notion',
+      serviceId: 'notion',
+      name: 'Notion (Claude account)',
+      source: 'account',
+      status: 'connected',
+      requiredEnv: [],
+      serverName: 'claude.ai Notion',
+    };
+    const writer = createAgentWriter(dir, {
+      availableConnections: async (agent) => agent.executor === undefined
+        ? [accountConnection]
+        : [],
+    });
+
+    const updated = await writer.update('briefing', {
+      capabilities: [{ id: `connection:${accountConnection.id}`, enabled: true }],
+    });
+
+    expect(updated.tools).toContain('mcp__claude_ai_Notion');
   });
 
   it('replaces the markdown body when patching the prompt', async () => {

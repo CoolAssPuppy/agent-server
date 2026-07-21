@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { AgentConfig, McpServerConfig } from '../agents/config.js';
+import type { AgentExecutor } from '../agents/executor.js';
 import { areApprovedMcpReferences, mcpCredentialOwner } from '../agents/environment-policy.js';
 import {
   CAPABILITY_CATALOG,
@@ -51,6 +52,8 @@ type RegistryInput = {
   agents: AgentConfig[];
   environment: EnvironmentSource;
   discovered: DiscoveredConnection[];
+  /** Runtime whose account-level connectors may be used by this registry. */
+  executor?: AgentExecutor;
   nativeServices?: NativeServiceAvailability[];
   profiles?: ConnectionProfile[];
 };
@@ -257,18 +260,47 @@ function runtimeStatus(status: string): ServiceConnectionStatus {
   return 'needs_setup';
 }
 
-function accountConnections(discovered: DiscoveredConnection[]): ServiceConnection[] {
-  return discovered.map((connection) => {
-    const definition = discoveredDefinition(connection.name);
-    const serviceId = definition?.id ?? customServiceId(connection.name);
+const CLAUDE_ACCOUNT_SERVERS = [
+  'claude.ai Notion',
+  'claude.ai Slack',
+  'claude.ai Linear',
+  'claude.ai Gmail',
+] as const;
+
+function configuredAccountServerNames(agents: AgentConfig[]): string[] {
+  const rules = agents.flatMap((agent) => [
+    ...agent.tools,
+    ...agent.disallowed_tools,
+    ...(agent.permissions?.allow ?? []),
+    ...(agent.permissions?.deny ?? []),
+  ]);
+  const names = rules.flatMap((rule): string[] => {
+    const match = /^mcp__(claude_ai_[A-Za-z0-9_]+)(?:__|$)/.exec(rule);
+    return match?.[1] ? [match[1]] : [];
+  });
+  return [...new Set(names)];
+}
+
+function accountConnections(
+  agents: AgentConfig[],
+  discovered: DiscoveredConnection[],
+): ServiceConnection[] {
+  const configuredNames = configuredAccountServerNames(agents);
+  const candidates = [...CLAUDE_ACCOUNT_SERVERS, ...configuredNames.filter((name) => (
+    !CLAUDE_ACCOUNT_SERVERS.some((known) => mcpServerKey(known) === name)
+  ))];
+  return candidates.map((name) => {
+    const connection = discovered.find((candidate) => mcpServerKey(candidate.name) === mcpServerKey(name));
+    const definition = discoveredDefinition(name);
+    const serviceId = definition?.id ?? customServiceId(name);
     const actions = definition ? (CATALOG_ACTIONS[definition.id] ?? []) : [];
-    const baseName = definition?.label ?? safeDisplayName(connection.name.replace(/^claude\.ai\s+/i, ''));
+    const baseName = definition?.label ?? safeDisplayName(name.replace(/^claude\.ai\s+/i, '').replaceAll('_', ' '));
     return {
-      id: runtimeConnectionId(connection.name),
+      id: runtimeConnectionId(name),
       service_id: serviceId,
       name: definition ? `${baseName} (Claude account)` : `${baseName} account`,
       source: 'account',
-      status: runtimeStatus(connection.status),
+      status: connection ? runtimeStatus(connection.status) : 'needs_setup',
       actions,
       actions_known: Boolean(definition),
       required_env: [],
@@ -302,10 +334,13 @@ export function buildServiceRegistry(input: RegistryInput): ServiceRegistry {
   const saved = savedProfileConnections(input.profiles ?? [], input.environment);
   const configured = configuredAgentConnections(input.agents, input.environment);
   const catalog = configuredCatalogConnections(input.environment, new Set(configured.connections.map(({ id }) => id)));
-  const accounts = accountConnections(input.discovered);
-  const accountBindings = accounts.map((connection, index) => {
-    const discoveredName = input.discovered[index]?.name ?? '';
-    return [connection.id, { serverName: discoveredName }] as const;
+  const accountServers = input.executor === 'claude-code' ? input.discovered : [];
+  const accounts = input.executor === 'claude-code' ? accountConnections(input.agents, accountServers) : [];
+  const accountBindings = accounts.map((connection) => {
+    const serverName = connection.id.startsWith('runtime:')
+      ? decodeURIComponent(connection.id.slice('runtime:'.length).split(':')[0] ?? '')
+      : '';
+    return [connection.id, { serverName }] as const;
   });
   const native = (input.nativeServices ?? []).map((service): ServiceConnection => ({
     id: `macos:${service.id}`,

@@ -8,7 +8,6 @@ public struct SecurityPanelNavigationState: Equatable, Sendable {
     }
 
     public var visiblePanelCount: Int {
-        if selectedFindingId != nil { return 3 }
         return selectedAgentId == nil ? 1 : 2
     }
 
@@ -58,7 +57,7 @@ public enum SecurityPanelSurfaceStyle: Equatable, Sendable {
 }
 
 public enum SecurityFindingStyle: Equatable, Sendable {
-    case rows
+    case disclosures
 }
 
 public enum SecurityTextRole: Equatable, Sendable {
@@ -70,6 +69,7 @@ public enum SecurityTextRole: Equatable, Sendable {
 
 public enum SecurityRowAccessory: Equatable, Sendable {
     case disclosure
+    case collapser
 }
 
 public struct SecurityPanelVisualPolicy: Equatable, Sendable {
@@ -79,7 +79,7 @@ public struct SecurityPanelVisualPolicy: Equatable, Sendable {
 
     public init(
         surfaceStyle: SecurityPanelSurfaceStyle = .flatSections,
-        findingStyle: SecurityFindingStyle = .rows,
+        findingStyle: SecurityFindingStyle = .disclosures,
         textRoles: [SecurityTextRole] = [.title, .body, .secondary, .technical]
     ) {
         self.surfaceStyle = surfaceStyle
@@ -170,6 +170,7 @@ public extension SecurityFindingPresentation {
             detail: whyItMatters,
             status: severity.title,
             severity: severity,
+            accessory: .collapser,
             isSelected: isSelected
         )
     }

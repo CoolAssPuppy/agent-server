@@ -228,6 +228,17 @@ describe('deriveCapabilities', () => {
     ]);
   });
 
+  it('does not let a transient runtime probe add rows outside the authoritative registry', () => {
+    const rows = deriveCapabilities(
+      makeAgent({ tools: ['Read'] }),
+      EMPTY_ENV,
+      discovered('plugin:temporary:connector'),
+      availableNotionConnections,
+    );
+
+    expect(rows.map(({ id }) => id)).not.toContain('mcp:plugin_temporary_connector');
+  });
+
   it('does not report a connection ready when its grants name tools that it does not expose', () => {
     // Mirrors a hand-written agent that uses permissions (allow/deny globs)
     // rather than the tools allowlist — the tools list here is non-empty but

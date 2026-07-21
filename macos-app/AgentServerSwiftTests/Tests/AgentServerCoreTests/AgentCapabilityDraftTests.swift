@@ -2,6 +2,18 @@ import XCTest
 @testable import AgentServerCore
 
 final class AgentCapabilityDraftTests: XCTestCase {
+    func testEditActionsOnlyAppearWhenDraftDiffersFromAuthoritativeAgent() {
+        XCTAssertFalse(AgentSettingsSavePresentation.showsActions(isDirty: false))
+        XCTAssertTrue(AgentSettingsSavePresentation.showsActions(isDirty: true))
+    }
+
+    func testEmbeddedSettingsKeepTheirTabAndExposeSaveFeedback() {
+        XCTAssertFalse(AgentSettingsSavePresentation.shouldDismissAfterSave(isEmbedded: true))
+        XCTAssertTrue(AgentSettingsSavePresentation.shouldDismissAfterSave(isEmbedded: false))
+        XCTAssertEqual(AgentSettingsSaveFeedback.saved.message, "Saved")
+        XCTAssertEqual(AgentSettingsSaveFeedback.noChanges.message, "No changes to save")
+    }
+
     func testAgentSettingsUseOneFormWithFocusedEditingControls() {
         let presentation = AgentSettingsSupportingSurfacePresentation()
 

@@ -1,3 +1,32 @@
+public enum AgentSettingsSaveFeedback: Equatable, Sendable {
+    case saved
+    case noChanges
+
+    public var message: String {
+        switch self {
+        case .saved: "Saved"
+        case .noChanges: "No changes to save"
+        }
+    }
+
+    public var systemImage: String {
+        switch self {
+        case .saved: "checkmark.circle.fill"
+        case .noChanges: "minus.circle"
+        }
+    }
+}
+
+public enum AgentSettingsSavePresentation {
+    public static func shouldDismissAfterSave(isEmbedded: Bool) -> Bool {
+        !isEmbedded
+    }
+
+    public static func showsActions(isDirty: Bool) -> Bool {
+        isDirty
+    }
+}
+
 public struct AgentCapabilityChange: Equatable, Sendable {
     public let id: String
     public let enabled: Bool

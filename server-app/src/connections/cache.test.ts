@@ -72,4 +72,20 @@ describe('ConnectionCache', () => {
     // The failed refresh degrades to the last good snapshot rather than wiping it.
     expect(after.servers.map((s) => s.name)).toEqual(['eventkit']);
   });
+
+  it('keeps known connector identities when a later status probe is incomplete', async () => {
+    const probe = vi
+      .fn<() => Promise<McpServerInfo[]>>()
+      .mockResolvedValueOnce(servers('claude.ai Notion', 'claude.ai Slack'))
+      .mockResolvedValueOnce(servers('claude.ai Slack'));
+    const cache = new ConnectionCache(probe);
+
+    await cache.refresh();
+    const refreshed = await cache.refresh();
+
+    expect(refreshed.servers.map(({ name }) => name)).toEqual([
+      'claude.ai Notion',
+      'claude.ai Slack',
+    ]);
+  });
 });

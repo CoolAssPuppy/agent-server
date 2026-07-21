@@ -6,7 +6,7 @@ final class SecurityPanelNavigationTests: XCTestCase {
         let presentation = SecurityPanelPresentation(scanPhase: .idle)
 
         XCTAssertEqual(presentation.visualPolicy.surfaceStyle, .flatSections)
-        XCTAssertEqual(presentation.visualPolicy.findingStyle, .rows)
+        XCTAssertEqual(presentation.visualPolicy.findingStyle, .disclosures)
         XCTAssertEqual(
             presentation.visualPolicy.textRoles,
             [.title, .body, .secondary, .technical]
@@ -54,7 +54,7 @@ final class SecurityPanelNavigationTests: XCTestCase {
 
         XCTAssertEqual(row.title, finding.title)
         XCTAssertEqual(row.detail, finding.whyItMatters)
-        XCTAssertEqual(row.accessory, .disclosure)
+        XCTAssertEqual(row.accessory, .collapser)
         XCTAssertTrue(row.isSelected)
         XCTAssertFalse(row.visibleText.contains(finding.potentialImpact))
         XCTAssertFalse(row.visibleText.contains(finding.recommendation))
@@ -92,14 +92,14 @@ final class SecurityPanelNavigationTests: XCTestCase {
         XCTAssertEqual(navigation.visiblePanelCount, 2)
     }
 
-    func testSelectingAFindingKeepsItsAgentAndTheAgentListVisible() {
+    func testSelectingAFindingExpandsInsideTheAgentPanel() {
         var navigation = SecurityPanelNavigationState(selectedAgentId: "weekly-summary")
 
         navigation.selectFinding("broad-files")
 
         XCTAssertEqual(navigation.selectedAgentId, "weekly-summary")
         XCTAssertEqual(navigation.selectedFindingId, "broad-files")
-        XCTAssertEqual(navigation.visiblePanelCount, 3)
+        XCTAssertEqual(navigation.visiblePanelCount, 2)
         XCTAssertTrue(navigation.stepBack())
         XCTAssertEqual(navigation.selectedAgentId, "weekly-summary")
         XCTAssertNil(navigation.selectedFindingId)

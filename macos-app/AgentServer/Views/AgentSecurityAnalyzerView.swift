@@ -6,7 +6,7 @@ struct AgentSecurityActions {
     let reviewFix: (String) async -> Result<GuidancePatchPreview, ConsumerFlowFailure>
     let applyFix: (String) async -> Result<SecurityScanPresentation, ConsumerFlowFailure>
     let ignore: (String, String?) async -> Result<SecurityScanPresentation, ConsumerFlowFailure>
-    let markReviewed: () async -> Result<SecurityScanPresentation, ConsumerFlowFailure>
+    let approveAutomaticRuns: () async -> Result<SecurityScanPresentation, ConsumerFlowFailure>
 }
 
 private struct ReviewedSecurityFix: Identifiable {
@@ -29,6 +29,7 @@ struct AgentSecurityAnalyzerView: View {
     @State private var reviewedFix: ReviewedSecurityFix?
     @State private var findingToIgnore: SecurityFindingPresentation?
     @State private var ignoreReason = ""
+    @State private var isApprovingAutomaticRuns = false
 
     init(
         agentName: String,
@@ -43,16 +44,8 @@ struct AgentSecurityAnalyzerView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            analysisPanel
-                .frame(width: selectedFinding == nil ? nil : 400)
-                .frame(maxWidth: selectedFinding == nil ? .infinity : nil)
-            if let selectedFinding {
-                Divider().opacity(0.35)
-                findingPanel(selectedFinding)
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-            }
-        }
+        analysisPanel
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(
             reduceMotion ? nil : .easeInOut(duration: 0.22),
             value: selectedFindingId
@@ -120,13 +113,10 @@ struct AgentSecurityAnalyzerView: View {
                 }
             } else {
                 ForEach(scan.groupedFindings, id: \.severity) { group in
-                    findingGroup(group)
+                    findingGroup(group, showsHeading: scan.showsFindingGroupHeadings)
                 }
             }
-            Button("Mark reviewed") { Task { await markReviewed() } }
-                .buttonStyle(.borderedProminent)
-                .disabled(scan.isStale || scan.findings.contains(where: { $0.severity == .critical }))
-                .accessibilityHint("Available after critical findings are resolved and the scan is current")
+            reviewControl(scan)
         }
     }
 
@@ -146,55 +136,36 @@ struct AgentSecurityAnalyzerView: View {
         }
     }
 
-    private func findingGroup(_ group: SecurityFindingGroup) -> some View {
+    private func findingGroup(_ group: SecurityFindingGroup, showsHeading: Bool) -> some View {
         VStack(alignment: .leading, spacing: NSpacing.sm) {
-            SecuritySectionLabel(title: group.title)
+            if showsHeading { SecuritySectionLabel(title: group.title) }
             SecurityGroupedSurface {
                 ForEach(Array(group.findings.enumerated()), id: \.element.id) { index, finding in
                     if index > 0 { Divider().opacity(0.25) }
-                    SecurityFindingRow(
-                        finding: finding,
-                        isSelected: selectedFindingId == finding.id,
-                        onSelect: { selectedFindingId = finding.id }
-                    )
+                    VStack(spacing: 0) {
+                        SecurityFindingRow(
+                            finding: finding,
+                            isExpanded: selectedFindingId == finding.id,
+                            showsStatus: showsHeading,
+                            onSelect: {
+                                selectedFindingId = selectedFindingId == finding.id ? nil : finding.id
+                            }
+                        )
+                        if selectedFindingId == finding.id {
+                            Divider().opacity(0.25)
+                            SecurityFindingDetail(
+                                finding: finding,
+                                reviewFix: finding.canFix ? { Task { await reviewFix(finding) } } : nil,
+                                ignore: { findingToIgnore = finding },
+                                showsHeader: false
+                            )
+                            .padding(NSpacing.md)
+                            .transition(.opacity)
+                        }
+                    }
                 }
             }
         }
-    }
-
-    private func findingPanel(_ finding: SecurityFindingPresentation) -> some View {
-        VStack(spacing: 0) {
-            HStack(spacing: NSpacing.sm) {
-                Button { selectedFindingId = nil } label: {
-                    Image(systemName: "chevron.left")
-                        .frame(width: 24, height: 24)
-                }
-                .buttonStyle(.plain)
-                .help("Back to findings")
-                .accessibilityLabel("Back to findings")
-                Text("Finding details")
-                    .font(.system(size: 13, weight: .semibold))
-                Spacer()
-            }
-            .padding(.horizontal, NSpacing.xxl)
-            .padding(.vertical, NSpacing.md)
-            Divider().opacity(0.3)
-            ScrollView {
-                SecurityFindingDetail(
-                    finding: finding,
-                    reviewFix: finding.canFix ? { Task { await reviewFix(finding) } } : nil,
-                    ignore: { findingToIgnore = finding }
-                )
-                .padding(NSpacing.xxl)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var selectedFinding: SecurityFindingPresentation? {
-        guard let selectedFindingId else { return nil }
-        return scan?.findings.first { $0.id == selectedFindingId }
     }
 
     private func ignoreSheet(_ finding: SecurityFindingPresentation) -> some View {
@@ -294,8 +265,42 @@ struct AgentSecurityAnalyzerView: View {
         }
     }
 
-    private func markReviewed() async {
-        switch await actions.markReviewed() {
+    @ViewBuilder
+    private func reviewControl(_ scan: SecurityScanPresentation) -> some View {
+        switch scan.reviewAction {
+        case .notRequired, .blockedByCriticalFindings:
+            EmptyView()
+        case .approveAutomaticRuns:
+            Button {
+                Task { await approveAutomaticRuns() }
+            } label: {
+                if isApprovingAutomaticRuns {
+                    HStack(spacing: NSpacing.xs) {
+                        ProgressView().controlSize(.small)
+                        Text("Approving")
+                    }
+                } else {
+                    Text("Approve automatic runs")
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isApprovingAutomaticRuns)
+            .accessibilityHint("Allows scheduled and other automatic runs for this version of the agent")
+        case .approvedForAutomaticRuns(let reviewedAt):
+            Label(
+                "Approved for automatic runs \(reviewedAt.formatted(.relative(presentation: .numeric)))",
+                systemImage: "checkmark.circle.fill"
+            )
+            .font(NTypography.caption)
+            .foregroundStyle(theme.tokens.success)
+        }
+    }
+
+    private func approveAutomaticRuns() async {
+        isApprovingAutomaticRuns = true
+        failure = nil
+        defer { isApprovingAutomaticRuns = false }
+        switch await actions.approveAutomaticRuns() {
         case .success(let updated): scan = updated
         case .failure(let error): failure = error
         }

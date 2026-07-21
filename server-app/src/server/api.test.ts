@@ -142,7 +142,7 @@ describe('API routes', () => {
   });
 
   describe('connection profiles', () => {
-    it('lists independently saved user-named connections', async () => {
+    it('keeps legacy saved profiles out of the Markdown-backed service inventory', async () => {
       const connection: ConnectionProfile = {
         schema_version: 1,
         id: '018f47a2-9a13-7d61-bf4f-f9a5d8f67c21',
@@ -174,10 +174,7 @@ describe('API routes', () => {
       expect(await response.json()).toEqual({ connections: [connection] });
 
       const services = await authenticatedRequest(app, '/services').then((result) => result.json());
-      expect(services.connections).toContainEqual(expect.objectContaining({
-        id: connection.id,
-        name: connection.label,
-      }));
+      expect(services.connections).not.toContainEqual(expect.objectContaining({ id: connection.id }));
     });
 
     it('creates a profile from credential references without accepting values', async () => {
@@ -412,7 +409,7 @@ describe('API routes', () => {
         },
       });
 
-      const response = await authenticatedRequest(app, '/services');
+      const response = await authenticatedRequest(app, '/services?executor=claude-code');
       const body = await response.json() as { connections: Array<Record<string, unknown>> };
 
       expect(response.status).toBe(200);
@@ -1195,7 +1192,57 @@ describe('API routes', () => {
       expect(slack.status).toBe('connected');
     });
 
-    it('offers Personal and Claude account Notion as separate edit choices', async () => {
+    it('does not expose Claude account connectors to a Codex agent', async () => {
+      const snapshot = {
+        servers: [{ name: 'claude.ai Slack', status: 'connected' }],
+        discovered_at: '2026-07-18T00:00:00.000Z',
+      };
+      const app = createApi({
+        getAgents: async () => [makeAgent({ executor: 'codex' })],
+        store,
+        triggerRun,
+        connections: { get: () => snapshot, refresh: async () => snapshot },
+      });
+
+      const response = await authenticatedRequest(app, '/agents/test-agent');
+      const body = await response.json();
+
+      expect(body.capabilities.some(
+        (capability: { source: string }) => capability.source === 'account',
+      )).toBe(false);
+    });
+
+    it('waits for the runtime status probe before returning Claude account connections', async () => {
+      const populated = {
+        servers: [{ name: 'claude.ai Slack', status: 'connected' }],
+        discovered_at: '2026-07-18T00:00:00.000Z',
+      };
+      let snapshot = { servers: [], discovered_at: null } as typeof populated | {
+        servers: never[];
+        discovered_at: null;
+      };
+      const ensure = vi.fn(async () => {
+        snapshot = populated;
+        return populated;
+      });
+      const app = createApi({
+        getAgents: async () => [makeAgent({ executor: 'claude-code' })],
+        store,
+        triggerRun,
+        connections: { get: () => snapshot, ensure, refresh: async () => populated },
+      });
+
+      const response = await authenticatedRequest(app, '/agents/test-agent');
+      const body = await response.json();
+
+      expect(ensure).toHaveBeenCalledOnce();
+      expect(body.capabilities).toContainEqual(expect.objectContaining({
+        label: 'Slack (Claude account)',
+        source: 'account',
+      }));
+    });
+
+    it('offers reusable Markdown API connections while scoping account MCP to the selected LLM', async () => {
       const personal = makeAgent({
         id: 'personal-source',
         mcp_servers: {
@@ -1207,12 +1254,13 @@ describe('API routes', () => {
         },
       });
       const target = makeAgent({ id: 'target' });
+      const codexTarget = makeAgent({ id: 'codex-target', executor: 'codex' });
       const snapshot = {
         servers: [{ name: 'claude.ai Notion', status: 'connected' }],
         discovered_at: '2026-07-18T00:00:00.000Z',
       };
       const app = createApi({
-        getAgents: async () => [personal, target],
+        getAgents: async () => [personal, target, codexTarget],
         store,
         triggerRun,
         getEnv: () => ({ NOTION_PERSONAL_API_KEY: 'configured' }),
@@ -1225,10 +1273,22 @@ describe('API routes', () => {
         (capability: { label: string }) => capability.label.includes('Notion'),
       );
 
-      expect(notion).toEqual([
+      expect(notion).toEqual(expect.arrayContaining([
         expect.objectContaining({ label: 'Personal Notion', source: 'configured_api' }),
         expect.objectContaining({ label: 'Notion (Claude account)', source: 'account' }),
-      ]);
+      ]));
+
+      const codexResponse = await authenticatedRequest(app, '/agents/codex-target');
+      const codexBody = await codexResponse.json();
+      const codexNotion = codexBody.capabilities.filter(
+        (capability: { label: string }) => capability.label.includes('Notion'),
+      );
+      expect(codexNotion).toContainEqual(
+        expect.objectContaining({ label: 'Personal Notion', source: 'configured_api' }),
+      );
+      expect(codexNotion.some(
+        (capability: { source: string }) => capability.source === 'account',
+      )).toBe(false);
     });
   });
 

@@ -1,5 +1,79 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Durable agent edits and LLM-scoped connections
+
+- [x] Add failing tests for stale polls after Save, stale live state, and overlapping Markdown writes.
+- [x] Make every agent read and save reconcile against the current Markdown file in `~/.agent-server/agents`.
+- [x] Derive environment-backed connections from the current `~/.agent-server/.env` on every request.
+- [x] Scope account MCP connections to the LLM or runtime selected in the agent Markdown.
+- [x] Keep runtime MCP discovery limited to readiness status so it cannot add, remove, or overwrite configured rows.
+- [x] Remove the generic external-service security warning and retain findings for unsafe settings or combinations.
+- [x] Run server tests, Swift tests, type-check, lint, build, and relaunch the unsigned local app.
+
+Assumptions and risks:
+
+- The agent Markdown and adjacent `.env` are the only configuration sources of truth.
+- The selected executor, provider, and model determine which runtime-owned MCP connections are eligible.
+- Runtime status may be temporarily missing without changing the saved connection inventory.
+
+Review:
+
+- Edit agent now applies the exact PUT response, updates both live agent mirrors, and rejects poll responses that began before a completed write. Save and Cancel only appear for a dirty draft; Cancel restores the saved agent without leaving the tab.
+- Writes to one agent Markdown file are serialized, preventing concurrent settings actions from overwriting each other. Every request rereads the agent files and adjacent `.env`.
+- Personal Notion remains a reusable API connection derived from Markdown and `.env`. Claude account MCP rows appear only for Claude Code agents; Codex and Kimi agents do not inherit them. Runtime probes update status without changing row membership.
+- Scoped external service use no longer creates a warning by itself. The live CMO Coaching Report security result is low with no findings, while specific unsafe permission and transport rules remain active.
+- The agent header has more vertical space between its name, description, and schedule.
+- Verification passed with 1,331 server tests and 4 expected skips, 467 Swift behavior tests, 12 EventKit tests, TypeScript checking, ESLint, server compilation, and an unsigned macOS build. The live API returned the same CMO connection IDs across three reads, zero account MCP rows for Codex, seven for Claude Code, and a low CMO security result.
+
+## Security approval feedback
+
+- [x] Add failing behavior tests for when automatic-run approval is required, available, complete, or irrelevant.
+- [x] Replace the ambiguous Mark reviewed control with an explicit automatic-run approval action.
+- [x] Allow approval of a current scan when the prior review is stale and show in-progress feedback.
+- [x] Replace a successful action with a dated, persistent approval status.
+- [x] Remove the repeated single-group risk heading and expand finding details inline instead of opening another panel.
+- [x] Keep the same disclosure treatment for every agent and preserve Back and Escape collapse behavior.
+- [x] Keep Edit agent selected after Save and show saved or no-change feedback in its footer.
+- [x] Run Swift tests and rebuild and relaunch the unsigned local app.
+
+Assumptions and risks:
+
+- High-risk agents need explicit approval before scheduled or other automatic runs.
+- Critical findings remain blocked and cannot be approved away.
+- Low and needs-review results do not need this control because server preflight already allows them.
+
+Review:
+
+- The old Mark reviewed control is gone. High-risk agents now offer Approve automatic runs, critical agents remain blocked, and lower-risk agents show no unnecessary approval action.
+- Approval works when the previous review is stale, shows progress, and becomes a dated Approved for automatic runs status after the server persists it.
+- A single finding severity is named only in Summary. Finding rows expand and collapse in place, with the same treatment for every agent and no third panel.
+- Saving from Edit agent keeps that tab selected. The footer confirms Saved or No changes to save and clears the confirmation when another edit is made.
+- Verification passed with 463 Swift behavior tests, 12 EventKit core tests, and an unsigned macOS Debug build. No release, merge, push, or new commit was performed.
+
+## Agent detail tab bar
+
+- [x] Add failing presentation tests for the three detail tabs and header action states.
+- [x] Replace the duplicate-agent action with a compact Run action in the header.
+- [x] Move schedule into the stacked header and color the security action by current risk.
+- [x] Add Recent runs, Edit agent, and Run history tabs below the header.
+- [x] Keep Last run and This agent can in Recent runs while removing duplicate run and security controls.
+- [x] Embed editing and run history directly in their tabs without nested side drawers.
+- [x] Run Swift tests and rebuild and relaunch the unsigned local app.
+
+Assumptions and risks:
+
+- The security action continues to open the existing top security drawer and returns to the selected agent when dismissed.
+- A running agent disables the run action and uses the theme highlight color with a visible activity symbol.
+- Run failures remain visible inside Recent runs so moving the button does not remove recovery feedback.
+
+Review:
+
+- The agent drawer now has one stable 780-point surface. Its header stacks name, description, and schedule, with Run and risk-colored Security actions on the right.
+- Recent runs, Edit agent, and Run history use one capsule tab bar. Editing and history replace the drawer content instead of opening more drawers.
+- Recent runs contains only run feedback, Last run, and This agent can. The old Run now, Security status, duplicate-agent, gear, and View history controls are gone.
+- Run starts from the header, stays disabled with a highlighted running symbol while active, and keeps recovery feedback in Recent runs. Security is green only for a current clean check, orange when setup or review needs attention, and red for critical findings.
+- Verification passed with 457 Swift behavior tests, 12 EventKit core tests, and an unsigned macOS Debug build. The local build runs from `/tmp/agent-server-local-20260721-detail-tabs`. No release, merge, or push was performed.
+
 ## Connection category labels
 
 - [x] Add failing behavior tests for connection category derivation across API, MCP, File, Web, Command, and messaging connections.
@@ -22,8 +96,6 @@ Review:
 - The live API exposes Personal Notion to agents that do not yet use it with `enabled: false`, so the toggle can attach the reviewed configuration without copying credentials into the agent file.
 - Verification: 1,320 server tests with 4 skips, 451 Swift behavior tests, 12 EventKit tests, ESLint, strict TypeScript checking, server compilation, and the unsigned macOS Debug build passed.
 - Local API version 12 is running from `/tmp/agent-server-local-20260721-connection-labels`. No release, publish, commit, merge, or push was performed.
-
-- Pending.
 
 ## Technical debt remediation loop
 

@@ -220,15 +220,6 @@ function analyzePermissions(agent: AgentConfig): Finding[] {
       [evidence('write', 'File changes', 'Allowed', 'configuration')],
       action('permissions.file_write', 'Use read-only access', 'Turn off file editing when the task only needs to review information.', 'needs_review', true),
     ));
-  } else if (canUseNetwork) {
-    findings.push(finding(
-      'permissions.external_access', 'needs_review', 'This agent can contact apps or internet services',
-      'Information used by the agent may be sent to a configured service.',
-      'Selected content could leave this Mac as part of the task.',
-      'A network tool, provider, or connected service is configured.',
-      [evidence('network', 'External access', 'Enabled', 'configuration')],
-      action('permissions.external_access', 'Review connected services', 'Keep only the services required for this task.', 'low', true),
-    ));
   }
   return findings;
 }

@@ -4,6 +4,7 @@ import { toErrorMessage } from '../util/errors.js';
 import { timingSafeEqual } from 'crypto';
 import { z } from 'zod';
 import type { AgentConfig } from '../agents/config.js';
+import { EXECUTOR_NAMES, type AgentExecutor } from '../agents/executor.js';
 import {
   catalogSummary,
   deriveCapabilities,
@@ -45,6 +46,7 @@ type ConnectionSnapshot = {
 /** Read/refresh surface over the app-wide connection discovery cache. */
 type ConnectionSource = {
   get: () => ConnectionSnapshot;
+  ensure?: () => Promise<ConnectionSnapshot>;
   refresh: () => Promise<ConnectionSnapshot>;
 };
 
@@ -305,22 +307,34 @@ export function createApi(deps: ApiDependencies): Hono {
   // YAML semantics.
   const getConnections = (): DiscoveredConnection[] => deps.connections?.get().servers ?? [];
 
+  function selectedExecutor(agent: AgentConfig): AgentExecutor {
+    return agent.executor ?? 'claude-code';
+  }
+
+  function runtimeConnections(executor: AgentExecutor): DiscoveredConnection[] {
+    return executor === 'claude-code' ? getConnections() : [];
+  }
+
   async function enrichAgent(
     agent: AgentConfig,
-    agents: AgentConfig[] = [agent],
+    allAgents: AgentConfig[],
   ): Promise<Record<string, unknown>> {
+    await deps.connections?.ensure?.();
+    const environment = getEnv();
+    const executor = selectedExecutor(agent);
+    const discovered = runtimeConnections(executor);
     const registry = buildServiceRegistry({
-      agents,
-      environment: getEnv(),
-      discovered: getConnections(),
-      profiles: await deps.connectionProfiles?.list() ?? [],
+      agents: allAgents,
+      environment,
+      discovered,
+      executor,
     });
     return {
       ...redactAgentSecrets(agent),
       capabilities: deriveCapabilities(
         agent,
-        getEnv(),
-        getConnections(),
+        environment,
+        discovered,
         availableConnections(registry),
       ),
     };
@@ -375,11 +389,17 @@ export function createApi(deps: ApiDependencies): Hono {
   });
 
   app.get('/services', async (c) => {
+    const requestedExecutor = c.req.query('executor');
+    const executor = requestedExecutor && EXECUTOR_NAMES.includes(requestedExecutor as AgentExecutor)
+      ? requestedExecutor as AgentExecutor
+      : undefined;
+    if (requestedExecutor && !executor) return c.json({ error: 'Unknown executor' }, 400);
+    if (executor === 'claude-code') await deps.connections?.ensure?.();
     const registry = buildServiceRegistry({
       agents: await deps.getAgents(),
       environment: getEnv(),
-      discovered: getConnections(),
-      profiles: await deps.connectionProfiles?.list() ?? [],
+      discovered: executor ? runtimeConnections(executor) : [],
+      executor,
     });
     return c.json({ connections: registry.connections });
   });
@@ -498,7 +518,8 @@ export function createApi(deps: ApiDependencies): Hono {
 
     try {
       const updated = await deps.agentWriter.update(c.req.param('id'), parsed.data);
-      return c.json(await enrichAgent(updated, await deps.getAgents()));
+      const agents = await deps.getAgents();
+      return c.json(await enrichAgent(updated, agents));
     } catch (err) {
       return agentWriteErrorResponse(c, err);
     }
@@ -519,7 +540,8 @@ export function createApi(deps: ApiDependencies): Hono {
 
     try {
       const created = await deps.agentWriter.create(parsed.data);
-      return c.json(await enrichAgent(created, await deps.getAgents()), 201);
+      const agents = await deps.getAgents();
+      return c.json(await enrichAgent(created, agents), 201);
     } catch (err) {
       return agentWriteErrorResponse(c, err);
     }

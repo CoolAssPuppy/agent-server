@@ -99,6 +99,28 @@ struct CoalescingRequestState {
     }
 }
 
+/// Rejects an agent-list response when an authoritative agent write completed
+/// after that response started loading.
+struct AgentSnapshotRevision {
+    struct Token: Equatable {
+        fileprivate let value: UInt
+    }
+
+    private var value: UInt = 0
+
+    func beginSnapshot() -> Token {
+        Token(value: value)
+    }
+
+    mutating func recordMutation() {
+        value &+= 1
+    }
+
+    func shouldApply(_ token: Token) -> Bool {
+        token.value == value
+    }
+}
+
 enum MonitorPollFailureKind: Equatable {
     case reachability
     case authenticationSetup

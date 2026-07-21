@@ -69,6 +69,7 @@ describe('consumer service registry', () => {
       agents: [personal],
       environment: { NOTION_PERSONAL_API_KEY: 'configured-secret' },
       discovered: [{ name: 'claude.ai Notion', status: 'connected' }],
+      executor: 'claude-code',
     }).connections;
 
     expect(services).toEqual(expect.arrayContaining([
@@ -94,11 +95,57 @@ describe('consumer service registry', () => {
       agents: [personal],
       environment: { NOTION_PERSONAL_API_KEY: 'configured-secret' },
       discovered: [{ name: 'claude.ai Notion', status: 'connected' }],
+      executor: 'claude-code',
     });
     expect(registry.bindings.get('runtime:claude.ai%20Notion')).toEqual({
       serverName: 'claude.ai Notion',
     });
     expect(registry.bindings.get(services[0].id)?.config).toEqual(personal.mcp_servers?.['notion-personal']);
+  });
+
+  it('scopes account connectors to the Claude Code executor', () => {
+    const discovered = [{ name: 'claude.ai Notion', status: 'connected' }];
+
+    const claude = buildServiceRegistry({
+      agents: [makeAgent({ executor: 'claude-code' })],
+      environment: {},
+      discovered,
+      executor: 'claude-code',
+    });
+    const codex = buildServiceRegistry({
+      agents: [makeAgent({ executor: 'codex' })],
+      environment: {},
+      discovered,
+      executor: 'codex',
+    });
+
+    expect(claude.connections).toContainEqual(expect.objectContaining({
+      name: 'Notion (Claude account)',
+      source: 'account',
+    }));
+    expect(codex.connections.some((connection) => connection.source === 'account')).toBe(false);
+  });
+
+  it('uses runtime probes only to update status, not to define account connection rows', () => {
+    const input = {
+      agents: [makeAgent({ executor: 'claude-code' })],
+      environment: {},
+      executor: 'claude-code' as const,
+    };
+    const before = buildServiceRegistry({ ...input, discovered: [] }).connections
+      .filter(({ source }) => source === 'account');
+    const after = buildServiceRegistry({
+      ...input,
+      discovered: [
+        { name: 'claude.ai Notion', status: 'connected' },
+        { name: 'claude.ai Unexpected Plugin', status: 'connected' },
+      ],
+    }).connections.filter(({ source }) => source === 'account');
+
+    expect(after.map(({ id }) => id)).toEqual(before.map(({ id }) => id));
+    expect(before.find(({ service_id }) => service_id === 'notion')?.status).toBe('needs_setup');
+    expect(after.find(({ service_id }) => service_id === 'notion')?.status).toBe('connected');
+    expect(JSON.stringify(after)).not.toContain('Unexpected Plugin');
   });
 
   it('offers configured catalog APIs without requiring a discovered MCP account', () => {
@@ -205,7 +252,7 @@ describe('consumer service registry', () => {
     expect(custom?.id).not.toContain('\n');
   });
 
-  it('keeps exact configured and runtime identities collision resistant', () => {
+  it('keeps configured identities collision resistant without treating probe results as configuration', () => {
     const config = { command: 'safe-helper' } as const;
     const longPrefix = 'x'.repeat(140);
     const registry = buildServiceRegistry({
@@ -220,6 +267,7 @@ describe('consumer service registry', () => {
         { name: `${longPrefix}-one`, status: 'connected' },
         { name: `${longPrefix}-two`, status: 'connected' },
       ],
+      executor: 'claude-code',
     });
 
     const configuredIds = registry.connections
@@ -229,7 +277,8 @@ describe('consumer service registry', () => {
       .filter((service) => service.source === 'account')
       .map((service) => service.id);
     expect(new Set(configuredIds).size).toBe(2);
-    expect(new Set(runtimeIds).size).toBe(2);
+    expect(runtimeIds).toHaveLength(4);
+    expect(JSON.stringify(runtimeIds)).not.toContain(longPrefix);
   });
 
   it('does not make an arbitrary agent executable reusable by another agent', () => {
@@ -330,6 +379,7 @@ describe('consumer service registry', () => {
       agents: [],
       environment: {},
       discovered: [{ name: 'claude.ai Notion', status: 'failed' }],
+      executor: 'claude-code',
     }).connections;
 
     expect(services).toContainEqual(expect.objectContaining({

@@ -47,6 +47,14 @@ public enum CreationAnswerValue: Equatable, Sendable {
     }
 }
 
+public enum CreationConnectionScope {
+    public static func executor(from answers: [String: CreationAnswerValue]) -> String? {
+        guard case .string(let executor)? = answers["runtime"] else { return nil }
+        let trimmed = executor.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
 public struct CreationRuntimeOption: Equatable, Sendable, Identifiable {
     public let label: String
     public let value: String

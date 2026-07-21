@@ -1,5 +1,10 @@
 # Lessons
 
+- Agent configuration has exactly two authoritative inputs: the Markdown file in `~/.agent-server/agents` and `~/.agent-server/.env`. App state, saved registries, runtime probes, and poll responses are derived views and must never overwrite or redefine them.
+- Account MCP availability belongs to the LLM or runtime selected in the agent Markdown. Never mix connectors discovered from one runtime into an agent configured for another runtime.
+- Expected access to a narrowly configured external service is configuration, not a security defect. Reserve warning colors for unsafe scope, unsafe transport, dangerous permission combinations, or stale review state.
+- A completed mutation invalidates every read that began before it. Apply the authoritative write response to all local mirrors and reject stale poll snapshots.
+
 - When one service can be reached through several connection sources, never collapse source identity into a generic service label. Show a compact, server-derived category such as API or MCP anywhere the user reviews or selects that connection.
 
 - Validate runtime safety claims against the installed runtime, its current official documentation, and an enforcement probe before encoding them as disabled product choices. A wrapper's current limitation does not prove the underlying runtime lacks the capability.
@@ -116,3 +121,5 @@
 - An empty file-access selection is an explicit least-privilege choice, not an unanswered creation question. Creation must allow agents that only use services, schedules, or native apps to continue without local file access.
 - Creation is a wizard, so every post-description step needs an explicit Back path that preserves prior choices. Optional connection setup belongs inside the connection step, not as another permanent footer button competing with Back, Cancel, and Continue.
 - Wizard Back must restore the immediately preceding completed step and its choices. Returning every Back action to the opening description breaks user expectations and makes deferred connection choices appear lost.
+- A review action must state the behavior it authorizes and show a durable result. Never disable approval because the prior review is stale when approving the current scan is the intended recovery path, and do not show approval controls for risk levels that run without approval.
+- A security summary should name a risk level once. Findings belong in inline disclosures beneath that summary; opening another horizontal panel for one row fragments the review and creates inconsistent treatment across agents.

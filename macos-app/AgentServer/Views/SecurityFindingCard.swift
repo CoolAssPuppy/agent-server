@@ -64,13 +64,14 @@ struct SecurityRiskStatus: View {
 
 struct SecurityFindingRow: View {
     let finding: SecurityFindingPresentation
-    let isSelected: Bool
+    let isExpanded: Bool
+    let showsStatus: Bool
     let onSelect: () -> Void
 
     @Environment(\.nTheme) private var theme
 
     var body: some View {
-        let row = finding.securityRow(isSelected: isSelected)
+        let row = finding.securityRow(isSelected: isExpanded)
         Button(action: onSelect) {
             HStack(alignment: .top, spacing: NSpacing.md) {
                 Image(systemName: riskSymbol)
@@ -87,10 +88,12 @@ struct SecurityFindingRow: View {
                         .lineLimit(2)
                 }
                 Spacer(minLength: NSpacing.sm)
-                Text(row.status)
-                    .font(NTypography.caption)
-                    .foregroundStyle(riskColor)
-                Image(systemName: "chevron.right")
+                if showsStatus {
+                    Text(row.status)
+                        .font(NTypography.caption)
+                        .foregroundStyle(riskColor)
+                }
+                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(theme.tokens.mutedForeground)
                     .padding(.top, 2)
@@ -99,11 +102,11 @@ struct SecurityFindingRow: View {
             .padding(.horizontal, NSpacing.md)
             .padding(.vertical, NSpacing.sm)
             .contentShape(Rectangle())
-            .background(isSelected ? theme.tokens.primary.opacity(0.08) : Color.clear)
+            .background(isExpanded ? theme.tokens.primary.opacity(0.08) : Color.clear)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(ConsumerFlowAccessibility.securityFindingPrefix + finding.id)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
     }
 
     private var riskSymbol: String {
@@ -127,6 +130,7 @@ struct SecurityFindingDetail: View {
     let finding: SecurityFindingPresentation
     let reviewFix: (() -> Void)?
     let ignore: (() -> Void)?
+    var showsHeader = true
 
     @Environment(\.nTheme) private var theme
     @State private var showsDetails = false
@@ -134,9 +138,11 @@ struct SecurityFindingDetail: View {
     var body: some View {
         VStack(alignment: .leading, spacing: NSpacing.lg) {
             VStack(alignment: .leading, spacing: NSpacing.sm) {
-                SecurityRiskStatus(risk: finding.severity)
-                Text(finding.title)
-                    .font(.system(size: 15, weight: .semibold))
+                if showsHeader {
+                    SecurityRiskStatus(risk: finding.severity)
+                    Text(finding.title)
+                        .font(.system(size: 15, weight: .semibold))
+                }
                 Text(finding.whyItMatters)
                     .font(.system(size: 13))
                 Text(finding.potentialImpact)

@@ -343,7 +343,7 @@ export function createAgentWriter(
   options?: {
     env?: () => EnvSource;
     connections?: () => DiscoveredConnection[];
-    availableConnections?: () => Promise<AvailableConnection[]>;
+    availableConnections?: (agent: AgentConfig) => Promise<AvailableConnection[]>;
   },
 ): AgentWriter {
   // Fresh read of ~/.agent-server/.env on every call so keys the user just
@@ -354,37 +354,52 @@ export function createAgentWriter(
   // the runtime server key (and skips writing a bring-your-own server).
   const getConnections = options?.connections ?? ((): DiscoveredConnection[] => []);
   const getAvailableConnections = options?.availableConnections
-    ?? (async (): Promise<AvailableConnection[]> => []);
+    ?? (async (_agent: AgentConfig): Promise<AvailableConnection[]> => []);
+  const pendingUpdates = new Map<string, Promise<void>>();
+
+  async function serializeUpdate<T>(id: string, update: () => Promise<T>): Promise<T> {
+    const previous = pendingUpdates.get(id) ?? Promise.resolve();
+    const result = previous.then(update);
+    const settled = result.then(() => undefined, () => undefined);
+    pendingUpdates.set(id, settled);
+    try {
+      return await result;
+    } finally {
+      if (pendingUpdates.get(id) === settled) pendingUpdates.delete(id);
+    }
+  }
 
   return {
     async update(id: string, patch: AgentPatch): Promise<AgentConfig> {
-      const located = await locateAgentFile(directory, id);
-      if (!located) {
-        throw new AgentWriteError(`Agent not found: ${id}`, 'not_found');
-      }
+      return serializeUpdate(id, async () => {
+        const located = await locateAgentFile(directory, id);
+        if (!located) {
+          throw new AgentWriteError(`Agent not found: ${id}`, 'not_found');
+        }
 
-      const newContent = applyPatchToContent(
-        located.content,
-        located.config,
-        patch,
-        getEnv(),
-        getConnections(),
-        await getAvailableConnections(),
-      );
+        const newContent = applyPatchToContent(
+          located.content,
+          located.config,
+          patch,
+          getEnv(),
+          getConnections(),
+          await getAvailableConnections(located.config),
+        );
 
-      let updated: AgentConfig;
-      try {
-        updated = parseAgentFile(newContent);
-      } catch (err) {
-        const message = toErrorMessage(err);
-        throw new AgentWriteError(`Patch produced an invalid agent file: ${message}`, 'invalid');
-      }
-      if (updated.id !== id) {
-        throw new AgentWriteError('Patch must not change the agent id', 'invalid');
-      }
+        let updated: AgentConfig;
+        try {
+          updated = parseAgentFile(newContent);
+        } catch (err) {
+          const message = toErrorMessage(err);
+          throw new AgentWriteError(`Patch produced an invalid agent file: ${message}`, 'invalid');
+        }
+        if (updated.id !== id) {
+          throw new AgentWriteError('Patch must not change the agent id', 'invalid');
+        }
 
-      await writeAtomically(located.path, newContent);
-      return updated;
+        await writeAtomically(located.path, newContent);
+        return updated;
+      });
     },
 
     async create(input: NewAgentInput): Promise<AgentConfig> {

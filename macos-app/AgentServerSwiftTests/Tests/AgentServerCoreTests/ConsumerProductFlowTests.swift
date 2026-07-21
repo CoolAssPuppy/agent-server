@@ -2,6 +2,14 @@ import XCTest
 @testable import AgentServerCore
 
 final class ConsumerProductFlowTests: XCTestCase {
+    func testCreationConnectionsUseTheSelectedCodingAgent() {
+        XCTAssertEqual(
+            CreationConnectionScope.executor(from: ["runtime": .string("codex")]),
+            "codex"
+        )
+        XCTAssertNil(CreationConnectionScope.executor(from: [:]))
+    }
+
     func testCreationCanReturnToTheDescriptionFromALaterStep() {
         var flow = AgentCreationFlow(request: "Send a weekly summary")
         flow.receiveQuestions([

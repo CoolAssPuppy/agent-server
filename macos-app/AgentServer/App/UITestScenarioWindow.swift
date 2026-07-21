@@ -241,7 +241,7 @@ private struct SecurityScenarioView: View {
                 )) },
                 applyFix: { .success(store.apply(findingId: $0)) },
                 ignore: { findingId, _ in .success(store.apply(findingId: findingId)) },
-                markReviewed: { .success(store.scan) }
+                approveAutomaticRuns: { .success(store.scan) }
             )
         )
     }

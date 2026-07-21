@@ -22,4 +22,6 @@ public enum ConsumerFlowAccessibility {
     public static let debuggerOpen = "debugger.open"
     public static let failureRetry = "consumerFailure.retry"
     public static let failureDetails = "consumerFailure.details"
+    public static let agentDetailRun = "agentDetail.run"
+    public static let agentDetailSecurity = "agentDetail.security"
 }

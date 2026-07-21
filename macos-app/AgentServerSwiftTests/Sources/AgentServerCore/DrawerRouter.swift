@@ -167,23 +167,6 @@ final class DrawerRouter: ObservableObject {
     }
 }
 
-enum AgentDetailDismissalAction: Equatable {
-    case closeSettings
-    case closeHistory
-    case closeDetail
-}
-
-enum AgentDetailDismissalPolicy {
-    static func action(
-        isSettingsPresented: Bool,
-        isHistoryPresented: Bool
-    ) -> AgentDetailDismissalAction {
-        if isSettingsPresented { return .closeSettings }
-        if isHistoryPresented { return .closeHistory }
-        return .closeDetail
-    }
-}
-
 // MARK: - Agent settings selection
 
 /// Keeps an open settings draft tied to the agent that seeded it. A selection

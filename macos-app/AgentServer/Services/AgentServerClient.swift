@@ -190,8 +190,9 @@ actor AgentServerClient {
 
     /// Consumer-facing connection instances from MCP accounts, configured APIs,
     /// and reusable local services. The response never includes credentials.
-    func services() async throws -> GuidanceServiceRegistryResponse {
-        try await get("/services")
+    func services(executor: String? = nil) async throws -> GuidanceServiceRegistryResponse {
+        let queryItems = executor.map { [URLQueryItem(name: "executor", value: $0)] } ?? []
+        return try await get("/services", queryItems: queryItems)
     }
 
     /// User-named reusable connections saved independently from any agent.
@@ -329,9 +330,15 @@ actor AgentServerClient {
 
     private func get<T: Decodable>(
         _ path: String,
+        queryItems: [URLQueryItem] = [],
         requiresAuthentication: Bool = true
     ) async throws -> T {
-        let url = baseURL.appendingPathComponent(path)
+        let pathURL = baseURL.appendingPathComponent(path)
+        guard var components = URLComponents(url: pathURL, resolvingAgainstBaseURL: false) else {
+            throw ClientError.invalidResponse
+        }
+        components.queryItems = queryItems.isEmpty ? nil : queryItems
+        guard let url = components.url else { throw ClientError.invalidResponse }
         let initialRequest = URLRequest(url: url)
         let request = requiresAuthentication
             ? try authenticatedRequest(initialRequest)

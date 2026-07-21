@@ -146,27 +146,4 @@ final class DrawerRouterTests: XCTestCase {
         XCTAssertNil(router.openAgentId)
     }
 
-    func testEscapeDismissesTheDeepestAgentDetailLayer() {
-        XCTAssertEqual(
-            AgentDetailDismissalPolicy.action(
-                isSettingsPresented: true,
-                isHistoryPresented: true
-            ),
-            .closeSettings
-        )
-        XCTAssertEqual(
-            AgentDetailDismissalPolicy.action(
-                isSettingsPresented: false,
-                isHistoryPresented: true
-            ),
-            .closeHistory
-        )
-        XCTAssertEqual(
-            AgentDetailDismissalPolicy.action(
-                isSettingsPresented: false,
-                isHistoryPresented: false
-            ),
-            .closeDetail
-        )
-    }
 }

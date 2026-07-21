@@ -74,12 +74,12 @@ extension StatusMonitor {
         }
     }
 
-    func markSecurityReviewed(agentId: String) async -> Result<SecurityScanPresentation, ConsumerFlowFailure> {
+    func approveSecurityForAutomaticRuns(agentId: String) async -> Result<SecurityScanPresentation, ConsumerFlowFailure> {
         guard let analysis = securityAnalyses[agentId] else {
             return .failure(securityFailure(
                 title: "Run the security check first",
                 error: ClientError.invalidResponse,
-                recovery: "Check this agent again before marking it reviewed."
+                recovery: "Check this agent again before approving automatic runs."
             ))
         }
         do {
@@ -96,7 +96,7 @@ extension StatusMonitor {
             ))
         } catch {
             return .failure(securityFailure(
-                title: "Could not mark this agent reviewed",
+                title: "Could not approve automatic runs",
                 error: error,
                 recovery: "The agent may have changed. Check it again, then retry."
             ))

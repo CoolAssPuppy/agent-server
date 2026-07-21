@@ -556,13 +556,16 @@ export function startServer(
   const connectionCache = new ConnectionCache(() => probeMcpServers());
   void connectionCache.refresh().catch(() => {});
   const agentWriter = createAgentWriter(config.agentsDir, {
-    connections: () => connectionCache.servers(),
-    availableConnections: async () => availableConnections(buildServiceRegistry({
-      agents: await discoverAgents(config.agentsDir),
-      environment: loadEnvFile(join(config.agentsDir, '..'), process.env),
-      discovered: connectionCache.servers(),
-      profiles: await connectionProfileStore.list(),
-    })),
+    connections: () => [],
+    availableConnections: async (agent) => {
+      const executor = agent.executor ?? 'claude-code';
+      return availableConnections(buildServiceRegistry({
+        agents: await discoverAgents(config.agentsDir),
+        environment: loadEnvFile(join(config.agentsDir, '..'), process.env),
+        discovered: executor === 'claude-code' ? connectionCache.servers() : [],
+        executor,
+      }));
+    },
   });
   const guidanceModel = createLocalStructuredModel({
     codexExecutablePath: runtimePaths.codexExecutablePath,
@@ -605,11 +608,11 @@ export function startServer(
     security: analysisRuntime.security,
     content: analysisRuntime.content,
     triggerRun: triggerGuidanceRetry,
-    getServiceRegistry: async () => buildServiceRegistry({
+    getServiceRegistry: async (executor) => buildServiceRegistry({
       agents: await getAgents(),
       environment: loadEnvFile(join(config.agentsDir, '..'), process.env),
-      discovered: connectionCache.servers(),
-      profiles: await connectionProfileStore.list(),
+      discovered: executor === 'claude-code' ? connectionCache.servers() : [],
+      executor,
     }),
   });
 
@@ -636,6 +639,7 @@ export function startServer(
     getEnv: () => loadEnvFile(join(config.agentsDir, '..'), process.env),
     connections: {
       get: () => connectionCache.get(),
+      ensure: () => connectionCache.ensure(),
       refresh: () => connectionCache.refresh(),
     },
     connectionProfiles: connectionProfileStore,

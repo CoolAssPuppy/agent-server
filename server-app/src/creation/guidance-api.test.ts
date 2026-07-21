@@ -122,6 +122,23 @@ function request(app: ReturnType<typeof createApi>, path: string, init: RequestI
 }
 
 describe('consumer guidance API', () => {
+  it('loads connection choices for the coding agent selected in creation', async () => {
+    const getServiceRegistry = vi.fn(async () => ({ connections: [], bindings: new Map() }));
+    const { app } = createFixture({ getServiceRegistry });
+
+    await request(app, '/guidance/agent-proposals', {
+      method: 'POST',
+      body: JSON.stringify({
+        request: 'Create a private daily summary.',
+        timezone: 'Europe/Lisbon',
+        connected_services: [],
+        answers: [{ question_id: 'runtime', value: 'codex' }],
+      }),
+    });
+
+    expect(getServiceRegistry).toHaveBeenCalledWith('codex');
+  });
+
   it('returns all mentioned authoritative connection choices in one response', async () => {
     const registry: ServiceRegistry = {
       connections: [

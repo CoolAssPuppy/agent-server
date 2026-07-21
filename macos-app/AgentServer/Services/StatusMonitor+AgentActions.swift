@@ -2,8 +2,9 @@ import Foundation
 
 @MainActor
 extension StatusMonitor {
-    enum AgentWriteOutcome: Equatable {
-        case success
+    enum AgentWriteOutcome {
+        case success(Agent)
+        case deleted
         case missingEnv([String])
         case failure(String)
     }
@@ -13,8 +14,9 @@ extension StatusMonitor {
         guard !isDemoMode else { return .failure("Demo Mode does not change your agents.") }
         do {
             let updated = try await client.updateAgent(id: id, patch: patch)
+            agentSnapshotRevision.recordMutation()
             replaceAgent(updated)
-            return .success
+            return .success(updated)
         } catch {
             return writeOutcome(for: error)
         }
@@ -29,8 +31,9 @@ extension StatusMonitor {
                 capabilityId: capabilityId,
                 enabled: enabled
             )
+            agentSnapshotRevision.recordMutation()
             replaceAgent(updated)
-            return .success
+            return .success(updated)
         } catch {
             return writeOutcome(for: error)
         }
@@ -52,6 +55,8 @@ extension StatusMonitor {
                 schedule: schedule,
                 capabilities: capabilities
             )
+            agentSnapshotRevision.recordMutation()
+            replaceAgent(created)
             poll()
             return .success(created)
         } catch {
@@ -64,9 +69,11 @@ extension StatusMonitor {
         guard !isDemoMode else { return .failure("Demo Mode does not change your agents.") }
         do {
             try await client.deleteAgent(id: id)
+            agentSnapshotRevision.recordMutation()
+            liveAgents.removeAll { $0.id == id }
             agents.removeAll { $0.id == id }
             poll()
-            return .success
+            return .deleted
         } catch {
             return writeOutcome(for: error)
         }
@@ -228,8 +235,18 @@ extension StatusMonitor {
     }
 
     private func replaceAgent(_ updated: Agent) {
-        guard let index = agents.firstIndex(where: { $0.id == updated.id }) else { return }
-        agents[index] = updated
+        replaceAgent(updated, in: &liveAgents)
+        if !isDemoMode {
+            replaceAgent(updated, in: &agents)
+        }
+    }
+
+    private func replaceAgent(_ updated: Agent, in collection: inout [Agent]) {
+        if let index = collection.firstIndex(where: { $0.id == updated.id }) {
+            collection[index] = updated
+        } else {
+            collection.append(updated)
+        }
     }
 
     private func writeOutcome(for error: Error) -> AgentWriteOutcome {

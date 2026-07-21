@@ -61,6 +61,40 @@ describe('deterministic security analysis', () => {
     expect(result.findings.some((item) => item.rule_id === 'permissions.external_access')).toBe(false);
   });
 
+  it('classifies scoped read-only service access as low risk', () => {
+    const result = analyzeAgentSecurity({
+      agent: makeAgent({
+        executor: 'codex',
+        permissions: { allow: ['mcp__notion__search'], deny: [] },
+        working_directory: '~/Documents/Reports',
+        mcp_servers: {
+          notion: { type: 'http', url: 'https://mcp.notion.example' },
+        },
+      }),
+      rawContent: 'Search the configured Notion workspace and summarize matching pages.',
+      homeDir: '/Users/tester',
+    });
+
+    expect(result.risk.level).toBe('low');
+    expect(result.findings).toEqual([]);
+  });
+
+  it('still flags command execution combined with external access', () => {
+    const result = analyzeAgentSecurity({
+      agent: makeAgent({
+        schedule: undefined,
+        executor: 'codex',
+        permissions: { allow: ['Bash', 'WebFetch'], deny: [] },
+        working_directory: '~/Documents/Reports',
+      }),
+      rawContent: 'Fetch the report source and process it with a local command.',
+      homeDir: '/Users/tester',
+    });
+
+    expect(result.risk.level).toBe('high');
+    expect(result.findings.map((item) => item.rule_id)).toContain('permissions.commands_and_network');
+  });
+
   it('does not mark confirmed destructive wording critical without destructive permission', () => {
     const result = analyzeAgentSecurity({
       agent: makeAgent({ tools: ['Read'], working_directory: '~/Documents/Reports' }),

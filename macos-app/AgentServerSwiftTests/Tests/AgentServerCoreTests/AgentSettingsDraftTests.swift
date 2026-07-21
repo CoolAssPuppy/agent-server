@@ -112,6 +112,27 @@ final class AgentSettingsDraftTests: XCTestCase {
         XCTAssertFalse(draft.isDirty)
     }
 
+    func testCancelCanRestoreEveryFieldFromTheAuthoritativeSnapshot() {
+        let authoritative = snapshot(
+            executor: "codex",
+            model: "gpt-5",
+            capabilities: ["connection:notion": true]
+        )
+        var draft = AgentSettingsDraft(snapshot: authoritative)
+        draft.name = "Changed"
+        draft.promptText = "Changed instructions"
+        draft.runtime.choice = .claudeCode
+        draft.setCapability("connection:notion", enabled: false)
+
+        draft = AgentSettingsDraft(snapshot: authoritative)
+
+        XCTAssertFalse(draft.isDirty)
+        XCTAssertEqual(draft.name, "Agent")
+        XCTAssertEqual(draft.promptText, "Instructions")
+        XCTAssertEqual(draft.runtime.choice, .codex)
+        XCTAssertTrue(draft.isCapabilityEnabled("connection:notion", fallback: false))
+    }
+
     func testCapabilityDecisionsStayTypedAndSorted() {
         var draft = AgentSettingsDraft(snapshot: snapshot(capabilities: ["network": false, "files": true]))
         draft.setCapability("network", enabled: true)

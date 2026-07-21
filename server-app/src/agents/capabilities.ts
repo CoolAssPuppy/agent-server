@@ -613,7 +613,7 @@ export function deriveCapabilities(
   // Reachable connectors the catalog doesn't recognize (account connectors and
   // plugins without a branded entry). Skip any the agent also declares — the
   // per-agent loop below owns those.
-  for (const connector of discovered) {
+  for (const connector of availableConnections.length > 0 ? [] : discovered) {
     if (consumedConnectors.has(connector.name)) continue;
     const key = mcpServerKey(connector.name);
     const id = `${CUSTOM_MCP_PREFIX}${key}`;

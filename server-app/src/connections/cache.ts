@@ -61,7 +61,11 @@ export class ConnectionCache {
 
   private async runProbe(): Promise<ConnectionSnapshot> {
     try {
-      const servers = await this.probe();
+      const probed = await this.probe();
+      const latestByName = new Map(probed.map((server) => [server.name, server]));
+      const knownNames = new Set(this.snapshot.servers.map(({ name }) => name));
+      const servers = this.snapshot.servers.map((server) => latestByName.get(server.name) ?? server);
+      servers.push(...probed.filter(({ name }) => !knownNames.has(name)));
       this.snapshot = { servers, discovered_at: this.now() };
     } catch {
       // Keep the last good snapshot; a transient failure must not blank it.

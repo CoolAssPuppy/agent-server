@@ -2,6 +2,16 @@ import XCTest
 @testable import AgentServerCore
 
 final class MonitorReliabilityTests: XCTestCase {
+    func testCompletedMutationInvalidatesAgentSnapshotStartedBeforeIt() {
+        var revision = AgentSnapshotRevision()
+        let staleSnapshot = revision.beginSnapshot()
+
+        revision.recordMutation()
+
+        XCTAssertFalse(revision.shouldApply(staleSnapshot))
+        XCTAssertTrue(revision.shouldApply(revision.beginSnapshot()))
+    }
+
     func testSettingsCloseWhenSelectedAgentChanges() {
         XCTAssertTrue(
             AgentSettingsSelectionPolicy.shouldDismissSettings(

@@ -348,6 +348,13 @@ public struct SecurityFindingGroup: Equatable, Sendable {
     public var title: String { severity.title }
 }
 
+public enum SecurityReviewActionPresentation: Equatable, Sendable {
+    case notRequired
+    case approveAutomaticRuns
+    case approvedForAutomaticRuns(Date)
+    case blockedByCriticalFindings
+}
+
 public struct SecurityScanPresentation: Equatable, Sendable {
     public let findings: [SecurityFindingPresentation]
     public let reviewedAt: Date?
@@ -373,6 +380,24 @@ public struct SecurityScanPresentation: Equatable, Sendable {
         ConsumerRiskLevel.allCases.reversed().compactMap { severity in
             let matches = findings.filter { $0.severity == severity }
             return matches.isEmpty ? nil : SecurityFindingGroup(severity: severity, findings: matches)
+        }
+    }
+
+    public var showsFindingGroupHeadings: Bool {
+        groupedFindings.count > 1
+    }
+
+    public var reviewAction: SecurityReviewActionPresentation {
+        switch overallRisk {
+        case .critical:
+            return .blockedByCriticalFindings
+        case .high:
+            if let reviewedAt, !isStale {
+                return .approvedForAutomaticRuns(reviewedAt)
+            }
+            return .approveAutomaticRuns
+        case .low, .needsReview:
+            return .notRequired
         }
     }
 }

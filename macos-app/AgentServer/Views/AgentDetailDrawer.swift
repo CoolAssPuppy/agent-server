@@ -4,9 +4,8 @@ import AppKit
 
 /// Slide-in drawer that overlays the main pane from the left edge of the main
 /// area (x=240). Width 780, full remaining height. Consumer-focused agent
-/// page: schedule in plain English, the last run's outcome, and a capability
-/// summary. Editing (including permissions) lives behind the gear button;
-/// full run history hides behind "View history".
+/// page: schedule in plain English, the last run's outcome, editing, and run
+/// history. One tab bar swaps those surfaces without opening nested drawers.
 struct AgentDetailDrawer: View {
     @ObservedObject var monitor: StatusMonitor
     @ObservedObject var router: DrawerRouter
@@ -15,9 +14,9 @@ struct AgentDetailDrawer: View {
     @Environment(\.nTheme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var dragOffset: CGFloat = 0
-    @State private var showHistory = false
-    @State private var showSettings = false
-    @State private var runToOpen: String?
+    @State private var detailState: AgentDetailPresentationState
+    @State private var runState = AgentRunTriggerState.idle
+    @State private var runRequestedAt: Date?
 
     static let width: CGFloat = 780
     static let slideDuration: Double = 0.22
@@ -27,39 +26,25 @@ struct AgentDetailDrawer: View {
         monitor.agents.first(where: { $0.id == agentId })
     }
 
-    /// Width of the settings pane when it's open beside the detail.
-    private static let settingsPaneWidth: CGFloat = 460
+    init(monitor: StatusMonitor, router: DrawerRouter, agentId: String) {
+        self.monitor = monitor
+        self.router = router
+        self.agentId = agentId
+        _detailState = State(initialValue: AgentDetailPresentationState(agentId: agentId))
+    }
 
     var body: some View {
-        HStack(spacing: 0) {
-            // Detail pane. Fills the space left of the settings pane; when
-            // settings opens, this shrinks and the agent "draws left".
-            ZStack(alignment: .trailing) {
-                VStack(spacing: 0) {
-                    header
-                    Divider().opacity(0.3)
-                    content
-                }
-                if !showSettings { grabBar }
-            }
-            .frame(maxWidth: .infinity)
-
-            // Settings pane. Slides in from the right, sitting beside the
-            // detail rather than covering it — one continuous surface.
-            if showSettings {
+        ZStack(alignment: .trailing) {
+            VStack(spacing: 0) {
+                header
                 Divider().opacity(0.3)
-                AgentSettingsSheet(
-                    monitor: monitor,
-                    agentId: agentId,
-                    isPresented: $showSettings,
-                    onDeleted: { router.close() }
-                )
-                .id(agentId)
-                .frame(width: Self.settingsPaneWidth)
-                .transition(.move(edge: .trailing))
+                tabBar
+                Divider().opacity(0.3)
+                content
             }
+            grabBar
         }
-        .frame(maxWidth: showSettings ? .infinity : Self.width)
+        .frame(width: Self.width)
         .frame(maxHeight: .infinity)
         .background(theme.tokens.background)
         .overlay(leadingBorder, alignment: .leading)
@@ -69,40 +54,12 @@ struct AgentDetailDrawer: View {
         .compositingGroup()
         .shadow(color: Color.black.opacity(0.25), radius: 20, x: -8, y: 0)
         .offset(x: dragOffset)
-        .onChange(of: agentId) { previousAgentId, selectedAgentId in
-            showHistory = false
-            runToOpen = nil
-            if AgentSettingsSelectionPolicy.shouldDismissSettings(
-                previousAgentId: previousAgentId,
-                selectedAgentId: selectedAgentId
-            ) {
-                showSettings = false
-            }
+        .onChange(of: agentId) { _, selectedAgentId in
+            detailState.selectAgent(id: selectedAgentId)
+            runState = .idle
+            runRequestedAt = nil
         }
-        .onExitCommand(perform: dismissDeepestDetail)
-    }
-
-    private func openSettings() {
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: Self.slideDuration)) { showSettings = true }
-    }
-
-    private func closeSettings() {
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: Self.slideDuration)) { showSettings = false }
-    }
-
-    private func dismissDeepestDetail() {
-        switch AgentDetailDismissalPolicy.action(
-            isSettingsPresented: showSettings,
-            isHistoryPresented: showHistory
-        ) {
-        case .closeSettings:
-            closeSettings()
-        case .closeHistory:
-            showHistory = false
-            runToOpen = nil
-        case .closeDetail:
-            router.close()
-        }
+        .onExitCommand(perform: router.close)
     }
 
     /// Vertical 4pt grab bar glued to the right edge. Dragging it leftward
@@ -170,84 +127,66 @@ struct AgentDetailDrawer: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack(spacing: NSpacing.md) {
-            Button(action: router.close) {
-                Image(systemName: "chevron.left")
-                    .font(NTypography.bodyMedium)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                    .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcut("w", modifiers: .command)
-            .help("Close drawer (⌘W)")
+        AgentDetailHeader(
+            name: agent?.name ?? agentId,
+            description: agent?.description,
+            schedule: agent?.scheduleDisplay,
+            nextRun: nextRunDescription,
+            run: headerRunPresentation,
+            security: securityIndicator,
+            onClose: router.close,
+            onRun: startRun,
+            onSecurity: { router.openSecurity(agentId: agentId) }
+        )
+    }
 
-            VStack(alignment: .leading, spacing: NSpacing.xxxs) {
-                Text(agent?.name ?? agentId)
-                    .font(NTypography.headlineMedium)
-                    .foregroundStyle(theme.tokens.foreground)
-                if let description = agent?.description, !description.isEmpty {
-                    Text(description)
-                        .font(NTypography.caption)
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                        .lineLimit(2)
-                }
-            }
-
-            Spacer()
-
-            Button {
-                router.openCreation(sourceAgentId: agentId)
-            } label: {
-                Image(systemName: "plus.square.on.square")
-                    .font(NTypography.bodyMedium)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                    .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Create something similar")
-            .accessibilityLabel("Create something similar to this agent")
-            .accessibilityIdentifier(ConsumerFlowAccessibility.creationSimilar)
-
-            Button {
-                router.openSecurity(agentId: agentId)
-            } label: {
-                Image(systemName: "checkmark.shield")
-                    .font(NTypography.bodyMedium)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                    .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Run a security check")
-            .accessibilityLabel("Run a security check for this agent")
-            .accessibilityIdentifier(ConsumerFlowAccessibility.securityNavigation)
-
-            Button {
-                openSettings()
-            } label: {
-                Image(systemName: "gearshape")
-                    .font(NTypography.bodyMedium)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                    .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Edit agent & permissions")
+    private var nextRunDescription: String? {
+        guard let schedule = agent?.schedule,
+              let next = CronNextFire.next(schedule, after: Date()) else {
+            return nil
         }
-        .padding(.horizontal, NSpacing.xl)
-        .padding(.vertical, NSpacing.md)
+        return next.formatted(.relative(presentation: .numeric))
+    }
+
+    private var tabBar: some View {
+        AgentDetailTabBar(
+            selectedTab: detailState.selectedTab,
+            onSelect: selectTab
+        )
+    }
+
+    private func selectTab(_ tab: AgentDetailTab) {
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.16)) {
+            detailState.select(tab)
+        }
     }
 
     // MARK: - Content
 
     @ViewBuilder
     private var content: some View {
-        if showHistory {
-            historyView
-        } else if let agent {
-            summaryView(for: agent)
+        if let agent {
+            switch detailState.selectedTab {
+            case .recentRuns:
+                recentRunsView(for: agent)
+            case .editAgent:
+                AgentSettingsSheet(
+                    monitor: monitor,
+                    agentId: agentId,
+                    isPresented: .constant(true),
+                    isEmbedded: true,
+                    onFinished: { selectTab(.recentRuns) },
+                    onDeleted: { router.close() }
+                )
+                .id(agentId)
+            case .runHistory:
+                AgentRunsView(
+                    agentId: agentId,
+                    monitor: monitor,
+                    initiallySelectedRunId: detailState.selectedRunId
+                )
+                .id("\(agentId):\(detailState.selectedRunId ?? "latest")")
+            }
         } else {
             Text("Agent not found.")
                 .font(NTypography.bodyMedium)
@@ -256,21 +195,15 @@ struct AgentDetailDrawer: View {
         }
     }
 
-    private func summaryView(for agent: Agent) -> some View {
+    private func recentRunsView(for agent: Agent) -> some View {
         VStack(alignment: .leading, spacing: NSpacing.lg) {
-            AgentRunControl(
-                agent: agent,
-                monitor: monitor,
-                onOpenSettings: { showSettings = true },
-                onReviewSecurity: { router.openSecurity(agentId: agent.id) },
-                onOpenRun: { runId in
-                    runToOpen = runId
-                    showHistory = true
-                }
-            )
-            .id(agent.id)
-            scheduleRow(for: agent)
-            safetyReadinessRow(for: agent)
+            if let feedback = runState.presentation {
+                AgentRunFeedbackView(
+                    state: runState,
+                    feedback: feedback,
+                    onRecover: recoverRun
+                )
+            }
             lastRunCard(for: agent)
                 .frame(maxHeight: .infinity)
             capabilitiesStrip(for: agent)
@@ -279,47 +212,72 @@ struct AgentDetailDrawer: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    // MARK: - Schedule
-
-    private func scheduleRow(for agent: Agent) -> some View {
-        HStack(spacing: NSpacing.sm) {
-            Image(systemName: "clock")
-                .font(.system(size: 12))
-                .foregroundStyle(theme.tokens.mutedForeground)
-            Text(agent.scheduleDisplay)
-                .font(NTypography.bodySmall)
-                .foregroundStyle(theme.tokens.foreground)
-            if let schedule = agent.schedule,
-               let next = CronNextFire.next(schedule, after: Date()) {
-                Text("· next \(next.formatted(.relative(presentation: .numeric)))")
-                    .font(NTypography.bodySmall)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-            }
-            Spacer()
+    private var missingConnectionCount: Int {
+        (agent?.capabilities ?? []).count { capability in
+            guard capability.enabled else { return false }
+            let isMissingRequiredEnvironment = !capability.requiredEnv.isEmpty
+                && !capability.envReady
+            return isMissingRequiredEnvironment
+                || capability.status == "needs-auth"
+                || capability.status == "failed"
         }
     }
 
-    private func safetyReadinessRow(for agent: Agent) -> some View {
-        let presentation = safetyReadiness(for: agent)
-        return AgentSafetyReadinessRow(presentation: presentation) {
-            switch presentation.action {
-            case .openSettings: openSettings()
-            case .reviewSecurity: router.openSecurity(agentId: agent.id)
-            }
-        }
-    }
-
-    private func safetyReadiness(for agent: Agent) -> AgentSafetyReadinessPresentation {
-        let missingConnections = (agent.capabilities ?? []).count { capability in
-            guard capability.enabled, capability.kind == "mcp" else { return false }
-            return !capability.envReady || capability.status == "needs-auth" || capability.status == "failed"
-        }
-        let result = monitor.securityDashboard?.agents.first(where: { $0.id == agent.id })?.result
+    private var securityIndicator: AgentDetailSecurityIndicatorPresentation {
+        let result = monitor.securityDashboard?.agents.first(where: { $0.id == agentId })?.result
             ?? .pending
-        return AgentSafetyReadinessPresentation(
-            securityResult: result,
-            missingConnectionCount: missingConnections
+        return AgentDetailSecurityIndicatorPresentation(
+            result: result,
+            missingConnectionCount: missingConnectionCount
         )
+    }
+
+    private var isRunning: Bool {
+        if runState.isStarting { return true }
+        if monitor.activeRuns.contains(where: { $0.agentId == agentId }) { return true }
+        guard let startedRunId = runState.startedRunId else { return false }
+        return !monitor.recentRuns.contains { run in
+            run.runId == startedRunId && run.status != .running
+        }
+    }
+
+    private var headerRunPresentation: AgentDetailHeaderRunPresentation {
+        AgentDetailHeaderRunPresentation(
+            isAgentEnabled: agent?.enabled ?? false,
+            isRunning: isRunning
+        )
+    }
+
+    private func startRun() {
+        guard let agent, !headerRunPresentation.isDisabled else { return }
+        runRequestedAt = Date()
+        runState = .starting
+        Task {
+            runState = await monitor.triggerRun(agentId: agent.id)
+        }
+    }
+
+    private func recoverRun(_ recovery: AgentRunTriggerRecovery) {
+        switch recovery {
+        case .retry:
+            startRun()
+        case .openAgentSettings:
+            selectTab(.editAgent)
+        case .reviewSecurity:
+            router.openSecurity(agentId: agentId)
+        case .openRun:
+            guard let runId = runState.startedRunId else { return }
+            detailState.openRun(id: runId)
+        case .checkStatus:
+            guard let runRequestedAt else { return }
+            runState = .starting
+            Task {
+                runState = await monitor.reconcileTriggeredRun(
+                    agentId: agentId,
+                    requestedAt: runRequestedAt
+                )
+            }
+        }
     }
 
     // MARK: - Last run
@@ -339,15 +297,6 @@ struct AgentDetailDrawer: View {
                     .font(NTypography.labelSmall)
                     .foregroundStyle(theme.tokens.mutedForeground)
                 Spacer()
-                Button {
-                    showHistory = true
-                } label: {
-                    Text("View history")
-                        .font(NTypography.caption)
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                }
-                .buttonStyle(.plain)
-                .help("All past runs and details")
             }
 
             if let run = lastRun {
@@ -555,40 +504,4 @@ private struct CapabilitySummary: View {
         }
     }
 
-    // MARK: - History
-
-}
-
-extension AgentDetailDrawer {
-    private var historyView: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: NSpacing.xs) {
-                Button {
-                    showHistory = false
-                } label: {
-                    HStack(spacing: NSpacing.xxs) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 10, weight: .semibold))
-                        Text("Back")
-                            .font(NTypography.caption)
-                    }
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                Text("Run history")
-                    .font(NTypography.labelMedium)
-                    .foregroundStyle(theme.tokens.foreground)
-                Spacer()
-            }
-            .padding(.horizontal, NSpacing.xl)
-            .padding(.vertical, NSpacing.sm)
-            Divider().opacity(0.3)
-            AgentRunsView(
-                agentId: agentId,
-                monitor: monitor,
-                initiallySelectedRunId: runToOpen
-            )
-        }
-    }
 }

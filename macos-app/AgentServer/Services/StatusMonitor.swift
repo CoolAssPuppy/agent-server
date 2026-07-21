@@ -34,6 +34,7 @@ final class StatusMonitor: ObservableObject {
     private var pollTask: Task<Void, Never>?
     private var pollState = CoalescingRequestState()
     private var pollGeneration = 0
+    var agentSnapshotRevision = AgentSnapshotRevision()
     private var decisionPollTask: Task<Void, Never>?
     private var decisionRefreshCoordinator = DecisionRefreshCoordinator()
     private var decisionResolutionTransaction = DecisionResolutionTransaction()
@@ -61,6 +62,7 @@ final class StatusMonitor: ObservableObject {
     /// would re-fire run_completed / run_failed / agent_discovered for the
     /// entire seeded history.
     private var hasDoneInitialPoll = false
+    private var hasDoneInitialAgentPoll = false
     private var hasDoneInitialDecisionsPoll = false
     var securityAcknowledgements = SecurityAcknowledgementState()
     var debuggerPatches: [String: (patch: GuidanceConfigurationPatch, preview: GuidancePatchPreview)] = [:]
@@ -69,7 +71,7 @@ final class StatusMonitor: ObservableObject {
     var lastBackgroundSecuritySignature: [String] = []
 
     private let demoModePreference: DemoModePreference
-    private var liveAgents: [Agent] = []
+    var liveAgents: [Agent] = []
     private var liveActiveRuns: [Run] = []
     private var liveRecentRuns: [Run] = []
     private var liveLastRunByAgent: [String: Run] = [:]
@@ -309,6 +311,7 @@ final class StatusMonitor: ObservableObject {
     }
 
     private func performPoll() async {
+        let agentSnapshotToken = agentSnapshotRevision.beginSnapshot()
         do {
             let health = try await client.health()
             liveServerReachable = true
@@ -319,8 +322,9 @@ final class StatusMonitor: ObservableObject {
             localAPISetupError = nil
             let fetchedRuns = try await client.runs()
 
-            self.liveAgents = fetchedAgents
-            if !self.isDemoMode { self.agents = fetchedAgents }
+            if agentSnapshotRevision.shouldApply(agentSnapshotToken) {
+                applyAgentSnapshot(fetchedAgents)
+            }
 
                 let currentActiveRuns = fetchedRuns.filter { $0.isActive }
 
@@ -367,13 +371,6 @@ final class StatusMonitor: ObservableObject {
                     }
                 }
 
-                let agentIds = Set(fetchedAgents.map { $0.id })
-                if self.hasDoneInitialPoll {
-                    for newAgent in agentIds.subtracting(self.reportedAgentIds) {
-                        Telemetry.capture("agent_discovered", properties: ["agent_id": newAgent])
-                    }
-                }
-                self.reportedAgentIds = agentIds
                 self.hasDoneInitialPoll = true
 
                 // Show the latest attempt that produced an agent outcome.
@@ -402,6 +399,20 @@ final class StatusMonitor: ObservableObject {
             guard !Task.isCancelled else { return }
             handlePollFailure(error)
         }
+    }
+
+    private func applyAgentSnapshot(_ fetchedAgents: [Agent]) {
+        liveAgents = fetchedAgents
+        if !isDemoMode { agents = fetchedAgents }
+
+        let agentIds = Set(fetchedAgents.map(\.id))
+        if hasDoneInitialAgentPoll {
+            for newAgent in agentIds.subtracting(reportedAgentIds) {
+                Telemetry.capture("agent_discovered", properties: ["agent_id": newAgent])
+            }
+        }
+        reportedAgentIds = agentIds
+        hasDoneInitialAgentPoll = true
     }
 
     private func handlePollFailure(_ error: Error) {

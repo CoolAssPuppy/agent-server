@@ -204,7 +204,7 @@ struct SecurityCenterView: View {
             ignore: { findingId, _ in
                 await monitor.acknowledgeSecurityFinding(agentId: agentId, findingId: findingId)
             },
-            markReviewed: { await monitor.markSecurityReviewed(agentId: agentId) }
+            approveAutomaticRuns: { await monitor.approveSecurityForAutomaticRuns(agentId: agentId) }
         )
     }
 }

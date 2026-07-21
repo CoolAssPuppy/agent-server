@@ -32,6 +32,7 @@ import {
 import { prepareSafeTestAgent } from './safe-test.js';
 import { buildSimilarAgentRequest } from './similar-agent.js';
 import type { ServiceConnection, ServiceRegistry } from '../services/registry.js';
+import { EXECUTOR_NAMES, type AgentExecutor } from '../agents/executor.js';
 
 const ProposalApiRequestSchema = z.object({
   request: z.string().trim().min(1).max(8_000),
@@ -94,7 +95,7 @@ export type GuidanceApiDependencies = {
   content?: { get(agentId: string): Promise<{ agent: AgentConfig; content: string } | undefined> };
   triggerRun?: (agentId: string, metadata: GuidanceRetryMetadata) => Promise<string>;
   diagnosticReadiness?: (agent: AgentConfig) => DiagnosticReadiness;
-  getServiceRegistry: () => Promise<ServiceRegistry>;
+  getServiceRegistry: (executor?: AgentExecutor) => Promise<ServiceRegistry>;
   now?: () => number;
 };
 
@@ -214,16 +215,16 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
     }
   }
 
-  async function currentServiceRegistry(): Promise<ServiceRegistry> {
+  async function currentServiceRegistry(executor?: AgentExecutor): Promise<ServiceRegistry> {
     try {
-      return await dependencies.getServiceRegistry();
+      return await dependencies.getServiceRegistry(executor);
     } catch {
       throw new ServiceRegistryUnavailableError('Service discovery failed');
     }
   }
 
-  async function currentConnectedServices(): Promise<ServiceConnection[]> {
-    const registry = await currentServiceRegistry();
+  async function currentConnectedServices(executor?: AgentExecutor): Promise<ServiceConnection[]> {
+    const registry = await currentServiceRegistry(executor);
     return registry.connections.filter((connection) => connection.status === 'connected');
   }
 
@@ -258,7 +259,7 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
     pendingProposal: PendingProposal,
   ): Promise<ProposalSaveOutcome> {
     const reviewed = CreationProposalSchema.parse(pendingProposal.proposal);
-    const registry = await currentServiceRegistry();
+    const registry = await currentServiceRegistry(reviewed.runtime?.executor);
     const serviceBindings = currentServiceBindings(reviewed, pendingProposal, registry);
     if (!serviceBindings) {
       return {
@@ -321,7 +322,12 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
   app.post('/guidance/agent-proposals', async (context) => {
     try {
       const request = ProposalApiRequestSchema.parse(await readJson(context.req.raw));
-      const authoritativeServices = await currentConnectedServices();
+      const requestedExecutor = request.answers.find((answer) => answer.question_id === 'runtime')?.value;
+      const executor = typeof requestedExecutor === 'string'
+        && EXECUTOR_NAMES.includes(requestedExecutor as AgentExecutor)
+        ? requestedExecutor as AgentExecutor
+        : undefined;
+      const authoritativeServices = await currentConnectedServices(executor);
       const connectedServices = proposalServiceInputs(authoritativeServices);
       const proposalRequest = {
         request: request.request,
@@ -372,7 +378,12 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
   app.post('/guidance/agents/:agentId/similar-proposals', async (context) => {
     try {
       const request = ProposalApiRequestSchema.parse(await readJson(context.req.raw));
-      const authoritativeServices = await currentConnectedServices();
+      const requestedExecutor = request.answers.find((answer) => answer.question_id === 'runtime')?.value;
+      const executor = typeof requestedExecutor === 'string'
+        && EXECUTOR_NAMES.includes(requestedExecutor as AgentExecutor)
+        ? requestedExecutor as AgentExecutor
+        : undefined;
+      const authoritativeServices = await currentConnectedServices(executor);
       const connectedServices = proposalServiceInputs(authoritativeServices);
       const source = (await dependencies.getAgents())
         .find((agent) => agent.id === context.req.param('agentId'));
