@@ -85,25 +85,37 @@ final class ServerProcessReliabilityTests: XCTestCase {
     func testChildPathRestoresHomebrewCommandsAfterSparkleRelaunch() {
         let path = ChildProcessPathBuilder.build(
             inheritedPath: "/usr/bin:/bin:/usr/sbin:/sbin",
-            nodeExecutable: "/opt/homebrew/bin/node"
+            nodeExecutable: "/opt/homebrew/bin/node",
+            homeDirectory: "/Users/tester"
         )
 
         XCTAssertEqual(
             path,
-            "/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin"
+            "/opt/homebrew/bin:/Users/tester/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin"
         )
     }
 
     func testChildPathKeepsEachCommandDirectoryOnlyOnce() {
         let path = ChildProcessPathBuilder.build(
             inheritedPath: "/opt/homebrew/bin:/usr/bin:/opt/homebrew/bin",
-            nodeExecutable: "/opt/homebrew/bin/node"
+            nodeExecutable: "/opt/homebrew/bin/node",
+            homeDirectory: "/Users/tester"
         )
 
         XCTAssertEqual(
             path.split(separator: ":").filter { $0 == "/opt/homebrew/bin" }.count,
             1
         )
+    }
+
+    func testChildPathKeepsUserLocalCommandsAfterSparkleRelaunch() {
+        let path = ChildProcessPathBuilder.build(
+            inheritedPath: "/usr/bin:/bin:/usr/sbin:/sbin",
+            nodeExecutable: "/opt/homebrew/bin/node",
+            homeDirectory: "/Users/tester"
+        )
+
+        XCTAssertTrue(path.split(separator: ":").contains("/Users/tester/.local/bin"))
     }
 
     func testExternalPIDParserAcceptsOnlyUniquePositiveDecimalIdentifiers() {

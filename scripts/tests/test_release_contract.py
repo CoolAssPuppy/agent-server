@@ -9,6 +9,11 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class ReleaseShellContractTests(unittest.TestCase):
+    def test_nested_runtimes_keep_their_required_entitlements_when_resigned(self) -> None:
+        project = (ROOT / "macos-app/project.yml").read_text()
+
+        self.assertIn("--preserve-metadata=entitlements", project)
+
     def test_notary_credentials_use_keychain_indirection_only(self) -> None:
         release = (ROOT / "scripts/release.sh").read_text()
         dmg = (ROOT / "scripts/build-dmg.sh").read_text()

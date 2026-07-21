@@ -162,7 +162,7 @@ targets:
 
           find "$NODE_MODULES" -type f -perm -u+x 2>/dev/null | while IFS= read -r bin; do
             if file "$bin" 2>/dev/null | head -1 | grep -q "Mach-O"; then
-              if codesign --force --options runtime --sign "$IDENTITY" "$bin" >/dev/null 2>&1; then
+              if codesign --force --options runtime --preserve-metadata=entitlements --sign "$IDENTITY" "$bin" >/dev/null 2>&1; then
                 count=$(cat "$COUNT_FILE")
                 echo $((count + 1)) > "$COUNT_FILE"
               else

@@ -56,8 +56,15 @@ public enum NodeExecutableResolver {
 }
 
 public enum ChildProcessPathBuilder {
-    public static func build(inheritedPath: String, nodeExecutable: String) -> String {
+    public static func build(
+        inheritedPath: String,
+        nodeExecutable: String,
+        homeDirectory: String
+    ) -> String {
         let nodeDirectory = URL(fileURLWithPath: nodeExecutable).deletingLastPathComponent().path
+        let userLocalDirectory = URL(fileURLWithPath: homeDirectory)
+            .appendingPathComponent(".local/bin")
+            .path
         let inheritedDirectories = inheritedPath
             .split(separator: ":", omittingEmptySubsequences: true)
             .map(String.init)
@@ -66,7 +73,7 @@ public enum ChildProcessPathBuilder {
         }
 
         var seen = Set<String>()
-        return ([nodeDirectory] + inheritedDirectories + standardDirectories)
+        return ([nodeDirectory, userLocalDirectory] + inheritedDirectories + standardDirectories)
             .filter { seen.insert($0).inserted }
             .joined(separator: ":")
     }

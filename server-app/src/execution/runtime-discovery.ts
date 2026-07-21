@@ -56,8 +56,8 @@ export function createDefaultProbe(
 /**
  * Find the user's installed Claude executable, so runs use the binary (and
  * subscription login) they already have rather than the SDK's bundled one.
- * Resolution order: opt-out flag > explicit override > `~/.claude/local/claude`
- * > PATH. Returns undefined to fall back to the bundled runtime.
+ * Resolution order: opt-out flag > explicit override > known user-local
+ * installer paths > PATH. Returns undefined to fall back to the bundled runtime.
  */
 export function discoverClaudeExecutable(probe: RuntimeProbe): string | undefined {
   if (probe.env.AGENT_SERVER_USE_INSTALLED_CLAUDE === 'false') return undefined;
@@ -65,8 +65,12 @@ export function discoverClaudeExecutable(probe: RuntimeProbe): string | undefine
   const explicit = probe.env.AGENT_SERVER_CLAUDE_PATH;
   if (explicit) return probe.isExecutable(explicit) ? explicit : undefined;
 
-  const localInstall = join(probe.home, '.claude', 'local', 'claude');
-  if (probe.isExecutable(localInstall)) return localInstall;
+  const localInstalls = [
+    join(probe.home, '.local', 'bin', 'claude'),
+    join(probe.home, '.claude', 'local', 'claude'),
+  ];
+  const localInstall = localInstalls.find(probe.isExecutable);
+  if (localInstall) return localInstall;
 
   const onPath = probe.which('claude');
   return onPath && probe.isExecutable(onPath) ? onPath : undefined;

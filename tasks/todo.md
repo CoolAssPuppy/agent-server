@@ -1644,3 +1644,14 @@ The Settings drawer now uses the same card, row, divider, and control geometry t
 ### Review
 
 Agent Server 3.3.0 build 33 passed 1,332 server tests with 4 skipped, 472 Swift behavior tests, strict TypeScript checking, ESLint, and the signed universal Release archive build. Apple accepted the app submission `4aab5ff3-95d1-4a6b-8fc9-461bbeb17971` and DMG submission `0f81493c-6228-42d0-ac5b-e8dae5ff353b`. Both notarization tickets were stapled and validated. The Sparkle-signed DMG and appcast were published, and the live feed reports Version 3.3.0 with the release text “Bug fixes”.
+## Restore Claude runs after an app update
+
+- [x] Reproduce the 3.3.0 exit-code regression from the installed app runtime.
+- [x] Add failing behavior tests for Claude installed in `~/.local/bin` after a clean app relaunch.
+- [x] Restore user-local command discovery without changing agent Markdown or connection configuration.
+- [x] Run focused tests, the complete server and Swift suites, type-checking, lint, and both local builds.
+- [x] Install and launch the fixed local app, then prove a Claude-backed run passes runtime startup and appears in Run history.
+
+### Review
+
+The 3.3.0 app relaunched with a sanitized PATH that omitted `~/.local/bin`, so it stopped finding the authenticated Claude installation and every default Claude-backed agent fell into a bundled runtime that exited before turn one. Runtime discovery now probes the native installer path directly, the app adds the user-local bin directory to its child PATH, and vendored runtimes retain their required entitlements when signed. The locally installed app now logs the authenticated Claude runtime. A Portuguese and French run reached five turns and two Notion query calls, appeared in durable Run history, and did not reproduce code 1. It made no writes because both July 21 lesson pages already exist from the earlier run; the output contract therefore reported that no new required output was created. Verification passed with 1,333 server tests and 4 expected skips, 473 Swift tests, 49 release-contract tests, strict TypeScript checking, ESLint, the server build, and the signed Debug macOS build.

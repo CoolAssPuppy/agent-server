@@ -285,7 +285,8 @@ final class ServerProcessManager {
         }
         environment["PATH"] = ChildProcessPathBuilder.build(
             inheritedPath: childPath,
-            nodeExecutable: nodePath
+            nodeExecutable: nodePath,
+            homeDirectory: FileManager.default.homeDirectoryForCurrentUser.path
         )
         environment["AGENT_SERVER_HOME"] = AgentServerWorkspaceStore.current().homeDirectory.path
 

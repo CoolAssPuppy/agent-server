@@ -21,6 +21,15 @@ function makeProbe(overrides: Partial<RuntimeProbe> = {}): RuntimeProbe {
 }
 
 describe('discoverClaudeExecutable', () => {
+  it('finds the native installer in ~/.local/bin without an interactive shell PATH', () => {
+    const nativeInstall = join(HOME, '.local', 'bin', 'claude');
+    const probe = makeProbe({
+      isExecutable: (path) => path === nativeInstall,
+    });
+
+    expect(discoverClaudeExecutable(probe)).toBe(nativeInstall);
+  });
+
   it('prefers the ~/.claude/local/claude install when present', () => {
     const local = join(HOME, '.claude', 'local', 'claude');
     const probe = makeProbe({
