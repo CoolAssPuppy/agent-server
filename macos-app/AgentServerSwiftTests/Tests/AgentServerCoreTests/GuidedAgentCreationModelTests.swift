@@ -39,10 +39,12 @@ final class GuidedAgentCreationModelTests: XCTestCase {
         var model = GuidedAgentCreationModel(request: "Publish a summary")
         model.flow.receiveProposal(proposal(risk: .high))
 
-        XCTAssertEqual(model.requestSave(runSafeTest: true), .confirmationRequired(runSafeTest: true))
+        XCTAssertNil(model.requestSave(runSafeTest: true))
+        XCTAssertEqual(model.pendingHighRiskSave, true)
         let first = tryUnwrap(model.confirmHighRiskSave())
         model.flow.receiveProposal(proposal(risk: .high))
-        XCTAssertEqual(model.requestSave(runSafeTest: false), .confirmationRequired(runSafeTest: false))
+        XCTAssertNil(model.requestSave(runSafeTest: false))
+        XCTAssertEqual(model.pendingHighRiskSave, false)
         let second = tryUnwrap(model.confirmHighRiskSave())
 
         let saved = SavedAgentPresentation(agentId: "summary", safeTestRunId: nil)
@@ -76,16 +78,17 @@ final class GuidedAgentCreationModelTests: XCTestCase {
     func testStoppingSafeTestInvalidatesLateObservationResults() {
         var model = GuidedAgentCreationModel(request: "Write a summary")
         model.flow.receiveProposal(ConsumerFlowDemoFixtures.proposal)
-        guard case .save(let save) = model.requestSave(runSafeTest: true) else {
-            return XCTFail("Expected immediate save")
-        }
+        let save = tryUnwrap(model.requestSave(runSafeTest: true))
         let saved = SavedAgentPresentation(agentId: "summary", safeTestRunId: "run-1")
         XCTAssertTrue(model.receiveSave(.success(saved), generation: save.generation))
         let observation = tryUnwrap(model.safeTestObservation)
 
         XCTAssertEqual(model.stopSafeTest(), "run-1")
         XCTAssertEqual(model.flow.safeTestState, .stopped)
-        XCTAssertFalse(model.receiveSafeTest(.completed, generation: observation.generation))
+        XCTAssertFalse(model.receiveSafeTest(
+            .success(.completed),
+            generation: observation.generation
+        ))
         let failure = ConsumerFlowFailure(
             title: "Polling failed",
             message: "Could not check the run.",
@@ -96,6 +99,27 @@ final class GuidedAgentCreationModelTests: XCTestCase {
         )
         XCTAssertFalse(model.receiveSafeTest(.failure(failure), generation: observation.generation))
         XCTAssertEqual(model.flow.phase, .complete)
+    }
+
+    func testCancellingAsyncWorkRejectsLatePreparationAndSaveResults() {
+        var preparationModel = GuidedAgentCreationModel(request: "Write a summary")
+        let preparation = tryUnwrap(preparationModel.startPreparation())
+        preparationModel.invalidatePendingOperations()
+
+        XCTAssertFalse(preparationModel.receivePreparation(
+            .success(.proposal(ConsumerFlowDemoFixtures.proposal)),
+            generation: preparation.generation
+        ))
+
+        var saveModel = GuidedAgentCreationModel(request: "Write a summary")
+        saveModel.flow.receiveProposal(ConsumerFlowDemoFixtures.proposal)
+        let save = tryUnwrap(saveModel.requestSave(runSafeTest: false))
+        saveModel.invalidatePendingOperations()
+
+        XCTAssertFalse(saveModel.receiveSave(
+            .success(SavedAgentPresentation(agentId: "summary", safeTestRunId: nil)),
+            generation: save.generation
+        ))
     }
 
     private func tryUnwrap<T>(_ value: T?, file: StaticString = #filePath, line: UInt = #line) -> T {

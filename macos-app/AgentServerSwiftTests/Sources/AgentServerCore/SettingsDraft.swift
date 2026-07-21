@@ -1,3 +1,5 @@
+import Foundation
+
 public enum SettingsDraftError: Error, Equatable {
     case invalidKey(String)
     case duplicateKey(String)
@@ -10,16 +12,16 @@ public enum AgentPanelConnection: String, Equatable, Sendable {
     case reconnecting = "Reconnecting"
 }
 
-public struct SettingsDraft: Equatable {
-    public static let catchUpKey = "AGENT_SERVER_CATCH_UP"
-    public static let useInstalledClaudeKey = "AGENT_SERVER_USE_INSTALLED_CLAUDE"
-    public static let useInstalledCodexKey = "AGENT_SERVER_USE_INSTALLED_CODEX"
-    public static let useInstalledKimiKey = "AGENT_SERVER_USE_INSTALLED_KIMI"
+public struct SettingsDraft {
+    static let catchUpKey = "AGENT_SERVER_CATCH_UP"
+    static let useInstalledClaudeKey = "AGENT_SERVER_USE_INSTALLED_CLAUDE"
+    static let useInstalledCodexKey = "AGENT_SERVER_USE_INSTALLED_CODEX"
+    static let useInstalledKimiKey = "AGENT_SERVER_USE_INSTALLED_KIMI"
 
     public var pairs: [EnvPair]
     public private(set) var telemetryProgress: TelemetryProgressSettings
-    public private(set) var saveError: String?
-    public private(set) var reloadGeneration = 0
+    public private(set) var errorMessage: String?
+    private var reloadGeneration = 0
 
     private var savedResumeAfterWake: Bool
     private var savedRuntimeSelection: RuntimeSelection
@@ -117,31 +119,45 @@ public struct SettingsDraft: Equatable {
         return pairs.filter { !$0.key.isEmpty }
     }
 
+    @discardableResult
+    public mutating func persistChange(
+        _ change: (inout SettingsDraft) -> Void,
+        using persist: ([EnvPair]) throws -> Void
+    ) -> Bool {
+        let original = self
+        var candidate = self
+        change(&candidate)
+        do {
+            try persist(try candidate.validatedPairs())
+            candidate.clearError()
+            self = candidate
+            return true
+        } catch {
+            self = original
+            recordPersistenceFailure(error)
+            return false
+        }
+    }
+
     public mutating func recordLoadFailure(fileName: String, description: String) {
-        saveError = "Could not load \(fileName): \(description)"
+        errorMessage = "Could not load \(fileName): \(description)"
     }
 
-    public mutating func recordSaveFailure(_ error: EnvFileStoreError) {
+    public mutating func recordPersistenceFailure(_ error: Error) {
         switch error {
-        case .invalidKey(let key): saveError = "Invalid key: \(key)"
-        case .duplicateKey(let key): saveError = "Duplicate key: \(key)"
-        case .writeFailed(let message): saveError = "Could not save .env: \(message)"
+        case SettingsDraftError.invalidKey(let key), EnvFileStoreError.invalidKey(let key):
+            errorMessage = "Invalid key: \(key)"
+        case SettingsDraftError.duplicateKey(let key), EnvFileStoreError.duplicateKey(let key):
+            errorMessage = "Duplicate key: \(key)"
+        case EnvFileStoreError.writeFailed(let message):
+            errorMessage = "Could not save .env: \(message)"
+        default:
+            errorMessage = "Could not save .env: \(error.localizedDescription)"
         }
     }
 
-    public mutating func recordValidationFailure(_ error: SettingsDraftError) {
-        switch error {
-        case .invalidKey(let key): saveError = "Invalid key: \(key)"
-        case .duplicateKey(let key): saveError = "Duplicate key: \(key)"
-        }
-    }
-
-    public mutating func recordSaveFailure(description: String) {
-        saveError = "Could not save .env: \(description)"
-    }
-
-    public mutating func recordSaveSuccess() {
-        saveError = nil
+    public mutating func clearError() {
+        errorMessage = nil
     }
 
     public mutating func acknowledgeGeneralRestart() {
@@ -182,7 +198,7 @@ public struct SettingsDraft: Equatable {
         savedRuntimeSelection = runtimeSelection
         savedPanelSendingEnabled = panelSettings.isSendingEnabled
         savedTelemetryProgress = telemetryProgress
-        saveError = nil
+        errorMessage = nil
     }
 
     private static func panelSettings(in pairs: [EnvPair]) -> AgentPanelSettings {

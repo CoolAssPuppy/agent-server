@@ -45,6 +45,15 @@ final class AgentSettingsDraftTests: XCTestCase {
         XCTAssertFalse(draft.isDirty)
     }
 
+    func testMultilineWhitespaceIsEmptyForValidationAndOptionalText() {
+        var draft = AgentSettingsDraft(snapshot: snapshot(description: "Old"))
+        draft.name = "\n\t"
+        draft.descriptionText = "\n\t"
+
+        XCTAssertEqual(draft.validation, .invalid(.nameRequired))
+        XCTAssertEqual(draft.patch.description, .clear)
+    }
+
     func testCustomProviderRoundTripsWithoutChangesAndCanBeCleared() {
         let original = snapshot(
             executor: "codex",
@@ -60,6 +69,27 @@ final class AgentSettingsDraftTests: XCTestCase {
         XCTAssertEqual(draft.patch.executor, .clear)
         XCTAssertEqual(draft.patch.model, .clear)
         XCTAssertEqual(draft.patch.provider, .clear)
+    }
+
+    func testCustomProviderKeyCanBeRemovedWithoutClearingTheProvider() {
+        let provider = AgentSettingsProvider(
+            endpoint: "https://models.example.com/v1",
+            keyReference: "${PRIVATE_KEY}"
+        )
+        var draft = AgentSettingsDraft(snapshot: snapshot(
+            executor: "codex",
+            model: "private-model",
+            provider: provider
+        ))
+
+        draft.runtime.customKeyVariable = ""
+
+        XCTAssertEqual(
+            draft.patch.provider,
+            .set(AgentSettingsProvider(endpoint: provider.endpoint, keyReference: nil))
+        )
+        XCTAssertEqual(draft.patch.executor, .unchanged)
+        XCTAssertEqual(draft.patch.model, .unchanged)
     }
 
     func testExistingModelWithoutProviderIsPreservedUntilRuntimeSelectionChanges() {

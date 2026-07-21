@@ -4,10 +4,10 @@ public enum TelemetryProgressMode: String, Equatable, Sendable {
 }
 
 public struct TelemetryProgressSettings: Equatable, Sendable {
-    public static let modeKey = "AGENT_SERVER_TELEMETRY_PROGRESS_MODE"
-    public static let sampleMillisecondsKey = "AGENT_SERVER_TELEMETRY_PROGRESS_SAMPLE_MS"
-    public static let maxEntriesKey = "AGENT_SERVER_TELEMETRY_PROGRESS_MAX_ENTRIES"
-    public static let includesMetadataKey = "AGENT_SERVER_TELEMETRY_PROGRESS_INCLUDE_METADATA"
+    static let modeKey = "AGENT_SERVER_TELEMETRY_PROGRESS_MODE"
+    static let sampleMillisecondsKey = "AGENT_SERVER_TELEMETRY_PROGRESS_SAMPLE_MS"
+    static let maxEntriesKey = "AGENT_SERVER_TELEMETRY_PROGRESS_MAX_ENTRIES"
+    static let includesMetadataKey = "AGENT_SERVER_TELEMETRY_PROGRESS_INCLUDE_METADATA"
 
     public static let `default` = TelemetryProgressSettings(
         mode: .live,
@@ -16,10 +16,10 @@ public struct TelemetryProgressSettings: Equatable, Sendable {
         includesMetadata: false
     )
 
-    public var mode: TelemetryProgressMode
-    public var sampleSeconds: Int
-    public var maxEntries: Int
-    public var includesMetadata: Bool
+    public let mode: TelemetryProgressMode
+    public let sampleSeconds: Int
+    public let maxEntries: Int
+    public let includesMetadata: Bool
 
     public init(
         mode: TelemetryProgressMode,
@@ -56,6 +56,20 @@ public struct TelemetryProgressSettings: Equatable, Sendable {
             sampleSeconds: sampleSeconds,
             maxEntries: maxEntries,
             includesMetadata: includesMetadata
+        )
+    }
+
+    func updating(
+        mode: TelemetryProgressMode? = nil,
+        sampleSeconds: Int? = nil,
+        maxEntries: Int? = nil,
+        includesMetadata: Bool? = nil
+    ) -> TelemetryProgressSettings {
+        TelemetryProgressSettings(
+            mode: mode ?? self.mode,
+            sampleSeconds: sampleSeconds ?? self.sampleSeconds,
+            maxEntries: maxEntries ?? self.maxEntries,
+            includesMetadata: includesMetadata ?? self.includesMetadata
         )
     }
 

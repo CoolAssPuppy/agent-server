@@ -14,9 +14,9 @@ extension Agent {
             provider: provider.map {
                 AgentSettingsProvider(endpoint: $0.baseURL, keyReference: $0.apiKey)
             },
-            capabilities: Dictionary(
-                uniqueKeysWithValues: (capabilities ?? []).map { ($0.id, $0.enabled) }
-            )
+            capabilities: (capabilities ?? []).reduce(into: [:]) { values, capability in
+                values[capability.id] = capability.enabled
+            }
         )
     }
 }

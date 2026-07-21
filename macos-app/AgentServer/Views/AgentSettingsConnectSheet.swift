@@ -5,10 +5,17 @@ struct AgentSettingsConnectTarget: Identifiable {
     let capability: AgentCapability
     let missingKeys: [String]
     var id: String { capability.id }
+
+    init(capability: AgentCapability) {
+        self.capability = capability
+        missingKeys = capability.requiredEnv.reduce(into: []) { keys, key in
+            if !keys.contains(key) { keys.append(key) }
+        }
+    }
 }
 
 struct AgentSettingsConnectSheet: View {
-    @ObservedObject var monitor: StatusMonitor
+    let monitor: StatusMonitor
     let target: AgentSettingsConnectTarget
     let onDone: (Bool) -> Void
 
@@ -82,9 +89,9 @@ struct AgentSettingsConnectSheet: View {
         errorMessage = nil
         Task {
             do {
-                let trimmed = Dictionary(uniqueKeysWithValues: target.missingKeys.map {
-                    ($0, (values[$0] ?? "").trimmingCharacters(in: .whitespaces))
-                })
+                let trimmed = target.missingKeys.reduce(into: [String: String]()) { result, key in
+                    result[key] = (values[key] ?? "").trimmingCharacters(in: .whitespaces)
+                }
                 try monitor.saveConnectionKeys(trimmed)
                 isBusy = false
                 onDone(true)

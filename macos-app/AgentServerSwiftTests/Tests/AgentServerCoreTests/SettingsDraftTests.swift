@@ -56,13 +56,43 @@ final class SettingsDraftTests: XCTestCase {
         var draft = SettingsDraft()
 
         draft.recordLoadFailure(fileName: ".env", description: "Permission denied")
-        XCTAssertEqual(draft.saveError, "Could not load .env: Permission denied")
+        XCTAssertEqual(draft.errorMessage, "Could not load .env: Permission denied")
 
-        draft.recordSaveFailure(.duplicateKey("PANEL_URL"))
-        XCTAssertEqual(draft.saveError, "Duplicate key: PANEL_URL")
+        draft.recordPersistenceFailure(EnvFileStoreError.duplicateKey("PANEL_URL"))
+        XCTAssertEqual(draft.errorMessage, "Duplicate key: PANEL_URL")
 
-        draft.recordSaveSuccess()
-        XCTAssertNil(draft.saveError)
+        draft.clearError()
+        XCTAssertNil(draft.errorMessage)
+    }
+
+    func testFailedPersistedChangeRollsBackDraftAndKeepsAnActionableError() {
+        var draft = SettingsDraft(pairs: [EnvPair(key: "ORIGINAL", value: "kept")])
+
+        let didPersist = draft.persistChange(
+            { $0.setResumeAfterWake(false) },
+            using: { _ in throw EnvFileStoreError.writeFailed("Disk full") }
+        )
+
+        XCTAssertFalse(didPersist)
+        XCTAssertEqual(draft.pairs, [EnvPair(key: "ORIGINAL", value: "kept")])
+        XCTAssertFalse(draft.requiresGeneralRestart)
+        XCTAssertEqual(draft.errorMessage, "Could not save .env: Disk full")
+    }
+
+    func testSuccessfulPersistedChangeCommitsTheDraftAndClearsAnOldError() {
+        var draft = SettingsDraft()
+        draft.recordLoadFailure(fileName: ".env", description: "Old error")
+        var persistedPairs: [EnvPair] = []
+
+        let didPersist = draft.persistChange(
+            { $0.setResumeAfterWake(false) },
+            using: { persistedPairs = $0 }
+        )
+
+        XCTAssertTrue(didPersist)
+        XCTAssertEqual(persistedPairs, draft.pairs)
+        XCTAssertTrue(draft.requiresGeneralRestart)
+        XCTAssertNil(draft.errorMessage)
     }
 
     func testPanelSendingIsGatedByCredentialsAndReportsConnectionState() {

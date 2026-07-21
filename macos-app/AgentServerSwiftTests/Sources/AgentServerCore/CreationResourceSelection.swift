@@ -14,9 +14,7 @@ public enum CreationResourceSelectionError: Error, Equatable, Sendable {
     case folderRequired
 
     public var message: String {
-        switch self {
-        case .folderRequired: "Choose a folder, not a file."
-        }
+        "Choose a folder, not a file."
     }
 }
 
@@ -36,14 +34,7 @@ public struct CreationResourceSelection: Equatable, Sendable {
         return .success(candidate.path)
     }
 
-    @discardableResult
-    public mutating func add(
-        _ candidates: [CreationResourceCandidate],
-        mode: CreationResourcePickerMode
-    ) -> CreationResourceSelectionError? {
-        guard candidates.allSatisfy({ mode.accepts(isDirectory: $0.isDirectory) }) else {
-            return .folderRequired
-        }
+    public mutating func add(_ candidates: [CreationResourceCandidate]) {
         var knownPaths = Set(grants.map(\.path))
         for candidate in candidates where knownPaths.insert(candidate.path).inserted {
             grants.append(CreationFileGrant(
@@ -52,7 +43,6 @@ public struct CreationResourceSelection: Equatable, Sendable {
                 access: .readOnly
             ))
         }
-        return nil
     }
 
     public mutating func setAccess(_ access: CreationFileGrant.Access, for path: String) {

@@ -18,11 +18,6 @@ public struct GuidedSaveRequest: Equatable, Sendable {
     public let runSafeTest: Bool
 }
 
-public enum GuidedSaveDecision: Equatable, Sendable {
-    case confirmationRequired(runSafeTest: Bool)
-    case save(GuidedSaveRequest)
-}
-
 public struct GuidedSafeTestObservation: Equatable, Sendable {
     public let generation: Int
     public let runId: String
@@ -123,13 +118,13 @@ public struct GuidedAgentCreationModel: Equatable, Sendable {
     }
 
     public mutating func goBack() {
-        invalidateAsyncWork()
+        invalidatePendingOperations()
         flow.goBack()
         restoreQuestionDraft()
     }
 
     public mutating func returnToRequest() {
-        invalidateAsyncWork()
+        invalidatePendingOperations()
         flow.returnToRequest()
     }
 
@@ -138,13 +133,13 @@ public struct GuidedAgentCreationModel: Equatable, Sendable {
         return flow.canRequestProposal ? beginPreparation(newUnsupportedServiceIDs: []) : nil
     }
 
-    public mutating func requestSave(runSafeTest: Bool) -> GuidedSaveDecision? {
+    public mutating func requestSave(runSafeTest: Bool) -> GuidedSaveRequest? {
         guard let proposal = flow.proposal else { return nil }
         if proposal.risk == .high || proposal.risk == .critical {
             pendingHighRiskSave = runSafeTest
-            return .confirmationRequired(runSafeTest: runSafeTest)
+            return nil
         }
-        return .save(beginSave(proposal: proposal, runSafeTest: runSafeTest))
+        return beginSave(proposal: proposal, runSafeTest: runSafeTest)
     }
 
     public mutating func cancelHighRiskSave() {
@@ -181,14 +176,6 @@ public struct GuidedAgentCreationModel: Equatable, Sendable {
 
     @discardableResult
     public mutating func receiveSafeTest(
-        _ state: SafeTestRunState,
-        generation: Int
-    ) -> Bool {
-        receiveSafeTest(.success(state), generation: generation)
-    }
-
-    @discardableResult
-    public mutating func receiveSafeTest(
         _ result: Result<SafeTestRunState, ConsumerFlowFailure>,
         generation: Int
     ) -> Bool {
@@ -213,7 +200,9 @@ public struct GuidedAgentCreationModel: Equatable, Sendable {
         return runId
     }
 
-    public mutating func cancelSafeTestObservation() {
+    public mutating func invalidatePendingOperations() {
+        preparationGeneration = nil
+        saveGeneration = nil
         safeTestObservation = nil
     }
 
@@ -255,12 +244,6 @@ public struct GuidedAgentCreationModel: Equatable, Sendable {
     private mutating func generate() -> Int {
         nextGeneration += 1
         return nextGeneration
-    }
-
-    private mutating func invalidateAsyncWork() {
-        preparationGeneration = nil
-        saveGeneration = nil
-        safeTestObservation = nil
     }
 
     private mutating func clearQuestionDraft() {

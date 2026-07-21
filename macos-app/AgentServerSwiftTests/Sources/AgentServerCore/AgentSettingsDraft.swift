@@ -37,12 +37,12 @@ public struct AgentSettingsSnapshot: Equatable, Sendable {
     }
 }
 
-public enum AgentSettingsValidationError: Equatable, Sendable {
+enum AgentSettingsValidationError: Equatable, Sendable {
     case nameRequired
     case providerEndpointRequired
 }
 
-public enum AgentSettingsValidation: Equatable, Sendable {
+enum AgentSettingsValidation: Equatable, Sendable {
     case valid
     case invalid(AgentSettingsValidationError)
 }
@@ -81,7 +81,7 @@ public struct AgentSettingsDraft: Equatable, Sendable {
         capabilityDraft = AgentCapabilityDraft(initialValues: snapshot.capabilities)
     }
 
-    public var validation: AgentSettingsValidation {
+    var validation: AgentSettingsValidation {
         if trimmed(name) == nil { return .invalid(.nameRequired) }
         if !runtime.isValid { return .invalid(.providerEndpointRequired) }
         return .valid
@@ -103,7 +103,7 @@ public struct AgentSettingsDraft: Equatable, Sendable {
         let normalizedName = trimmed(name)
         if name != snapshot.name, normalizedName != snapshot.name { result.name = normalizedName }
 
-        let normalizedDescription = descriptionText.trimmingCharacters(in: .whitespaces)
+        let normalizedDescription = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
         if descriptionText != (snapshot.description ?? ""), normalizedDescription != (snapshot.description ?? "") {
             result.description = normalizedDescription.isEmpty ? .clear : .set(normalizedDescription)
         }
@@ -137,7 +137,7 @@ public struct AgentSettingsDraft: Equatable, Sendable {
     }
 
     private func trimmed(_ value: String) -> String? {
-        let value = value.trimmingCharacters(in: .whitespaces)
+        let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return value.isEmpty ? nil : value
     }
 }

@@ -16,7 +16,7 @@
 - [x] Batch 6: Make release publication verifiable and ordered, prevent stale feeds and unsafe interpolation, and replace obsolete build and release documentation. Cover TD-12, TD-33 through TD-37, and TD-46.
 - [x] Batch 6 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun script, documentation, server, Swift, and build gates, and commit refinements.
 - [x] Batch 7: Split the three large SwiftUI surfaces along tested state and action boundaries. Cover TD-43.
-- [ ] Batch 7 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun all repository gates, and commit refinements.
+- [x] Batch 7 cleanup: Run `clean-and-refactor`, perform a separate simplification pass, rerun all repository gates, and commit refinements.
 - [ ] Re-run the technical debt audit, prove every finding closed or explicitly retired, and record the final review.
 
 ### Remediation constraints
@@ -54,6 +54,8 @@ Batch 6 validates release versions and metadata through tested Python value obje
 The Batch 6 cleanup makes namespace matching exact, blocks real XML document types without rejecting harmless CDATA text, requires the actual English channel anchor, and narrows metadata APIs to parsed versions. Publication uses typed release plans, revalidates signed artifacts before network activity, confirms the enclosure and immutable URLs match, shares one atomic writer, and reports command failures with useful context. Documentation removes repeated version-specific instructions and tests stable manifest-derived facts. Verification passed with 37 release-tool tests, 1,294 server tests, the coverage gate, strict TypeScript checking, ESLint, the server build, Bash and ShellCheck validation, and real production appcast and metadata parsing.
 
 Batch 7 replaces the 774-line guided creation view, 700-line agent settings view, and 671-line settings drawer with 222-line, 158-line, and 145-line composition shells. Pure Core models now own creation generations and cancellation, resource selection, typed agent-settings drafts and patches, schedule state, environment validation, restart dirtiness, telemetry bounds, panel gating, and stale workspace reload rejection. AppKit panels and native side effects remain in focused app adapters. Verification passed with 437 Swift tests, 1,294 server tests, 37 release-tool tests, 3 design-system tests, 11 EventKit core tests, strict TypeScript checking, ESLint, the server build, and an unsigned macOS app build.
+
+The Batch 7 cleanup retains and cancels guided prepare, save, permission, safe-test, and workspace reload tasks, and invalidates their generations when views disappear. Settings persistence now rolls back toggles and restart state on failed writes while keeping environment-table errors editable. Agent settings trims multiline whitespace correctly, preserves explicit provider-key removal, avoids duplicate-key traps, and narrows patch construction. Redundant state wrappers and public APIs were removed. Verification passed with 443 Swift tests, 1,294 server tests, 37 release-tool tests, 3 design-system tests, 11 EventKit core tests, strict TypeScript checking, ESLint, the server build, and an unsigned macOS app build using the verified package cache.
 
 ## Tech debt audit
 

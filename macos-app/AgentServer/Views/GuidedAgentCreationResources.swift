@@ -135,8 +135,8 @@ extension GuidedAgentCreationView {
             case .success(let path): model.answer = path
             case .failure(let error): model.pickerError = error.message
             }
-        } else if let error = model.resources.add(candidates, mode: mode) {
-            model.pickerError = error.message
+        } else {
+            model.resources.add(candidates)
         }
     }
 
@@ -161,9 +161,12 @@ extension GuidedAgentCreationView {
     }
 
     func requestNativeAccess(_ resource: CreationQuestion.NativeResource) {
-        Task {
+        operationTask?.cancel()
+        operationTask = Task {
             await EventKitPermissionManager().requestAccess(for: resource)
-            refreshQuestion()
+            guard !Task.isCancelled else { return }
+            guard let request = model.refreshQuestion() else { return }
+            await completePreparation(request)
         }
     }
 

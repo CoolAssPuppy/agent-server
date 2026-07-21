@@ -39,6 +39,25 @@ final class TelemetryProgressSettingsTests: XCTestCase {
         XCTAssertEqual(settings, .default)
     }
 
+    func testUpdatingOneValuePreservesOthersAndAppliesSupportedRanges() {
+        let original = TelemetryProgressSettings(
+            mode: .batched,
+            sampleSeconds: 12,
+            maxEntries: 25,
+            includesMetadata: true
+        )
+
+        XCTAssertEqual(
+            original.updating(sampleSeconds: 900),
+            TelemetryProgressSettings(
+                mode: .batched,
+                sampleSeconds: 600,
+                maxEntries: 25,
+                includesMetadata: true
+            )
+        )
+    }
+
     func testPersistenceReplacesKnownValuesAndPreservesUnrelatedOrdering() {
         let original = [
             EnvPair(key: "FIRST", value: "kept"),

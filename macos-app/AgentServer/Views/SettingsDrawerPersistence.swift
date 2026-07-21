@@ -4,9 +4,8 @@ extension SettingsDrawer {
     var resumeAfterWakeBinding: Binding<Bool> {
         Binding(
             get: { draft.resumeAfterWake },
-            set: {
-                draft.setResumeAfterWake($0)
-                persistIfValid()
+            set: { value in
+                persistChange { $0.setResumeAfterWake(value) }
             }
         )
     }
@@ -14,9 +13,8 @@ extension SettingsDrawer {
     var panelSendingBinding: Binding<Bool> {
         Binding(
             get: { draft.panelSettings.isSendingEnabled },
-            set: {
-                guard draft.setPanelSendingEnabled($0) else { return }
-                persistIfValid()
+            set: { value in
+                persistChange { _ = $0.setPanelSendingEnabled(value) }
             }
         )
     }
@@ -24,9 +22,8 @@ extension SettingsDrawer {
     var telemetryBinding: Binding<TelemetryProgressSettings> {
         Binding(
             get: { draft.telemetryProgress },
-            set: {
-                draft.setTelemetryProgress($0)
-                persistIfValid()
+            set: { settings in
+                persistChange { $0.setTelemetryProgress(settings) }
             }
         )
     }
@@ -48,8 +45,7 @@ extension SettingsDrawer {
                     usesInstalledKimi: keyPath == \.usesInstalledKimi
                         ? value : current.usesInstalledKimi
                 )
-                draft.setRuntimeSelection(selection)
-                persistIfValid()
+                persistChange { $0.setRuntimeSelection(selection) }
             }
         )
     }
@@ -66,16 +62,18 @@ extension SettingsDrawer {
         }
     }
 
-    func persistIfValid() {
+    func persistEnvironmentDraft() {
         do {
             try EnvFileStore.save(try draft.validatedPairs(), to: workspace.environmentFile)
-            draft.recordSaveSuccess()
-        } catch let error as SettingsDraftError {
-            draft.recordValidationFailure(error)
-        } catch let error as EnvFileStoreError {
-            draft.recordSaveFailure(error)
+            draft.clearError()
         } catch {
-            draft.recordSaveFailure(description: error.localizedDescription)
+            draft.recordPersistenceFailure(error)
+        }
+    }
+
+    private func persistChange(_ change: (inout SettingsDraft) -> Void) {
+        draft.persistChange(change) { pairs in
+            try EnvFileStore.save(pairs, to: workspace.environmentFile)
         }
     }
 
@@ -108,12 +106,16 @@ extension SettingsDrawer {
     }
 
     func reloadAfterWorkspaceChange() {
+        workspaceReloadTask?.cancel()
         let generation = draft.beginWorkspaceReload()
         let environmentFile = workspace.environmentFile
         monitor.workspaceDidChange()
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(3))
-            guard draft.acceptsWorkspaceReload(generation: generation) else { return }
+        workspaceReloadTask = Task { @MainActor in
+            do {
+                try await Task.sleep(for: .seconds(3))
+            } catch {
+                return
+            }
             do {
                 let pairs = try EnvFileStore.load(from: environmentFile)
                 guard draft.applyReloadedPairs(pairs, generation: generation) else { return }

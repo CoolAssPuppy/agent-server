@@ -15,7 +15,7 @@ final class CreationResourceSelectionTests: XCTestCase {
         let folder = CreationResourceCandidate(path: "/tmp/reports", isDirectory: true)
         var selection = CreationResourceSelection()
 
-        XCTAssertNil(selection.add([file, folder, file], mode: .filesAndFolders))
+        selection.add([file, folder, file])
 
         XCTAssertEqual(selection.grants, [
             CreationFileGrant(path: file.path, kind: .file, access: .readOnly),
@@ -26,7 +26,7 @@ final class CreationResourceSelectionTests: XCTestCase {
     func testGrantAccessCanChangeAndGrantCanBeRemoved() {
         let folder = CreationResourceCandidate(path: "/tmp/reports", isDirectory: true)
         var selection = CreationResourceSelection()
-        selection.add([folder], mode: .filesAndFolders)
+        selection.add([folder])
 
         selection.setAccess(.readWrite, for: folder.path)
         XCTAssertEqual(selection.grants.first?.access, .readWrite)

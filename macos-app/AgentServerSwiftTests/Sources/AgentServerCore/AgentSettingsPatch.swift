@@ -15,17 +15,17 @@ public struct AgentSettingsProvider: Equatable, Sendable {
 }
 
 public struct AgentSettingsPatch: Equatable, Sendable {
-    public var name: String?
-    public var description: AgentSettingsValue<String>
-    public var prompt: String?
-    public var enabled: Bool?
-    public var schedule: AgentSettingsValue<String>
-    public var executor: AgentSettingsValue<String>
-    public var model: AgentSettingsValue<String>
-    public var provider: AgentSettingsValue<AgentSettingsProvider>
-    public var capabilities: [AgentCapabilityChange]
+    public internal(set) var name: String?
+    public internal(set) var description: AgentSettingsValue<String>
+    public internal(set) var prompt: String?
+    public internal(set) var enabled: Bool?
+    public internal(set) var schedule: AgentSettingsValue<String>
+    public internal(set) var executor: AgentSettingsValue<String>
+    public internal(set) var model: AgentSettingsValue<String>
+    public internal(set) var provider: AgentSettingsValue<AgentSettingsProvider>
+    public internal(set) var capabilities: [AgentCapabilityChange]
 
-    public init(
+    init(
         name: String? = nil,
         description: AgentSettingsValue<String> = .unchanged,
         prompt: String? = nil,

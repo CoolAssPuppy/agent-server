@@ -15,6 +15,7 @@ struct SettingsDrawer: View {
     @State var telemetryOptIn = Telemetry.isOptedIn
     @State var showAdvancedSettings = false
     @State var didLoad = false
+    @State var workspaceReloadTask: Task<Void, Never>?
 
     var body: some View {
         TopDrawerSurface(
@@ -29,6 +30,9 @@ struct SettingsDrawer: View {
             guard !didLoad else { return }
             didLoad = true
             loadPairs(from: workspace.environmentFile)
+        }
+        .onDisappear {
+            workspaceReloadTask?.cancel()
         }
     }
 
@@ -122,7 +126,6 @@ struct SettingsDrawer: View {
             SettingsUpdatesSection()
         case .agentPanel:
             SettingsAgentPanelSection(
-                settings: draft.panelSettings,
                 isSending: panelSendingBinding,
                 connection: draft.panelConnection(isServerReachable: monitor.isServerReachable),
                 requiresRestart: draft.requiresPanelRestart,
@@ -136,9 +139,9 @@ struct SettingsDrawer: View {
                 editingKey: $editingKey,
                 invalidKeys: invalidKeysBinding,
                 selectedIndex: $selectedIndex,
-                saveError: draft.saveError,
+                saveError: draft.errorMessage,
                 onRefreshValidation: {},
-                onPersist: persistIfValid
+                onPersist: persistEnvironmentDraft
             )
         }
     }

@@ -103,10 +103,7 @@ struct AgentSettingsSheet: View {
 
     private func toggleCapability(_ capability: AgentCapability, _ isEnabled: Bool) {
         if isEnabled && !capability.envReady && !capability.requiredEnv.isEmpty {
-            connectTarget = AgentSettingsConnectTarget(
-                capability: capability,
-                missingKeys: capability.requiredEnv
-            )
+            connectTarget = AgentSettingsConnectTarget(capability: capability)
             return
         }
         draft.setCapability(capability.id, enabled: isEnabled)

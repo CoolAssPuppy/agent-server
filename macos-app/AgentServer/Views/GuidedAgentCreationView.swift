@@ -31,6 +31,7 @@ struct GuidedAgentCreationView: View {
 
     @Environment(\.nTheme) var theme
     @State var model = GuidedAgentCreationModel()
+    @State var operationTask: Task<Void, Never>?
     @State var safeTestTask: Task<Void, Never>?
 
     var body: some View {
@@ -58,7 +59,7 @@ struct GuidedAgentCreationView: View {
         } message: {
             Text(model.flow.proposal?.riskReason ?? "Review this agent's access before saving.")
         }
-        .onDisappear(perform: cancelSafeTestObservation)
+        .onDisappear(perform: cancelAsyncWork)
     }
 
     @ViewBuilder
@@ -123,10 +124,16 @@ struct GuidedAgentCreationView: View {
     }
 
     func prepare(_ request: GuidedPreparationRequest) {
-        Task {
-            let result = await actions.prepare(request.request, request.answers)
-            model.receivePreparation(result, generation: request.generation)
+        operationTask?.cancel()
+        operationTask = Task {
+            await completePreparation(request)
         }
+    }
+
+    func completePreparation(_ request: GuidedPreparationRequest) async {
+        let result = await actions.prepare(request.request, request.answers)
+        guard !Task.isCancelled else { return }
+        model.receivePreparation(result, generation: request.generation)
     }
 
     func submitConnectionSetup() {
@@ -157,8 +164,8 @@ struct GuidedAgentCreationView: View {
     }
 
     func requestSave(runSafeTest: Bool) {
-        guard let decision = model.requestSave(runSafeTest: runSafeTest) else { return }
-        if case .save(let request) = decision { save(request) }
+        guard let request = model.requestSave(runSafeTest: runSafeTest) else { return }
+        save(request)
     }
 
     func confirmHighRiskSave() {
@@ -167,8 +174,10 @@ struct GuidedAgentCreationView: View {
     }
 
     func save(_ request: GuidedSaveRequest) {
-        Task {
+        operationTask?.cancel()
+        operationTask = Task {
             let result = await actions.save(request.proposal, request.runSafeTest)
+            guard !Task.isCancelled else { return }
             guard model.receiveSave(result, generation: request.generation) else { return }
             guard case .success(let saved) = result else { return }
             if let observation = model.safeTestObservation {
@@ -209,9 +218,10 @@ struct GuidedAgentCreationView: View {
         safeTestTask?.cancel()
     }
 
-    func cancelSafeTestObservation() {
+    func cancelAsyncWork() {
+        operationTask?.cancel()
         safeTestTask?.cancel()
-        model.cancelSafeTestObservation()
+        model.invalidatePendingOperations()
     }
 
     func requestConnectionSetup() {
