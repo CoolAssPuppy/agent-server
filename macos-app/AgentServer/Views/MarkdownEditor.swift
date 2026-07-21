@@ -92,13 +92,11 @@ struct MarkdownEditor: NSViewRepresentable {
             textView.selectedRanges = selectedRanges
             scrollView.contentView.setBoundsOrigin(scrollOrigin)
         } else if let storage = textView.textStorage {
-            let full = NSRange(location: 0, length: storage.length)
             storage.beginEditing()
             EditorHighlighter.applyHighlighting(to: storage, text: text)
             storage.endEditing()
             // Cursor position is preserved implicitly since we only touched
             // attributes, not characters.
-            _ = full
         }
     }
 
@@ -288,65 +286,50 @@ enum EditorHighlighter {
     private static var theme: EditorTheme { EditorTheme.shared }
 
     static func applyHighlighting(to str: NSMutableAttributedString, text: String) {
-        let lines = text.components(separatedBy: "\n")
-        var offset = 0
-        var inFrontmatter = false
-        var frontmatterStarted = false
-        var inCodeBlock = false
+        for span in MarkdownHighlightRanges.spans(in: text) {
+            apply(span, to: str)
+        }
+    }
 
-        for line in lines {
-            let lineRange = NSRange(location: offset, length: line.count)
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-
-            if trimmed == "---" {
-                if !frontmatterStarted {
-                    inFrontmatter = true
-                    frontmatterStarted = true
-                    applyFrontmatterDelimiter(str, range: lineRange)
-                } else if inFrontmatter {
-                    inFrontmatter = false
-                    applyFrontmatterDelimiter(str, range: lineRange)
-                }
-                offset += line.count + 1
-                continue
+    private static func apply(
+        _ span: MarkdownHighlightSpan,
+        to str: NSMutableAttributedString
+    ) {
+        switch span.kind {
+        case .frontmatterDelimiter:
+            str.addAttribute(.foregroundColor, value: theme.frontmatterDelimiter, range: span.range)
+            str.addAttribute(.font, value: theme.boldFont, range: span.range)
+        case .frontmatterValue:
+            str.addAttribute(.foregroundColor, value: theme.frontmatterValue, range: span.range)
+        case .yamlKey:
+            str.addAttribute(.foregroundColor, value: theme.yamlKey, range: span.range)
+        case .yamlBoolean:
+            str.addAttribute(.foregroundColor, value: theme.yamlBoolean, range: span.range)
+        case .yamlNumber:
+            str.addAttribute(.foregroundColor, value: theme.number, range: span.range)
+        case .yamlString:
+            str.addAttribute(.foregroundColor, value: theme.yamlString, range: span.range)
+        case .bullet, .numberedList:
+            str.addAttribute(.foregroundColor, value: theme.bullet, range: span.range)
+        case .heading(let level):
+            let font = switch level {
+            case 1: theme.h1Font
+            case 2: theme.h2Font
+            default: theme.h3Font
             }
-
-            if inFrontmatter {
-                applyFrontmatter(str, line: line, range: lineRange)
-                offset += line.count + 1
-                continue
-            }
-
-            if trimmed.hasPrefix("```") {
-                inCodeBlock.toggle()
-                applyCodeFence(str, range: lineRange)
-                offset += line.count + 1
-                continue
-            }
-
-            if inCodeBlock {
-                applyCodeBlock(str, range: lineRange)
-                offset += line.count + 1
-                continue
-            }
-
-            if trimmed.hasPrefix("### ") {
-                applyHeading(str, range: lineRange, font: theme.h3Font)
-            } else if trimmed.hasPrefix("## ") {
-                applyHeading(str, range: lineRange, font: theme.h2Font)
-            } else if trimmed.hasPrefix("# ") {
-                applyHeading(str, range: lineRange, font: theme.h1Font)
-            } else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
-                applyBullet(str, line: line, range: lineRange)
-            } else if let _ = trimmed.range(of: #"^\d+\. "#, options: .regularExpression) {
-                applyNumberedList(str, line: line, range: lineRange)
-            } else if trimmed.hasPrefix("#") && !trimmed.hasPrefix("# ") {
-                applyComment(str, range: lineRange)
-            }
-
-            applyInlineStyles(str, line: line, offset: offset)
-
-            offset += line.count + 1
+            str.addAttribute(.font, value: font, range: span.range)
+            str.addAttribute(.foregroundColor, value: theme.heading, range: span.range)
+        case .comment, .codeFence:
+            str.addAttribute(.foregroundColor, value: theme.comment, range: span.range)
+        case .codeBlock:
+            str.addAttribute(.foregroundColor, value: theme.codeBlock, range: span.range)
+            str.addAttribute(.backgroundColor, value: theme.codeBlockBackground, range: span.range)
+        case .inlineCode:
+            str.addAttribute(.foregroundColor, value: theme.inlineCode, range: span.range)
+            str.addAttribute(.backgroundColor, value: theme.inlineCodeBackground, range: span.range)
+        case .bold:
+            str.addAttribute(.foregroundColor, value: theme.bold, range: span.range)
+            str.addAttribute(.font, value: theme.boldFont, range: span.range)
         }
     }
 
@@ -362,119 +345,5 @@ enum EditorHighlighter {
         applyHighlighting(to: result, text: text)
 
         return result
-    }
-
-    private static func applyFrontmatterDelimiter(_ str: NSMutableAttributedString, range: NSRange) {
-        str.addAttribute(.foregroundColor, value: theme.frontmatterDelimiter, range: range)
-        str.addAttribute(.font, value: theme.boldFont, range: range)
-    }
-
-    private static func applyFrontmatter(_ str: NSMutableAttributedString, line: String, range: NSRange) {
-        str.addAttribute(.foregroundColor, value: theme.frontmatterValue, range: range)
-
-        if let colonIdx = line.firstIndex(of: ":") {
-            let keyLength = line.distance(from: line.startIndex, to: colonIdx)
-            let keyRange = NSRange(location: range.location, length: keyLength)
-            str.addAttribute(.foregroundColor, value: theme.yamlKey, range: keyRange)
-
-            // Color the value part
-            let valueStart = line.distance(from: line.startIndex, to: colonIdx) + 1
-            if valueStart < line.count {
-                let valueRange = NSRange(location: range.location + valueStart, length: line.count - valueStart)
-                let valueTrimmed = String(line[line.index(after: colonIdx)...]).trimmingCharacters(in: .whitespaces)
-
-                if valueTrimmed == "true" || valueTrimmed == "false" {
-                    str.addAttribute(.foregroundColor, value: theme.yamlBoolean, range: valueRange)
-                } else if let _ = Int(valueTrimmed) {
-                    str.addAttribute(.foregroundColor, value: theme.number, range: valueRange)
-                } else if valueTrimmed.hasPrefix("\"") || valueTrimmed.hasPrefix("'") {
-                    str.addAttribute(.foregroundColor, value: theme.yamlString, range: valueRange)
-                }
-            }
-        } else {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("- ") {
-                let leading = line.prefix(while: { $0 == " " || $0 == "\t" }).count
-                let markerRange = NSRange(location: range.location + leading, length: 2)
-                if markerRange.location + markerRange.length <= range.location + range.length {
-                    str.addAttribute(.foregroundColor, value: theme.bullet, range: markerRange)
-                }
-                // Value after "- "
-                if leading + 2 < line.count {
-                    let itemRange = NSRange(location: range.location + leading + 2, length: line.count - leading - 2)
-                    str.addAttribute(.foregroundColor, value: theme.yamlString, range: itemRange)
-                }
-            }
-        }
-    }
-
-    private static func applyCodeFence(_ str: NSMutableAttributedString, range: NSRange) {
-        str.addAttribute(.foregroundColor, value: theme.comment, range: range)
-    }
-
-    private static func applyCodeBlock(_ str: NSMutableAttributedString, range: NSRange) {
-        str.addAttribute(.foregroundColor, value: theme.codeBlock, range: range)
-        str.addAttribute(.backgroundColor, value: theme.codeBlockBackground, range: range)
-    }
-
-    private static func applyHeading(_ str: NSMutableAttributedString, range: NSRange, font: NSFont) {
-        str.addAttribute(.font, value: font, range: range)
-        str.addAttribute(.foregroundColor, value: theme.heading, range: range)
-    }
-
-    private static func applyBullet(_ str: NSMutableAttributedString, line: String, range: NSRange) {
-        let leading = line.prefix(while: { $0 == " " || $0 == "\t" }).count
-        let markerRange = NSRange(location: range.location + leading, length: 2)
-        if markerRange.location + markerRange.length <= range.location + range.length {
-            str.addAttribute(.foregroundColor, value: theme.bullet, range: markerRange)
-        }
-    }
-
-    private static func applyNumberedList(_ str: NSMutableAttributedString, line: String, range: NSRange) {
-        let leading = line.prefix(while: { $0 == " " || $0 == "\t" }).count
-        if let dotIdx = line.firstIndex(of: ".") {
-            let numLength = line.distance(from: line.startIndex, to: dotIdx) + 2 - leading
-            let markerRange = NSRange(location: range.location + leading, length: min(numLength, range.length - leading))
-            str.addAttribute(.foregroundColor, value: theme.bullet, range: markerRange)
-        }
-    }
-
-    private static func applyComment(_ str: NSMutableAttributedString, range: NSRange) {
-        str.addAttribute(.foregroundColor, value: theme.comment, range: range)
-    }
-
-    private static func applyInlineStyles(_ str: NSMutableAttributedString, line: String, offset: Int) {
-        // Inline code: `text`
-        applyInlinePattern(str, line: line, offset: offset,
-                           pattern: #"`[^`]+`"#,
-                           color: theme.inlineCode, font: nil,
-                           backgroundColor: theme.inlineCodeBackground)
-
-        // Bold: **text**
-        applyInlinePattern(str, line: line, offset: offset,
-                           pattern: #"\*\*[^*]+\*\*"#,
-                           color: theme.bold, font: theme.boldFont,
-                           backgroundColor: nil)
-    }
-
-    private static func applyInlinePattern(
-        _ str: NSMutableAttributedString,
-        line: String,
-        offset: Int,
-        pattern: String,
-        color: NSColor?,
-        font: NSFont?,
-        backgroundColor: NSColor?
-    ) {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return }
-        let nsLine = line as NSString
-        let matches = regex.matches(in: line, range: NSRange(location: 0, length: nsLine.length))
-
-        for match in matches {
-            let range = NSRange(location: offset + match.range.location, length: match.range.length)
-            if let color { str.addAttribute(.foregroundColor, value: color, range: range) }
-            if let font { str.addAttribute(.font, value: font, range: range) }
-            if let backgroundColor { str.addAttribute(.backgroundColor, value: backgroundColor, range: range) }
-        }
     }
 }

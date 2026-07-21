@@ -6,6 +6,8 @@ options:
   xcodeVersion: "15.0"
 
 packages:
+  AgentServerEventKitCore:
+    path: AgentServerEventKitCore
   AgentServerDesignSystem:
     path: AgentServerDesignSystem
   Sparkle:
@@ -168,6 +170,8 @@ targets:
     sources:
       - AgentServerEventKit
       - path: AgentServerSwiftTests/Sources/AgentServerCore/NativeServiceGrantPolicy.swift
+    dependencies:
+      - package: AgentServerEventKitCore
     settings:
       base:
         PRODUCT_NAME: agent-server-eventkit

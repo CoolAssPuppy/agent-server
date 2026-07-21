@@ -24,12 +24,20 @@ final class EnvFileStoreTests: XCTestCase {
         XCTAssertTrue(EnvFileStore.isSecretKey("FOO_KEY"))
         XCTAssertTrue(EnvFileStore.isSecretKey("FOO_SECRET"))
         XCTAssertTrue(EnvFileStore.isSecretKey("FOO_TOKEN"))
+        XCTAssertTrue(EnvFileStore.isSecretKey("DATABASE_PASSWORD"))
+        XCTAssertTrue(EnvFileStore.isSecretKey("SSH_PRIVATE_KEY"))
+        XCTAssertTrue(EnvFileStore.isSecretKey("PROXY_AUTH"))
+        XCTAssertTrue(EnvFileStore.isSecretKey("CLIENT_CREDENTIAL"))
     }
 
     func testIsSecretKeyDoesNotMatchPanelURL() {
         XCTAssertFalse(EnvFileStore.isSecretKey("AGENT_SERVER_PANEL_URL"))
         XCTAssertFalse(EnvFileStore.isSecretKey("PANEL_URL"))
         XCTAssertFalse(EnvFileStore.isSecretKey("KEY_PATH"))
+        XCTAssertFalse(EnvFileStore.isSecretKey("PRIVATE_KEY_PATH"))
+        XCTAssertFalse(EnvFileStore.isSecretKey("PASSWORD_FILE"))
+        XCTAssertFalse(EnvFileStore.isSecretKey("AUTH_URL"))
+        XCTAssertFalse(EnvFileStore.isSecretKey("SSH_PUBLIC_KEY"))
         XCTAssertFalse(EnvFileStore.isSecretKey(""))
         XCTAssertFalse(EnvFileStore.isSecretKey("lowercase_key"))
     }
@@ -41,9 +49,10 @@ final class EnvFileStoreTests: XCTestCase {
         XCTAssertEqual(masked, "••••xYz1")
     }
 
-    func testMaskedValueForShortStringIsRaw() {
-        XCTAssertEqual(EnvFileStore.masked(value: "ab"), "ab")
-        XCTAssertEqual(EnvFileStore.masked(value: "abcd"), "abcd")
+    func testMaskedValueNeverExposesShortSecrets() {
+        XCTAssertEqual(EnvFileStore.masked(value: ""), "••••")
+        XCTAssertEqual(EnvFileStore.masked(value: "ab"), "••••")
+        XCTAssertEqual(EnvFileStore.masked(value: "abcd"), "••••")
     }
 
     // MARK: - Load
@@ -80,6 +89,16 @@ final class EnvFileStoreTests: XCTestCase {
         let url = tempURL("does-not-exist-\(UUID().uuidString)")
         let pairs = try EnvFileStore.load(from: url)
         XCTAssertEqual(pairs, [])
+    }
+
+    func testLoadRejectsDuplicateKeysWithTypedError() throws {
+        let url = tempURL()
+        try "FOO=first\nBAR=value\nFOO=second\n"
+            .write(to: url, atomically: true, encoding: .utf8)
+
+        XCTAssertThrowsError(try EnvFileStore.load(from: url)) { error in
+            XCTAssertEqual(error as? EnvFileStoreError, .duplicateKey("FOO"))
+        }
     }
 
     func testValueLoadsNamedSecretWithoutExposingOtherValues() throws {
@@ -276,6 +295,20 @@ final class EnvFileStoreTests: XCTestCase {
         XCTAssertThrowsError(try EnvFileStore.save(pairs, to: url))
     }
 
+    func testSaveRejectsDuplicateKeysBeforeChangingTheFile() throws {
+        let url = tempURL()
+        try "# Existing\nFOO=original\n".write(to: url, atomically: true, encoding: .utf8)
+        let pairs = [
+            EnvPair(key: "FOO", value: "first"),
+            EnvPair(key: "FOO", value: "second"),
+        ]
+
+        XCTAssertThrowsError(try EnvFileStore.save(pairs, to: url)) { error in
+            XCTAssertEqual(error as? EnvFileStoreError, .duplicateKey("FOO"))
+        }
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "# Existing\nFOO=original\n")
+    }
+
     func testIsValidKeyMatchesExpectedPattern() {
         XCTAssertTrue(EnvFileStore.isValidKey("FOO"))
         XCTAssertTrue(EnvFileStore.isValidKey("FOO_BAR_1"))
@@ -320,4 +353,61 @@ final class EnvFileStoreTests: XCTestCase {
             XCTAssertFalse(item.hasSuffix(".tmp"), "tmp file left behind: \(item)")
         }
     }
+
+    func testSaveCreatesOwnerOnlyCredentialFile() throws {
+        let url = tempURL()
+
+        try EnvFileStore.save([EnvPair(key: "API_KEY", value: "secret")], to: url)
+
+        XCTAssertEqual(try permissions(of: url), 0o600)
+    }
+
+    func testSaveReplacesPermissiveFileWithOwnerOnlyFile() throws {
+        let url = tempURL()
+        try "API_KEY=old\n".write(to: url, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: 0o644)],
+            ofItemAtPath: url.path
+        )
+
+        try EnvFileStore.save([EnvPair(key: "API_KEY", value: "new")], to: url)
+
+        XCTAssertEqual(try permissions(of: url), 0o600)
+    }
+
+    func testPermissionVerificationFailureDoesNotReplaceCredentialFile() throws {
+        let url = tempURL()
+        try "API_KEY=original\n".write(to: url, atomically: true, encoding: .utf8)
+        var verificationCount = 0
+
+        XCTAssertThrowsError(try EnvFileStore.save(
+            [EnvPair(key: "API_KEY", value: "replacement")],
+            to: url,
+            secureTemporaryFile: { _ in
+                verificationCount += 1
+                if verificationCount == 2 {
+                    throw TestPermissionError.denied
+                }
+            }
+        )) { error in
+            guard case EnvFileStoreError.writeFailed = error else {
+                return XCTFail("Expected writeFailed, got \(error)")
+            }
+        }
+        XCTAssertEqual(verificationCount, 2)
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "API_KEY=original\n")
+        let siblings = try FileManager.default.contentsOfDirectory(
+            atPath: url.deletingLastPathComponent().path
+        )
+        XCTAssertFalse(siblings.contains(where: { $0.hasSuffix(".tmp") }))
+    }
+
+    private func permissions(of url: URL) throws -> Int {
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        return (attributes[.posixPermissions] as? NSNumber)?.intValue ?? -1
+    }
+}
+
+private enum TestPermissionError: Error {
+    case denied
 }

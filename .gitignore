@@ -46,5 +46,6 @@ xcuserdata/
 macos-app/AgentServerSwiftTests/.build/
 macos-app/AgentServerSwiftTests/.swiftpm/
 macos-app/AgentServerDesignSystem/.build/
+macos-app/AgentServerEventKitCore/.build/
 .worktrees/
 .wrangler/

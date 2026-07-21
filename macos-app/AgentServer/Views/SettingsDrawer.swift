@@ -540,6 +540,8 @@ struct SettingsDrawer: View {
             saveError = nil
         } catch EnvFileStoreError.invalidKey(let key) {
             saveError = "Invalid key: \(key)"
+        } catch EnvFileStoreError.duplicateKey(let key) {
+            saveError = "Duplicate key: \(key)"
         } catch {
             saveError = "Could not save .env: \(error.localizedDescription)"
         }

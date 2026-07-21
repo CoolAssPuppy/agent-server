@@ -2,9 +2,8 @@ import Foundation
 
 // MARK: - EnvPair
 
-/// A single `KEY=value` pair from a `.env` file. `isSecret` is derived from
-/// the key (ends with `_KEY`, `_SECRET`, or `_TOKEN`) so UI can decide whether
-/// to mask the value on render.
+/// A single `KEY=value` pair from a `.env` file. `isSecret` is derived from a
+/// conservative catalog of credential key names so UI can mask the value.
 public struct EnvPair: Equatable {
     public let key: String
     public let value: String
@@ -23,9 +22,21 @@ public struct EnvPair: Equatable {
 
 // MARK: - Errors
 
-public enum EnvFileStoreError: Error, Equatable {
+public enum EnvFileStoreError: LocalizedError, Equatable {
     case invalidKey(String)
+    case duplicateKey(String)
     case writeFailed(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidKey(let key):
+            return "Invalid environment key: \(key)"
+        case .duplicateKey(let key):
+            return "Duplicate environment key: \(key)"
+        case .writeFailed(let message):
+            return "Could not write the environment file: \(message)"
+        }
+    }
 }
 
 public enum LocalAPIAuthenticationError: Error, Equatable {
@@ -73,11 +84,25 @@ public enum LocalAPIAuthentication {
 
 /// Atomic reader/writer for a `.env` file. Preserves comments, blank lines,
 /// and ordering of existing keys; appends brand-new keys to the end.
-/// Save is atomic (write to sibling `.tmp` then `FileManager.replaceItemAt`).
+/// Save writes to an owner-only sibling temp file, verifies its permissions,
+/// then atomically replaces the destination using the temp file's metadata.
 public enum EnvFileStore {
 
     private static let keyPattern = #"^[A-Z][A-Z0-9_]*$"#
-    private static let secretSuffixes = ["_KEY", "_SECRET", "_TOKEN"]
+    private static let secretTerminalNames: Set<String> = [
+        "AUTH",
+        "AUTHORIZATION",
+        "COOKIE",
+        "CREDENTIAL",
+        "CREDENTIALS",
+        "KEY",
+        "PASSCODE",
+        "PASSPHRASE",
+        "PASSWORD",
+        "PASSWD",
+        "SECRET",
+        "TOKEN",
+    ]
 
     public static func defaultURLs(
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
@@ -99,19 +124,20 @@ public enum EnvFileStore {
 
     // MARK: Secret detection
 
-    /// Matches keys that end with `_KEY`, `_SECRET`, or `_TOKEN`. Does NOT
-    /// match generic substrings (`KEY_PATH`) or lowercased keys.
+    /// Matches a conservative catalog of terminal credential names. Generic
+    /// substrings and path/file variables remain visible.
     public static func isSecretKey(_ key: String) -> Bool {
         guard !key.isEmpty else { return false }
         guard key.range(of: keyPattern, options: .regularExpression) != nil else { return false }
-        return secretSuffixes.contains(where: { key.hasSuffix($0) })
+        guard key != "PUBLIC_KEY", !key.hasSuffix("_PUBLIC_KEY") else { return false }
+        guard let terminalName = key.split(separator: "_").last else { return false }
+        return secretTerminalNames.contains(String(terminalName))
     }
 
     /// Returns `••••` followed by the last four characters of `value`. Values
-    /// shorter than or equal to four characters pass through unchanged so the
-    /// user does not see a mask that exposes the entire secret.
+    /// shorter than or equal to four characters are fully masked.
     public static func masked(value: String) -> String {
-        guard value.count > 4 else { return value }
+        guard value.count > 4 else { return "••••" }
         return "••••\(value.suffix(4))"
     }
 
@@ -120,7 +146,7 @@ public enum EnvFileStore {
     public static func load(from url: URL) throws -> [EnvPair] {
         guard FileManager.default.fileExists(atPath: url.path) else { return [] }
         let content = try String(contentsOf: url, encoding: .utf8)
-        return parsePairs(from: content)
+        return try parsePairs(from: content)
     }
 
     /// Reads one named value without returning unrelated secrets to the caller.
@@ -140,8 +166,9 @@ public enum EnvFileStore {
         return nil
     }
 
-    private static func parsePairs(from content: String) -> [EnvPair] {
+    private static func parsePairs(from content: String) throws -> [EnvPair] {
         var pairs: [EnvPair] = []
+        var seenKeys: Set<String> = []
         for rawLine in content.components(separatedBy: .newlines) {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
             if line.isEmpty { continue }
@@ -155,6 +182,9 @@ public enum EnvFileStore {
                (value.hasPrefix("'") && value.hasSuffix("'")) {
                 value = String(value.dropFirst().dropLast())
             }
+            guard seenKeys.insert(key).inserted else {
+                throw EnvFileStoreError.duplicateKey(key)
+            }
             pairs.append(EnvPair(key: key, value: value, isSecret: isSecretKey(key)))
         }
         return pairs
@@ -166,9 +196,21 @@ public enum EnvFileStore {
     /// that already exist in the file. Existing keys retain their original
     /// position; brand-new keys append to the end. Rejects any invalid key.
     public static func save(_ pairs: [EnvPair], to url: URL) throws {
+        try save(pairs, to: url, secureTemporaryFile: applySecurePermissions)
+    }
+
+    static func save(
+        _ pairs: [EnvPair],
+        to url: URL,
+        secureTemporaryFile: (URL) throws -> Void
+    ) throws {
+        var seenKeys: Set<String> = []
         for pair in pairs {
             guard isValidKey(pair.key) else {
                 throw EnvFileStoreError.invalidKey(pair.key)
+            }
+            guard seenKeys.insert(pair.key).inserted else {
+                throw EnvFileStoreError.duplicateKey(pair.key)
             }
         }
 
@@ -180,7 +222,7 @@ public enum EnvFileStore {
         let rendered = renderLines(pairs: pairs, existingLines: existingLines)
         let output = rendered.joined(separator: "\n") + "\n"
 
-        try writeAtomically(output, to: url)
+        try writeAtomically(output, to: url, secureTemporaryFile: secureTemporaryFile)
     }
 
     /// Merges `pairs` onto the existing line structure:
@@ -240,33 +282,63 @@ public enum EnvFileStore {
         return value
     }
 
-    private static func writeAtomically(_ content: String, to url: URL) throws {
+    private static func writeAtomically(
+        _ content: String,
+        to url: URL,
+        secureTemporaryFile: (URL) throws -> Void
+    ) throws {
         let parent = url.deletingLastPathComponent()
         try FileManager.default.createDirectory(
             at: parent,
             withIntermediateDirectories: true
         )
         let tmpURL = parent.appendingPathComponent(".\(url.lastPathComponent).\(UUID().uuidString).tmp")
-        do {
-            try content.write(to: tmpURL, atomically: true, encoding: .utf8)
-        } catch {
-            throw EnvFileStoreError.writeFailed(error.localizedDescription)
+        guard FileManager.default.createFile(
+            atPath: tmpURL.path,
+            contents: nil,
+            attributes: [.posixPermissions: NSNumber(value: 0o600)]
+        ) else {
+            throw EnvFileStoreError.writeFailed("Could not create a temporary file.")
         }
         do {
+            try secureTemporaryFile(tmpURL)
+            let handle = try FileHandle(forWritingTo: tmpURL)
+            do {
+                try handle.write(contentsOf: Data(content.utf8))
+                try handle.synchronize()
+                try handle.close()
+            } catch {
+                try? handle.close()
+                throw error
+            }
+            try secureTemporaryFile(tmpURL)
             if FileManager.default.fileExists(atPath: url.path) {
-                _ = try FileManager.default.replaceItemAt(url, withItemAt: tmpURL)
+                _ = try FileManager.default.replaceItemAt(
+                    url,
+                    withItemAt: tmpURL,
+                    options: .usingNewMetadataOnly
+                )
             } else {
                 try FileManager.default.moveItem(at: tmpURL, to: url)
             }
+        } catch let error as EnvFileStoreError {
+            try? FileManager.default.removeItem(at: tmpURL)
+            throw error
         } catch {
             try? FileManager.default.removeItem(at: tmpURL)
             throw EnvFileStoreError.writeFailed(error.localizedDescription)
         }
-        // Lock to owner-only. .env holds API keys and tokens; default umask
-        // would otherwise leave it world-readable on some setups.
-        try? FileManager.default.setAttributes(
+    }
+
+    private static func applySecurePermissions(to url: URL) throws {
+        try FileManager.default.setAttributes(
             [.posixPermissions: NSNumber(value: Int16(0o600))],
             ofItemAtPath: url.path
         )
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        let permissions = (attributes[.posixPermissions] as? NSNumber)?.intValue
+        guard permissions == 0o600 else {
+            throw EnvFileStoreError.writeFailed("Temporary file permissions are not owner-only.")
+        }
     }
 }
