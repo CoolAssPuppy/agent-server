@@ -1,4 +1,7 @@
 import type { McpServerInfo } from '../execution/executor.js';
+import type { AgentConfig } from '../agents/config.js';
+import { mcpServerKey } from '../agents/capabilities.js';
+import { matchesPattern } from '../execution/permissions.js';
 import type { Reporter } from '../execution/runner.js';
 import type { RunStoreLike } from '../reporting/store.js';
 import type { ProgressBroadcaster } from './websocket.js';
@@ -6,6 +9,7 @@ import type { ProgressBroadcaster } from './websocket.js';
 type RunProgressReporterDependencies = {
   runId: string;
   agentId: string;
+  agent: AgentConfig;
   store: RunStoreLike;
   broadcaster: ProgressBroadcaster;
   reporter: Reporter;
@@ -20,6 +24,42 @@ function isNeedsAuthMcpServer(value: unknown): value is McpServerInfo {
 export function extractMcpNeedsAuthServers(meta: Record<string, unknown> | undefined): string[] {
   if (!meta || !Array.isArray(meta.mcp_servers)) return [];
   return meta.mcp_servers.filter(isNeedsAuthMcpServer).map((server) => server.name);
+}
+
+function mcpServerKeyFromToolRule(rule: string): string | undefined {
+  const match = /^mcp__(.+?)(?:__|$)/.exec(rule);
+  return match?.[1];
+}
+
+function toolRuleCoversServer(rule: string, serverKey: string): boolean {
+  if (rule === '*') return true;
+  const ruleKey = mcpServerKeyFromToolRule(rule);
+  return ruleKey ? matchesPattern(serverKey, ruleKey) : false;
+}
+
+function isMcpServerRelevant(agent: AgentConfig, serverName: string): boolean {
+  const serverKey = mcpServerKey(serverName);
+  if (agent.permissions) {
+    const isAllowed = agent.permissions.allow
+      .some((rule) => toolRuleCoversServer(rule, serverKey));
+    const isDenied = agent.permissions.deny
+      .some((rule) => toolRuleCoversServer(rule, serverKey));
+    return isAllowed && !isDenied;
+  }
+
+  const isDenied = agent.disallowed_tools
+    .some((rule) => toolRuleCoversServer(rule, serverKey));
+  if (isDenied) return false;
+  return agent.tools.length === 0
+    || agent.tools.some((rule) => toolRuleCoversServer(rule, serverKey));
+}
+
+export function extractRelevantMcpNeedsAuthServers(
+  meta: Record<string, unknown> | undefined,
+  agent: AgentConfig,
+): string[] {
+  return extractMcpNeedsAuthServers(meta)
+    .filter((name) => isMcpServerRelevant(agent, name));
 }
 
 export function createRunProgressReporter(
@@ -73,7 +113,7 @@ function emitMcpStatus(
   metadata: Record<string, unknown> | undefined,
   previousKey: string | null,
 ): string | null {
-  const needsAuth = extractMcpNeedsAuthServers(metadata);
+  const needsAuth = extractRelevantMcpNeedsAuthServers(metadata, dependencies.agent);
   if (needsAuth.length === 0) return previousKey;
   const key = [...needsAuth].sort().join('|');
   if (key === previousKey) return previousKey;

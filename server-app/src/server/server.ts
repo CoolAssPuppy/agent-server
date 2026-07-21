@@ -93,7 +93,10 @@ export async function drainPendingTasks(
   });
 }
 
-export { extractMcpNeedsAuthServers } from './run-lifecycle.js';
+export {
+  extractMcpNeedsAuthServers,
+  extractRelevantMcpNeedsAuthServers,
+} from './run-lifecycle.js';
 
 /**
  * Resolves the wall-clock run timeout in order of precedence: the agent's

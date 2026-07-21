@@ -13,7 +13,10 @@ import { withTimeout } from '../util/with-timeout.js';
 import type { ProgressBroadcaster } from './websocket.js';
 import { createRunProgressReporter } from './run-progress-reporter.js';
 
-export { extractMcpNeedsAuthServers } from './run-progress-reporter.js';
+export {
+  extractMcpNeedsAuthServers,
+  extractRelevantMcpNeedsAuthServers,
+} from './run-progress-reporter.js';
 
 export type RunDoneCallback = (
   result: { status: 'completed' | 'failed' | 'skipped'; summary?: string; error?: string },
@@ -183,6 +186,7 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
     const wrappedReporter = createRunProgressReporter({
       runId,
       agentId: originalAgent.id,
+      agent: originalAgent,
       store: dependencies.store,
       broadcaster: dependencies.broadcaster,
       reporter,

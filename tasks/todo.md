@@ -1655,3 +1655,14 @@ Agent Server 3.3.0 build 33 passed 1,332 server tests with 4 skipped, 472 Swift 
 ### Review
 
 The 3.3.0 app relaunched with a sanitized PATH that omitted `~/.local/bin`, so it stopped finding the authenticated Claude installation and every default Claude-backed agent fell into a bundled runtime that exited before turn one. Runtime discovery now probes the native installer path directly, the app adds the user-local bin directory to its child PATH, and vendored runtimes retain their required entitlements when signed. The locally installed app now logs the authenticated Claude runtime. A Portuguese and French run reached five turns and two Notion query calls, appeared in durable Run history, and did not reproduce code 1. It made no writes because both July 21 lesson pages already exist from the earlier run; the output contract therefore reported that no new required output was created. Verification passed with 1,333 server tests and 4 expected skips, 473 Swift tests, 49 release-contract tests, strict TypeScript checking, ESLint, the server build, and the signed Debug macOS build.
+## Limit MCP alerts to the running agent
+
+- [x] Reproduce the unrelated Claude account MCP authentication sound.
+- [x] Add failing behavior coverage for agent-scoped MCP relevance.
+- [x] Notify only for MCP servers explicitly configured or allowed by the running agent.
+- [x] Run focused and complete tests, rebuild, and relaunch the local app.
+- [x] Verify Personal Notion remains connected and unrelated Figma authentication produces no alert.
+
+### Review
+
+The Portuguese and French run completed successfully in 3 minutes 17 seconds with Personal Notion connected and both lesson pages created. The information chime came from the ambient Figma Claude plugin needing authentication, even though the agent could not use Figma. MCP authentication events are now filtered through the running agent's authoritative permissions, including broad deny rules and legacy unrestricted-agent behavior. The installed local app returns no alert for connected Personal Notion plus unrelated Figma needs-auth metadata. Verification passed with 1,338 server tests and 4 expected skips, 473 Swift tests, 49 release-contract tests, strict TypeScript checking, ESLint, the server build, the signed Debug macOS build, matching installed server hashes, and a successful local relaunch.

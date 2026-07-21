@@ -4,6 +4,7 @@ import {
   chatKeyFromString,
   drainPendingTasks,
   extractMcpNeedsAuthServers,
+  extractRelevantMcpNeedsAuthServers,
   shouldDispatchNotification,
   shouldSendChannelRunNotification,
   shouldSendTelegramRunNotification,
@@ -221,5 +222,79 @@ describe('extractMcpNeedsAuthServers', () => {
       ],
     };
     expect(extractMcpNeedsAuthServers(meta)).toEqual(['ok']);
+  });
+});
+
+describe('extractRelevantMcpNeedsAuthServers', () => {
+  const metadata = {
+    mcp_servers: [
+      { name: 'notion-personal', status: 'connected' },
+      { name: 'plugin:figma:figma', status: 'needs-auth' },
+      { name: 'claude.ai Linear', status: 'needs-auth' },
+    ],
+  };
+
+  it('omits unrelated Claude account servers for an explicitly configured MCP agent', () => {
+    const agent = makeAgent({
+      permissions: {
+        allow: ['mcp__notion-personal__API-query-data-source'],
+        deny: [],
+      },
+      mcp_servers: {
+        'notion-personal': { command: 'notion-mcp' },
+      },
+    });
+
+    expect(extractRelevantMcpNeedsAuthServers(metadata, agent)).toEqual([]);
+  });
+
+  it('keeps an account server that the agent is allowed to use', () => {
+    const agent = makeAgent({
+      permissions: {
+        allow: ['mcp__claude_ai_Linear__list_*'],
+        deny: [],
+      },
+    });
+
+    expect(extractRelevantMcpNeedsAuthServers(metadata, agent)).toEqual(['claude.ai Linear']);
+  });
+
+  it('keeps an explicitly configured server that needs authentication', () => {
+    const agent = makeAgent({
+      mcp_servers: {
+        'notion-personal': { command: 'notion-mcp' },
+      },
+    });
+    const needsAuth = {
+      mcp_servers: [{ name: 'notion-personal', status: 'needs-auth' }],
+    };
+
+    expect(extractRelevantMcpNeedsAuthServers(needsAuth, agent)).toEqual(['notion-personal']);
+  });
+
+  it('omits a configured server disabled by the authoritative permissions policy', () => {
+    const agent = makeAgent({
+      permissions: {
+        allow: ['mcp__notion-personal__API-query-data-source'],
+        deny: ['mcp__notion-personal__*'],
+      },
+      mcp_servers: {
+        'notion-personal': { command: 'notion-mcp' },
+      },
+    });
+    const needsAuth = {
+      mcp_servers: [{ name: 'notion-personal', status: 'needs-auth' }],
+    };
+
+    expect(extractRelevantMcpNeedsAuthServers(needsAuth, agent)).toEqual([]);
+  });
+
+  it('retains inherited account servers for a legacy unrestricted agent', () => {
+    const agent = makeAgent({ tools: [], disallowed_tools: [] });
+
+    expect(extractRelevantMcpNeedsAuthServers(metadata, agent)).toEqual([
+      'plugin:figma:figma',
+      'claude.ai Linear',
+    ]);
   });
 });
