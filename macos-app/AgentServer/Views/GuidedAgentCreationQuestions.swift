@@ -156,7 +156,10 @@ extension GuidedAgentCreationView {
                             value: value,
                             category: index < question.choiceCategories.count
                                 ? question.choiceCategories[index]
-                                : .mcp
+                                : .mcp,
+                            disabledReason: index < question.choiceDisabledReasons.count
+                                ? question.choiceDisabledReasons[index]
+                                : nil
                         )
                     }
                 }
@@ -169,14 +172,21 @@ extension GuidedAgentCreationView {
         questionId: String,
         label: String,
         value: String,
-        category: ConnectionCategory
+        category: ConnectionCategory,
+        disabledReason: String?
     ) -> some View {
         let isSelected = model.flow.answers[questionId] == .string(value)
         return Button {
-            model.answer(questionId: questionId, value: value)
+            if disabledReason == nil {
+                model.answer(questionId: questionId, value: value)
+            } else {
+                requestConnectionSetup()
+            }
         } label: {
             HStack(spacing: NSpacing.sm) {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                Image(systemName: disabledReason == nil
+                    ? (isSelected ? "checkmark.circle.fill" : "circle")
+                    : "plus.circle")
                     .foregroundStyle(
                         isSelected ? theme.tokens.primary : theme.tokens.mutedForeground
                     )
@@ -186,9 +196,13 @@ extension GuidedAgentCreationView {
                     .lineLimit(1)
                 ConnectionCategoryPill(category: category)
                 Spacer()
-                Text("Connected")
+                Text(disabledReason ?? "Connected")
                     .font(NTypography.captionSmall)
-                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .foregroundStyle(
+                        disabledReason == nil
+                            ? theme.tokens.mutedForeground
+                            : theme.tokens.primary
+                    )
             }
             .padding(NSpacing.md)
             .background(isSelected ? theme.tokens.primary.opacity(0.08) : Color.clear)
@@ -196,7 +210,9 @@ extension GuidedAgentCreationView {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(label), \(category.label) connection, Connected")
+        .accessibilityLabel(
+            "\(label), \(category.label) connection, \(disabledReason ?? "Connected")"
+        )
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 

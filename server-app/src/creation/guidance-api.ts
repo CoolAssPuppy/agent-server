@@ -223,9 +223,11 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
     }
   }
 
-  async function currentConnectedServices(executor?: AgentExecutor): Promise<ServiceConnection[]> {
+  async function currentProposalServices(executor?: AgentExecutor): Promise<ServiceConnection[]> {
     const registry = await currentServiceRegistry(executor);
-    return registry.connections.filter((connection) => connection.status === 'connected');
+    return registry.connections.filter((connection) => (
+      connection.status === 'connected' || connection.status === 'needs_setup'
+    ));
   }
 
   function currentServiceBindings(
@@ -314,6 +316,7 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
       service_id: service.service_id,
       name: service.name,
       source: service.source,
+      status: service.status === 'needs_setup' ? 'needs_setup' as const : 'connected' as const,
       actions: service.actions,
       actions_known: service.actions_known,
     }));
@@ -327,7 +330,7 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
         && EXECUTOR_NAMES.includes(requestedExecutor as AgentExecutor)
         ? requestedExecutor as AgentExecutor
         : undefined;
-      const authoritativeServices = await currentConnectedServices(executor);
+      const authoritativeServices = await currentProposalServices(executor);
       const connectedServices = proposalServiceInputs(authoritativeServices);
       const proposalRequest = {
         request: request.request,
@@ -383,7 +386,7 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
         && EXECUTOR_NAMES.includes(requestedExecutor as AgentExecutor)
         ? requestedExecutor as AgentExecutor
         : undefined;
-      const authoritativeServices = await currentConnectedServices(executor);
+      const authoritativeServices = await currentProposalServices(executor);
       const connectedServices = proposalServiceInputs(authoritativeServices);
       const source = (await dependencies.getAgents())
         .find((agent) => agent.id === context.req.param('agentId'));

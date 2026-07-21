@@ -95,6 +95,7 @@ public struct CreationQuestion: Identifiable, Equatable, Sendable {
     public let isRequired: Bool
     public let choiceValues: [String]
     public let choiceCategories: [ConnectionCategory]
+    public let choiceDisabledReasons: [String?]
 
     public init(
         id: String,
@@ -102,7 +103,8 @@ public struct CreationQuestion: Identifiable, Equatable, Sendable {
         kind: Kind,
         isRequired: Bool,
         choiceValues: [String] = [],
-        choiceCategories: [ConnectionCategory] = []
+        choiceCategories: [ConnectionCategory] = [],
+        choiceDisabledReasons: [String?] = []
     ) {
         self.id = id
         self.prompt = prompt
@@ -110,6 +112,7 @@ public struct CreationQuestion: Identifiable, Equatable, Sendable {
         self.isRequired = isRequired
         self.choiceValues = choiceValues
         self.choiceCategories = choiceCategories
+        self.choiceDisabledReasons = choiceDisabledReasons
     }
 
     public var requiresConnectionSetup: Bool {

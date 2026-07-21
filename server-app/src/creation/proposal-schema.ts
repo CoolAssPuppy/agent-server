@@ -141,6 +141,7 @@ export const ConnectedServiceSchema = z.object({
   name: z.string().trim().min(1).max(160),
   service_id: z.string().trim().min(1).max(160).optional(),
   source: z.enum(['account', 'configured_api', 'mcp', 'macos']).optional(),
+  status: z.enum(['connected', 'needs_setup']).optional(),
   actions: z.array(z.enum(['read', 'write', 'send', 'delete'])).max(8).default([]),
   actions_known: z.boolean().default(false),
 }).strict();

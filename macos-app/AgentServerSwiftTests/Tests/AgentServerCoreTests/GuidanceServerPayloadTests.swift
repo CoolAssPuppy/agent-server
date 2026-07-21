@@ -205,7 +205,7 @@ final class GuidanceServerPayloadTests: XCTestCase {
     }
 
     func testConnectionQuestionKeepsSourceCategoryForEachChoice() throws {
-        let data = Data(#"{"status":"needs_information","questions":[{"id":"connection-notion","question":"Which Notion connection?","control":"service","service_name":"Notion","required":true,"choices":[{"label":"Personal Notion","value":"personal","source":"configured_api"},{"label":"Notion (Claude account)","value":"account","source":"account"}]}],"explanation":"Choose one.","usedFallback":true,"modelStatus":"unavailable"}"#.utf8)
+        let data = Data(#"{"status":"needs_information","questions":[{"id":"connection-notion","question":"Which Notion connection?","control":"service","service_name":"Notion","required":true,"choices":[{"label":"Personal Notion","value":"personal","source":"configured_api"},{"label":"Notion (Claude account)","value":"account","source":"account","disabled_reason":"Needs setup"}]}],"explanation":"Choose one.","usedFallback":true,"modelStatus":"unavailable"}"#.utf8)
 
         let payload = try JSONDecoder().decode(GuidanceProposalResponse.self, from: data)
         guard case .needsInformation(let questions, _) = payload else {
@@ -213,6 +213,7 @@ final class GuidanceServerPayloadTests: XCTestCase {
         }
 
         XCTAssertEqual(questions.first?.choiceCategories, [.api, .mcp])
+        XCTAssertEqual(questions.first?.choiceDisabledReasons, [nil, "Needs setup"])
     }
 
     func testDiagnosisMapsRecommendationWithoutInventingApplicablePatch() throws {

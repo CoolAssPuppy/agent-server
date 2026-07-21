@@ -178,38 +178,58 @@ describe('guided agent proposal creation', () => {
     });
   });
 
-  it('chooses an existing required service before asking for file access', async () => {
+  it('asks for file scope and runtime before runtime-scoped service choices', async () => {
     const fake = modelReturning(completeProposal());
     const request = 'Every morning, review a Word manuscript and store the results in Personal Notion.';
 
-    const connection = await createAgentProposal({
+    const file = await createAgentProposalService({
       request,
       timezone: 'Europe/Lisbon',
       connectedServices: [
-        { id: 'notion-personal', name: 'Personal Notion' },
-        { id: 'claude.ai Notion Work', name: 'Work Notion' },
+        { id: 'notion-personal', service_id: 'notion', name: 'Personal Notion', source: 'configured_api' },
+        { id: 'claude.ai Notion', service_id: 'notion', name: 'Notion', source: 'account' },
       ],
       answers: [],
       model: fake.model,
     });
-    const file = await createAgentProposal({
+    const runtime = await createAgentProposalService({
       request,
       timezone: 'Europe/Lisbon',
       connectedServices: [
-        { id: 'notion-personal', name: 'Personal Notion' },
-        { id: 'claude.ai Notion Work', name: 'Work Notion' },
+        { id: 'notion-personal', service_id: 'notion', name: 'Personal Notion', source: 'configured_api' },
+        { id: 'claude.ai Notion', service_id: 'notion', name: 'Notion', source: 'account' },
       ],
-      answers: [{ question_id: 'connection-notion', value: 'notion-personal' }],
+      answers: [{
+        question_id: 'file-access',
+        value: [{ path: '~/Books/manuscript.docx', kind: 'file', access: 'read_only' }],
+      }],
       model: fake.model,
     });
-    const staleConnection = await createAgentProposal({
+    const connection = await createAgentProposalService({
       request,
       timezone: 'Europe/Lisbon',
-      connectedServices: [{ id: 'notion-personal', name: 'Personal Notion' }],
-      answers: [{ question_id: 'connection-notion', value: 'removed-notion' }],
+      connectedServices: [
+        { id: 'notion-personal', service_id: 'notion', name: 'Personal Notion', source: 'configured_api' },
+        { id: 'claude.ai Notion', service_id: 'notion', name: 'Notion', source: 'account' },
+      ],
+      answers: [
+        {
+          question_id: 'file-access',
+          value: [{ path: '~/Books/manuscript.docx', kind: 'file', access: 'read_only' }],
+        },
+        { question_id: 'runtime', value: 'claude-code' },
+      ],
       model: fake.model,
     });
 
+    expect(file).toMatchObject({
+      status: 'needs_information',
+      questions: [{ id: 'file-access', control: 'file_access' }],
+    });
+    expect(runtime).toMatchObject({
+      status: 'needs_information',
+      questions: [{ id: 'runtime', control: 'runtime' }],
+    });
     expect(connection).toMatchObject({
       status: 'needs_information',
       questions: [{
@@ -217,18 +237,10 @@ describe('guided agent proposal creation', () => {
         control: 'service',
         service_name: 'Notion',
         choices: [
-          { label: 'Personal Notion', value: 'notion-personal' },
-          { label: 'Work Notion', value: 'claude.ai Notion Work' },
+          { label: 'Personal Notion', value: 'notion-personal', source: 'configured_api' },
+          { label: 'Notion', value: 'claude.ai Notion', source: 'account' },
         ],
       }],
-    });
-    expect(file).toMatchObject({
-      status: 'needs_information',
-      questions: [{ id: 'file-access', control: 'file_access' }],
-    });
-    expect(staleConnection).toMatchObject({
-      status: 'needs_information',
-      questions: [{ id: 'connection-notion' }],
     });
     expect(fake.calls()).toBe(0);
   });

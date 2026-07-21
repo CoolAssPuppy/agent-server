@@ -147,6 +147,10 @@ describe('consumer guidance API', () => {
           status: 'connected', actions: ['read', 'write'], actions_known: true,
         },
         {
+          id: 'claude.ai Notion', service_id: 'notion', name: 'Notion', source: 'account',
+          status: 'needs_setup', actions: ['read', 'write'], actions_known: true,
+        },
+        {
           id: 'linear-work', service_id: 'linear', name: 'Work Linear', source: 'account',
           status: 'connected', actions: ['read', 'write'], actions_known: true,
         },
@@ -161,13 +165,20 @@ describe('consumer guidance API', () => {
         request: 'Save the note in Notion and create an issue in Linear.',
         timezone: 'Europe/Lisbon',
         connected_services: [{ id: 'hostile', name: 'Client supplied' }],
+        answers: [{ question_id: 'runtime', value: 'claude-code' }],
       }),
     });
 
     expect(await response.json()).toMatchObject({
       status: 'needs_information',
       questions: [
-        { id: 'connection-notion', choices: [{ value: 'notion-personal' }] },
+        {
+          id: 'connection-notion',
+          choices: [
+            { value: 'notion-personal', source: 'configured_api' },
+            { value: 'claude.ai Notion', source: 'account', disabled_reason: 'Needs setup' },
+          ],
+        },
         { id: 'connection-linear', choices: [{ value: 'linear-work' }] },
       ],
     });
@@ -277,6 +288,7 @@ describe('consumer guidance API', () => {
         request: 'Store a note in Notion.',
         timezone: 'Europe/Lisbon',
         connected_services: [{ id: 'removed-service', name: 'Removed service' }],
+        answers: [{ question_id: 'runtime', value: 'claude-code' }],
       }),
     });
     expect(stale.status).toBe(200);
@@ -443,7 +455,12 @@ describe('consumer guidance API', () => {
     const { app } = createFixture({ model: { generate: vi.fn(async () => validProposal()) } });
     const response = await request(app, '/guidance/agent-proposals', {
       method: 'POST',
-      body: JSON.stringify({ request: 'Summarize GitHub in Slack.', timezone: 'Europe/Lisbon', connected_services: [] }),
+      body: JSON.stringify({
+        request: 'Summarize GitHub in Slack.',
+        timezone: 'Europe/Lisbon',
+        connected_services: [],
+        answers: [{ question_id: 'runtime', value: 'claude-code' }],
+      }),
     });
     const body = await response.json();
 

@@ -1,5 +1,43 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Match Edit agent to Mail Notifier settings
+
+- [x] Replace the native Form and Section layout with explicit compact cards modeled on Mail Notifier.
+- [x] Use 10 pt card headings, 13 pt field labels, 11 pt supporting text, and 14 pt card spacing.
+- [x] Keep the Name field full-width and left aligned while giving Schedule its own stable control row.
+- [x] Remove the boxed Delete agent section and use a compact standalone destructive button.
+- [x] Run Swift tests, rebuild and relaunch the unsigned local app, and commit without pushing.
+
+## Add Markdown to agent creation
+
+- [x] Replace the creation request TextEditor with the shared MarkdownEditor.
+- [x] Let the request editor fill the available creation window above the footer.
+- [x] Change the supporting text to explain that agents are Markdown files.
+- [x] Cover the presentation contract and include it in the local rebuild.
+
+## Calm the New Agent action
+
+- [x] Remove the selected-state color and background changes from New Agent.
+- [x] Keep standard system press feedback and stable foreground styling.
+- [x] Cover the stable appearance policy and include it in the local rebuild.
+
+## Show runtime-scoped services during creation
+
+- [x] Ask for file access and the coding agent before asking which service connection to use.
+- [x] Refresh services for the selected runtime before building connection choices.
+- [x] Show both Personal Notion API and Claude Notion MCP when Claude Code is selected.
+- [x] Preserve source pills so the two Notion choices remain distinguishable.
+- [x] Reproduce the manuscript-to-Personal-Notion prompt in proposal tests.
+
+Review:
+
+- Matched the Mail Notifier settings card hierarchy and compact typography without reusing SwiftUI Form columns.
+- Added the full-size Markdown creation editor and stable New Agent action.
+- Live guidance validation now returns Personal Notion as API and Notion from the Claude account as MCP with Needs setup state.
+- Server: 1,331 tests passed, 4 skipped. Swift: 468 tests passed. EventKit: 12 tests passed.
+- Type-check, lint, server build, and unsigned macOS build passed.
+- Local app and server relaunched successfully at `2026-07-21T07:49:07.888Z`.
+
 ## Restore Edit agent schedule alignment
 
 - [x] Restore the native Name row structure so the Form keeps its established label column.

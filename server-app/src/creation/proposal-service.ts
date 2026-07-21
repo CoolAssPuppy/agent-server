@@ -511,6 +511,9 @@ function unansweredConnectionQuestions(request: ProposalRequest): ProposalFallba
         label: connection.name,
         value: connection.id,
         ...('source' in connection && connection.source ? { source: connection.source } : {}),
+        ...('status' in connection && connection.status === 'needs_setup'
+          ? { disabled_reason: 'Needs setup' }
+          : {}),
       })),
     }];
   });
@@ -718,12 +721,16 @@ export async function createAgentProposal(input: CreateProposalInput): Promise<P
     answers: input.answers,
   });
   const unavailableQuestion = unavailableCapabilityQuestion(request);
-  const connectionQuestions = unansweredConnectionQuestions(request);
+  const scopeQuestion = unansweredScopeQuestion(request);
+  const isRuntimeUnconfirmed = confirmedRuntime(request) === undefined;
+  const connectionQuestions = isRuntimeUnconfirmed ? [] : unansweredConnectionQuestions(request);
   const questions = unavailableQuestion
     ? [unavailableQuestion]
-    : connectionQuestions.length > 0
+    : isRuntimeUnconfirmed
+      ? [scopeQuestion].filter((question) => question !== undefined)
+      : connectionQuestions.length > 0
       ? connectionQuestions
-      : [unansweredScopeQuestion(request)].filter((question) => question !== undefined);
+      : [scopeQuestion].filter((question) => question !== undefined);
   if (questions.length > 0) {
     return {
       status: 'needs_information',

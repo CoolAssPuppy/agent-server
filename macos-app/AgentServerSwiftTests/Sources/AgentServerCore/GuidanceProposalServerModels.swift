@@ -362,7 +362,8 @@ private struct GuidanceQuestionPayload: Decodable, Equatable, Sendable {
             choiceValues: choices?.map(\.value) ?? [],
             choiceCategories: choices?.map { choice in
                 choice.source.map(ConnectionCategory.init(source:)) ?? .mcp
-            } ?? []
+            } ?? [],
+            choiceDisabledReasons: choices?.map(\.disabledReason) ?? []
         )
     }
 

@@ -1,5 +1,9 @@
 # Lessons
 
+- When matching an existing macOS settings screen, copy its layout primitives as well as its font sizes. A custom card-and-row layout cannot be reproduced reliably by retuning SwiftUI Form modifiers.
+- Creation and editing should use the same Markdown control so syntax, cursor behavior, undo, and file semantics do not diverge between workflows.
+- A persistent macOS creation action should not change color merely because its destination is open. Use steady styling and let the system button press state provide feedback.
+- Runtime-owned MCP choices cannot be complete until the creation flow knows which runtime the agent will use. Ask for the runtime before presenting service connections, then refresh the registry within that runtime scope.
 - In a native SwiftUI Form, changing one row from label-and-control structure to a full-width stack can move controls in every other row by changing the shared label column. Fix text alignment on the editor itself and preserve sibling row structure unless the whole section is being intentionally redesigned.
 - Native Form defaults can produce right-aligned editor text and mismatched custom labels. Preserve the native row and apply alignment to the editor itself, while giving custom labels the same type style.
 - A detail view nested under an agent already has identity context. Do not repeat the agent name, status label, or bulk actions in the run-detail header unless they add a distinct decision or capability.
