@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { loadConfig, type ServerConfig } from '../platform/config.js';
 import type { ExecutionResult } from '../execution/executor.js';
 import { RunStore } from '../reporting/store.js';
-import { createTempDir } from '../test-factories.js';
+import { createTempDir, makeRecordingAnalytics } from '../test-factories.js';
 import { startServer, type ServerInstance } from './server.js';
 
 const executeAgent = vi.hoisted(() => vi.fn());
@@ -839,6 +839,86 @@ describe('startServer production composition', { timeout: 20_000 }, () => {
       expect(closeSpy).toHaveBeenCalledOnce();
     } finally {
       finishSource?.();
+      await server.stop();
+      rmSync(context.home, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('server analytics', { timeout: 20_000 }, () => {
+  it('reports what the daemon actually ran, with no user content in the payload', async () => {
+    const context = await createTestServerContext('analytics-run-server');
+    const store = new RunStore();
+    const analytics = makeRecordingAnalytics();
+    writeAgent(context.home, 'worker.yaml', [
+      'id: worker',
+      'name: Quarterly Board Review',
+      'prompt: Summarize the board deck at /Users/sam/board.pdf',
+      ...restrictedAgentLines(context.home),
+      'enabled: true',
+      '',
+    ].join('\n'));
+    executeAgent.mockResolvedValueOnce(executionResult('Reviewed the deck for Acme Corp'));
+    const server = startServer(context.config, { store, analytics });
+
+    try {
+      await server.ready;
+      const runId = await triggerAgent(context.port, 'worker');
+      await waitForIntegration(() => {
+        expect(store.get(runId)?.status).toBe('completed');
+      });
+
+      expect(analytics.names()).toContain('agent_run_dispatched');
+      await waitForIntegration(() => {
+        expect(analytics.find('agent_run_settled')?.properties).toMatchObject({
+          agent_id: 'worker',
+          status: 'completed',
+        });
+      });
+
+      // The agent's name, its prompt, the path it was given, and the summary it
+      // produced are all user content. None of them may appear anywhere.
+      const payload = JSON.stringify(analytics.captured);
+      for (const secret of ['Quarterly Board Review', 'board.pdf', 'Acme Corp', '/Users/sam']) {
+        expect(payload).not.toContain(secret);
+      }
+    } finally {
+      await server.stop();
+      rmSync(context.home, { recursive: true, force: true });
+    }
+  });
+
+  it('flushes buffered events inside its own shutdown drain', async () => {
+    const context = await createTestServerContext('analytics-flush-server');
+    const analytics = makeRecordingAnalytics();
+    const server = startServer(context.config, { store: new RunStore(), analytics });
+
+    try {
+      await server.ready;
+      // Runs settle during the drain, so a server that only flushed before
+      // draining would lose the terminal events it just recorded.
+      expect(analytics.flushCount).toBe(0);
+      await server.stop();
+      expect(analytics.flushCount).toBeGreaterThan(0);
+    } finally {
+      rmSync(context.home, { recursive: true, force: true });
+    }
+  });
+
+  it('records which coding agents this machine actually has installed', async () => {
+    const context = await createTestServerContext('analytics-executor-server');
+    const analytics = makeRecordingAnalytics();
+    const server = startServer(context.config, { store: new RunStore(), analytics });
+
+    try {
+      await server.ready;
+      const executorEvents = analytics.captured.filter(
+        ({ event }) => event === 'executor_resolved' || event === 'executor_unavailable',
+      );
+      expect(executorEvents).toHaveLength(3);
+      expect(executorEvents.map(({ properties }) => properties.executor).sort())
+        .toEqual(['claude', 'codex', 'kimi']);
+    } finally {
       await server.stop();
       rmSync(context.home, { recursive: true, force: true });
     }

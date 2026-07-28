@@ -88,6 +88,8 @@ export type RecordedAnalyticsEvent = {
 
 export type RecordingAnalytics = Analytics & {
   readonly captured: RecordedAnalyticsEvent[];
+  /** How many times a caller asked for a send. Pins flush-on-shutdown wiring. */
+  readonly flushCount: number;
   names: () => AnalyticsEventName[];
   find: (event: AnalyticsEventName) => RecordedAnalyticsEvent | undefined;
 };
@@ -95,14 +97,22 @@ export type RecordingAnalytics = Analytics & {
 /** In-memory analytics for tests: records captures instead of sending them. */
 export function makeRecordingAnalytics(): RecordingAnalytics {
   const captured: RecordedAnalyticsEvent[] = [];
+  const flushes = { count: 0 };
   return {
     captured,
+    get flushCount() {
+      return flushes.count;
+    },
     names: () => captured.map(({ event }) => event),
     find: (event) => captured.find((entry) => entry.event === event),
     capture: (event, properties = {}) => {
       captured.push({ event, properties });
     },
-    flush: async () => {},
-    shutdown: async () => {},
+    flush: async () => {
+      flushes.count += 1;
+    },
+    shutdown: async () => {
+      flushes.count += 1;
+    },
   };
 }

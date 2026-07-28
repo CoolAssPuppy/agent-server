@@ -1181,6 +1181,12 @@ export function startServer(
         console.warn('[shutdown] Work drain timed out; keeping stores open for terminal bookkeeping');
       }
 
+      // After the run drain, not before: draining is what settles the last
+      // runs, so the events worth keeping are queued by the line above this
+      // one. The server flushes what the server captured rather than trusting
+      // its caller to, because `startServer` has callers other than the CLI.
+      await attempt(() => analytics.flush());
+
       console.log('Agent Server stopped.');
       if (shutdownErrors.length === 1) throw shutdownErrors[0];
       if (shutdownErrors.length > 1) {
