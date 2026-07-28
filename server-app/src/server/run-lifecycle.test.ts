@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Reporter, RunResult } from '../execution/runner.js';
 import { RunStore } from '../reporting/store.js';
-import { makeAgent, makeExecutionResult, makeStoredRun } from '../test-factories.js';
+import {
+  makeAgent,
+  makeExecutionResult,
+  makeRecordingAnalytics,
+  makeStoredRun,
+} from '../test-factories.js';
 import { ProgressBroadcaster, type ProgressEvent } from './websocket.js';
 import { createRunLifecycle } from './run-lifecycle.js';
 
@@ -47,7 +52,9 @@ function createHarness(
     });
     return { runId: options.runId, status: 'completed' as const, result };
   });
+  const analytics = makeRecordingAnalytics();
   const lifecycle = createRunLifecycle({
+    analytics,
     maxConcurrentRuns: 2,
     lockDir: '/tmp/agent-server-lifecycle-test-locks',
     runTimeoutMs: 30_000,
@@ -63,6 +70,7 @@ function createHarness(
   });
 
   return {
+    analytics,
     lifecycle,
     store,
     events,
@@ -470,5 +478,81 @@ describe('run lifecycle', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('run lifecycle analytics', () => {
+  it('records a dispatched run with its shape and no user content', async () => {
+    const harness = createHarness();
+    const agent = makeAgent({ id: 'daily-report', executor: 'codex', prompt: 'Email finance.' });
+
+    const runId = harness.lifecycle.trigger(agent);
+    await harness.lifecycle.waitForTerminal(runId);
+
+    expect(harness.analytics.find('agent_run_dispatched')?.properties).toEqual({
+      agent_id: 'daily-report',
+      executor: 'codex',
+      mode: 'normal',
+      scheduled: true,
+      chained: false,
+      conversational: false,
+      retry: false,
+    });
+  });
+
+  it('records a settled run with its outcome and effort', async () => {
+    const harness = createHarness();
+
+    const runId = harness.lifecycle.trigger(makeAgent({ id: 'daily-report' }));
+    await harness.lifecycle.waitForTerminal(runId);
+
+    expect(harness.analytics.find('agent_run_settled')?.properties).toMatchObject({
+      agent_id: 'daily-report',
+      status: 'completed',
+      turn_count: 3,
+      tool_count: 1,
+    });
+  });
+
+  it('records a failed run by its code rather than its message', async () => {
+    const harness = createHarness({
+      runId: 'run-1',
+      status: 'failed',
+      error: 'Agent could not read /Users/sam/notes.md',
+      code: 'lock_contention',
+    });
+
+    const runId = harness.lifecycle.trigger(makeAgent({ id: 'daily-report' }));
+    await harness.lifecycle.waitForTerminal(runId);
+
+    const settled = harness.analytics.find('agent_run_settled');
+    expect(settled?.properties).toMatchObject({ status: 'failed', code: 'lock_contention' });
+    expect(JSON.stringify(settled?.properties)).not.toContain('notes.md');
+  });
+
+  it('records a run rejected by the concurrency ceiling', async () => {
+    const harness = createHarness();
+    const agent = makeAgent({ id: 'busy' });
+
+    harness.lifecycle.trigger(agent);
+    harness.lifecycle.trigger(agent);
+    expect(() => harness.lifecycle.trigger(agent)).toThrow('Too many active runs');
+
+    expect(harness.analytics.find('agent_run_rejected')?.properties).toMatchObject({
+      agent_id: 'busy',
+      reason: 'concurrency_limit',
+      active_runs: 2,
+    });
+  });
+
+  it('records a run rejected because the server is shutting down', () => {
+    const harness = createHarness();
+    harness.lifecycle.stopAccepting();
+
+    expect(() => harness.lifecycle.trigger(makeAgent({ id: 'late' }))).toThrow('shutting down');
+
+    expect(harness.analytics.find('agent_run_rejected')?.properties).toMatchObject({
+      reason: 'shutting_down',
+    });
   });
 });

@@ -13,6 +13,13 @@ export type DiscoveryOptions = {
   readdir?: (directory: string) => Promise<string[]>;
   readFile?: (path: string, encoding: BufferEncoding) => Promise<string>;
   warn?: (message: string) => void;
+  /**
+   * Called with the coarse failure code for each definition that could not be
+   * loaded. Separate from `warn` because the warning carries the filename and
+   * this does not: a filename is user-authored text that must not be reported
+   * anywhere off the machine.
+   */
+  onInvalid?: (code: string) => void;
 };
 
 function errorCode(error: unknown): string | undefined {
@@ -43,7 +50,7 @@ export class AgentDiscoveryError extends Error {
 async function tryParseAgent(
   directory: string,
   file: string,
-  options: Required<Pick<DiscoveryOptions, 'readFile' | 'warn'>>,
+  options: Required<Pick<DiscoveryOptions, 'readFile' | 'warn' | 'onInvalid'>>,
 ): Promise<AgentConfig | null> {
   let content: string;
   try {
@@ -51,6 +58,7 @@ async function tryParseAgent(
   } catch (error) {
     const code = errorCode(error) ?? 'READ_FAILED';
     options.warn(`[agent-discovery] Cannot read agent file "${sanitizeText(file, 240)}" (${code})`);
+    options.onInvalid(code);
     return null;
   }
 
@@ -59,6 +67,7 @@ async function tryParseAgent(
   } catch (error) {
     const code = invalidDefinitionCode(error);
     options.warn(`[agent-discovery] Invalid agent file "${sanitizeText(file, 240)}" (${code})`);
+    options.onInvalid(code);
     return null;
   }
 }
@@ -70,6 +79,7 @@ export async function discoverAgents(
   const readDirectory = options.readdir ?? readdir;
   const readAgentFile = options.readFile ?? readFile;
   const warn = options.warn ?? console.warn;
+  const onInvalid = options.onInvalid ?? (() => {});
   let entries: string[];
   try {
     entries = await readDirectory(directory);
@@ -84,6 +94,7 @@ export async function discoverAgents(
     agentFiles.map((file) => tryParseAgent(directory, file, {
       readFile: readAgentFile,
       warn,
+      onInvalid,
     }))
   );
 

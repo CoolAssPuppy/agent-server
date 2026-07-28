@@ -112,6 +112,28 @@ describe('discoverAgents', () => {
     expect(warn.mock.calls.flat().join(' ')).not.toContain(sourceExcerpt);
   });
 
+  it('reports the failure code without the filename for callers that report off-machine', async () => {
+    writeAgent(dir, 'quarterly-board-review.yaml', 'id: broken\nname: Broken\nprompt: "unclosed');
+    const onInvalid = vi.fn();
+
+    await discoverAgents(dir, { warn: vi.fn(), onInvalid });
+
+    expect(onInvalid).toHaveBeenCalledExactlyOnceWith('YAML_PARSE_ERROR');
+  });
+
+  it('reports the read failure code separately from a parse failure', async () => {
+    const onInvalid = vi.fn();
+
+    await discoverAgents(dir, {
+      warn: vi.fn(),
+      onInvalid,
+      readFile: vi.fn().mockRejectedValue(Object.assign(new Error('nope'), { code: 'EACCES' })),
+      readdir: async () => ['secret.yaml'],
+    });
+
+    expect(onInvalid).toHaveBeenCalledExactlyOnceWith('EACCES');
+  });
+
   it('reports unreadable agent files separately from invalid definitions', async () => {
     const warn = vi.fn();
     const readFile = vi.fn().mockRejectedValue(Object.assign(new Error('private token value'), {

@@ -16,6 +16,12 @@ extension StatusMonitor {
             let updated = try await client.updateAgent(id: id, patch: patch)
             agentSnapshotRevision.recordMutation()
             replaceAgent(updated)
+            // The patch keys say which fields an edit touched — schedule,
+            // model, enabled — without carrying a single one of their values.
+            Telemetry.capture(.agentUpdated, properties: [
+                "agent_id": id,
+                "fields": patch.keys.sorted(),
+            ])
             return .success(updated)
         } catch {
             return writeOutcome(for: error)
@@ -33,6 +39,11 @@ extension StatusMonitor {
             )
             agentSnapshotRevision.recordMutation()
             replaceAgent(updated)
+            Telemetry.capture(.agentCapabilityToggled, properties: [
+                "agent_id": agentId,
+                "capability_id": capabilityId,
+                "enabled": enabled,
+            ])
             return .success(updated)
         } catch {
             return writeOutcome(for: error)
@@ -58,8 +69,16 @@ extension StatusMonitor {
             agentSnapshotRevision.recordMutation()
             replaceAgent(created)
             poll()
+            Telemetry.capture(.agentCreated, properties: [
+                "agent_id": created.id,
+                "scheduled": schedule?.isEmpty == false,
+                "capability_count": capabilities.filter(\.enabled).count,
+            ])
             return .success(created)
         } catch {
+            Telemetry.capture(.agentCreationFailed, properties: [
+                "reason": Telemetry.reason(for: error),
+            ])
             return .failure(error)
         }
     }
@@ -73,6 +92,7 @@ extension StatusMonitor {
             liveAgents.removeAll { $0.id == id }
             agents.removeAll { $0.id == id }
             poll()
+            Telemetry.capture(.agentDeleted, properties: ["agent_id": id])
             return .deleted
         } catch {
             return writeOutcome(for: error)
@@ -96,7 +116,11 @@ extension StatusMonitor {
     ) async -> Result<ConnectionProfile, Error> {
         guard !isDemoMode else { return .failure(DemoModeWriteError()) }
         do {
-            return .success(try await client.createConnectionProfile(request))
+            let profile = try await client.createConnectionProfile(request)
+            // The adapter slug, never the label: a user names a profile
+            // "Acme production Slack" and that names a customer.
+            Telemetry.capture(.connectionCreated, properties: ["adapter_id": request.adapter.id])
+            return .success(profile)
         } catch {
             return .failure(error)
         }
@@ -119,6 +143,7 @@ extension StatusMonitor {
     func removeConnectionProfile(id: String) async throws {
         guard !isDemoMode else { throw DemoModeWriteError() }
         try await client.removeConnectionProfile(id: id)
+        Telemetry.capture(.connectionRemoved)
     }
 
     func connections() async -> ConnectionSnapshot {
@@ -141,6 +166,9 @@ extension StatusMonitor {
             }
         }
         try EnvFileStore.save(pairs, to: url)
+        // Count only. The keys name third-party services and the values are
+        // credentials, so neither belongs in an event.
+        Telemetry.capture(.connectionKeysSaved, properties: ["key_count": values.count])
         if activeRuns.isEmpty { requestServerRestart() }
     }
 
@@ -165,6 +193,7 @@ extension StatusMonitor {
         Task {
             do {
                 try await client.cancelRun(id: id)
+                Telemetry.capture(.runCancelled, properties: ["run_id": id])
                 poll()
             } catch {
                 // The next poll will show the current server state.
@@ -178,12 +207,18 @@ extension StatusMonitor {
         do {
             let response = try await client.triggerRun(agentId: agentId)
             poll()
+            Telemetry.capture(.runTriggered, properties: ["agent_id": agentId])
             return .started(runId: response.runId)
         } catch {
             if isRequestTimeout(error) {
                 return await reconcileTriggeredRun(agentId: agentId, requestedAt: requestedAt)
             }
-            return .failure(runTriggerFailure(for: error))
+            let failure = runTriggerFailure(for: error)
+            Telemetry.capture(.runTriggerFailed, properties: [
+                "agent_id": agentId,
+                "reason": failure.analyticsReason,
+            ])
+            return .failure(failure)
         }
     }
 

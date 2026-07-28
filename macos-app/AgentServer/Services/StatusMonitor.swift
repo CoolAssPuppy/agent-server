@@ -224,7 +224,7 @@ final class StatusMonitor: ObservableObject {
         guard shouldCommit else { return }
         pendingDecisions.removeAll { $0.id == token.decisionId }
         Telemetry.capture(
-            "decision_resolved",
+            .decisionResolved,
             properties: ["decision_id": token.decisionId]
         )
         pollDecisions()
@@ -279,7 +279,7 @@ final class StatusMonitor: ObservableObject {
         let ids = Set(decisions.map(\.id))
         if hasDoneInitialDecisionsPoll {
             for newDecision in ids.subtracting(reportedDecisionIds) {
-                Telemetry.capture("decision_emitted", properties: ["decision_id": newDecision])
+                Telemetry.capture(.decisionEmitted, properties: ["decision_id": newDecision])
             }
         }
         reportedDecisionIds = ids
@@ -343,7 +343,7 @@ final class StatusMonitor: ObservableObject {
                 let newActiveIds = Set(currentActiveRuns.map { $0.runId })
                 if self.hasDoneInitialPoll {
                     for newlyStarted in newActiveIds.subtracting(self.previousActiveRunIds) {
-                        Telemetry.capture("run_started", properties: ["run_id": newlyStarted])
+                        Telemetry.capture(.runStarted, properties: ["run_id": newlyStarted])
                     }
                 }
                 self.previousActiveRunIds = newActiveIds
@@ -363,9 +363,9 @@ final class StatusMonitor: ObservableObject {
                     guard self.hasDoneInitialPoll else { continue }
                     switch run.status {
                     case .completed:
-                        Telemetry.capture("run_completed", properties: ["run_id": run.runId])
+                        Telemetry.capture(.runCompleted, properties: ["run_id": run.runId])
                     case .failed:
-                        Telemetry.capture("run_failed", properties: ["run_id": run.runId])
+                        Telemetry.capture(.runFailed, properties: ["run_id": run.runId])
                     case .running, .skipped:
                         break
                     }
@@ -408,7 +408,7 @@ final class StatusMonitor: ObservableObject {
         let agentIds = Set(fetchedAgents.map(\.id))
         if hasDoneInitialAgentPoll {
             for newAgent in agentIds.subtracting(reportedAgentIds) {
-                Telemetry.capture("agent_discovered", properties: ["agent_id": newAgent])
+                Telemetry.capture(.agentDiscovered, properties: ["agent_id": newAgent])
             }
         }
         reportedAgentIds = agentIds
@@ -467,6 +467,7 @@ final class StatusMonitor: ObservableObject {
 
     func requestServerRestart() {
         guard let serverProcess else { return }
+        Telemetry.capture(.daemonRestartRequested)
         disconnectWebSocket()
         Task {
             await serverProcess.restart()

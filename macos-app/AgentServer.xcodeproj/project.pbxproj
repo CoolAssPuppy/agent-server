@@ -110,6 +110,7 @@
 		90A0FF6A7652F14A2849A650 /* SettingsButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEBD9D532ECC05B3315AE47F /* SettingsButtons.swift */; };
 		90D2742B2CD0C605C3181ED4 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B8C3600FDBE09650A796C7E /* main.swift */; };
 		91FD024F0CD4A3CE3C760815 /* NativeAuthorization.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814BB589866FCCB37AAC13D1 /* NativeAuthorization.swift */; };
+		96213D8F33BC06846EBD7235 /* TelemetryEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB65757F9E9441ACBB64D56A /* TelemetryEvent.swift */; };
 		96EDE47844809725EF659B53 /* StatusMonitor+Guidance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F11E1CCD599C1743CC67546 /* StatusMonitor+Guidance.swift */; };
 		99DA993395D36324F62670AF /* AgentServerClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76D1FBFD51A44407DC395C7F /* AgentServerClient.swift */; };
 		9C811AAEE771157DCD82BE6D /* NativeServiceGrantPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0AE4F8750CFC69C6D44996F /* NativeServiceGrantPolicy.swift */; };
@@ -364,6 +365,7 @@
 		F1BCFCE737011048F3DAC1E5 /* AgentEnabledFileEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentEnabledFileEditor.swift; sourceTree = "<group>"; };
 		F23C1CA4CDE204047AD9448D /* RunDetailGutter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailGutter.swift; sourceTree = "<group>"; };
 		F50CA8C247B1FCF3FA516F3D /* ConnectionProfilePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionProfilePresentation.swift; sourceTree = "<group>"; };
+		FB65757F9E9441ACBB64D56A /* TelemetryEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryEvent.swift; sourceTree = "<group>"; };
 		FB96AE6A41FAF99A5252E1BD /* GuidedAgentCreationResources.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedAgentCreationResources.swift; sourceTree = "<group>"; };
 		FD0F9CC8F36CEDDEA44E1D44 /* NotificationPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreferences.swift; sourceTree = "<group>"; };
 		FDB22418EF86F5F4F13FAF67 /* SchedulePreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchedulePreset.swift; sourceTree = "<group>"; };
@@ -659,6 +661,7 @@
 				36E7C28685605B900B56E4DA /* SettingsPresentation.swift */,
 				325C74DAF7BB5F1C25B3A733 /* SidebarViewModel.swift */,
 				2B2EDB64F25F48A860F8C3B5 /* StableRunMerge.swift */,
+				FB65757F9E9441ACBB64D56A /* TelemetryEvent.swift */,
 				09514F133DD35286B5FBDB62 /* TelemetryProgressSettings.swift */,
 				8CD2991794E26E02A4901DE9 /* ThemePickerPresentation.swift */,
 			);
@@ -1063,6 +1066,7 @@
 				59AFF54263536F1680FC3CF9 /* StatusMonitor+WebSocket.swift in Sources */,
 				470120920161412825893DBC /* StatusMonitor.swift in Sources */,
 				83DD619B99906B7FDB630086 /* Telemetry.swift in Sources */,
+				96213D8F33BC06846EBD7235 /* TelemetryEvent.swift in Sources */,
 				C2B13D9B947515949F0C0A5A /* TelemetryProgressSettings.swift in Sources */,
 				B2C6F68DEB3B9876B8D905FA /* ThemePickerPresentation.swift in Sources */,
 				FDBD6AED1F67A35E735DA77B /* TopDrawerSurface.swift in Sources */,

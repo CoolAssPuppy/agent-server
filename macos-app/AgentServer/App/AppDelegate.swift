@@ -31,7 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // gear or an agent row in the popover — see openMainWindow(route:).
         NSApp.setActivationPolicy(.accessory)
         Telemetry.setup()
-        Telemetry.capture("app_launched")
+        Telemetry.capture(.appLaunched)
         setupStatusItem()
         setupPopover()
         subscribeToUpdates()
@@ -364,6 +364,7 @@ extension AppDelegate {
     ///      is called inside `withAnimation(.easeOut(...))` so SwiftUI sees
     ///      the nil -> open transition and plays the drawer's .move(edge:).
     func openMainWindow(route: Drawer? = nil) {
+        Telemetry.capture(.windowOpened, properties: ["route": route?.analyticsRoute ?? "main"])
         popover.performClose(nil)
 
         Task { @MainActor in

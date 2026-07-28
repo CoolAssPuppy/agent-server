@@ -290,6 +290,14 @@ final class ServerProcessManager {
         )
         environment["AGENT_SERVER_HOME"] = AgentServerWorkspaceStore.current().homeDirectory.path
 
+        // Hand the daemon this install's analytics identity so its events and
+        // the app's resolve to one person rather than two. The key travels the
+        // same way, which is why a contributor build — no key in Info.plist —
+        // gives the daemon nothing to send with either.
+        for (key, value) in Telemetry.childProcessEnvironment() {
+            environment[key] = value
+        }
+
         // Strip env vars that prevent the Agent SDK from spawning Claude Code
         environment.removeValue(forKey: "CLAUDECODE")
 
@@ -442,8 +450,13 @@ final class ServerProcessManager {
         }
     }
 
+    /// The one funnel every launch and shutdown failure passes through, so the
+    /// event lands once no matter which branch found the problem. Node missing
+    /// from PATH and a stale process identity produce the same silent menu bar
+    /// icon, and only the reason tells them apart.
     private func record(_ error: ServerProcessManagerError) {
         lastError = error
+        Telemetry.capture(.daemonLaunchFailed, properties: ["reason": error.analyticsReason])
         print("[ServerProcessManager] \(error.localizedDescription)")
     }
 }
@@ -470,6 +483,24 @@ enum ServerProcessManagerError: LocalizedError, Equatable {
     case processIdentityMismatch
     case shutdownFailed
     case shutdownTimedOut
+
+    /// Snake-case slug for analytics. Spelled out rather than derived from the
+    /// case name so renaming a case does not silently rename a property that
+    /// dashboards already group by.
+    var analyticsReason: String {
+        switch self {
+        case .invalidServerLocation: return "invalid_server_location"
+        case .serverDirectoryNotFound: return "server_directory_not_found"
+        case .invalidNodeOverride: return "invalid_node_override"
+        case .nodeNotFound: return "node_not_found"
+        case .launchFailed: return "launch_failed"
+        case .externalProcessLookupFailed: return "external_process_lookup_failed"
+        case .externalProcessNotOwned: return "external_process_not_owned"
+        case .processIdentityMismatch: return "process_identity_mismatch"
+        case .shutdownFailed: return "shutdown_failed"
+        case .shutdownTimedOut: return "shutdown_timed_out"
+        }
+    }
 
     var errorDescription: String? {
         switch self {

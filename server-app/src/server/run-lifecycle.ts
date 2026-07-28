@@ -12,6 +12,8 @@ import { toErrorMessage } from '../util/errors.js';
 import { withTimeout } from '../util/with-timeout.js';
 import type { ProgressBroadcaster } from './websocket.js';
 import { createRunProgressReporter } from './run-progress-reporter.js';
+import { createNoopAnalytics, type Analytics } from '../analytics/analytics.js';
+import { ANALYTICS_EVENTS } from '../analytics/events.js';
 
 export {
   extractMcpNeedsAuthServers,
@@ -74,6 +76,8 @@ type RunLifecycleDependencies = {
   ) => Promise<void> | void;
   createRunId?: () => string;
   now?: () => Date;
+  /** Anonymous product analytics. Defaults to a no-op so tests send nothing. */
+  analytics?: Analytics;
 };
 
 const ALREADY_COMPLETED_TODAY_CODE = 'already_completed_today';
@@ -89,13 +93,42 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
   const terminalResolvers = new Map<string, () => void>();
   const run = dependencies.run ?? runAgent;
   const now = dependencies.now ?? (() => new Date());
+  const analytics = dependencies.analytics ?? createNoopAnalytics();
+  const startedAtByRun = new Map<string, number>();
   let isAccepting = true;
+
+  /**
+   * The shape of a run, with nothing in it a person could be identified by.
+   * `agent_id` is the slug from the definition filename, which the macOS app
+   * already sends on `agent_discovered`; prompts, summaries, file paths, and
+   * error messages stay on the machine.
+   */
+  function runShape(agent: AgentConfig, options: TriggerRunOptions) {
+    return {
+      agent_id: agent.id,
+      executor: agent.executor ?? 'default',
+      mode: options.mode ?? 'normal',
+      scheduled: Boolean(agent.schedule),
+      chained: Boolean(options.chain),
+      conversational: Boolean(options.conversationId),
+      retry: Boolean(options.retryOfRunId),
+    };
+  }
 
   function trigger(agent: AgentConfig, options: TriggerRunOptions = {}): string {
     if (!isAccepting) {
+      analytics.capture(ANALYTICS_EVENTS.agentRunRejected, {
+        ...runShape(agent, options),
+        reason: 'shutting_down',
+      });
       throw new Error('Server is shutting down.');
     }
     if (activeControllers.size >= dependencies.maxConcurrentRuns) {
+      analytics.capture(ANALYTICS_EVENTS.agentRunRejected, {
+        ...runShape(agent, options),
+        reason: 'concurrency_limit',
+        active_runs: activeControllers.size,
+      });
       throw new Error('Too many active runs. Please retry later.');
     }
 
@@ -117,6 +150,7 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
       : executeRun(runId, agent, options, abortController);
 
     void terminalWork.finally(() => {
+      startedAtByRun.delete(runId);
       activeControllers.delete(runId);
       terminalResolvers.get(runId)?.();
       terminalResolvers.delete(runId);
@@ -168,6 +202,28 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
       runId,
       agentId: agent.id,
       timestamp: startedAt.toISOString(),
+    });
+    startedAtByRun.set(runId, startedAt.getTime());
+    analytics.capture(ANALYTICS_EVENTS.agentRunDispatched, runShape(agent, options));
+  }
+
+  function recordSettled(
+    runId: string,
+    agent: AgentConfig,
+    options: TriggerRunOptions,
+    status: 'completed' | 'failed' | 'skipped',
+    extra: { code?: string; turnCount?: number; toolCount?: number } = {},
+  ): void {
+    const startedAt = startedAtByRun.get(runId);
+    analytics.capture(ANALYTICS_EVENTS.agentRunSettled, {
+      ...runShape(agent, options),
+      status,
+      ...(extra.code ? { code: extra.code } : {}),
+      ...(extra.turnCount === undefined ? {} : { turn_count: extra.turnCount }),
+      ...(extra.toolCount === undefined ? {} : { tool_count: extra.toolCount }),
+      ...(startedAt === undefined
+        ? {}
+        : { duration_seconds: Math.round((now().getTime() - startedAt) / 1000) }),
     });
   }
 
@@ -268,6 +324,10 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
       toolsUsed: result.toolsUsed,
       filesWritten: result.filesWritten,
     });
+    recordSettled(runId, agent, options, 'completed', {
+      turnCount: result.turnCount,
+      toolCount: result.toolsUsed?.length,
+    });
     options.onDone?.({ status: 'completed', summary: result.summary });
     if ((options.mode ?? 'normal') !== 'safe_test') {
       await invokeTerminalHook(agent, 'completed', options.chain);
@@ -312,6 +372,7 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
       timestamp: now().toISOString(),
     });
     dependencies.notify(agent, runId, { status: 'skipped', error: reason });
+    recordSettled(runId, agent, options, 'skipped', { code: result.code });
     options.onDone?.({ status: 'skipped', error: reason });
     if ((options.mode ?? 'normal') !== 'safe_test') {
       await invokeTerminalHook(agent, 'skipped', options.chain);
@@ -335,6 +396,7 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
       timestamp: now().toISOString(),
     });
     dependencies.notify(agent, runId, { status: 'failed', error });
+    recordSettled(runId, agent, options, 'failed', { code });
     options.onDone?.({ status: 'failed', error });
     if ((options.mode ?? 'normal') !== 'safe_test') {
       await invokeTerminalHook(agent, 'failed', options.chain);

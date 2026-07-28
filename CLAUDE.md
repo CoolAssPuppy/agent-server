@@ -521,6 +521,32 @@ telemetry:
 
 Validated by `AgentTelemetrySchema` in `agents/config.ts` and resolved in `reporting/reporter-factory.ts`. The settings drawer changes take effect after the next server restart.
 
+### Product analytics
+
+Separate from panel telemetry, and the naming collision is worth holding on to: **telemetry** in this codebase means A2A run reporting to Agent Panel; **analytics** means anonymous product usage. They never share a payload, a transport, or a config key.
+
+Both surfaces have their own copy of the same shape. Neither imports the other, and there is no shared package.
+
+| | macOS app | CLI and daemon |
+|---|---|---|
+| Facade | `AgentServer/Services/Telemetry.swift` | `server-app/src/analytics/analytics.ts` |
+| Event catalog | `AgentServerCore/TelemetryEvent.swift` | `server-app/src/analytics/events.ts` |
+| Destination contract | `TelemetryDestination` | `AnalyticsDestination` |
+| Live destinations | `PostHogDestination` | `createPostHogDestination` |
+| Key | `POSTHOG_API_KEY` in Info.plist, injected by `scripts/release.sh` from Doppler | `AGENT_SERVER_ANALYTICS_KEY`, passed down by the app |
+
+Adding a provider means conforming the destination contract and appending it to the array in `Telemetry.setup()` or to the array `createAnalytics` receives. No capture site changes. Destinations are isolated from each other, so one that throws or rejects never stops the rest.
+
+Event names are `object_action`, snake_case, past tense. Never a string literal at a call site.
+
+**No PII, ever.** Ids, slugs, enum cases, counts, and booleans only. No agent names, prompts, summaries, file paths, error messages, URLs, or credentials. Errors are reduced to a coarse slug by `classifyErrorReason` (TS) or `Telemetry.reason(for:)` (Swift). Agent definition filenames stay in the local warning and never reach an event.
+
+**Identity** is a per-install UUID. The app generates it and passes it to the daemon as `AGENT_SERVER_ANALYTICS_DISTINCT_ID`, so the two surfaces resolve to one person rather than inflating every user count. A CLI started from a terminal falls back to `~/.agent-server/analytics-id`.
+
+**Opt-out** defaults to off and lives behind "Help improve Agent Server" in Settings. Flipping it writes `AGENT_SERVER_ANALYTICS_OPT_OUT` into `~/.agent-server/.env`, which the daemon re-reads before every flush — the one place in this codebase where the `.env` file deliberately beats the shell environment, because a daemon started at login has no other way to hear the change.
+
+Contributor builds have no key in Info.plist, so both surfaces silently disable and development never reaches the production project.
+
 ### Notifications
 
 Agents can send completion/failure notifications to a channel without requiring a reply. Add a `notification` block to the agent config. The `Channel.notify()` method sends a one-way message (no inline keyboard, no reply handling).

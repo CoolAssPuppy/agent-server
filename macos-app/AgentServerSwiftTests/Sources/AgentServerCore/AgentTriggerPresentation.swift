@@ -41,6 +41,20 @@ enum AgentRunTriggerFailure: Equatable {
     case securityBlocked
     case generic
 
+    /// Snake-case slug for analytics. Spelled out rather than derived from the
+    /// case name so renaming a case does not silently rename an event property
+    /// that dashboards are already grouping by.
+    var analyticsReason: String {
+        switch self {
+        case .offline: return "offline"
+        case .takingLonger: return "taking_longer"
+        case .missingConnection: return "missing_connection"
+        case .securityReview: return "security_review"
+        case .securityBlocked: return "security_blocked"
+        case .generic: return "generic"
+        }
+    }
+
     static func classify(
         serverCode: String?,
         serverMessage: String? = nil,

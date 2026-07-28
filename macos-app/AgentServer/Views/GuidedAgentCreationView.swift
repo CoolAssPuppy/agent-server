@@ -121,7 +121,7 @@ struct GuidedAgentCreationView: View {
         guard let request = model.startPreparation() else { return }
         if !request.newUnsupportedServiceIDs.isEmpty {
             Telemetry.capture(
-                "agent_creation_unsupported_services_mentioned",
+                .agentCreationUnsupportedServicesMentioned,
                 properties: [
                     "service_ids": request.newUnsupportedServiceIDs,
                     "service_count": request.newUnsupportedServiceIDs.count,

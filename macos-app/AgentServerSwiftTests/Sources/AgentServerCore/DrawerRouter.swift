@@ -15,6 +15,20 @@ enum Drawer: Equatable {
     case connections
     case security(agentId: String?)
     case debugger(runId: String)
+
+    /// Snake-case slug naming which screen was opened. The associated ids are
+    /// dropped: the question analytics answers is which screens people use,
+    /// and the id would only make the property high-cardinality.
+    var analyticsRoute: String {
+        switch self {
+        case .creation: return "creation"
+        case .detail: return "detail"
+        case .settings: return "settings"
+        case .connections: return "connections"
+        case .security: return "security"
+        case .debugger: return "debugger"
+        }
+    }
 }
 
 enum DrawerPresentationPlacement: Equatable {

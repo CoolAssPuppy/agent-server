@@ -61,6 +61,41 @@ describe('macOS build inputs', () => {
     expect(releaseScript.match(/POSTHOG_API_KEY="\$POSTHOG_PUBLIC_KEY"/g)).toHaveLength(2);
   });
 
+  it('hands the daemon the app identity and never the opt-out preference', async () => {
+    const telemetry = await readRepositoryFile('macos-app/AgentServer/Services/Telemetry.swift');
+    const processManager = await readRepositoryFile(
+      'macos-app/AgentServer/Services/ServerProcessManager.swift',
+    );
+
+    // The daemon is spawned once and can outlive many trips through Settings,
+    // so the identity travels through the environment and the opt-out does not.
+    expect(telemetry).toContain('AGENT_SERVER_ANALYTICS_KEY');
+    expect(telemetry).toContain('AGENT_SERVER_ANALYTICS_DISTINCT_ID');
+    expect(processManager).toContain('Telemetry.childProcessEnvironment()');
+
+    const childEnvironment = telemetry.slice(
+      telemetry.indexOf('static func childProcessEnvironment'),
+      telemetry.indexOf('static func reason'),
+    );
+    expect(childEnvironment).not.toContain('AGENT_SERVER_ANALYTICS_OPT_OUT');
+    expect(telemetry).toContain('private static func writeDaemonOptOut');
+  });
+
+  it('routes every analytics call site through the swappable destination array', async () => {
+    const telemetry = await readRepositoryFile('macos-app/AgentServer/Services/Telemetry.swift');
+    const captureSites = await readRepositoryFile(
+      'macos-app/AgentServer/Services/StatusMonitor.swift',
+    );
+
+    expect(telemetry).toContain('protocol TelemetryDestination');
+    expect(telemetry).toContain('private static var destinations: [TelemetryDestination]');
+    // Only the facade knows a provider exists.
+    expect(captureSites).not.toContain('import PostHog');
+    expect(captureSites).not.toContain('PostHogSDK');
+    // Event names come from the catalog, never a literal.
+    expect(captureSites).not.toMatch(/Telemetry\.capture\("/);
+  });
+
   it('fails the app build when the required EventKit helper is missing', async () => {
     const project = await readRepositoryFile('macos-app/project.yml');
 

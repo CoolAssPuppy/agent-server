@@ -56,6 +56,9 @@ import {
 import { availableConnections, buildServiceRegistry } from '../services/registry.js';
 import { startManagedServices, type ManagedService } from './managed-services.js';
 import { createDownstreamTriggerHandler } from './downstream-triggers.js';
+import { createNoopAnalytics, type Analytics } from '../analytics/analytics.js';
+import { ANALYTICS_EVENTS } from '../analytics/events.js';
+import { classifyErrorReason } from '../analytics/reason.js';
 
 export type ServerInstance = {
   ready: Promise<void>;
@@ -238,6 +241,11 @@ type StartServerOptions = {
    * `config.runDbPath`. Injected in tests to avoid touching the real database.
    */
   store?: RunStoreLike;
+  /**
+   * Anonymous product analytics. Defaults to a no-op so every existing caller
+   * and every test keeps working without sending anything.
+   */
+  analytics?: Analytics;
 };
 
 /**
@@ -272,6 +280,7 @@ export function startServer(
   const serverId = `${hostname()}-${process.pid}`;
   const panelClient = createPanelClient(config);
 
+  const analytics = options?.analytics ?? createNoopAnalytics();
   const store = options?.store ?? createRunStore(config.runDbPath);
   const interactionStore = new InteractionStore();
   const conversationStore = new ConversationStore();
@@ -311,6 +320,33 @@ export function startServer(
   }
   if (runtimePaths.kimiExecutablePath) {
     console.log(`  Kimi runtime: ${runtimePaths.kimiExecutablePath} (installed)`);
+  }
+
+  // Which coding agents a person actually has installed decides which executor
+  // bugs matter. The path itself is a home-directory path and never leaves.
+  for (const [executor, path] of [
+    ['claude', runtimePaths.claudeExecutablePath],
+    ['codex', runtimePaths.codexExecutablePath],
+    ['kimi', runtimePaths.kimiExecutablePath],
+  ] as const) {
+    analytics.capture(
+      path ? ANALYTICS_EVENTS.executorResolved : ANALYTICS_EVENTS.executorUnavailable,
+      { executor, ...(path ? { origin: 'installed' } : {}) },
+    );
+  }
+
+  /**
+   * Every discovery pass in this server, so a definition that fails to load is
+   * counted once wherever it is noticed. Only the failure code travels; the
+   * filename stays in the local warning.
+   */
+  function discoverConfiguredAgents(): Promise<AgentConfig[]> {
+    return discoverAgents(config.agentsDir, {
+      onInvalid: (code) => analytics.capture(
+        ANALYTICS_EVENTS.agentDefinitionInvalid,
+        { code: code.toLowerCase() },
+      ),
+    });
   }
 
   const broadcaster = new ProgressBroadcaster();
@@ -406,7 +442,7 @@ export function startServer(
   }
 
   const fireDownstreamTriggers = createDownstreamTriggerHandler({
-    discover: () => discoverAgents(config.agentsDir),
+    discover: () => discoverConfiguredAgents(),
     trigger: async (agent, chain) => {
       if (isStopping) return;
       await checkedTriggerRunForAgent(agent, { chain }, 'chain');
@@ -415,6 +451,7 @@ export function startServer(
   });
 
   const runLifecycle = createRunLifecycle({
+    analytics,
     maxConcurrentRuns: config.maxConcurrentRuns,
     lockDir: config.lockDir,
     runTimeoutMs: config.runTimeoutMs,
@@ -457,7 +494,7 @@ export function startServer(
     promptSuffix?: string,
     security?: { confirmedContentHash?: string },
   ): Promise<string> {
-    const agents = await discoverAgents(config.agentsDir);
+    const agents = await discoverConfiguredAgents();
     const agent = agents.find((a) => a.id === agentId);
     if (!agent) throw new Error(`Agent not found: ${agentId}`);
     const runId = await checkedTriggerRunForAgent(
@@ -475,7 +512,7 @@ export function startServer(
     promptSuffix: string | undefined,
     source: Exclude<RunTriggerSource, 'manual' | 'safe_test'>,
   ): Promise<string | undefined> {
-    const agents = await discoverAgents(config.agentsDir);
+    const agents = await discoverConfiguredAgents();
     const agent = agents.find((candidate) => candidate.id === agentId);
     if (!agent) throw new Error(`Agent not found: ${agentId}`);
     return checkedTriggerRunForAgent(agent, { promptSuffix }, source);
@@ -485,7 +522,7 @@ export function startServer(
     agentId: string,
     metadata: { retryOfRunId: string; repairId?: string; confirmedContentHash?: string },
   ): Promise<string> {
-    const agents = await discoverAgents(config.agentsDir);
+    const agents = await discoverConfiguredAgents();
     const agent = agents.find((candidate) => candidate.id === agentId);
     if (!agent) throw new Error(`Agent not found: ${agentId}`);
     const runId = await checkedTriggerRunForAgent(
@@ -499,7 +536,7 @@ export function startServer(
   }
 
   const triggerSafeTest = createSafeTestTrigger({
-    getAgent: async (agentId) => (await discoverAgents(config.agentsDir))
+    getAgent: async (agentId) => (await discoverConfiguredAgents())
       .find((agent) => agent.id === agentId),
     triggerAgent: (agent) => triggerRunForAgent(agent, { mode: 'safe_test' }),
   });
@@ -513,7 +550,7 @@ export function startServer(
 
   async function runDueAgents(): Promise<void> {
     if (isStopping) return;
-    const agents = await discoverAgents(config.agentsDir);
+    const agents = await discoverConfiguredAgents();
     if (isStopping) return;
     const now = new Date();
 
@@ -563,7 +600,7 @@ export function startServer(
     availableConnections: async (agent) => {
       const executor = agent.executor ?? 'claude-code';
       return availableConnections(buildServiceRegistry({
-        agents: await discoverAgents(config.agentsDir),
+        agents: await discoverConfiguredAgents(),
         environment: loadEnvFile(join(config.agentsDir, '..'), process.env),
         discovered: executor === 'claude-code' ? connectionCache.servers() : [],
         executor,
@@ -602,7 +639,7 @@ export function startServer(
   ): Promise<string | undefined> {
     return runPreflightGate.run(agent, triggerOptions, { source, confirmedContentHash });
   }
-  const getAgents = (): Promise<AgentConfig[]> => discoverAgents(config.agentsDir);
+  const getAgents = (): Promise<AgentConfig[]> => discoverConfiguredAgents();
   const guidanceApi = createGuidanceApi({
     model: guidanceModel,
     writer: agentWriter,
@@ -820,7 +857,7 @@ export function startServer(
     try {
       const activeConv = conversationStore.findActiveByChat(sink.chatKey);
       if (activeConv) {
-        const agents = await discoverAgents(config.agentsDir);
+        const agents = await discoverConfiguredAgents();
         const agent = agents.find((a) => a.id === activeConv.agentId);
         if (!agent) {
           conversationStore.expire(activeConv.id);
@@ -846,7 +883,7 @@ export function startServer(
         return;
       }
 
-      const agents = await discoverAgents(config.agentsDir);
+      const agents = await discoverConfiguredAgents();
       const result = await routeMessage(text, agents, { apiKey: options?.anthropicApiKey });
 
       if (result.type === 'list') {
@@ -909,6 +946,27 @@ export function startServer(
     );
   }
 
+  /**
+   * Records why a chat channel never came up, then lets the failure through.
+   * A bad token and an unreachable Socket Mode endpoint look identical in the
+   * logs of a machine nobody is watching, and the difference decides whether
+   * the fix is the user's or ours.
+   */
+  async function connectChannel(
+    channel: 'slack' | 'telegram',
+    setup: () => Promise<void>,
+  ): Promise<void> {
+    try {
+      await setup();
+    } catch (error) {
+      analytics.capture(ANALYTICS_EVENTS.channelFailed, {
+        channel,
+        reason: classifyErrorReason(error),
+      });
+      throw error;
+    }
+  }
+
   async function setupTelegram(): Promise<void> {
     if (!config.telegramBotToken) {
       console.log('Telegram bot disabled (no AGENT_SERVER_TELEGRAM_BOT_TOKEN set)');
@@ -940,6 +998,7 @@ export function startServer(
 
     channelDispatcher.register(telegramChannel);
     await telegramChannel.start();
+    analytics.capture(ANALYTICS_EVENTS.channelConnected, { channel: 'telegram' });
     console.log('  Telegram: connected');
   }
 
@@ -974,6 +1033,7 @@ export function startServer(
 
     channelDispatcher.register(slackChannel);
     await slackChannel.start();
+    analytics.capture(ANALYTICS_EVENTS.channelConnected, { channel: 'slack' });
     console.log('  Slack: connected');
   }
 
@@ -1024,8 +1084,8 @@ export function startServer(
     {
       name: 'message channels',
       start: async () => {
-        await setupTelegram();
-        await setupSlack();
+        await connectChannel('telegram', setupTelegram);
+        await connectChannel('slack', setupSlack);
       },
       stop: () => channelDispatcher.stopAll(),
     },

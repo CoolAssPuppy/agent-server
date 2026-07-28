@@ -35,6 +35,7 @@ final class UpdaterManager: NSObject, ObservableObject, SPUUpdaterDelegate {
     }
 
     func checkForUpdates() {
+        Telemetry.capture(.updateCheckRequested)
         controller.checkForUpdates(nil)
     }
 
@@ -45,6 +46,10 @@ final class UpdaterManager: NSObject, ObservableObject, SPUUpdaterDelegate {
     // the system beep ("pop"), so we dismiss them here.
     nonisolated func updaterWillRelaunchApplication(_ updater: SPUUpdater) {
         Task { @MainActor in
+            // The last thing this build does. The next launch reports the new
+            // version, which is what makes an upgrade funnel measurable.
+            Telemetry.capture(.updateInstalled)
+            Telemetry.flush()
             for window in NSApp.windows {
                 for sheet in window.sheets {
                     window.endSheet(sheet)

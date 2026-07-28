@@ -726,6 +726,10 @@ The CLI loads `~/.agent-server/.env` at startup. Shell environment variables tak
 | `AGENT_SERVER_CODEX_PATH` |  | Exact path to the required Codex executable |
 | `AGENT_SERVER_USE_INSTALLED_KIMI` | `true` | Set to `false` to turn off installed Kimi Code discovery |
 | `AGENT_SERVER_KIMI_PATH` |  | Exact path to the `kimi` executable. An invalid explicit path fails closed. |
+| `AGENT_SERVER_ANALYTICS_KEY` |  | Product analytics project key. Injected by the macOS app at launch. Unset means analytics is off. |
+| `AGENT_SERVER_ANALYTICS_HOST` | `https://us.i.posthog.com` | Product analytics ingest host |
+| `AGENT_SERVER_ANALYTICS_DISTINCT_ID` |  | Per-install identifier passed down by the macOS app so both surfaces resolve to one person |
+| `AGENT_SERVER_ANALYTICS_OPT_OUT` | `false` | Set to `true` to send no product analytics. The value in `~/.agent-server/.env` wins over the shell so the macOS toggle reaches a running daemon. |
 | `ANTHROPIC_API_KEY` |  | Anthropic API key. Required for Telegram message routing (agent selection via Haiku). |
 
 Example `~/.agent-server/.env`:
@@ -1224,6 +1228,14 @@ Tests are colocated with source files (`*.test.ts`). The project uses TDD with f
 - SwiftUI + AppKit (NSStatusBar, NSTextView)
 - Sparkle 2 for signed application updates
 - PostHog for product analytics
+
+## Analytics and privacy
+
+Agent Server sends anonymous product usage data so we can see which features get used and which errors people actually hit. You can turn it off in Settings under "Help improve Agent Server", and the switch takes effect immediately for both the app and the running server.
+
+What gets sent: agent and run identifiers, executor names, outcome codes, counts, and which screens were opened. What never gets sent: your prompts, agent names, run summaries, file paths, error messages, credentials, your email, or any device fingerprint. You are identified by a random per-install UUID stored on your Mac.
+
+Builds from source have no analytics key baked in and send nothing.
 
 ## Requirements
 

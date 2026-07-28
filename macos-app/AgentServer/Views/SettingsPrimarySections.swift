@@ -23,6 +23,10 @@ struct SettingsGeneralSection: View {
             )
                 .onChange(of: launchAtLogin) { _, value in
                     LaunchAtLoginManager.shared.isEnabled = value
+                    Telemetry.capture(.settingChanged, properties: [
+                        "setting": "launch_at_login",
+                        "enabled": value,
+                    ])
                 }
             SettingsRowDivider()
             SettingsToggleRow(
@@ -30,6 +34,12 @@ struct SettingsGeneralSection: View {
                 description: "Run work missed while this Mac was asleep.",
                 isOn: $resumeAfterWake
             )
+                .onChange(of: resumeAfterWake) { _, value in
+                    Telemetry.capture(.settingChanged, properties: [
+                        "setting": "resume_after_wake",
+                        "enabled": value,
+                    ])
+                }
             if requiresRestart {
                 SettingsRestartNotice(action: onRestart)
                     .padding(.top, 8)
@@ -40,7 +50,24 @@ struct SettingsGeneralSection: View {
                 description: "Send anonymous usage data.",
                 isOn: $telemetryOptIn
             )
-                .onChange(of: telemetryOptIn) { _, value in Telemetry.setOptedIn(value) }
+                .onChange(of: telemetryOptIn) { _, value in
+                    // Capture the opt-out before the switch flips, otherwise
+                    // the one event that says why the data stops is the one
+                    // event that never gets sent.
+                    if !value {
+                        Telemetry.capture(.settingChanged, properties: [
+                            "setting": "telemetry_opt_in",
+                            "enabled": false,
+                        ])
+                    }
+                    Telemetry.setOptedIn(value)
+                    if value {
+                        Telemetry.capture(.settingChanged, properties: [
+                            "setting": "telemetry_opt_in",
+                            "enabled": true,
+                        ])
+                    }
+                }
             SettingsRowDivider()
             SettingsValueRow(label: "Server status") {
                 SettingsStatusPill(
@@ -63,6 +90,12 @@ struct SettingsRuntimeSection: View {
     var body: some View {
         SettingsGroup(title: SettingsSection.runtimes.title) {
             SettingsToggleRow(label: "Use installed Kimi", isOn: $usesInstalledKimi)
+                .onChange(of: usesInstalledKimi) { _, value in
+                    Telemetry.capture(.settingChanged, properties: [
+                        "setting": "use_installed_kimi",
+                        "enabled": value,
+                    ])
+                }
             if requiresRestart {
                 SettingsRestartNotice(action: onRestart)
                     .padding(.top, 10)

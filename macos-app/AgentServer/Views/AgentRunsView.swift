@@ -230,7 +230,7 @@ struct AgentRunsView: View {
             return panelRuns.map { $0.toRun(agentId: agentId) }
         } catch {
             Telemetry.capture(
-                "run_history_panel_enrichment_failed",
+                .runHistoryPanelEnrichmentFailed,
                 properties: ["agent_id": agentId]
             )
             return nil
