@@ -73,11 +73,14 @@ Required envelope:
   "run_id": "uuid",
   "state": "working",
   "timestamp": "ISO-8601",
-  "privacy_level": "operational"
+  "privacy_level": "operational",
+  "reason_code": "optional_stable_code"
 }
 ```
 
 States are `submitted`, `working`, `input_required`, `completed`, `failed`, `canceled`, and `rejected`. Local `skipped` is reported with a terminal state plus a stable reason code until the wire contract explicitly adds it.
+
+The initial Server adapter emits operational fields only. `reason_code` is optional for ordinary events and required when local `skipped` maps to `completed`. Rich review fields remain local until their opt-in wire shape is approved.
 
 Terminal results use the Run review evidence fields defined in the shared presentation document. Sensitive local fields are omitted unless the configured privacy level allows them.
 

@@ -57,6 +57,12 @@ export {
 export { shouldRun, getNextRun, hasMissedRun } from './agents/scheduler.js';
 export { acquireLock, releaseLock, isLocked } from './execution/lockfile.js';
 export { TelemetryReporter, replayPendingTerminals, type StatusEvent, type StatusState } from './reporting/reporter.js';
+export {
+  V2OperationalStatusEventSchema,
+  serializeV2OperationalStatus,
+  type V2OperationalStatusEvent,
+  type V2OperationalStatusInput,
+} from './reporting/v2-status.js';
 export { parseStreamEvent, summarizeTurn, extractToolMetadata, type ExecutionResult, type ClaudeStreamEvent } from './execution/executor.js';
 export { executeAgent } from './plugins/claude-code.js';
 export { executeCodexAgent } from './plugins/codex.js';
