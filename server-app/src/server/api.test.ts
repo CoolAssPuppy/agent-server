@@ -627,6 +627,66 @@ describe('API routes', () => {
     });
   });
 
+  describe('GET /runs/:id/review', () => {
+    it('returns an outcome-first review using the required output contract', async () => {
+      store.add(makeStoredRun({
+        runId: 'review-run',
+        status: 'completed',
+        summary: 'Published the weekly update.',
+      }));
+      const app = createApi({
+        getAgents: async () => [makeAgent({
+          output: {
+            primary: {
+              description: 'Weekly update',
+              tool: 'mcp__notion__create_page',
+              required: true,
+            },
+          },
+        })],
+        store,
+        triggerRun,
+      });
+
+      const response = await authenticatedRequest(app, '/runs/review-run/review');
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body).toMatchObject({
+        outcome: 'succeeded',
+        operationalCompleteness: 'complete',
+        outputs: [{
+          text: 'Weekly update is ready',
+          evidenceReferences: ['agent.output.primary', 'run.status'],
+        }],
+        technicalDetailsReference: '/runs/review-run',
+      });
+      expect(body).not.toHaveProperty('toolsUsed');
+      expect(body).not.toHaveProperty('commandsRun');
+    });
+
+    it('returns a review for retained history when its agent definition is gone', async () => {
+      store.add(makeStoredRun({ runId: 'retained-run', status: 'completed' }));
+      const app = createApi({
+        getAgents: async () => [],
+        store,
+        triggerRun,
+      });
+
+      const response = await authenticatedRequest(app, '/runs/retained-run/review');
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body.operationalCompleteness).toBe('not_assessed');
+    });
+
+    it('returns 404 for an unknown run', async () => {
+      const response = await authenticatedRequest(createApp(), '/runs/missing/review');
+
+      expect(response.status).toBe(404);
+    });
+  });
+
   describe('POST /runs/:id/cancel', () => {
     it('cancels a running run', async () => {
       store.add(makeStoredRun({ runId: 'r1', status: 'running' }));

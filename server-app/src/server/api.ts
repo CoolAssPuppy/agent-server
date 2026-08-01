@@ -24,6 +24,7 @@ import type { RunStoreLike } from '../reporting/store.js';
 import { USER_CANCELED_CODE } from '../execution/runner.js';
 import { normalizeStoredRun } from '../reporting/run-normalization.js';
 import { computeAgentMetrics } from '../reporting/metrics.js';
+import { createRunReview } from '../presentation/run-review.js';
 import type { PendingDecision } from '../reporting/realtime-client.js';
 import type { PreflightResult } from '../analysis/models.js';
 import { evaluateRunPreflight, type RunPreflightOutcome } from '../analysis/run-preflight.js';
@@ -681,6 +682,19 @@ export function createApi(deps: ApiDependencies): Hono {
     const agentId = c.req.query('agent_id');
     const runs = agentId ? deps.store.listByAgent(agentId) : deps.store.list();
     return c.json(runs.map(normalizeStoredRun));
+  });
+
+  app.get('/runs/:id/review', async (c) => {
+    const run = deps.store.get(c.req.param('id'));
+    if (!run) return c.json({ error: 'Run not found' }, 404);
+    const agent = (await deps.getAgents()).find((candidate) => candidate.id === run.agentId);
+    const primaryOutput = agent?.output?.primary;
+    return c.json(createRunReview({
+      run,
+      ...(primaryOutput?.required === true
+        ? { requiredOutput: { label: primaryOutput.description } }
+        : {}),
+    }));
   });
 
   app.get('/runs/:id', (c) => {

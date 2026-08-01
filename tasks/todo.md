@@ -56,6 +56,7 @@ Outcome-first run review review:
 - Intermediate timeline entries omit timestamps when the durable store does not know the exact event time.
 - User cancellation now carries the stable `user_canceled` reason through the real abort path. Generic runtime aborts carry `run_canceled`; existing local status remains backward-compatible as failed until presentation normalization.
 - Added a frozen completed-run fixture for shared macOS and Agent Panel decoding.
+- Added authenticated `GET /runs/:id/review` as a read-only local endpoint. Retained run history remains reviewable after an assistant definition is removed.
 
 ## V2 platform audit and planning
 
