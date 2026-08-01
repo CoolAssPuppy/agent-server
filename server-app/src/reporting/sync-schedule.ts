@@ -1,4 +1,4 @@
-import { watch, type FSWatcher } from 'fs';
+import { watch } from 'fs';
 import type { AgentConfig } from '../agents/config.js';
 import { discoverAgents, isAgentFile } from '../agents/discovery.js';
 import { getNextRun } from '../agents/scheduler.js';
@@ -126,13 +126,32 @@ export async function syncAgentSchedule(options: SyncOptions): Promise<SyncResul
 type ScheduleSyncOptions = SyncOptions & {
   fileChangeDebounceMs?: number;
   hourlyIntervalMs?: number;
+  watchDirectory?: WatchDirectory;
+};
+
+type DirectoryWatch = {
+  close: () => void;
+  onError: (listener: (error: Error) => void) => void;
+};
+
+export type WatchDirectory = (
+  path: string,
+  onChange: (filename: string | Buffer | null) => void,
+) => DirectoryWatch;
+
+const watchDirectory: WatchDirectory = (path, onChange) => {
+  const watcher = watch(path, { recursive: false }, (_event, filename) => onChange(filename));
+  return {
+    close: () => watcher.close(),
+    onError: (listener) => watcher.on('error', listener),
+  };
 };
 
 export class ScheduleSync {
   private readonly options: ScheduleSyncOptions;
   private readonly debounceMs: number;
   private readonly hourlyMs: number;
-  private watcher: FSWatcher | undefined;
+  private watcher: DirectoryWatch | undefined;
   private debounceTimer: ReturnType<typeof setTimeout> | undefined;
   private hourlyTimer: ReturnType<typeof setInterval> | undefined;
   private stopped = false;
@@ -145,9 +164,9 @@ export class ScheduleSync {
 
   async start(): Promise<void> {
     this.stopped = false;
+    this.startFileWatcher();
     await this.runSync();
     if (this.stopped) return;
-    this.startFileWatcher();
     this.startHourlyFallback();
   }
 
@@ -173,12 +192,13 @@ export class ScheduleSync {
 
   private startFileWatcher(): void {
     try {
-      this.watcher = watch(this.options.agentsDir, { recursive: false }, (_event, filename) => {
+      const createWatcher = this.options.watchDirectory ?? watchDirectory;
+      this.watcher = createWatcher(this.options.agentsDir, (filename) => {
         if (!filename) return;
         if (!isAgentFile(filename.toString())) return;
         this.scheduleDebouncedSync();
       });
-      this.watcher.on('error', (err) => {
+      this.watcher.onError((err) => {
         console.error(`[sync-schedule] File watcher error: ${err}`);
       });
     } catch (err) {

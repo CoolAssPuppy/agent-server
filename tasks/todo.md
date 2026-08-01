@@ -1,5 +1,54 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Agent Server V2 implementation
+
+- [x] Restore and record a green TypeScript, Swift, lint, and build baseline.
+- [ ] Add stable workspace-local machine identity with owner-only persistence.
+- [ ] Add V2 status and assistant-sync serialization behind V1 compatibility controls.
+- [ ] Add machine-targeted command claim, expiry, idempotency, and local rejection behavior.
+- [ ] Normalize approve, pick, answer, and defer decisions at the local boundary.
+- [ ] Add tested consumer presentation adapters for Today, health, readiness, permissions, activity, run review, and human timelines.
+- [ ] Build consumer-grade macOS Today and Activity with Technical details disclosure.
+- [ ] Build Assistant home, readiness, pairing client, Connections, and Settings integrations.
+- [ ] Verify offline operation, privacy defaults, compatibility, screenshots, and all required test suites.
+
+Constraints:
+
+- Work only in Agent Server. Do not edit Agent Panel.
+- Keep V1 compatibility throughout V2 and keep all new remote behavior disabled until the compatible Panel capability is proven.
+- Write every production change in response to a failing behavior test and commit only verified batches.
+- Do not weaken permissions, security analysis, content hashes, output contracts, local API authentication, or executor-specific safety.
+
+Baseline review:
+
+- Runtime discovery now rejects stale Codex wrappers that cannot start and finds valid user-local installs, including NVM and Volta paths.
+- Schedule sync begins watching before its initial request, so edits made during startup cannot be missed. Its timing behavior now uses deterministic watcher tests.
+- The schedule test passed 25 consecutive runs. The full server suite passed with 1,396 tests and 4 expected skips, followed by TypeScript checking, ESLint, and compilation.
+- The unchanged Swift baseline passed earlier in this phase with 478 main-app tests and 12 EventKit tests.
+
+## V2 platform audit and planning
+
+- [x] Establish clean evidence maps and baseline results for Agent Server and Agent Panel.
+- [x] Document current architecture, user journeys, terminology, features, ownership, UX complexity, and risks.
+- [x] Write the six required V2 planning documents in one canonical location with cross-repository links.
+- [x] Define non-overlapping workstreams, file ownership, interface contracts, and merge gates for Codex and Claude.
+- [x] Verify every material claim against code or tests and stop before feature implementation.
+
+Scope boundary:
+
+- This phase changes documentation only. It must not change product code, schemas, migrations, dependencies, or runtime behavior.
+- Completion requires a review section with repositories inspected, files changed, decisions, tests, risks, unresolved questions, and the next phase.
+
+Review:
+
+- Inspected Agent Server at `896a9e9` and Agent Panel at `0a8b224`, including product documents, runtime and API code, persistence, migrations, RLS, shared schemas, web, macOS, iOS, tests, and recent history.
+- Added the six canonical documents under `docs/v2/`, plus a parallel work plan, interface contract draft, index, and one Agent Panel cross-link.
+- Made consumer UI quality a release gate with approved screen specifications and screenshot review required before broad implementation.
+- Assigned Codex to Agent Server and Claude to Agent Panel, with frozen fixtures, repository ownership, deployment order, and contract-change gates.
+- Added no production code, schema, migration, dependency, or runtime change.
+- Verification found hard stops: no stable machine identity, organization-wide remote commands, decision schema drift, unenforced key scopes, documentation conflicts, a failing Server test baseline, and a failing Panel iOS baseline.
+- Next phase requires user approval, separate baseline repair, and an approved V2 interface contract. Feature implementation remains stopped.
+
 ## Restore manual runs to Run history
 
 - [x] Reproduce the missing Portuguese and French run across the live API and macOS state.

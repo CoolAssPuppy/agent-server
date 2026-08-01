@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { makeAgent } from '../test-factories.js';
+import { discoverRuntimePaths } from '../execution/runtime-discovery.js';
 import {
   buildCodexPermissionOverrides,
   resolveCodexCommand,
@@ -46,7 +47,9 @@ describe('Codex exact file policy', () => {
     ]);
 
     try {
-      const command = resolveCodexCommand(process.env.AGENT_SERVER_CODEX_PATH ?? 'codex');
+      const command = resolveCodexCommand(
+        process.env.AGENT_SERVER_CODEX_PATH ?? discoverRuntimePaths().codexExecutablePath,
+      );
       const overrides = buildCodexPermissionOverrides(makeAgent({
         file_access: [
           { path: readOnly, kind: 'folder', access: 'read_only' },

@@ -1,4 +1,4 @@
-import { accessSync, constants } from 'fs';
+import { accessSync, constants, readdirSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { homedir } from 'os';
 import { join } from 'path';
@@ -12,6 +12,10 @@ export type RuntimeProbe = {
   isExecutable: (path: string) => boolean;
   /** Resolve a command on PATH (like `which`); undefined if not found. */
   which: (command: string) => string | undefined;
+  /** Find commands installed by supported user-local Node managers. */
+  userLocalCommands: (command: string) => string[];
+  /** True when the executable can start and report its version. */
+  isRunnable: (path: string) => boolean;
   /** The user's home directory. */
   home: string;
   /** Environment, for explicit path overrides and the optional Kimi toggle. */
@@ -48,6 +52,15 @@ export function createDefaultProbe(
         return undefined;
       }
     },
+    userLocalCommands: (command) => findUserLocalCommands(homedir(), command),
+    isRunnable: (path) => {
+      try {
+        execFileSync(path, ['--version'], { stdio: 'ignore', timeout: 5_000 });
+        return true;
+      } catch {
+        return false;
+      }
+    },
     home: homedir(),
     env,
   };
@@ -76,14 +89,21 @@ export function discoverClaudeExecutable(probe: RuntimeProbe): string | undefine
 
 /**
  * Find the user's installed Codex executable. Resolution order: explicit
- * override > PATH. Returns undefined when Codex is unavailable.
+ * override > supported user-local Node installs > PATH. Candidates must start
+ * successfully, which prevents a stale wrapper from hiding a working install.
  */
 export function discoverCodexExecutable(probe: RuntimeProbe): string | undefined {
   const explicit = probe.env.AGENT_SERVER_CODEX_PATH;
-  if (explicit) return probe.isExecutable(explicit) ? explicit : undefined;
+  if (explicit) {
+    return probe.isExecutable(explicit) && probe.isRunnable(explicit) ? explicit : undefined;
+  }
+
+  const localInstall = probe.userLocalCommands('codex')
+    .find((path) => probe.isExecutable(path) && probe.isRunnable(path));
+  if (localInstall) return localInstall;
 
   const onPath = probe.which('codex');
-  return onPath && probe.isExecutable(onPath) ? onPath : undefined;
+  return onPath && probe.isExecutable(onPath) && probe.isRunnable(onPath) ? onPath : undefined;
 }
 
 /**
@@ -112,4 +132,23 @@ export function discoverRuntimePaths(
     codexExecutablePath: discoverCodexExecutable(probe),
     kimiExecutablePath: discoverKimiExecutable(probe),
   };
+}
+
+function findUserLocalCommands(home: string, command: string): string[] {
+  const directCandidates = [
+    join(home, '.local', 'bin', command),
+    join(home, '.volta', 'bin', command),
+  ];
+  const nvmRoot = join(home, '.nvm', 'versions', 'node');
+  let nvmCandidates: string[] = [];
+  try {
+    nvmCandidates = readdirSync(nvmRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort((left, right) => right.localeCompare(left, undefined, { numeric: true }))
+      .map((version) => join(nvmRoot, version, 'bin', command));
+  } catch {
+    // The user may not use nvm.
+  }
+  return [...directCandidates, ...nvmCandidates];
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync, appendFileSync } from 'fs';
+import { mkdirSync, writeFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { CronExpressionParser } from 'cron-parser';
@@ -8,6 +8,7 @@ import {
   extractDescription,
   syncAgentSchedule,
   ScheduleSync,
+  type WatchDirectory,
 } from './sync-schedule.js';
 import { makeAgent } from '../test-factories.js';
 
@@ -23,6 +24,23 @@ function createMockFetch(response: { ok: boolean; status: number; body?: unknown
     status: response.status,
     json: async () => response.body,
   });
+}
+
+function createWatchHarness(): {
+  watchDirectory: WatchDirectory;
+  emit: (filename: string) => void;
+  close: ReturnType<typeof vi.fn>;
+} {
+  let onChange: ((filename: string | Buffer | null) => void) | undefined;
+  const close = vi.fn();
+  return {
+    watchDirectory: (_path, listener) => {
+      onChange = listener;
+      return { close, onError: () => {} };
+    },
+    emit: (filename) => onChange?.(filename),
+    close,
+  };
 }
 
 describe('extractDescription', () => {
@@ -288,12 +306,14 @@ describe('ScheduleSync', () => {
   it('fires sync on agent file change, debounced', async () => {
     writeAgent('a.yaml', 'id: x\nname: X\nprompt: p\n');
     const fetchFn = createMockFetch();
+    const watcher = createWatchHarness();
 
     const sync = new ScheduleSync({
       agentsDir: dir,
       panelUrl: 'https://panel.example.com',
       panelApiKey: 'test-key',
       fetch: fetchFn,
+      watchDirectory: watcher.watchDirectory,
       fileChangeDebounceMs: 50,
       hourlyIntervalMs: 3_600_000,
     });
@@ -301,9 +321,10 @@ describe('ScheduleSync', () => {
     await sync.start();
     expect(fetchFn).toHaveBeenCalledTimes(1);
 
-    appendFileSync(join(dir, 'a.yaml'), '\n# touch 1\n');
-    appendFileSync(join(dir, 'a.yaml'), '\n# touch 2\n');
+    watcher.emit('a.yaml');
+    watcher.emit('a.yaml');
     writeAgent('b.yaml', 'id: y\nname: Y\nprompt: q\n');
+    watcher.emit('b.yaml');
 
     await vi.waitFor(
       () => expect(fetchFn.mock.calls.length).toBeGreaterThanOrEqual(2),
@@ -315,8 +336,44 @@ describe('ScheduleSync', () => {
     expect(fetchFn.mock.calls.length).toBeLessThanOrEqual(3);
   });
 
+  it('observes agent changes while the startup sync is still pending', async () => {
+    writeAgent('a.yaml', 'id: x\nname: X\nprompt: p\n');
+    const watcher = createWatchHarness();
+    let finishStartup: ((response: Response) => void) | undefined;
+    const fetchFn = vi.fn<typeof fetch>(() => {
+      if (fetchFn.mock.calls.length === 1) {
+        return new Promise<Response>((resolve) => {
+          finishStartup = resolve;
+        });
+      }
+      return Promise.resolve(new Response('{}', { status: 200 }));
+    });
+    const sync = new ScheduleSync({
+      agentsDir: dir,
+      panelUrl: 'https://panel.example.com',
+      panelApiKey: 'test-key',
+      fetch: fetchFn,
+      watchDirectory: watcher.watchDirectory,
+      fileChangeDebounceMs: 25,
+      hourlyIntervalMs: 3_600_000,
+    });
+
+    const startup = sync.start();
+    await vi.waitFor(() => expect(fetchFn).toHaveBeenCalledOnce());
+    watcher.emit('a.yaml');
+
+    await vi.waitFor(
+      () => expect(fetchFn.mock.calls.length).toBeGreaterThanOrEqual(2),
+      { timeout: 1_000 },
+    );
+    finishStartup?.(new Response('{}', { status: 200 }));
+    await startup;
+    sync.stop();
+  });
+
   it('does not install timers or watchers after stop wins a pending startup', async () => {
     writeAgent('a.yaml', 'id: x\nname: X\nprompt: p\n');
+    const watcher = createWatchHarness();
     let finishFetch: ((response: Response) => void) | undefined;
     const fetchFn = vi.fn<typeof fetch>(() => new Promise<Response>((resolve) => {
       finishFetch = resolve;
@@ -326,6 +383,7 @@ describe('ScheduleSync', () => {
       panelUrl: 'https://panel.example.com',
       panelApiKey: 'test-key',
       fetch: fetchFn,
+      watchDirectory: watcher.watchDirectory,
       fileChangeDebounceMs: 10,
       hourlyIntervalMs: 10,
     });
@@ -340,5 +398,6 @@ describe('ScheduleSync', () => {
     sync.stop();
 
     expect(fetchFn).toHaveBeenCalledOnce();
+    expect(watcher.close).toHaveBeenCalledOnce();
   });
 });

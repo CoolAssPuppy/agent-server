@@ -10,9 +10,16 @@ import {
 
 const HOME = '/Users/tester';
 
-function makeProbe(overrides: Partial<RuntimeProbe> = {}): RuntimeProbe {
+type TestRuntimeProbe = RuntimeProbe & {
+  isRunnable: (path: string) => boolean;
+  userLocalCommands: (command: string) => string[];
+};
+
+function makeProbe(overrides: Partial<TestRuntimeProbe> = {}): TestRuntimeProbe {
   return {
     isExecutable: () => false,
+    isRunnable: () => false,
+    userLocalCommands: () => [],
     which: () => undefined,
     home: HOME,
     env: {},
@@ -88,10 +95,24 @@ describe('discoverClaudeExecutable', () => {
 });
 
 describe('discoverCodexExecutable', () => {
+  it('prefers a runnable user-local install over a broken PATH wrapper', () => {
+    const local = join(HOME, '.nvm', 'versions', 'node', 'v24.18.0', 'bin', 'codex');
+    const broken = '/opt/homebrew/bin/codex';
+    const probe = makeProbe({
+      isExecutable: (path) => path === local || path === broken,
+      isRunnable: (path) => path === local,
+      userLocalCommands: (command) => command === 'codex' ? [local] : [],
+      which: (command) => command === 'codex' ? broken : undefined,
+    });
+
+    expect(discoverCodexExecutable(probe)).toBe(local);
+  });
+
   it('resolves the PATH binary', () => {
     const onPath = '/opt/homebrew/bin/codex';
     const probe = makeProbe({
       isExecutable: (p) => p === onPath,
+      isRunnable: (p) => p === onPath,
       which: (cmd) => (cmd === 'codex' ? onPath : undefined),
     });
     expect(discoverCodexExecutable(probe)).toBe(onPath);
@@ -105,6 +126,7 @@ describe('discoverCodexExecutable', () => {
     const custom = '/custom/codex';
     const probe = makeProbe({
       isExecutable: (p) => p === custom,
+      isRunnable: (p) => p === custom,
       env: { AGENT_SERVER_CODEX_PATH: custom },
     });
     expect(discoverCodexExecutable(probe)).toBe(custom);
@@ -114,6 +136,7 @@ describe('discoverCodexExecutable', () => {
     const onPath = '/opt/homebrew/bin/codex';
     const probe = makeProbe({
       isExecutable: (p) => p === onPath,
+      isRunnable: (p) => p === onPath,
       which: () => onPath,
       env: { AGENT_SERVER_USE_INSTALLED_CODEX: 'false' },
     });
@@ -181,6 +204,7 @@ describe('discoverRuntimePaths', () => {
     const kimi = join(HOME, '.kimi-code', 'bin', 'kimi');
     const probe = makeProbe({
       isExecutable: (p) => p === claude || p === codex || p === kimi,
+      isRunnable: (p) => p === codex,
       which: (cmd) => (cmd === 'codex' ? codex : undefined),
     });
     expect(discoverRuntimePaths(probe)).toEqual({
