@@ -23,6 +23,7 @@ export function loadEnvFile(
 }
 
 export const ServerConfigSchema = z.object({
+  workspaceDir: z.string().default(() => join(homedir(), '.agent-server')),
   agentsDir: z.string().default(() => join(homedir(), '.agent-server', 'agents')),
   lockDir: z.string().default(() => join(homedir(), '.agent-server', 'locks')),
   logsDir: z.string().default(() => join(homedir(), '.agent-server', 'logs')),
@@ -72,6 +73,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   const agentServerHome = env.AGENT_SERVER_HOME || join(homedir(), '.agent-server');
   const panelEnabled = env.AGENT_SERVER_PANEL_ENABLED !== 'false';
   return ServerConfigSchema.parse({
+    workspaceDir: agentServerHome,
     agentsDir: env.AGENT_SERVER_AGENTS_DIR || join(agentServerHome, 'agents'),
     lockDir: env.AGENT_SERVER_LOCK_DIR || join(agentServerHome, 'locks'),
     logsDir: env.AGENT_SERVER_LOGS_DIR || join(agentServerHome, 'logs'),

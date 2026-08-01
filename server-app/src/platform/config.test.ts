@@ -12,6 +12,7 @@ import {
 describe('loadConfig', () => {
   it('uses defaults when no env vars are set', () => {
     const config = loadConfig({});
+    expect(config.workspaceDir).toBe(join(homedir(), '.agent-server'));
     expect(config.agentsDir).toBe(join(homedir(), '.agent-server', 'agents'));
     expect(config.lockDir).toBe(join(homedir(), '.agent-server', 'locks'));
     expect(config.checkIntervalMs).toBe(60_000);
@@ -35,6 +36,7 @@ describe('loadConfig', () => {
   it('derives local state from a custom Agent Server home', () => {
     const config = loadConfig({ AGENT_SERVER_HOME: '/Volumes/Work/Agent Server' });
 
+    expect(config.workspaceDir).toBe('/Volumes/Work/Agent Server');
     expect(config.agentsDir).toBe('/Volumes/Work/Agent Server/agents');
     expect(config.lockDir).toBe('/Volumes/Work/Agent Server/locks');
     expect(config.logsDir).toBe('/Volumes/Work/Agent Server/logs');
@@ -48,6 +50,7 @@ describe('loadConfig', () => {
     });
 
     expect(config.agentsDir).toBe('/tmp/special-agents');
+    expect(config.workspaceDir).toBe('/Volumes/Work/Agent Server');
     expect(config.lockDir).toBe('/Volumes/Work/Agent Server/locks');
   });
 

@@ -27,6 +27,20 @@ describe('initAgentServer', () => {
     expect(existsSync(join(base, 'logs'))).toBe(true);
   });
 
+  it('creates and preserves the workspace machine identity', () => {
+    const base = createTempPath();
+    dirs.push(base);
+
+    initAgentServer(base);
+    const identityPath = join(base, 'machine-id');
+    const firstIdentity = readFileSync(identityPath, 'utf8');
+    initAgentServer(base);
+
+    expect(firstIdentity).toMatch(/^[0-9a-f-]{36}\n$/);
+    expect(readFileSync(identityPath, 'utf8')).toBe(firstIdentity);
+    expect(statSync(identityPath).mode & 0o777).toBe(0o600);
+  });
+
   it('creates a strong local API key in the owner-only environment file', () => {
     const base = createTempPath();
     dirs.push(base);

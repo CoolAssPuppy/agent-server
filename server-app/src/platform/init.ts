@@ -2,6 +2,7 @@ import { chmodSync, mkdirSync, writeFileSync, existsSync, readFileSync, readdirS
 import { randomBytes } from 'crypto';
 import { join } from 'path';
 import { parse as parseDotenv } from 'dotenv';
+import { loadOrCreateMachineId } from './machine-identity.js';
 
 const SEED_MARKER = '.seeded';
 
@@ -127,6 +128,7 @@ export function initAgentServer(baseDir: string, options: InitOptions = {}): voi
   mkdirSync(agentsDir, { recursive: true });
   mkdirSync(locksDir, { recursive: true });
   mkdirSync(logsDir, { recursive: true });
+  loadOrCreateMachineId(baseDir);
 
   // Seed sample agents only on a true first run: no seed marker AND
   // no pre-existing agent files. Either condition means the user has
