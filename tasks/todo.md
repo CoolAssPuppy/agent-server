@@ -4,7 +4,7 @@
 
 - [x] Restore and record a green TypeScript, Swift, lint, and build baseline.
 - [x] Add stable workspace-local machine identity with owner-only persistence.
-- [ ] Add V2 status and assistant-sync serialization behind V1 compatibility controls.
+- [x] Add V2 status and assistant-sync serialization behind V1 compatibility controls.
 - [ ] Add machine-targeted command claim, expiry, idempotency, and local rejection behavior.
 - [ ] Normalize approve, pick, answer, and defer decisions at the local boundary.
 - [ ] Add tested consumer presentation adapters for Today, health, readiness, permissions, activity, run review, and human timelines.
@@ -33,6 +33,14 @@ Machine identity review:
 - Authenticated `GET /machine` returns the stable ID, protocol version, and Server version. Public health does not expose the ID.
 - V1 `worker_id` remains the ephemeral hostname and process pair used by current telemetry and cleanup.
 - The full server gate passed with 1,405 tests and 4 expected skips, followed by TypeScript checking, ESLint, and compilation.
+
+V2 serialization review:
+
+- Added pure operational status and assistant-sync serializers without connecting them to Panel traffic.
+- Status includes stable machine, process, assistant, and run identity. Local skipped runs map to completed with a required stable reason code.
+- Assistant sync hashes exact definition content, includes disabled assistants, and omits instructions, paths, descriptions, and capability details by default.
+- Frozen JSON fixtures under `docs/v2/fixtures/` give Claude matching payloads for Agent Panel validation.
+- Existing V1 reporter and sync behavior remains unchanged. The full server gate passed with 1,417 tests and 4 expected skips, followed by TypeScript checking, ESLint, and compilation.
 
 ## V2 platform audit and planning
 
