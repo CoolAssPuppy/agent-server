@@ -125,7 +125,7 @@ Examples:
 
 ```text
 RunReview
-  outcome: succeeded | partial | failed | canceled | skipped | waiting | unknown
+  outcome: succeeded | partial | failed | canceled | skipped | working | waiting | unknown
   headline
   summary
   accomplishments[]

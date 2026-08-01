@@ -22,6 +22,7 @@ public enum RunReviewOutcome: String, Decodable, Equatable, Sendable {
     case failed
     case canceled
     case skipped
+    case working
     case waiting
     case unknown
 }

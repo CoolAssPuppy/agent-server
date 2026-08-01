@@ -57,6 +57,11 @@ Outcome-first run review review:
 - User cancellation now carries the stable `user_canceled` reason through the real abort path. Generic runtime aborts carry `run_canceled`; existing local status remains backward-compatible as failed until presentation normalization.
 - Added a frozen completed-run fixture for shared macOS and Agent Panel decoding.
 - Added authenticated `GET /runs/:id/review` as a read-only local endpoint. Retained run history remains reviewable after an assistant definition is removed.
+- The macOS run detail now opens with the outcome, plain-language summary, outputs, changes, problems, suggestions, and a human timeline. Logs, model details, token counts, and raw activity remain available under Technical details.
+- Running work uses the distinct `working` outcome. The UI reserves `waiting` for a state that can explain what response is needed.
+- Swift presentation tests cover every outcome label and symbol, ordered section rendering, empty-section omission, evidence retention, and Technical details availability.
+- Visual inspection covered the fixed run-review scenario in dark and light themes. The first inspection exposed a white-background theme defect; the summary now owns its themed background and the rebuilt screen is readable in both appearances.
+- Verification passed with 1,462 server tests and 4 expected skips, 484 Swift tests, strict TypeScript checking, ESLint, the server build, and the unsigned Debug macOS build. The unsigned UI-test host did not finish launching, so its result is not counted as a passing gate; the deterministic scenario and screenshot assertion remain in the UI test target for a signed run.
 
 ## V2 platform audit and planning
 

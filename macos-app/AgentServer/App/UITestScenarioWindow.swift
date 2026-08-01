@@ -9,6 +9,7 @@ enum UITestScenario: String {
     case security
     case highRiskCreation = "high-risk-creation"
     case runtimeCreation = "runtime-creation"
+    case runReview = "run-review"
 
     static var current: UITestScenario? {
         ProcessInfo.processInfo.environment["AGENT_SERVER_UI_TEST_SCENARIO"]
@@ -58,6 +59,8 @@ private struct UITestScenarioRoot: View {
             creationView(proposal: Self.highRiskProposal)
         case .runtimeCreation:
             runtimeCreationView
+        case .runReview:
+            RunReviewSummaryView(review: Self.completedRunReview)
         case .debugger:
             debuggerView
         case .security:
@@ -177,6 +180,65 @@ private struct UITestScenarioRoot: View {
         ),
         preventionTip: "Run a safe test before turning on its schedule.",
         technicalDetails: "Write access denied for ~/Documents/Reports"
+    )
+
+    private static let completedRunReview = RunReview(
+        outcome: .succeeded,
+        headline: PresentationStatement(
+            text: "Weekly report finished",
+            evidenceReferences: ["run.status"]
+        ),
+        summary: PresentationStatement(
+            text: "Prepared the weekly report and saved it to the approved folder.",
+            evidenceReferences: ["run.summary"]
+        ),
+        accomplishments: [],
+        changes: [PresentationStatement(
+            text: "Updated weekly-report.md",
+            evidenceReferences: ["run.filesWritten[0]"]
+        )],
+        outputs: [PresentationStatement(
+            text: "Weekly report is ready",
+            evidenceReferences: ["agent.output.primary", "run.status"]
+        )],
+        problems: [],
+        suggestions: [],
+        timeline: [
+            HumanTimelineEntry(
+                kind: .started,
+                label: PresentationStatement(
+                    text: "Started",
+                    evidenceReferences: ["run.startedAt"]
+                ),
+                occurredAt: "2026-08-02T08:00:00.000Z"
+            ),
+            HumanTimelineEntry(
+                kind: .read,
+                label: PresentationStatement(
+                    text: "Read project notes",
+                    evidenceReferences: ["run.filesRead[0]"]
+                ),
+                occurredAt: nil
+            ),
+            HumanTimelineEntry(
+                kind: .produced,
+                label: PresentationStatement(
+                    text: "Created the weekly report",
+                    evidenceReferences: ["agent.output.primary"]
+                ),
+                occurredAt: nil
+            ),
+            HumanTimelineEntry(
+                kind: .finished,
+                label: PresentationStatement(
+                    text: "Finished",
+                    evidenceReferences: ["run.status"]
+                ),
+                occurredAt: "2026-08-02T08:02:00.000Z"
+            ),
+        ],
+        operationalCompleteness: .complete,
+        technicalDetailsReference: "/runs/run-review-fixture"
     )
 }
 

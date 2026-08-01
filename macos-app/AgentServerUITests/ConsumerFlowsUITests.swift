@@ -110,6 +110,24 @@ final class ConsumerFlowsUITests: XCTestCase {
         XCTAssertTrue(element("creation.review").waitForExistence(timeout: 5))
     }
 
+    func testRunReviewLeadsWithOutcomeAndHidesTechnicalLanguage() {
+        launch(scenario: "run-review")
+
+        XCTAssertTrue(element("runReview.summary").waitForExistence(timeout: 5))
+        XCTAssertTrue(text("Finished").exists)
+        XCTAssertTrue(text("Weekly report finished").exists)
+        XCTAssertTrue(text("Weekly report is ready").exists)
+        XCTAssertTrue(text("Updated weekly-report.md").exists)
+        XCTAssertTrue(text("What happened").exists)
+        XCTAssertFalse(textContaining("mcp__").exists)
+        XCTAssertFalse(textContaining("token").exists)
+
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screenshot.name = "Run review outcome"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
     private func launch(scenario: String) {
         app.launchEnvironment["AGENT_SERVER_UI_TEST_SCENARIO"] = scenario
         app.launch()

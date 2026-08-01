@@ -10,6 +10,10 @@ public enum LocalServerEndpoint {
     public static func webSocketURL(port: Int) -> URL? {
         URL(string: "ws://\(host):\(port)/ws")
     }
+
+    public static func runReviewPath(runID: String) -> String {
+        "/runs/\(runID)/review"
+    }
 }
 
 /// Bounded exponential retry timing for the local progress stream.

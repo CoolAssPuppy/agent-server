@@ -6,4 +6,11 @@ final class LocalServerEndpointTests: XCTestCase {
         XCTAssertEqual(LocalServerEndpoint.httpURL(port: 47821)?.absoluteString, "http://127.0.0.1:47821")
         XCTAssertEqual(LocalServerEndpoint.webSocketURL(port: 47821)?.absoluteString, "ws://127.0.0.1:47821/ws")
     }
+
+    func testBuildsTheAuthenticatedLocalRunReviewPath() {
+        XCTAssertEqual(
+            LocalServerEndpoint.runReviewPath(runID: "e566a8f5-becf-49e7-a384-a72d42e9f807"),
+            "/runs/e566a8f5-becf-49e7-a384-a72d42e9f807/review"
+        )
+    }
 }

@@ -108,7 +108,7 @@ describe('consumer run review', () => {
       },
     });
     expect(running).toMatchObject({
-      outcome: 'waiting',
+      outcome: 'working',
       headline: {
         text: 'Test Agent is working',
         evidenceReferences: ['run.status'],

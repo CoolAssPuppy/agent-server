@@ -138,7 +138,7 @@ function meaningFor(
   if (run.status === 'skipped') return skippedMeaning(run);
   if (run.status === 'running') {
     return {
-      outcome: 'waiting',
+      outcome: 'working',
       headline: statement(`${run.agentName} is working`, 'run.status'),
       summary: statement('Work is in progress.', 'run.status'),
       problems: [],

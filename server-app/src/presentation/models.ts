@@ -30,6 +30,7 @@ export const RunReviewSchema = z.object({
     'failed',
     'canceled',
     'skipped',
+    'working',
     'waiting',
     'unknown',
   ]),

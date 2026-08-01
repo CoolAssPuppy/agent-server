@@ -12,7 +12,11 @@ struct RunDetailView: View {
     @Environment(\.nTheme) private var theme
     @State private var selectedTab: RunDetailTabKind = .activity
     @State private var showsNoticeDetails = false
+    @State private var showsTechnicalDetails = false
+    @State private var reviewLoadState: ReviewLoadState = .loading
     @FocusState private var focusedTab: RunDetailTabKind?
+
+    private let localClient = AgentServerClient()
 
     private var runDecisionsViewModel: RunDecisionsViewModel {
         RunDecisionsViewModel(runId: run.runId, decisions: decisions)
@@ -30,6 +34,44 @@ struct RunDetailView: View {
                 headerActions
                 Divider()
             }
+            reviewContent
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear { startElapsedTimer() }
+        .onDisappear { stopElapsedTimer() }
+        .onChange(of: run.status) { _, newStatus in
+            if newStatus != .running { stopElapsedTimer() }
+        }
+        .task(id: "\(run.runId):\(run.status.rawValue)") {
+            await loadReview()
+        }
+    }
+
+    @ViewBuilder
+    private var reviewContent: some View {
+        switch reviewLoadState {
+        case .loading:
+            ConsumerProgressView(
+                title: "Preparing your review",
+                message: "Summarizing what happened and what needs attention."
+            )
+        case .loaded(let review):
+            if showsTechnicalDetails {
+                technicalContent
+            } else {
+                RunReviewSummaryView(review: review)
+            }
+        case .unavailable:
+            VStack(spacing: 0) {
+                reviewUnavailableBanner
+                Divider()
+                technicalContent
+            }
+        }
+    }
+
+    private var technicalContent: some View {
+        VStack(spacing: 0) {
             statsBar
             Divider()
 
@@ -52,23 +94,33 @@ struct RunDetailView: View {
 
             contentArea
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear { startElapsedTimer() }
-        .onDisappear { stopElapsedTimer() }
-        .onChange(of: run.status) { _, newStatus in
-            if newStatus != .running { stopElapsedTimer() }
-        }
     }
 
     // MARK: - Header actions
 
     private var showsHeaderActions: Bool {
-        run.status == .running || (run.status == .failed && onDebug != nil)
+        if case .loaded = reviewLoadState { return true }
+        return run.status == .running || (run.status == .failed && onDebug != nil)
     }
 
     private var headerActions: some View {
         HStack(spacing: NSpacing.md) {
             Spacer()
+
+            if case .loaded = reviewLoadState {
+                Button {
+                    showsTechnicalDetails.toggle()
+                } label: {
+                    Label(
+                        showsTechnicalDetails ? "Review" : "Technical details",
+                        systemImage: showsTechnicalDetails ? "doc.text" : "wrench.and.screwdriver"
+                    )
+                    .font(NTypography.bodySmall)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityIdentifier("runReview.technicalDetails")
+            }
 
             if run.status == .failed, let onDebug {
                 Button(action: onDebug) {
@@ -92,6 +144,27 @@ struct RunDetailView: View {
             }
         }
         .padding(NSpacing.lg)
+    }
+
+    private var reviewUnavailableBanner: some View {
+        HStack(spacing: NSpacing.md) {
+            Image(systemName: "info.circle")
+                .foregroundStyle(theme.tokens.mutedForeground)
+            VStack(alignment: .leading, spacing: NSpacing.xxxs) {
+                Text("Review unavailable")
+                    .font(NTypography.labelMedium)
+                Text("Technical details are still available.")
+                    .font(NTypography.bodySmall)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            }
+            Spacer()
+            Button("Try again") {
+                Task { await loadReview() }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(NSpacing.md)
     }
 
     // MARK: - Stats bar
@@ -320,4 +393,20 @@ struct RunDetailView: View {
         elapsedTimer?.invalidate()
         elapsedTimer = nil
     }
+
+    @MainActor
+    private func loadReview() async {
+        reviewLoadState = .loading
+        do {
+            reviewLoadState = .loaded(try await localClient.runReview(id: run.runId))
+        } catch {
+            reviewLoadState = .unavailable
+        }
+    }
+}
+
+private enum ReviewLoadState {
+    case loading
+    case loaded(RunReview)
+    case unavailable
 }
