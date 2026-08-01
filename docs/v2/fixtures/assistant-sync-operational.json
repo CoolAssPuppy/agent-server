@@ -1,0 +1,23 @@
+{
+  "protocol_version": 2,
+  "machine_id": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99",
+  "privacy_level": "operational",
+  "assistants": [
+    {
+      "protocol_version": 2,
+      "machine_id": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99",
+      "local_agent_id": "paused-assistant",
+      "display_name": "Paused Assistant",
+      "enabled": false,
+      "definition_hash": "sha256:faba171d33ac7df4ae6265dc8aa337bdc089d5946c96369ade0df3246bd30c2b"
+    },
+    {
+      "protocol_version": 2,
+      "machine_id": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99",
+      "local_agent_id": "weekly-report",
+      "display_name": "Weekly Report",
+      "enabled": true,
+      "definition_hash": "sha256:b5bfd39cd11fbc1fadeb31dafbdb3152ed202fc52e6b34f9beb2e8393e02c849"
+    }
+  ]
+}

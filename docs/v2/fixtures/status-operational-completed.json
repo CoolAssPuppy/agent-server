@@ -1,0 +1,10 @@
+{
+  "protocol_version": 2,
+  "machine_id": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99",
+  "process_id": "office-mac-1234",
+  "local_agent_id": "weekly-report",
+  "run_id": "e566a8f5-becf-49e7-a384-a72d42e9f807",
+  "state": "completed",
+  "timestamp": "2026-08-01T09:00:00.000Z",
+  "privacy_level": "operational"
+}

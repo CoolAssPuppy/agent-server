@@ -1,6 +1,6 @@
 # Agent platform V2 planning
 
-Status: Phase 0 complete. Production implementation is blocked pending review and the baseline issues recorded in the audit.
+Status: Approved and in implementation.
 
 This directory is the canonical planning source for Agent Server and Agent Panel V2.
 
@@ -13,4 +13,4 @@ This directory is the canonical planning source for Agent Server and Agent Panel
 - [Parallel work plan](V2_PARALLEL_WORK_PLAN.md)
 - [Interface contracts](V2_INTERFACE_CONTRACTS.md)
 
-No coding agent may treat these documents as approval to implement. The user must approve the plan and the first screen specifications first.
+The `fixtures/` directory contains operational V2 payloads shared by both coding agents. Agent Server tests generate these exact shapes. Agent Panel should validate the same fixtures before enabling V2 traffic.

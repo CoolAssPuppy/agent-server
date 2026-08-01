@@ -1,0 +1,55 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import { describe, expect, it } from 'vitest';
+
+import { makeAgent } from '../test-factories.js';
+import { buildV2AssistantSyncPayload } from './v2-assistant-sync.js';
+import { serializeV2OperationalStatus } from './v2-status.js';
+
+const fixturesDir = join(import.meta.dirname, '../../../docs/v2/fixtures');
+const machineId = '1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99';
+
+function readFixture(filename: string): unknown {
+  return JSON.parse(readFileSync(join(fixturesDir, filename), 'utf8')) as unknown;
+}
+
+describe('V2 cross-repository fixtures', () => {
+  it('keeps the operational status fixture equal to Server serialization', () => {
+    expect(serializeV2OperationalStatus({
+      machineId,
+      processId: 'office-mac-1234',
+      localAgentId: 'weekly-report',
+      runId: 'e566a8f5-becf-49e7-a384-a72d42e9f807',
+      state: 'completed',
+      timestamp: '2026-08-01T09:00:00.000Z',
+    })).toEqual(readFixture('status-operational-completed.json'));
+  });
+
+  it('keeps the operational assistant sync fixture equal to Server serialization', () => {
+    expect(buildV2AssistantSyncPayload([
+      {
+        agent: makeAgent({
+          id: 'weekly-report',
+          name: 'Weekly Report',
+          enabled: true,
+          schedule: undefined,
+          timezone: undefined,
+        }),
+        content: 'id: weekly-report\nname: Weekly Report\nprompt: Create report.\n',
+      },
+      {
+        agent: makeAgent({
+          id: 'paused-assistant',
+          name: 'Paused Assistant',
+          enabled: false,
+          schedule: undefined,
+          timezone: undefined,
+        }),
+        content: 'id: paused-assistant\nenabled: false\n',
+      },
+    ], {
+      machineId,
+      now: new Date('2026-08-01T09:00:00.000Z'),
+    })).toEqual(readFixture('assistant-sync-operational.json'));
+  });
+});
