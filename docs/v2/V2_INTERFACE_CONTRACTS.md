@@ -123,6 +123,8 @@ Resolution is discriminated by the same type:
 
 System defer is separate and includes `defer_until` when applicable. Server converts the validated resolution into the executor-specific continuation. Panel and iOS never invent an executor input shape.
 
+The initial Server normalizer fails closed on mismatched types, unknown or null pick options, blank or over-limit answers, expired defer times, legacy `action_id` payloads, and extra fields. Defer never produces executor resumption text.
+
 ## Authorization
 
 Machine credentials are organization-bound and machine-bound. Route handlers enforce scopes, not just key validity. User-session endpoints for web and iOS use user authentication plus RLS. Machine API-key endpoints do not accept a user JWT as a substitute.

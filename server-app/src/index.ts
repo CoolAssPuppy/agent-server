@@ -75,6 +75,12 @@ export { executeAgent } from './plugins/claude-code.js';
 export { executeCodexAgent } from './plugins/codex.js';
 export { executeKimiCodeAgent } from './plugins/kimi-code.js';
 export { runAgent, type RunResult, type Reporter } from './execution/runner.js';
+export {
+  DecisionResolutionSchema,
+  normalizeDecisionResolution,
+  type DecisionResolution,
+  type NormalizedDecisionResolution,
+} from './interaction/decision-resolution.js';
 export { loadConfig, ServerConfigSchema, type ServerConfig } from './platform/config.js';
 export { runDueAgents, runSingleAgent, listAgents, startDaemon } from './server/daemon.js';
 export { RunStore, type StoredRun, type RunStoreLike } from './reporting/store.js';
