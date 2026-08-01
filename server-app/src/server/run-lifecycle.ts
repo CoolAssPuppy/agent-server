@@ -4,7 +4,12 @@ import type { TriggerChain } from '../agents/triggers.js';
 import type { DecisionContext } from '../execution/decision-handler.js';
 import type { ExecutorFn } from '../execution/executor-registry.js';
 import type { ExecutionResult } from '../execution/executor.js';
-import { runAgent, type Reporter, type RunResult } from '../execution/runner.js';
+import {
+  runAgent,
+  USER_CANCELED_CODE,
+  type Reporter,
+  type RunResult,
+} from '../execution/runner.js';
 import type { NotificationData } from '../interaction/notification.js';
 import type { InteractionRequest } from '../interaction/schema.js';
 import type { RunStoreLike } from '../reporting/store.js';
@@ -418,7 +423,11 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
   function cancel(runId: string): boolean {
     const controller = activeControllers.get(runId);
     if (!controller) return false;
-    controller.abort();
+    const reason = Object.assign(new Error('Canceled by user'), {
+      name: 'AbortError',
+      code: USER_CANCELED_CODE,
+    });
+    controller.abort(reason);
     return true;
   }
 

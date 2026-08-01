@@ -153,11 +153,13 @@ HumanTimelineEntry
   kind: started | connected | read | changed | produced | waiting | resumed | problem | finished
   label
   detail optional
-  occurredAt
+  occurredAt optional
   evidenceReferences[]
 ```
 
 Timeline entries are derived from known events, connection identities, output contracts, file operations, and terminal state. Raw tool names remain under Technical details. Unknown tools receive a neutral “Used a configured tool” entry rather than invented consumer meaning.
+
+`occurredAt` is omitted when stored evidence proves that a step happened but does not preserve its exact time. Presentation adapters must not substitute the run completion time for an unknown intermediate timestamp.
 
 ## Activity item
 

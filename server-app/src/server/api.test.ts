@@ -646,6 +646,24 @@ describe('API routes', () => {
       expect(cancelRun).toHaveBeenCalledWith('r1');
     });
 
+    it('records a stable cancellation reason when an orphaned run cannot be aborted', async () => {
+      store.add(makeStoredRun({ runId: 'r1', status: 'running' }));
+      const app = createApi({
+        getAgents: async () => [makeAgent()],
+        store,
+        triggerRun,
+        cancelRun: vi.fn().mockReturnValue(false),
+      });
+
+      const res = await authenticatedRequest(app, '/runs/r1/cancel', { method: 'POST' });
+
+      expect(res.status).toBe(200);
+      expect(store.get('r1')).toMatchObject({
+        status: 'failed',
+        code: 'user_canceled',
+      });
+    });
+
     it('returns 404 for unknown run', async () => {
       const cancelRun = vi.fn().mockReturnValue(false);
       const app = createApi({

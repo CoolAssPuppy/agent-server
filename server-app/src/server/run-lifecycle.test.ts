@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { Reporter, RunResult } from '../execution/runner.js';
+import { runAgent, type Reporter, type RunResult } from '../execution/runner.js';
 import { RunStore } from '../reporting/store.js';
 import {
   makeAgent,
@@ -397,9 +397,14 @@ describe('run lifecycle', () => {
   });
 
   it('aborts active runs and drains their terminal bookkeeping', async () => {
-    let finishRun: ((result: RunResult) => void) | undefined;
-    const run = vi.fn(() => new Promise<RunResult>((resolve) => {
-      finishRun = resolve;
+    const run = vi.fn((options: Parameters<typeof runAgent>[0]) => new Promise<RunResult>((resolve) => {
+      options.abortController?.signal.addEventListener('abort', () => {
+        const reason = options.abortController?.signal.reason;
+        const code = reason && typeof reason === 'object' && 'code' in reason
+          ? String(reason.code)
+          : undefined;
+        resolve({ runId: options.runId, status: 'failed', error: 'Canceled', code });
+      });
     }));
     const store = new RunStore();
     const lifecycle = createRunLifecycle({
@@ -418,10 +423,13 @@ describe('run lifecycle', () => {
 
     const runId = lifecycle.trigger(makeAgent());
     expect(lifecycle.cancel(runId)).toBe(true);
-    finishRun?.({ runId, status: 'failed', error: 'Canceled' });
     await lifecycle.drain({ overallTimeoutMs: 100, perRunTimeoutMs: 100 });
 
-    expect(store.get(runId)).toMatchObject({ status: 'failed', error: 'Canceled' });
+    expect(store.get(runId)).toMatchObject({
+      status: 'failed',
+      error: 'Canceled',
+      code: 'user_canceled',
+    });
     expect(lifecycle.cancel(runId)).toBe(false);
   });
 

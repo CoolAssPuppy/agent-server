@@ -2,9 +2,10 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { describe, expect, it } from 'vitest';
 
-import { makeAgent } from '../test-factories.js';
+import { makeAgent, makeStoredRun } from '../test-factories.js';
 import { V2CommandRequestSchema } from '../execution/v2-command.js';
 import { DecisionResolutionSchema } from '../interaction/decision-resolution.js';
+import { createRunReview } from '../presentation/run-review.js';
 import { buildV2AssistantSyncPayload } from './v2-assistant-sync.js';
 import { serializeV2OperationalStatus } from './v2-status.js';
 
@@ -67,5 +68,23 @@ describe('V2 cross-repository fixtures', () => {
     if (!Array.isArray(fixtures)) return;
 
     expect(fixtures.map((fixture) => DecisionResolutionSchema.parse(fixture))).toEqual(fixtures);
+  });
+
+  it('keeps the completed run review fixture equal to local presentation', () => {
+    expect(createRunReview({
+      run: makeStoredRun({
+        runId: 'e566a8f5-becf-49e7-a384-a72d42e9f807',
+        agentId: 'weekly-report',
+        agentName: 'Weekly Report',
+        status: 'completed',
+        summary: 'Published the weekly update.',
+        startedAt: new Date('2026-08-01T09:00:00.000Z'),
+        completedAt: new Date('2026-08-01T09:02:00.000Z'),
+        filesRead: ['/Users/person/Documents/notes.md'],
+        filesWritten: ['/Users/person/Documents/weekly-update.md'],
+        toolsUsed: ['mcp__notion__create_page'],
+      }),
+      requiredOutput: { label: 'Weekly update' },
+    })).toEqual(readFixture('run-review-completed.json'));
   });
 });

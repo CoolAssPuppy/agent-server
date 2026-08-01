@@ -5,8 +5,8 @@
 - [x] Restore and record a green TypeScript, Swift, lint, and build baseline.
 - [x] Add stable workspace-local machine identity with owner-only persistence.
 - [x] Add V2 status and assistant-sync serialization behind V1 compatibility controls.
-- [ ] Add machine-targeted command claim, expiry, idempotency, and local rejection behavior.
-- [ ] Normalize approve, pick, answer, and defer decisions at the local boundary.
+- [x] Add the pure machine-targeted command boundary for target, expiry, replay, support, and local policy checks. Keep transport claim blocked until Panel supplies atomic machine-scoped semantics.
+- [x] Normalize approve, pick, answer, and defer decisions at the local boundary.
 - [ ] Add tested consumer presentation adapters for Today, health, readiness, permissions, activity, run review, and human timelines.
 - [ ] Build consumer-grade macOS Today and Activity with Technical details disclosure.
 - [ ] Build Assistant home, readiness, pairing client, Connections, and Settings integrations.
@@ -41,6 +41,21 @@ V2 serialization review:
 - Assistant sync hashes exact definition content, includes disabled assistants, and omits instructions, paths, descriptions, and capability details by default.
 - Frozen JSON fixtures under `docs/v2/fixtures/` give Claude matching payloads for Agent Panel validation.
 - Existing V1 reporter and sync behavior remains unchanged. The full server gate passed with 1,417 tests and 4 expected skips, followed by TypeScript checking, ESLint, and compilation.
+
+V2 command and decision boundary review:
+
+- Added strict protocol-versioned command validation for all approved actions, exact machine targeting, expiry, replay protection, support checks, and local policy rejection.
+- Added strict approve, pick, answer, and defer normalization. Unknown choices, blank answers, expired deferrals, legacy payloads, and extra fields fail closed.
+- Frozen command and decision fixtures under `docs/v2/fixtures/` for Agent Panel.
+- Remote claim and acknowledgement transport remains stopped because the current Panel contract does not provide the required atomic machine-scoped claim semantics.
+
+Outcome-first run review review:
+
+- Added the first pure consumer presentation adapter for completed, incomplete, failed, canceled, skipped, and working runs.
+- Every generated statement carries an evidence reference. Default output uses file names rather than full paths and replaces raw tool names with a neutral description.
+- Intermediate timeline entries omit timestamps when the durable store does not know the exact event time.
+- User cancellation now carries the stable `user_canceled` reason through the real abort path. Generic runtime aborts carry `run_canceled`; existing local status remains backward-compatible as failed until presentation normalization.
+- Added a frozen completed-run fixture for shared macOS and Agent Panel decoding.
 
 ## V2 platform audit and planning
 

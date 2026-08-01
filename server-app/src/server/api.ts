@@ -21,6 +21,7 @@ import {
   type AgentWriter,
 } from '../agents/writer.js';
 import type { RunStoreLike } from '../reporting/store.js';
+import { USER_CANCELED_CODE } from '../execution/runner.js';
 import { normalizeStoredRun } from '../reporting/run-normalization.js';
 import { computeAgentMetrics } from '../reporting/metrics.js';
 import type { PendingDecision } from '../reporting/realtime-client.js';
@@ -761,6 +762,7 @@ export function createApi(deps: ApiDependencies): Hono {
         status: 'failed',
         completedAt: new Date(),
         error: 'Cancelled (orphaned run)',
+        code: USER_CANCELED_CODE,
       });
     }
 

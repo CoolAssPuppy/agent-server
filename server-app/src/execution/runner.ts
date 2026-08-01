@@ -14,6 +14,8 @@ import {
 
 export const RUN_TIMEOUT_CODE = 'run_timeout';
 export const LOCK_CONTENTION_CODE = 'lock_contention';
+export const RUN_CANCELED_CODE = 'run_canceled';
+export const USER_CANCELED_CODE = 'user_canceled';
 
 export type RunResult = {
   runId?: string;
@@ -132,9 +134,11 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
   let shouldReleaseLock = true;
 
   try {
+    throwIfAborted(abortController);
     const runWork = (async (): Promise<ExecutionResult> => {
       await reporter.start();
       if (isTimedOut) throw createTimeoutError(timeoutMs ?? 0);
+      throwIfAborted(abortController);
 
       if (injectionAssessment?.suspicious) {
         await reporter.progress(
@@ -152,6 +156,7 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
         }
       }
 
+      throwIfAborted(abortController);
       const decisionContext = buildDecisionContext?.(runId);
       isExecutionSettled = false;
       executionPromise = execute(effectiveAgent, reporter, { runId, decisionContext });
@@ -165,6 +170,7 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
       // The timeout path already emitted its terminal state. An executor that
       // honored cancellation late must not emit a second terminal event.
       if (isTimedOut) return result;
+      throwIfAborted(abortController);
 
       assertRequiredOutput(agent, result, { mode: options.mode });
       return result;
@@ -205,13 +211,14 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
       return { runId, status: 'failed', error: error.message, code: RUN_TIMEOUT_CODE };
     }
     if (isAbortError(error)) {
+      const code = abortReasonCode(abortController);
       if (typeof reporter.cancel === 'function') {
-        await reporter.cancel(error.message || 'Canceled');
+        await reporter.cancel(error.message || 'Canceled', code);
       } else {
         await reporter.fail(error);
       }
       reporter.stop();
-      return { runId, status: 'failed', error: error.message };
+      return { runId, status: 'failed', error: error.message, code };
     }
     await reporter.fail(error);
     reporter.stop();
@@ -224,6 +231,22 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
   } finally {
     if (shouldReleaseLock) releaseLock(lockDir, agent.id);
   }
+}
+
+function throwIfAborted(abortController: AbortController | undefined): void {
+  if (!abortController?.signal.aborted) return;
+  const reason = abortController.signal.reason;
+  if (reason instanceof Error) throw reason;
+  throw new DOMException('The operation was aborted', 'AbortError');
+}
+
+function abortReasonCode(abortController: AbortController | undefined): string {
+  const reason = abortController?.signal.reason;
+  if (reason && typeof reason === 'object' && 'code' in reason) {
+    const code = reason.code;
+    if (code === USER_CANCELED_CODE) return USER_CANCELED_CODE;
+  }
+  return RUN_CANCELED_CODE;
 }
 
 function createTimeoutError(timeoutMs: number): Error {

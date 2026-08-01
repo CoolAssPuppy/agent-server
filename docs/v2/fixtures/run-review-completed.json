@@ -1,0 +1,67 @@
+{
+  "outcome": "succeeded",
+  "headline": {
+    "text": "Weekly Report finished",
+    "evidenceReferences": ["run.status"]
+  },
+  "summary": {
+    "text": "Published the weekly update.",
+    "evidenceReferences": ["run.summary"]
+  },
+  "accomplishments": [],
+  "changes": [
+    {
+      "text": "Updated weekly-update.md",
+      "evidenceReferences": ["run.filesWritten[0]"]
+    }
+  ],
+  "outputs": [
+    {
+      "text": "Weekly update is ready",
+      "evidenceReferences": ["agent.output.primary", "run.status"]
+    }
+  ],
+  "problems": [],
+  "suggestions": [],
+  "timeline": [
+    {
+      "kind": "started",
+      "label": {
+        "text": "Started",
+        "evidenceReferences": ["run.startedAt"]
+      },
+      "occurredAt": "2026-08-01T09:00:00.000Z"
+    },
+    {
+      "kind": "read",
+      "label": {
+        "text": "Read notes.md",
+        "evidenceReferences": ["run.filesRead[0]"]
+      }
+    },
+    {
+      "kind": "changed",
+      "label": {
+        "text": "Updated weekly-update.md",
+        "evidenceReferences": ["run.filesWritten[0]"]
+      }
+    },
+    {
+      "kind": "connected",
+      "label": {
+        "text": "Used a configured tool",
+        "evidenceReferences": ["run.toolsUsed"]
+      }
+    },
+    {
+      "kind": "finished",
+      "label": {
+        "text": "Finished",
+        "evidenceReferences": ["run.status"]
+      },
+      "occurredAt": "2026-08-01T09:02:00.000Z"
+    }
+  ],
+  "operationalCompleteness": "complete",
+  "technicalDetailsReference": "/runs/e566a8f5-becf-49e7-a384-a72d42e9f807"
+}
