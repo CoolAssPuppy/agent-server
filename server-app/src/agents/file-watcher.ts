@@ -146,6 +146,11 @@ export class AgentFileWatchManager {
     }
 
     await this.queueReconciliation();
+    if (!this.isStopped) {
+      // Close the startup snapshot window even when the operating system does
+      // not deliver an edit event immediately after watcher registration.
+      await this.queueReconciliation();
+    }
   }
 
   stop(): void {

@@ -213,13 +213,14 @@ describe('AgentFileWatchManager', () => {
     managers.push(manager);
     await manager.start();
     expect(onReconcile).toHaveBeenCalledWith(1);
+    const startupReconciliations = onReconcile.mock.calls.length;
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     writeFileSync(firstFile, 'first change');
     await vi.waitFor(() => expect(onChange).toHaveBeenCalledWith('dynamic-watcher', firstFile));
 
     writeDefinition(secondWatchDir);
-    await vi.waitFor(() => expect(onReconcile).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(onReconcile.mock.calls.length).toBeGreaterThan(startupReconciliations));
     await new Promise((resolve) => setTimeout(resolve, 100));
     onChange.mockClear();
     writeFileSync(firstFile, 'ignored change');
@@ -238,10 +239,8 @@ describe('AgentFileWatchManager', () => {
     mkdirSync(agentsDir);
     mkdirSync(firstWatchDir);
     mkdirSync(secondWatchDir);
-    const definitionPath = join(agentsDir, 'watcher.yaml');
     const firstFile = join(firstWatchDir, 'note.md');
     const secondFile = join(secondWatchDir, 'note.md');
-    writeFileSync(definitionPath, 'initial');
     writeFileSync(firstFile, 'initial');
     writeFileSync(secondFile, 'initial');
 
@@ -274,10 +273,9 @@ describe('AgentFileWatchManager', () => {
 
     const starting = manager.start();
     await vi.waitFor(() => expect(discover).toHaveBeenCalledTimes(1));
-    writeFileSync(definitionPath, 'changed during startup');
     resolveInitial?.();
     await starting;
-    await vi.waitFor(() => expect(discover).toHaveBeenCalledTimes(2));
+    expect(discover).toHaveBeenCalledTimes(2);
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     writeFileSync(firstFile, 'ignored');
