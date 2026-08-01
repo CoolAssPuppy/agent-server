@@ -63,6 +63,13 @@ export {
   type V2OperationalStatusEvent,
   type V2OperationalStatusInput,
 } from './reporting/v2-status.js';
+export {
+  V2AssistantSyncPayloadSchema,
+  buildV2AssistantSyncPayload,
+  type AssistantDefinition,
+  type V2AssistantSyncOptions,
+  type V2AssistantSyncPayload,
+} from './reporting/v2-assistant-sync.js';
 export { parseStreamEvent, summarizeTurn, extractToolMetadata, type ExecutionResult, type ClaudeStreamEvent } from './execution/executor.js';
 export { executeAgent } from './plugins/claude-code.js';
 export { executeCodexAgent } from './plugins/codex.js';

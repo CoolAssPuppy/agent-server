@@ -56,7 +56,7 @@ Response returns a machine-bound credential once, its scopes, expiry or rotation
 
 ## Assistant sync
 
-Each item contains machine ID, local agent ID, display name, description only when the user permits it, enabled state, plain schedule data, timezone, definition hash, and capability summaries allowed by privacy policy.
+Each item contains protocol version, machine ID, local agent ID, display name, enabled state, plain schedule data, timezone, and a hash of the exact local definition content. Description is omitted by default and includes only the explicit description after user opt-in. Instructions are never used as a description fallback. Capability summaries remain omitted until their field allowlist is approved.
 
 Sync reconciliation is limited to one machine ID. It cannot deactivate rows from another machine.
 
