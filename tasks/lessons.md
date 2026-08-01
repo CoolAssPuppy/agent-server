@@ -1,5 +1,6 @@
 # Lessons
 
+- When the user asks for focused product work, treat the stated phase and deliverables as a hard scope boundary. Do not add adjacent initiatives, speculative architecture, or extra process. Complete the smallest requested artifact, report it concisely, and wait at review gates.
 - When matching an existing macOS settings screen, copy its layout primitives as well as its font sizes. A custom card-and-row layout cannot be reproduced reliably by retuning SwiftUI Form modifiers.
 - Creation and editing should use the same Markdown control so syntax, cursor behavior, undo, and file semantics do not diverge between workflows.
 - A persistent macOS creation action should not change color merely because its destination is open. Use steady styling and let the system button press state provide feedback.

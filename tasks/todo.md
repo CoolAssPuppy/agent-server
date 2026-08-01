@@ -3,7 +3,7 @@
 ## Agent Server V2 implementation
 
 - [x] Restore and record a green TypeScript, Swift, lint, and build baseline.
-- [ ] Add stable workspace-local machine identity with owner-only persistence.
+- [x] Add stable workspace-local machine identity with owner-only persistence.
 - [ ] Add V2 status and assistant-sync serialization behind V1 compatibility controls.
 - [ ] Add machine-targeted command claim, expiry, idempotency, and local rejection behavior.
 - [ ] Normalize approve, pick, answer, and defer decisions at the local boundary.
@@ -25,6 +25,14 @@ Baseline review:
 - Schedule sync begins watching before its initial request, so edits made during startup cannot be missed. Its timing behavior now uses deterministic watcher tests.
 - The schedule test passed 25 consecutive runs. The full server suite passed with 1,396 tests and 4 expected skips, followed by TypeScript checking, ESLint, and compilation.
 - The unchanged Swift baseline passed earlier in this phase with 478 main-app tests and 12 EventKit tests.
+
+Machine identity review:
+
+- Each Agent Server home now owns one stable UUID in an owner-only `machine-id` file. Custom agent directories do not change identity.
+- Initialization and direct server startup both create or validate the identity. Corrupt files and symbolic links fail closed and are never silently replaced.
+- Authenticated `GET /machine` returns the stable ID, protocol version, and Server version. Public health does not expose the ID.
+- V1 `worker_id` remains the ephemeral hostname and process pair used by current telemetry and cleanup.
+- The full server gate passed with 1,405 tests and 4 expected skips, followed by TypeScript checking, ESLint, and compilation.
 
 ## V2 platform audit and planning
 
