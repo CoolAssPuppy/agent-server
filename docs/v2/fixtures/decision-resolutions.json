@@ -1,0 +1,18 @@
+[
+  {
+    "type": "approve",
+    "approved": true
+  },
+  {
+    "type": "pick",
+    "option_id": "detailed"
+  },
+  {
+    "type": "answer",
+    "text": "August report"
+  },
+  {
+    "type": "defer",
+    "defer_until": "2026-08-02T11:00:00.000Z"
+  }
+]

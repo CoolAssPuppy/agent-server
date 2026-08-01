@@ -1,0 +1,11 @@
+{
+  "protocolVersion": 2,
+  "commandId": "e566a8f5-becf-49e7-a384-a72d42e9f807",
+  "targetMachineId": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99",
+  "localAgentId": "weekly-report",
+  "action": "run",
+  "idempotencyKey": "weekly-report:2026-08-02",
+  "requestedAt": "2026-08-02T09:59:00.000Z",
+  "expiresAt": "2026-08-02T10:01:00.000Z",
+  "status": "requested"
+}

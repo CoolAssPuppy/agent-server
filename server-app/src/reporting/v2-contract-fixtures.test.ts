@@ -3,6 +3,8 @@ import { join } from 'path';
 import { describe, expect, it } from 'vitest';
 
 import { makeAgent } from '../test-factories.js';
+import { V2CommandRequestSchema } from '../execution/v2-command.js';
+import { DecisionResolutionSchema } from '../interaction/decision-resolution.js';
 import { buildV2AssistantSyncPayload } from './v2-assistant-sync.js';
 import { serializeV2OperationalStatus } from './v2-status.js';
 
@@ -51,5 +53,19 @@ describe('V2 cross-repository fixtures', () => {
       machineId,
       now: new Date('2026-08-01T09:00:00.000Z'),
     })).toEqual(readFixture('assistant-sync-operational.json'));
+  });
+
+  it('keeps the targeted command fixture valid at the local command boundary', () => {
+    expect(V2CommandRequestSchema.parse(readFixture('command-targeted-run.json'))).toEqual(
+      readFixture('command-targeted-run.json'),
+    );
+  });
+
+  it('keeps every canonical decision resolution fixture valid', () => {
+    const fixtures = readFixture('decision-resolutions.json');
+    expect(Array.isArray(fixtures)).toBe(true);
+    if (!Array.isArray(fixtures)) return;
+
+    expect(fixtures.map((fixture) => DecisionResolutionSchema.parse(fixture))).toEqual(fixtures);
   });
 });
