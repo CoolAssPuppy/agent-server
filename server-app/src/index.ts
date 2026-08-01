@@ -81,6 +81,17 @@ export {
   type DecisionResolution,
   type NormalizedDecisionResolution,
 } from './interaction/decision-resolution.js';
+export {
+  V2CommandActionSchema,
+  V2CommandRequestSchema,
+  reduceV2Command,
+  type V2CommandAction,
+  type V2CommandBoundaryOptions,
+  type V2CommandBoundaryResult,
+  type V2CommandBoundaryState,
+  type V2CommandRequest,
+  type V2LocalCommandPolicyResult,
+} from './execution/v2-command.js';
 export { loadConfig, ServerConfigSchema, type ServerConfig } from './platform/config.js';
 export { runDueAgents, runSingleAgent, listAgents, startDaemon } from './server/daemon.js';
 export { RunStore, type StoredRun, type RunStoreLike } from './reporting/store.js';

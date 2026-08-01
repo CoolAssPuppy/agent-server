@@ -103,6 +103,8 @@ Only the target machine credential can claim the command. Claiming is atomic. Ag
 
 Panel displays Requested separately from Accepted and Started.
 
+Before transport wiring, Agent Server uses a side-effect-free boundary that validates protocol version, exact machine target, requested state, expiry, command ID, idempotency key, supported action, and local policy. Wrong-machine and replayed commands are ignored locally. Only accepted commands advance caller-owned replay state. This reducer does not claim atomic delivery or durable idempotency; those remain responsibilities of the Panel claim operation and a later local store.
+
 ## Decision request
 
 Decision types remain approve, pick, and answer. Shared fields include title, body, reason, bounded options where applicable, expiry, and safe source links. The full payload is validated before the run becomes `input_required`.
