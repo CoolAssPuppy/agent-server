@@ -59,6 +59,7 @@ import { createDownstreamTriggerHandler } from './downstream-triggers.js';
 import { createNoopAnalytics, type Analytics } from '../analytics/analytics.js';
 import { ANALYTICS_EVENTS } from '../analytics/events.js';
 import { classifyErrorReason } from '../analytics/reason.js';
+import { loadOrCreateMachineId } from '../platform/machine-identity.js';
 
 export type ServerInstance = {
   ready: Promise<void>;
@@ -277,6 +278,7 @@ export function startServer(
   }
 
   const startedAt = new Date().toISOString();
+  const machineId = loadOrCreateMachineId(config.workspaceDir);
   const serverId = `${hostname()}-${process.pid}`;
   const panelClient = createPanelClient(config);
 
@@ -684,6 +686,7 @@ export function startServer(
     },
     connectionProfiles: connectionProfileStore,
     apiKey,
+    machineId,
     startedAt,
     host: config.host,
     analysisApi: analysisRuntime.api,

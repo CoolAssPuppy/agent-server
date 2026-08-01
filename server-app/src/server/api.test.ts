@@ -723,6 +723,31 @@ describe('API routes', () => {
     });
   });
 
+  describe('GET /machine', () => {
+    it('returns authenticated local identity without exposing it through health', async () => {
+      const machineId = '1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99';
+      const app = createApi({
+        getAgents: async () => [],
+        store,
+        triggerRun,
+        machineId,
+      });
+
+      const unauthorized = await app.request('/machine');
+      const response = await authenticatedRequest(app, '/machine');
+      const health = await app.request('/health');
+
+      expect(unauthorized.status).toBe(401);
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        machine_id: machineId,
+        protocol_version: 2,
+        server_version: '3.3.4',
+      });
+      await expect(health.json()).resolves.not.toHaveProperty('machine_id');
+    });
+  });
+
 
   describe('POST /cleanup', () => {
     it('calls cleanupFn and returns result', async () => {

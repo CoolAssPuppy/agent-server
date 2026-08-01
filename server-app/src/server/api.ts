@@ -34,9 +34,11 @@ import {
   sanitizePromptSuffix,
   sanitizeText,
 } from './security-utils.js';
+import { AGENT_SERVER_VERSION } from '../version.js';
 
 type EnvSource = Record<string, string | undefined>;
 const LOCAL_API_VERSION = 12;
+const MACHINE_PROTOCOL_VERSION = 2;
 
 type ConnectionSnapshot = {
   servers: DiscoveredConnection[];
@@ -95,6 +97,7 @@ type ApiDependencies = {
   /** Optional local guided creation and debugger routes. */
   guidanceApi?: Hono;
   apiKey: string;
+  machineId?: string;
   startedAt?: string;
   host?: string;
 };
@@ -294,6 +297,17 @@ export function createApi(deps: ApiDependencies): Hono {
       api_version: LOCAL_API_VERSION,
       timestamp: new Date().toISOString(),
       ...(deps.startedAt ? { started_at: deps.startedAt } : {}),
+    });
+  });
+
+  app.get('/machine', (c) => {
+    if (!deps.machineId) {
+      return c.json({ error: 'Machine identity unavailable' }, 503);
+    }
+    return c.json({
+      machine_id: deps.machineId,
+      protocol_version: MACHINE_PROTOCOL_VERSION,
+      server_version: AGENT_SERVER_VERSION,
     });
   });
 

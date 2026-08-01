@@ -1,5 +1,5 @@
 import { createServer, request, type Server as HttpServer } from 'http';
-import { mkdirSync, rmSync, writeFileSync } from 'fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { randomBytes } from 'crypto';
 import { join } from 'path';
 import { describe, expect, it, vi } from 'vitest';
@@ -690,6 +690,13 @@ describe('startServer production composition', { timeout: 20_000 }, () => {
       });
       expect(authorized.status).toBe(200);
       await expect(authorized.json()).resolves.toEqual([]);
+
+      const machine = await fetch(`http://127.0.0.1:${context.port}/machine`, {
+        headers: { Authorization: `Bearer ${API_KEY}` },
+      });
+      expect(machine.status).toBe(200);
+      const identity = await machine.json() as { machine_id: string };
+      expect(readFileSync(join(context.home, 'machine-id'), 'utf8')).toBe(`${identity.machine_id}\n`);
 
       await expect(websocketUpgradeStatus(context.port)).resolves.toBe(401);
       await expect(websocketUpgradeStatus(context.port, API_KEY)).resolves.toBe(101);
