@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { InteractionStore } from './store.js';
+import {
+  InteractionStore,
+  MAX_INTERACTION_RESPONSE_TEXT_LENGTH,
+} from './store.js';
 
 function makeRequest() {
   return {
@@ -129,5 +132,221 @@ describe('InteractionStore', () => {
     const pending = store.listPending();
     expect(pending).toHaveLength(1);
     expect(pending[0].id).toBe('int-2');
+  });
+
+  describe('response claims', () => {
+    const validUntil = new Date('2026-08-02T12:30:00.000Z');
+    const claimTime = new Date('2026-08-02T12:00:00.000Z');
+
+    function makeStore(request = makeRequest()) {
+      const store = new InteractionStore(() => 'claim-token');
+      store.add({
+        id: 'int-claim',
+        runId: 'run-claim',
+        agentId: 'checker',
+        replyAgentId: 'booker',
+        request,
+        channel: 'http',
+        createdAt: new Date('2026-08-02T11:59:00.000Z'),
+        expiresAt: validUntil,
+      });
+      return store;
+    }
+
+    it('claims an option using the value held by the server', () => {
+      const store = makeStore({
+        message: 'Pick one',
+        options: [
+          { label: 'Morning', value: 'book-09:00' },
+          { label: 'Evening', value: 'book-18:00' },
+        ],
+        freeText: false,
+      });
+
+      const result = store.claim(
+        'int-claim',
+        { type: 'option', optionIndex: 1 },
+        claimTime,
+      );
+
+      expect(result).toEqual({
+        ok: true,
+        claim: {
+          interactionId: 'int-claim',
+          claimToken: 'claim-token',
+          replyAgentId: 'booker',
+          response: {
+            type: 'option',
+            optionIndex: 1,
+            label: 'Evening',
+            value: 'book-18:00',
+          },
+        },
+      });
+      expect(store.get('int-claim')?.status).toBe('processing');
+    });
+
+    it.each([-1, 1, 0.5])('rejects invalid option index %s', (optionIndex) => {
+      const store = makeStore();
+
+      expect(
+        store.claim('int-claim', { type: 'option', optionIndex }, claimTime),
+      ).toEqual({ ok: false, reason: 'invalid_response' });
+      expect(store.get('int-claim')?.status).toBe('pending');
+    });
+
+    it('rejects extra response fields instead of silently accepting them', () => {
+      const optionStore = makeStore();
+      const textStore = makeStore({ message: 'Answer', freeText: true });
+
+      expect(optionStore.claim(
+        'int-claim',
+        { type: 'option', optionIndex: 0, value: 'client-supplied' },
+        claimTime,
+      )).toEqual({ ok: false, reason: 'invalid_response' });
+      expect(textStore.claim(
+        'int-claim',
+        { type: 'text', text: 'Allowed text', optionIndex: 0 },
+        claimTime,
+      )).toEqual({ ok: false, reason: 'invalid_response' });
+    });
+
+    it('accepts trimmed bounded text only when free text is allowed', () => {
+      const store = makeStore({ message: 'Tell me more', freeText: true });
+
+      const result = store.claim(
+        'int-claim',
+        { type: 'text', text: '  Use the later time  ' },
+        claimTime,
+      );
+
+      expect(result).toMatchObject({
+        ok: true,
+        claim: {
+          response: { type: 'text', value: 'Use the later time' },
+        },
+      });
+    });
+
+    it.each([
+      { request: makeRequest(), text: 'answer' },
+      { request: { message: 'Answer', freeText: true }, text: '   ' },
+      {
+        request: { message: 'Answer', freeText: true },
+        text: 'a'.repeat(MAX_INTERACTION_RESPONSE_TEXT_LENGTH + 1),
+      },
+    ])('rejects disallowed or invalid text', ({ request, text }) => {
+      const store = makeStore(request);
+
+      expect(
+        store.claim('int-claim', { type: 'text', text }, claimTime),
+      ).toEqual({ ok: false, reason: 'invalid_response' });
+      expect(store.get('int-claim')?.status).toBe('pending');
+    });
+
+    it('expires an overdue interaction during the claim attempt', () => {
+      const store = makeStore();
+
+      expect(
+        store.claim(
+          'int-claim',
+          { type: 'option', optionIndex: 0 },
+          validUntil,
+        ),
+      ).toEqual({ ok: false, reason: 'expired' });
+      expect(store.get('int-claim')?.status).toBe('expired');
+    });
+
+    it('allows exactly one caller to claim a pending interaction', () => {
+      const store = makeStore();
+
+      expect(
+        store.claim(
+          'int-claim',
+          { type: 'option', optionIndex: 0 },
+          claimTime,
+        ).ok,
+      ).toBe(true);
+      expect(
+        store.claim(
+          'int-claim',
+          { type: 'option', optionIndex: 0 },
+          claimTime,
+        ),
+      ).toEqual({ ok: false, reason: 'not_pending' });
+    });
+
+    it('returns not found without creating state', () => {
+      const store = new InteractionStore(() => 'claim-token');
+
+      expect(
+        store.claim(
+          'missing',
+          { type: 'option', optionIndex: 0 },
+          claimTime,
+        ),
+      ).toEqual({ ok: false, reason: 'not_found' });
+    });
+
+    it('completes a claim only when its token matches', () => {
+      const store = makeStore();
+      store.claim(
+        'int-claim',
+        { type: 'option', optionIndex: 0 },
+        claimTime,
+      );
+
+      expect(store.complete('int-claim', 'wrong-token')).toBe(false);
+      expect(store.get('int-claim')?.status).toBe('processing');
+      expect(store.complete('int-claim', 'claim-token')).toBe(true);
+      expect(store.get('int-claim')?.status).toBe('acted');
+      expect(store.complete('int-claim', 'claim-token')).toBe(false);
+    });
+
+    it('does not let the legacy acted path bypass a processing claim token', () => {
+      const store = makeStore();
+      store.claim(
+        'int-claim',
+        { type: 'option', optionIndex: 0 },
+        claimTime,
+      );
+
+      store.markActed('int-claim');
+
+      expect(store.get('int-claim')?.status).toBe('processing');
+      expect(store.complete('int-claim', 'claim-token')).toBe(true);
+    });
+
+    it('restores a failed claim to pending while it remains valid', () => {
+      const store = makeStore();
+      store.claim(
+        'int-claim',
+        { type: 'option', optionIndex: 0 },
+        claimTime,
+      );
+
+      expect(store.restore('int-claim', 'wrong-token', claimTime)).toBe(false);
+      expect(store.restore('int-claim', 'claim-token', claimTime)).toBe(true);
+      expect(store.get('int-claim')?.status).toBe('pending');
+      expect(
+        store.claim(
+          'int-claim',
+          { type: 'option', optionIndex: 0 },
+          claimTime,
+        ).ok,
+      ).toBe(true);
+    });
+
+    it('expires a failed claim restored at its deadline', () => {
+      const store = makeStore();
+      store.claim(
+        'int-claim',
+        { type: 'option', optionIndex: 0 },
+        claimTime,
+      );
+
+      expect(store.restore('int-claim', 'claim-token', validUntil)).toBe(true);
+      expect(store.get('int-claim')?.status).toBe('expired');
+    });
   });
 });
