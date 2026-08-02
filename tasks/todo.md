@@ -2,17 +2,24 @@
 
 ## Version 3.4.0 release
 
-- [ ] Confirm main is clean, current work is committed, and the live feed is version 3.3.4 build 37.
-- [ ] Run the canonical release pipeline with release text “Revamped UI, Bug fixes”.
-- [ ] Verify tests, type checking, linting, signing, app and DMG notarization, stapling, Sparkle signature, immutable download, latest alias, and both feed URLs.
-- [ ] Confirm version and build metadata changed only as expected.
-- [ ] Install and launch the released app, verify local API health and runtime discovery, then commit and push main.
+- [x] Confirm main is clean, current work is committed, and the live feed is version 3.3.4 build 37.
+- [x] Run the canonical release pipeline with release text “Revamped UI, Bug fixes”.
+- [x] Verify tests, type checking, linting, signing, app and DMG notarization, stapling, Sparkle signature, immutable download, latest alias, and both feed URLs.
+- [x] Confirm version and build metadata changed only as expected.
+- [x] Install and launch the released app, verify local API health and runtime discovery, then commit and push main.
 
 Constraints:
 
 - Perform comprehensive verification locally. Do not add or trigger GitHub Actions for the release.
 - Do not push until the uploaded release and installed app pass verification.
 - Preserve the canonical Sparkle publication order and immutable release history.
+
+Review:
+
+- Agent Server 3.4.0 build 38 passed 1,555 server tests with 4 expected skips, 540 Swift behavior tests, strict TypeScript checking, ESLint, server compilation, and the signed Release archive build.
+- Apple accepted application submission `e1cb45ba-7da9-4c26-9f9c-b21b74b25651` and DMG submission `7a27f31d-306f-4d54-8e76-624d511aa315`. Both artifacts were stapled and validated.
+- The Sparkle-signed 19,490,542-byte DMG and appcast are live with the release text “Revamped UI, Bug fixes”. Versioned and latest downloads match the local artifact byte for byte.
+- The notarized app installed from the DMG, reports version 3.4.0 build 38, starts API version 12 with server version 3.4.0, and finds installed Claude Code, Codex, and Kimi Code runtimes.
 
 ## Claude MCP status settling
 
