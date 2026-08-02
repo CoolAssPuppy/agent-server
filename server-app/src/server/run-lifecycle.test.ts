@@ -210,6 +210,28 @@ describe('run lifecycle', () => {
     expect(onTerminal).not.toHaveBeenCalled();
   });
 
+  it('records a factual safe-test result instead of claiming the assistant is ready', async () => {
+    const harness = createHarness(undefined, {
+        summary: 'Everything looks good and is ready.',
+        output: {},
+        usage: {},
+        turnCount: 1,
+        toolsUsed: ['Read'],
+        filesRead: ['/Users/test/Reference/notes.md'],
+        filesWritten: [],
+        commandsRun: [],
+    });
+    const runId = harness.lifecycle.trigger(makeAgent(), { mode: 'safe_test' });
+
+    await vi.waitFor(() => expect(harness.store.get(runId)?.status).toBe('completed'));
+
+    expect(harness.store.get(runId)?.summary).toBe(
+      'Safe test finished. It read notes.md from its reviewed local files. External actions were not performed. '
+      + 'File creation, command execution, messages, and connected-service changes were blocked.',
+    );
+    expect(harness.store.get(runId)?.summary).not.toContain('ready');
+  });
+
   it('records which messaging service owns a conversation run', async () => {
     const { lifecycle, store } = createHarness();
 

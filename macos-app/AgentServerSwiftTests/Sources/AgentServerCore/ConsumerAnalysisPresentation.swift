@@ -107,6 +107,11 @@ public struct ContactAccessPresentation: Equatable, Sendable {
     }
 }
 
+public enum ProtectedTestAvailability: Equatable, Sendable {
+    case available
+    case unavailable(reason: String)
+}
+
 public struct AgentProposalPresentation: Equatable, Sendable {
     public let reviewId: String?
     public let name: String
@@ -121,6 +126,7 @@ public struct AgentProposalPresentation: Equatable, Sendable {
     public let instructions: String
     public let risk: ConsumerRiskLevel
     public let riskReason: String
+    public let protectedTestAvailability: ProtectedTestAvailability
 
     public var readiness: AgentProposalReadiness {
         AgentProposalReadiness(connections: connections)
@@ -150,7 +156,10 @@ public struct AgentProposalPresentation: Equatable, Sendable {
         connections: [ConnectionPresentation],
         instructions: String,
         risk: ConsumerRiskLevel,
-        riskReason: String
+        riskReason: String,
+        protectedTestAvailability: ProtectedTestAvailability = .unavailable(
+            reason: "Protected test support has not been confirmed."
+        )
     ) {
         self.reviewId = reviewId
         self.name = name
@@ -165,6 +174,7 @@ public struct AgentProposalPresentation: Equatable, Sendable {
         self.instructions = instructions
         self.risk = risk
         self.riskReason = riskReason
+        self.protectedTestAvailability = protectedTestAvailability
     }
 }
 

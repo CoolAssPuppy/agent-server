@@ -37,6 +37,17 @@ describe('Assistant readiness facts', () => {
       { path: '~/Books', exists: true, readable: true, writable: false },
       { path: '/Volumes/Output', exists: false, readable: false, writable: false },
     ]);
+    expect(facts.canEnforceSafeTest).toBe(true);
+  });
+
+  it('does not advertise a safe test for Codex', () => {
+    const facts = collectAssistantHomeFacts({
+      agent: makeAgent({ executor: 'codex' }),
+      runtimePaths: { codexExecutablePath: '/usr/local/bin/codex' },
+      registry: registry(),
+      inspectPath: () => ({ exists: true, readable: true, writable: false }),
+    });
+
     expect(facts.canEnforceSafeTest).toBe(false);
   });
 

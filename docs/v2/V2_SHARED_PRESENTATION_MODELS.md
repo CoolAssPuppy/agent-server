@@ -116,6 +116,8 @@ Rules:
 - Unknown must remain Unknown. It cannot become Ready.
 - Panel may display the last reported readiness with its timestamp but cannot calculate local readiness independently.
 - A safe test is offered only when the selected executor and effect policy can enforce it.
+- Agent Server supplies safe-test availability during proposal review and on Assistant home. Clients never recreate the executor support matrix.
+- Safe-test completion text reports recorded reads, confirms external actions were not performed, and names blocked effect classes. It does not report assistant readiness.
 
 ## Human permission summary
 

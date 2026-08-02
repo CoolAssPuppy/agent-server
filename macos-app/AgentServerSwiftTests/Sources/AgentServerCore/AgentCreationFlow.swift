@@ -248,6 +248,17 @@ public struct AgentCreationFlow: Equatable, Sendable {
 
     public var safeTestRunId: String? { savedAgent?.safeTestRunId }
 
+    public var completionSummary: String {
+        switch safeTestState {
+        case .completed:
+            "Your assistant is saved. The protected test completed."
+        case .stopped:
+            "Your assistant is saved. The protected test was stopped."
+        case .running, .failed, .none:
+            "Your assistant is saved."
+        }
+    }
+
     public var failedSafeTestRunId: String? {
         guard case .failed? = safeTestState else { return nil }
         return safeTestRunId

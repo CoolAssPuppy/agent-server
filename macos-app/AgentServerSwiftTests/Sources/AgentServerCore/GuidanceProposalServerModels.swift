@@ -308,6 +308,7 @@ public enum GuidanceProposalResponse: Decodable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case status, proposal, questions, explanation
         case proposalId = "proposal_id"
+        case safeTest = "safe_test"
     }
 
     public init(from decoder: Decoder) throws {
@@ -316,7 +317,17 @@ public enum GuidanceProposalResponse: Decodable, Equatable, Sendable {
         case "proposal":
             let proposalId = try container.decode(String.self, forKey: .proposalId)
             let payload = try container.decode(GuidanceProposalPayload.self, forKey: .proposal)
-            self = .proposal(GuidanceProposalReview(proposalId: proposalId, presentation: payload.presentation(reviewId: proposalId)))
+            let safeTest = try container.decodeIfPresent(
+                GuidanceSafeTestAvailability.self,
+                forKey: .safeTest
+            ) ?? .unreported
+            self = .proposal(GuidanceProposalReview(
+                proposalId: proposalId,
+                presentation: payload.presentation(
+                    reviewId: proposalId,
+                    protectedTestAvailability: safeTest.presentation
+                )
+            ))
         case "needs_information":
             let questions = try container.decode([GuidanceQuestionPayload].self, forKey: .questions)
             let explanation = try container.decode(String.self, forKey: .explanation)
@@ -515,7 +526,10 @@ private struct GuidanceProposalPayload: Decodable, Equatable, Sendable {
         case markdownInstructions = "markdown_instructions"
     }
 
-    func presentation(reviewId: String) -> AgentProposalPresentation {
+    func presentation(
+        reviewId: String,
+        protectedTestAvailability: ProtectedTestAvailability
+    ) -> AgentProposalPresentation {
         var permissionSummaries = permissions.summaries
         if !fileAccess.isEmpty { permissionSummaries.insert("Read selected files", at: 0) }
         return AgentProposalPresentation(
@@ -531,7 +545,8 @@ private struct GuidanceProposalPayload: Decodable, Equatable, Sendable {
             connections: connections.map(\.presentation),
             instructions: markdownInstructions,
             risk: risk.consumerLevel,
-            riskReason: risk.reasons.joined(separator: " ")
+            riskReason: risk.reasons.joined(separator: " "),
+            protectedTestAvailability: protectedTestAvailability
         )
     }
 }
@@ -539,6 +554,65 @@ private struct GuidanceProposalPayload: Decodable, Equatable, Sendable {
 public struct GuidanceSaveRequest: Encodable, Equatable, Sendable {
     public let confirmed: Bool
     public init(confirmed: Bool = true) { self.confirmed = confirmed }
+}
+
+public struct GuidanceSafeTestAvailability: Decodable, Equatable, Sendable {
+    public let available: Bool
+    public let mode: String?
+    public let runEndpoint: String?
+    public let reason: String?
+
+    public static let unreported = GuidanceSafeTestAvailability(
+        available: false,
+        mode: nil,
+        runEndpoint: nil,
+        reason: "Protected test support has not been confirmed."
+    )
+
+    public var presentation: ProtectedTestAvailability {
+        available
+            ? .available
+            : .unavailable(reason: reason ?? "A protected test is unavailable for this AI engine.")
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case available, mode, reason
+        case runEndpoint = "run_endpoint"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        available = try container.decode(Bool.self, forKey: .available)
+        mode = try container.decodeIfPresent(String.self, forKey: .mode)
+        runEndpoint = try container.decodeIfPresent(String.self, forKey: .runEndpoint)
+        reason = try container.decodeIfPresent(String.self, forKey: .reason)
+        if let mode, mode != "safe_test" {
+            throw DecodingError.dataCorruptedError(
+                forKey: .mode,
+                in: container,
+                debugDescription: "Unsupported protected test mode"
+            )
+        }
+        if !available, reason?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+            throw DecodingError.dataCorruptedError(
+                forKey: .reason,
+                in: container,
+                debugDescription: "Unavailable protected tests require a reason"
+            )
+        }
+    }
+
+    private init(
+        available: Bool,
+        mode: String?,
+        runEndpoint: String?,
+        reason: String?
+    ) {
+        self.available = available
+        self.mode = mode
+        self.runEndpoint = runEndpoint
+        self.reason = reason
+    }
 }
 
 public struct GuidanceSaveResponse: Decodable, Equatable, Sendable {
@@ -549,4 +623,10 @@ public struct GuidanceSaveResponse: Decodable, Equatable, Sendable {
 
     public let saved: Bool
     public let agent: SavedAgent
+    public let safeTest: GuidanceSafeTestAvailability
+
+    enum CodingKeys: String, CodingKey {
+        case saved, agent
+        case safeTest = "safe_test"
+    }
 }

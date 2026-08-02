@@ -13,7 +13,8 @@ public enum ConsumerFlowDemoFixtures {
         ],
         instructions: "Review this week's GitHub activity. Write a short summary with completed work, open work, and anything that needs attention. If activity is unavailable, explain what is missing. Never include credentials or private repository contents in a message.",
         risk: .needsReview,
-        riskReason: "This agent sends information to Slack and needs internet access."
+        riskReason: "This agent sends information to Slack and needs internet access.",
+        protectedTestAvailability: .available
     )
 
     public static let diagnosis = DiagnosticPresentation(

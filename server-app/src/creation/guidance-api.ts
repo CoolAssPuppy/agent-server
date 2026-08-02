@@ -33,6 +33,7 @@ import { prepareSafeTestAgent } from './safe-test.js';
 import { buildSimilarAgentRequest } from './similar-agent.js';
 import type { ServiceConnection, ServiceRegistry } from '../services/registry.js';
 import { EXECUTOR_NAMES, type AgentExecutor } from '../agents/executor.js';
+import { safeTestSupportForExecutor } from './safe-test-support.js';
 
 const ProposalApiRequestSchema = z.object({
   request: z.string().trim().min(1).max(8_000),
@@ -103,8 +104,14 @@ type PendingProposal = { proposal: CreationProposal; offeredServiceIds: Readonly
 type SavedProposalReceipt = {
   saved: true;
   agent: { id: string; name: string };
-  safe_test: { available: true; mode: 'safe_test'; run_endpoint: string };
+  safe_test: SafeTestReceipt;
 };
+type SafeTestReceipt =
+  | { available: true; mode: 'safe_test'; run_endpoint: string }
+  | { available: false; reason: string };
+type SafeTestAvailability =
+  | { available: true }
+  | { available: false; reason: string };
 type ProposalSaveSuccess = Omit<SavedProposalReceipt, 'agent'> & {
   agent: AgentConfig;
   security_analysis?: SecurityAnalysis;
@@ -201,11 +208,7 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
     completedSaves.set(id, {
       saved: true,
       agent: { id: agent.id, name: agent.name },
-      safe_test: {
-        available: true,
-        mode: 'safe_test',
-        run_endpoint: `/agents/${agent.id}/safe-test`,
-      },
+      safe_test: safeTestReceipt(agent),
       expiresAt: now() + COMPLETED_SAVE_TTL_MS,
     });
     while (completedSaves.size > MAX_COMPLETED_SAVES) {
@@ -213,6 +216,20 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
       if (!oldest) break;
       completedSaves.delete(oldest);
     }
+  }
+
+  function safeTestAvailability(executor: AgentExecutor | undefined): SafeTestAvailability {
+    const support = safeTestSupportForExecutor(executor ?? 'claude-code');
+    return support.available ? { available: true } : { available: false, reason: support.reason };
+  }
+
+  function safeTestReceipt(agent: AgentConfig): SafeTestReceipt {
+    const availability = safeTestAvailability(agent.executor);
+    return availability.available ? {
+      available: true,
+      mode: 'safe_test',
+      run_endpoint: `/agents/${agent.id}/safe-test`,
+    } : availability;
   }
 
   async function currentServiceRegistry(executor?: AgentExecutor): Promise<ServiceRegistry> {
@@ -294,11 +311,7 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
     }
 
     const created = await dependencies.writer.createReviewed(agent);
-    const safeTest = {
-      available: true as const,
-      mode: 'safe_test' as const,
-      run_endpoint: `/agents/${created.agent.id}/safe-test`,
-    };
+    const safeTest = safeTestReceipt(created.agent);
     const body: ProposalSaveSuccess = {
       saved: true,
       agent: redactAgentSecrets(created.agent),
@@ -359,6 +372,7 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
       return context.json({
         ...result,
         proposal_id: remember(result.proposal, servicesRelevantToRequest(proposalRequest)),
+        safe_test: safeTestAvailability(result.proposal.runtime?.executor),
       });
     } catch (error) {
       if (error instanceof ProposalGenerationUnavailableError) {
@@ -420,6 +434,7 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
       return context.json({
         ...result,
         proposal_id: remember(result.proposal, servicesRelevantToRequest(proposalRequest)),
+        safe_test: safeTestAvailability(result.proposal.runtime?.executor),
       });
     } catch (error) {
       if (error instanceof ProposalGenerationUnavailableError) {

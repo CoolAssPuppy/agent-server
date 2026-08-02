@@ -494,6 +494,27 @@ describe('API routes', () => {
       expect(triggerSafeTest).toHaveBeenCalledWith('test-agent');
       expect(triggerRun).not.toHaveBeenCalled();
     });
+
+    it('explains when the selected executor cannot enforce a safe test', async () => {
+      const unavailable = Object.assign(
+        new Error('Safe test is unavailable for Codex because command isolation has not been proven.'),
+        { code: 'safe_test_unavailable' as const },
+      );
+      const app = createApi({
+        getAgents: async () => [makeAgent({ executor: 'codex' })],
+        store,
+        triggerRun,
+        triggerSafeTest: vi.fn().mockRejectedValue(unavailable),
+      });
+
+      const response = await authenticatedRequest(app, '/agents/test-agent/safe-test', { method: 'POST' });
+
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual({
+        code: 'safe_test_unavailable',
+        error: 'Safe test is unavailable for Codex because command isolation has not been proven.',
+      });
+    });
   });
 
   describe('GET /runs', () => {

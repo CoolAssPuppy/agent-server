@@ -74,6 +74,41 @@ produce `ready`. Credential presence proves setup only. It does not prove that
 a provider is healthy. Safe test is omitted until effect-class enforcement has
 been verified for the selected executor.
 
+Safe-test availability is owned by Agent Server. A proposal review adds this
+top-level field beside `proposal_id`:
+
+```json
+{ "safe_test": { "available": true } }
+```
+
+An unsupported executor returns a reason instead:
+
+```json
+{
+  "safe_test": {
+    "available": false,
+    "reason": "Safe test is unavailable for Codex because command isolation has not been proven."
+  }
+}
+```
+
+After save, an available result also includes `mode: "safe_test"` and the
+machine-local `run_endpoint`. Clients do not infer support from the executor
+name. `POST /agents/:id/safe-test` fails closed with HTTP 409 and code
+`safe_test_unavailable` if the executor cannot enforce the policy.
+
+Claude Code and Kimi Code currently enforce reviewed local reads, block file
+changes and commands, deny web and connection tools, disable MCP servers, and
+suppress schedules, watchers, interactions, notifications, conversations, and
+downstream triggers. Codex remains unavailable because its command isolation
+has not been proven. Every reviewed file grant is downgraded to read-only in the
+ephemeral run configuration. The saved definition is never changed.
+
+A completed safe test replaces model opinion with local evidence. Its summary
+names recorded local reads, states that external actions were not performed, and
+states which effect classes were blocked. It never claims that an assistant is
+ready.
+
 The endpoint never returns instructions, credentials, environment values,
 commands, raw tool names, or run logs. Its frozen local example is
 `fixtures/assistant-home-local.json`.

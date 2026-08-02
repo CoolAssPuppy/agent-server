@@ -505,6 +505,21 @@ final class ConsumerProductFlowTests: XCTestCase {
 
         flow.updateSafeTest(.completed)
         XCTAssertEqual(flow.phase, .complete)
+        XCTAssertEqual(
+            flow.completionSummary,
+            "Your assistant is saved. The protected test completed."
+        )
+    }
+
+    func testSavingWithoutAProtectedTestDoesNotClaimTheAssistantIsReady() {
+        var flow = AgentCreationFlow(request: "Send a weekly summary")
+        flow.receiveProposal(.fixture())
+        flow.beginSave(runSafeTest: false)
+
+        flow.didSave(SavedAgentPresentation(agentId: "weekly-summary", safeTestRunId: nil))
+
+        XCTAssertEqual(flow.phase, .complete)
+        XCTAssertEqual(flow.completionSummary, "Your assistant is saved.")
     }
 
     func testFailedSafeTestKeepsTheSavedAgentAndOffersDebuggerRouting() {
@@ -533,6 +548,10 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(flow.phase, .complete)
         XCTAssertEqual(flow.safeTestState, .stopped)
         XCTAssertNil(flow.failedSafeTestRunId)
+        XCTAssertEqual(
+            flow.completionSummary,
+            "Your assistant is saved. The protected test was stopped."
+        )
     }
 
     func testMissingSafeTestRunIdentifierCannotLeaveCreationStuck() {

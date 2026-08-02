@@ -121,6 +121,7 @@ final class GuidanceServerPayloadTests: XCTestCase {
         XCTAssertEqual(review.presentation.contactAccess.first?.account, "iCloud")
         XCTAssertEqual(review.presentation.contactAccess.first?.details, ["Names", "Birthdays"])
         XCTAssertTrue(review.presentation.permissions.contains("Use the internet"))
+        XCTAssertEqual(review.presentation.protectedTestAvailability, .available)
     }
 
     func testFallbackQuestionsMapToNativeControls() throws {
@@ -266,6 +267,21 @@ final class GuidanceServerPayloadTests: XCTestCase {
         XCTAssertTrue(response.saved)
         XCTAssertEqual(response.agent.id, "daily-manuscript-review")
         XCTAssertEqual(response.agent.name, "Daily manuscript review")
+        XCTAssertTrue(response.safeTest.available)
+        XCTAssertEqual(response.safeTest.mode, "safe_test")
+        XCTAssertEqual(response.safeTest.runEndpoint, "/agents/daily-manuscript-review/safe-test")
+    }
+
+    func testSaveResponsePreservesWhyAProtectedTestIsUnavailable() throws {
+        let data = Data(#"{"saved":true,"agent":{"id":"daily-manuscript-review","name":"Daily manuscript review"},"safe_test":{"available":false,"reason":"Safe test is unavailable for Codex because command isolation has not been proven."}}"#.utf8)
+
+        let response = try JSONDecoder().decode(GuidanceSaveResponse.self, from: data)
+
+        XCTAssertFalse(response.safeTest.available)
+        XCTAssertEqual(
+            response.safeTest.reason,
+            "Safe test is unavailable for Codex because command isolation has not been proven."
+        )
     }
 
     func testValidatedPatchUsesServerPreviewAndConfirmationWithoutChangingPayload() throws {
@@ -292,7 +308,7 @@ final class GuidanceServerPayloadTests: XCTestCase {
     """
 
     private static let proposalJSON = """
-    {"status":"proposal","usedFallback":false,"proposal_id":"proposal-1","proposal":{
+    {"status":"proposal","usedFallback":false,"proposal_id":"proposal-1","safe_test":{"available":true},"proposal":{
       "schema_version":1,"name":"Friday summary","description":"A weekly summary","instructions":"Summarize activity.","explanation":"Reviews GitHub and sends a summary.",
       "trigger":{"type":"schedule","schedule":"0 17 * * 5","human_description":"Every Friday at 5:00 p.m."},"timezone":"Europe/Lisbon",
       "capabilities":[],"connections":[{"id":"slack","name":"Slack","required":true,"status":"needs_setup","reason":"Sends the summary"}],

@@ -133,6 +133,9 @@ Review purpose, reading order, typography, spacing, contrast, action dominance, 
 - Command claims are atomic and idempotent.
 - Local policy can reject any Panel request with a human reason.
 - Safe test blocks or simulates every classified external effect for each supported executor.
+- Safe-test conformance composes the ephemeral policy with the Claude Code and Kimi Code executor boundaries, including file writes, commands, web tools, MCP tools, native services, notifications, and downstream triggers.
+- Codex safe-test requests fail closed until command isolation has executable proof.
+- Proposal review and save receipts expose server-owned availability, and safe-test summaries cannot claim readiness.
 - Unsupported safe-test configurations state that a protected test is unavailable.
 
 ## Required commands

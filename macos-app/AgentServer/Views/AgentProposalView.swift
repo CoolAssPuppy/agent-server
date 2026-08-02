@@ -53,6 +53,12 @@ struct AgentProposalView: View {
                     .foregroundStyle(theme.tokens.mutedForeground)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            if case .unavailable(let reason) = proposal.protectedTestAvailability {
+                Label(reason, systemImage: "shield.slash")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 

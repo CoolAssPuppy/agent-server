@@ -6,6 +6,7 @@ import type {
   AssistantHomeFacts,
   AssistantPathFact,
 } from './assistant-home.js';
+import { safeTestSupport } from '../creation/safe-test-support.js';
 
 export type PathInspection = Omit<AssistantPathFact, 'path'>;
 
@@ -125,8 +126,6 @@ export function collectAssistantHomeFacts(input: AssistantFactsInput): Assistant
     ...(input.agent.output ? {
       destination: { configured: true, verified: 'unknown' as const },
     } : {}),
-    // The supported executors have not yet passed the complete effect-class
-    // enforcement matrix required to advertise this action as safe.
-    canEnforceSafeTest: false,
+    canEnforceSafeTest: safeTestSupport(input.agent).available,
   };
 }

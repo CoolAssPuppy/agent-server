@@ -38,6 +38,15 @@ Assistant home review:
 - Visual inspection of the compiled light-theme scenario confirmed a clear reading order, one primary action, readable access rules, and calm card density at 1280 by 932 points.
 - Verification passed with 1,510 server tests and 4 expected skips, 521 Swift behavior tests, 12 EventKit tests, strict TypeScript checking, ESLint, server compilation, and an unsigned Debug macOS build.
 
+Protected test review:
+
+- Added one server-owned executor support policy used by proposal review, save receipts, Assistant home, and the protected-test endpoint. Clients do not infer safety from an engine name.
+- Claude Code and Kimi Code now have composed executor tests proving reviewed local reads remain read-only while file changes, commands, web tools, MCP tools, native services, notifications, conversations, and downstream triggers cannot perform effects.
+- Codex protected tests fail closed with a human reason because command isolation is not yet proven. The macOS creation flow hides the protected-test action when Server reports it unavailable.
+- Every reviewed file grant becomes read-only in the ephemeral test configuration. The saved assistant definition is unchanged.
+- Completed protected tests report recorded reads and blocked effects. They no longer repeat model readiness claims, and saving without a protected test no longer says the assistant is ready.
+- Verification passed with 1,519 server tests and 4 expected skips. Focused macOS contract, creation-flow, Connections, Settings, and navigation checks passed with 136 tests.
+
 Baseline review:
 
 - Runtime discovery now rejects stale Codex wrappers that cannot start and finds valid user-local installs, including NVM and Volta paths.

@@ -847,7 +847,12 @@ export function createApi(deps: ApiDependencies): Hono {
     try {
       const runId = await deps.triggerSafeTest(agentId);
       return c.json({ runId, agentId, mode: 'safe_test' }, 202);
-    } catch {
+    } catch (error) {
+      if (error instanceof Error
+        && 'code' in error
+        && error.code === 'safe_test_unavailable') {
+        return c.json({ error: error.message, code: 'safe_test_unavailable' }, 409);
+      }
       return c.json({ error: 'Failed to trigger safe test' }, 500);
     }
   });

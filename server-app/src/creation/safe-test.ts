@@ -1,5 +1,6 @@
 import type { AgentConfig } from '../agents/config.js';
 import { isToolPermitted, NETWORK_TOOLS } from '../execution/permission-policy.js';
+import { SafeTestUnavailableError, safeTestSupport } from './safe-test-support.js';
 
 const READ_TOOLS = ['Read', 'Glob', 'Grep'] as const;
 const BLOCKED_TOOLS = [
@@ -17,7 +18,11 @@ External actions are intentionally unavailable. Do not send messages, use connec
 
 /** Derive an in-memory run-only configuration. The saved definition is untouched. */
 export function prepareSafeTestAgent(agent: AgentConfig): AgentConfig {
-  const readTools = READ_TOOLS.filter((tool) => isToolPermitted(agent, tool));
+  const fileAccess = (agent.file_access ?? [])
+    .map((grant) => ({ ...grant, access: 'read_only' as const }));
+  const readTools = fileAccess.length > 0
+    ? READ_TOOLS.filter((tool) => isToolPermitted(agent, tool))
+    : [];
   return {
     ...agent,
     prompt: `${agent.prompt}\n\n${SAFE_TEST_INSTRUCTIONS}`,
@@ -29,10 +34,13 @@ export function prepareSafeTestAgent(agent: AgentConfig): AgentConfig {
     notification: undefined,
     conversation: undefined,
     tools: readTools,
-    disallowed_tools: [...new Set([...agent.disallowed_tools, ...BLOCKED_TOOLS])],
+    disallowed_tools: [...new Set([...(agent.disallowed_tools ?? []), ...BLOCKED_TOOLS])],
     permissions: { allow: readTools, deny: [...BLOCKED_TOOLS] },
     mcp_servers: {},
     connection_bindings: undefined,
+    calendar_access: undefined,
+    native_services: undefined,
+    file_access: fileAccess,
     codex_sandbox: 'read-only',
     permission_mode: 'dontAsk',
     max_turns: Math.min(agent.max_turns, 5),
@@ -47,6 +55,8 @@ export function createSafeTestTrigger(dependencies: {
   return async (agentId) => {
     const agent = await dependencies.getAgent(agentId);
     if (!agent) throw new Error(`Agent not found: ${agentId}`);
+    const support = safeTestSupport(agent);
+    if (!support.available) throw new SafeTestUnavailableError(support);
     return dependencies.triggerAgent(prepareSafeTestAgent(agent));
   };
 }

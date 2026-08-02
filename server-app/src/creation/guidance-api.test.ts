@@ -212,6 +212,42 @@ describe('consumer guidance API', () => {
     expect(body.status).toBe('proposal');
     expect(body.proposal_id).toEqual(expect.any(String));
     expect(body.proposal.permissions.can_modify_files).toBe(false);
+    expect(body.safe_test).toEqual({
+      available: false,
+      reason: 'Safe test is unavailable for Codex because command isolation has not been proven.',
+    });
+  });
+
+  it('offers a safe test before save only when the reviewed runtime can enforce it', async () => {
+    const proposal = completeProposal();
+    proposal.runtime = { executor: 'claude-code', model: null, reason: 'Use Claude Code.' };
+    const { app } = createFixture({ model: { generate: vi.fn(async () => proposal) } });
+
+    const response = await request(app, '/guidance/agent-proposals', {
+      method: 'POST',
+      body: JSON.stringify({
+        request: 'Every Friday, summarize GitHub activity in Slack.',
+        timezone: 'Europe/Lisbon',
+        connected_services: ['github'],
+        answers: [
+          { question_id: 'connection-slack', value: 'slack' },
+          { question_id: 'runtime', value: 'claude-code' },
+        ],
+      }),
+    });
+
+    const body = await response.json();
+    expect(body.safe_test).toEqual({ available: true });
+
+    const saved = await request(app, `/guidance/agent-proposals/${body.proposal_id}/save`, {
+      method: 'POST',
+      body: JSON.stringify({ confirmed: true }),
+    });
+    expect((await saved.json()).safe_test).toEqual({
+      available: true,
+      mode: 'safe_test',
+      run_endpoint: '/agents/friday-github-summary/safe-test',
+    });
   });
 
   it('uses current server-owned service metadata and ignores stale unselected client identities', async () => {
@@ -541,9 +577,8 @@ describe('consumer guidance API', () => {
     }));
     expect(body.preflight).toMatchObject({ decision: 'allow', risk: { level: 'needs_review' } });
     expect(body.safe_test).toEqual({
-      available: true,
-      mode: 'safe_test',
-      run_endpoint: '/agents/friday-github-summary/safe-test',
+      available: false,
+      reason: 'Safe test is unavailable for Codex because command isolation has not been proven.',
     });
   });
 
@@ -575,7 +610,10 @@ describe('consumer guidance API', () => {
     expect(retryBody).toMatchObject({
       saved: true,
       agent: { id: 'friday-github-summary', name: 'Friday GitHub summary' },
-      safe_test: { run_endpoint: '/agents/friday-github-summary/safe-test' },
+      safe_test: {
+        available: false,
+        reason: 'Safe test is unavailable for Codex because command isolation has not been proven.',
+      },
     });
     expect(retryBody.agent).toEqual({ id: 'friday-github-summary', name: 'Friday GitHub summary' });
     expect(writer.createReviewed).toHaveBeenCalledTimes(1);

@@ -26,6 +26,7 @@ type ExecuteAgentExtra = {
   abortController?: AbortController;
   decisionContext?: DecisionContext;
   runId?: string;
+  disableMcpServers?: boolean;
   /**
    * Path to the user's installed Claude executable. The app passes this key
    * even when discovery fails so the executor can return setup guidance.
@@ -54,7 +55,7 @@ export async function executeAgent(
     deny: agent.disallowed_tools ?? [],
   } : undefined);
   const abortController = extra?.abortController ?? new AbortController();
-  const configuredMcpServers = buildMcpServers(agent) ?? {};
+  const configuredMcpServers = extra?.disableMcpServers ? {} : buildMcpServers(agent) ?? {};
 
   const options: Options = {
     maxTurns: agent.max_turns,

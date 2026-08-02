@@ -19,9 +19,7 @@ extension GuidedAgentCreationView {
     }
 
     var completionMessage: String {
-        model.flow.safeTestState == .stopped
-            ? "Your agent is saved. The safe test was stopped."
-            : "Your agent is ready."
+        model.flow.completionSummary
     }
 
     var footer: some View {
@@ -106,12 +104,20 @@ extension GuidedAgentCreationView {
                 .disabled(setUpConnections == nil)
                 .accessibilityIdentifier(ConsumerFlowAccessibility.creationConnectionSetup)
         } else {
-            Button("Save agent") { requestSave(runSafeTest: false) }
-                .accessibilityIdentifier(ConsumerFlowAccessibility.creationSave)
-            Button("Save and run a safe test") { requestSave(runSafeTest: true) }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .accessibilityIdentifier(ConsumerFlowAccessibility.creationSaveAndTest)
+            switch model.flow.proposal?.protectedTestAvailability {
+            case .available:
+                Button("Save assistant") { requestSave(runSafeTest: false) }
+                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationSave)
+                Button("Save and run a protected test") { requestSave(runSafeTest: true) }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationSaveAndTest)
+            case .unavailable, .none:
+                Button("Save assistant") { requestSave(runSafeTest: false) }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .accessibilityIdentifier(ConsumerFlowAccessibility.creationSave)
+            }
         }
     }
 }

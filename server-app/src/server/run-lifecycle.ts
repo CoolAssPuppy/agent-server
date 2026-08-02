@@ -19,6 +19,7 @@ import type { ProgressBroadcaster } from './websocket.js';
 import { createRunProgressReporter } from './run-progress-reporter.js';
 import { createNoopAnalytics, type Analytics } from '../analytics/analytics.js';
 import { ANALYTICS_EVENTS } from '../analytics/events.js';
+import { safeTestResultSummary } from '../creation/safe-test-support.js';
 
 export {
   extractMcpNeedsAuthServers,
@@ -290,7 +291,9 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
     if (result.interaction && originalAgent.interaction) {
       await dependencies.onInteraction(runId, originalAgent, result.interaction);
     }
-    return result;
+    return (options.mode ?? 'normal') === 'safe_test'
+      ? { ...result, summary: safeTestResultSummary(result) }
+      : result;
   }
 
   async function recordCompletion(

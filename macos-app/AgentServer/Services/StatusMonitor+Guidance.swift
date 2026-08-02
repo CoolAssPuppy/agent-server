@@ -61,7 +61,22 @@ extension StatusMonitor {
             guard runSafeTest else {
                 return .success(SavedAgentPresentation(agentId: response.agent.id, safeTestRunId: nil))
             }
-            return await runSafeTestForSavedAgent(response.agent.id)
+            let expectedEndpoint = GuidanceServerRoute.safeTest(response.agent.id).path
+            if response.safeTest.available,
+               response.safeTest.mode == "safe_test",
+               response.safeTest.runEndpoint == expectedEndpoint {
+                return await runSafeTestForSavedAgent(response.agent.id)
+            }
+            let reason = response.safeTest.reason
+                ?? "Agent Server did not confirm that a protected test can run for this AI engine."
+            return .failure(ConsumerFlowFailure(
+                title: "Assistant saved, but a protected test is unavailable",
+                message: reason,
+                recovery: "Review the assistant before running it for real.",
+                technicalDetails: reason,
+                didSave: true,
+                canRetry: false
+            ))
         } catch let error as GuidanceSaveConfirmationError {
             return .failure(ConsumerFlowFailure(
                 title: "Could not confirm the save",
