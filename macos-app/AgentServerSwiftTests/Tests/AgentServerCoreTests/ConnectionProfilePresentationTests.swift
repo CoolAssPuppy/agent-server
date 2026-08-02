@@ -25,7 +25,7 @@ final class ConnectionProfilePresentationTests: XCTestCase {
         XCTAssertEqual(row.statusTitle, "Needs credentials")
         XCTAssertEqual(
             row.statusExplanation,
-            "Add the missing credential before an assistant can use this connection."
+            "Add the missing credential before an agent can use this connection."
         )
     }
 
@@ -58,7 +58,7 @@ final class ConnectionProfilePresentationTests: XCTestCase {
         XCTAssertEqual(ready.statusTitle, "Ready")
         XCTAssertEqual(
             ready.statusExplanation,
-            "Assistants can use this connection when you grant them access."
+            "Agents can use this connection when you grant them access."
         )
     }
 

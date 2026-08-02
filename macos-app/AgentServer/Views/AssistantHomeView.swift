@@ -133,7 +133,7 @@ struct AssistantHomeView: View {
     private var connections: some View {
         AssistantHomeListSection(
             title: "Connections",
-            emptyText: "This assistant does not use a connection.",
+            emptyText: "This agent does not use a connection.",
             isEmpty: presentation.contract.connections.isEmpty
         ) {
             ForEach(presentation.contract.connections, id: \.id) { connection in
@@ -145,7 +145,7 @@ struct AssistantHomeView: View {
     private var recentOutcomes: some View {
         AssistantHomeListSection(
             title: "Recent outcomes",
-            emptyText: "This assistant has not run yet.",
+            emptyText: "This agent has not run yet.",
             isEmpty: presentation.recentOutcomes.isEmpty
         ) {
             ForEach(presentation.recentOutcomes, id: \.runId) { outcome in

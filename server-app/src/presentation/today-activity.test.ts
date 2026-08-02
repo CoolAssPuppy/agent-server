@@ -272,7 +272,7 @@ describe('consumer Today presentation', () => {
         },
         primaryAction: {
           kind: 'view_assistant',
-          label: 'Review assistant',
+          label: 'Review agent',
           targetReference: 'assistant:setup-agent',
         },
         sourceReferences: ['assistant.readiness', 'check.connection'],

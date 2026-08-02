@@ -70,9 +70,9 @@ extension StatusMonitor {
             let reason = response.safeTest.reason
                 ?? "Agent Server did not confirm that a protected test can run for this AI engine."
             return .failure(ConsumerFlowFailure(
-                title: "Assistant saved, but a protected test is unavailable",
+                title: "Agent saved, but a protected test is unavailable",
                 message: reason,
-                recovery: "Review the assistant before running it for real.",
+                recovery: "Review the agent before running it for real.",
                 technicalDetails: reason,
                 didSave: true,
                 canRetry: false

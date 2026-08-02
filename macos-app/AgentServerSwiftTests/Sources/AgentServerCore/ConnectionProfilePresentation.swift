@@ -24,8 +24,8 @@ public enum ConnectionScreenSection: String, CaseIterable, Equatable, Sendable {
         switch self {
         case .saved: "Accounts and tools you have set up for Agent Server."
         case .engines: "Coding agents available on this Mac."
-        case .claude: "Apps connected in Claude are available to your assistants through your existing sign-in."
-        case .messaging: "Chat with your assistants and receive their replies."
+        case .claude: "Apps connected in Claude are available to your agents through your existing sign-in."
+        case .messaging: "Chat with your agents and receive their replies."
         case .templates: "Quick setup for common services."
         }
     }
@@ -141,9 +141,9 @@ public struct ConnectionProfilePresentation: Equatable, Identifiable, Sendable {
     public var statusExplanation: String {
         switch status {
         case .ready:
-            "Assistants can use this connection when you grant them access."
+            "Agents can use this connection when you grant them access."
         case .needsCredentials:
-            "Add the missing credential before an assistant can use this connection."
+            "Add the missing credential before an agent can use this connection."
         }
     }
 

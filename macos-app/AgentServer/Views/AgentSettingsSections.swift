@@ -37,7 +37,7 @@ struct AgentSettingsForm: View {
             }
             AgentSettingsRowDivider().padding(.vertical, 10)
             agentField("Description") {
-                TextField("What does this assistant do?", text: $draft.descriptionText, axis: .vertical)
+                TextField("What does this agent do?", text: $draft.descriptionText, axis: .vertical)
                     .lineLimit(3...6)
                     .accessibilityLabel("Description")
                     .accessibilityIdentifier("agent-settings-description")
@@ -90,7 +90,7 @@ struct AgentSettingsForm: View {
 
     private var capabilitiesCard: some View {
         let capabilities = agent?.capabilities ?? []
-        return AgentSettingsCard(title: "What this assistant can do") {
+        return AgentSettingsCard(title: "What this agent can do") {
             if capabilities.isEmpty {
                 Text("Capabilities are unavailable. Update and restart Agent Server.")
                     .font(.system(size: 11))

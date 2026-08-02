@@ -29,7 +29,7 @@ struct SettingsGeneralSection: View {
                 }
             SettingsRowDivider()
             SettingsToggleRow(
-                label: "Resume scheduled assistants after wake",
+                label: "Resume scheduled agents after wake",
                 description: "Run work missed while this Mac was asleep.",
                 isOn: $resumeAfterWake
             )
@@ -84,7 +84,7 @@ struct SettingsDeviceSection: View {
                     )
                 }
                 SettingsRowDivider()
-                SettingsValueRow(label: "Assistants") {
+                SettingsValueRow(label: "Agents") {
                     Text(presentation.assistantCountText)
                         .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
                         .foregroundStyle(theme.tokens.mutedForeground)
@@ -181,7 +181,7 @@ struct SettingsSecuritySection: View {
     var body: some View {
         SettingsGroup(title: SettingsSection.security.title) {
             SettingsFullWidthActionButton(
-                title: "Review assistant access and safety…",
+                title: "Review agent access and safety…",
                 action: onOpen
             )
             .accessibilityIdentifier("settings.openSecurity")
@@ -223,7 +223,7 @@ struct SettingsStorageSection: View {
     var body: some View {
         SettingsGroup(title: SettingsSection.storage.title) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Your assistants and private connection settings live here.")
+                Text("Your agents and private connection settings live here.")
                     .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
                     .foregroundStyle(theme.tokens.mutedForeground)
                 Text(workspace.homeDirectory.path)
@@ -257,7 +257,7 @@ struct SettingsNotificationsSection: View {
             if preferences.enabled {
                 SettingsRowDivider()
                 SettingsToggleRow(
-                    label: "Notify for assistant output",
+                    label: "Notify for agent output",
                     isOn: $preferences.includeAgentOutput
                 )
             }

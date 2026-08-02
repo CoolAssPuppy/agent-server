@@ -58,16 +58,16 @@ struct GuidedAgentCreationView: View {
         .background(theme.tokens.background)
         .shadow(color: Color.black.opacity(0.18), radius: 14, x: 5, y: 0)
         .confirmationDialog(
-            "Save a high-risk assistant?",
+            "Save a high-risk agent?",
             isPresented: Binding(
                 get: { model.pendingHighRiskSave != nil },
                 set: { if !$0 { model.cancelHighRiskSave() } }
             )
         ) {
-            Button("Save reviewed assistant", action: confirmHighRiskSave)
+            Button("Save reviewed agent", action: confirmHighRiskSave)
             Button("Cancel", role: .cancel) { model.cancelHighRiskSave() }
         } message: {
-            Text(model.flow.proposal?.riskReason ?? "Review this assistant's access before saving.")
+            Text(model.flow.proposal?.riskReason ?? "Review this agent's access before saving.")
         }
         .onDisappear(perform: cancelAsyncWork)
     }
@@ -79,14 +79,14 @@ struct GuidedAgentCreationView: View {
         case .questions: questionStep
         case .preparingProposal:
             ConsumerProgressView(
-                title: "Preparing your assistant",
+                title: "Preparing your agent",
                 message: "Checking what it needs and choosing safe defaults."
             )
         case .proposal:
             if let proposal = model.flow.proposal { proposalStep(proposal) }
         case .saving:
             ConsumerProgressView(
-                title: "Saving your assistant",
+                title: "Saving your agent",
                 message: "Your reviewed settings are being saved locally."
             )
         case .testing:
@@ -109,7 +109,7 @@ struct GuidedAgentCreationView: View {
                 .background(theme.tokens.card)
                 .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
                 .overlay { RoundedRectangle(cornerRadius: NRadius.md).strokeBorder(theme.tokens.border) }
-                .accessibilityLabel("Describe what this assistant should do")
+                .accessibilityLabel("Describe what this agent should do")
                 .accessibilityIdentifier(ConsumerFlowAccessibility.creationRequest)
             Text(copy.example)
                 .font(NTypography.caption)

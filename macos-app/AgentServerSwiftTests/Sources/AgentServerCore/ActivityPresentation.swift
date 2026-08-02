@@ -79,7 +79,7 @@ enum ActivityFilter: String, CaseIterable, Identifiable, Sendable {
 struct ActivityToolbarPresentation: Equatable, Sendable {
     let isSearchExpanded: Bool
 
-    let subtitle = "History of work performed by assistants on this Mac."
+    let subtitle = "History of work performed by agents on this Mac."
 
     var filterLabels: [String] {
         ActivityFilter.allCases.map { filter in
@@ -108,9 +108,9 @@ struct ActivityPresentation: Equatable, Sendable {
             return "No activity matches your search."
         }
         return switch filter {
-        case .all: "Assistant activity will appear here."
+        case .all: "Agent activity will appear here."
         case .needsYou: "Nothing needs you right now."
-        case .working: "No assistants are working right now."
+        case .working: "No agents are working right now."
         case .finished: "No finished work matches this filter."
         case .problems: "No problems match this filter."
         }

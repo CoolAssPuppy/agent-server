@@ -129,7 +129,7 @@ struct SavedConnectionDetailView: View {
             Button("Remove connection", role: .destructive) { performRemoval() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Assistants will no longer be able to select this connection. Credentials in your environment file will not be deleted.")
+            Text("Agents will no longer be able to select this connection. Credentials in your environment file will not be deleted.")
         }
     }
 

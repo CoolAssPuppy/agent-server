@@ -127,7 +127,7 @@ public struct CreationQuestion: Identifiable, Equatable, Sendable {
 
     public var serviceContextExplanation: String? {
         guard case .service(let name, _) = kind, let name else { return nil }
-        return "Choose the \(name) account this assistant should use."
+        return "Choose the \(name) account this agent should use."
     }
 
     public var isUnavailable: Bool {
@@ -251,11 +251,11 @@ public struct AgentCreationFlow: Equatable, Sendable {
     public var completionSummary: String {
         switch safeTestState {
         case .completed:
-            "Your assistant is saved. The safe test completed."
+            "Your agent is saved. The safe test completed."
         case .stopped:
-            "Your assistant is saved. The safe test was stopped."
+            "Your agent is saved. The safe test was stopped."
         case .running, .failed, .none:
-            "Your assistant is saved."
+            "Your agent is saved."
         }
     }
 
@@ -430,7 +430,7 @@ public struct AgentCreationFlow: Equatable, Sendable {
             safeTestState = state
             fail(.init(
                 title: "The safe test found a problem",
-                message: "Your assistant was saved, but its first test did not finish successfully.",
+                message: "Your agent was saved, but its first test did not finish successfully.",
                 recovery: "Open the debugger to see what happened and review a safe fix.",
                 technicalDetails: details,
                 didSave: true,

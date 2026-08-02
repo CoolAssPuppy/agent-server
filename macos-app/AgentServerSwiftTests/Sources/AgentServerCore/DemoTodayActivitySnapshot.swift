@@ -151,7 +151,7 @@ enum DemoTodayActivitySnapshot {
             scheduledAt: referenceDate.addingTimeInterval(2 * 3_600),
             action: PresentationAction(
                 kind: .viewAssistant,
-                label: "View assistant",
+                label: "View agent",
                 targetReference: "assistant:demo-github-summary"
             )
         )

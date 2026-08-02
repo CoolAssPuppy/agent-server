@@ -6,7 +6,7 @@ enum DemoAssistantHome {
             AssistantHomeContract.self,
             from: Data(readyJSON.utf8)
         ) else {
-            preconditionFailure("The deterministic Assistant home fixture must decode.")
+            preconditionFailure("The deterministic Agent home fixture must decode.")
         }
         return contract
     }

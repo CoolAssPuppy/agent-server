@@ -91,7 +91,7 @@ describe('consumer run review', () => {
     expect(alreadyDone).toMatchObject({
       outcome: 'skipped',
       summary: {
-        text: 'This assistant had already finished today. Nothing changed.',
+        text: 'This agent had already finished today. Nothing changed.',
         evidenceReferences: ['run.code'],
       },
     });
@@ -218,7 +218,7 @@ describe('consumer run review', () => {
           evidenceReferences: ['interaction.request.message'],
         },
         reason: {
-          text: 'The assistant needs your response before it can continue.',
+          text: 'The agent needs your response before it can continue.',
           evidenceReferences: ['interaction.status', 'interaction.runId'],
         },
         userAction: {

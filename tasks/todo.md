@@ -23,9 +23,16 @@ Review:
 
 ## Agent terminology
 
-- [ ] Replace consumer-facing Assistant and Assistants copy with Agent and Agents.
-- [ ] Preserve stable API, schema, YAML, persistence, type, and accessibility identifiers.
-- [ ] Update behavior tests and verify the complete macOS app.
+- [x] Replace consumer-facing Assistant and Assistants copy with Agent and Agents.
+- [x] Preserve stable API, schema, YAML, persistence, type, and accessibility identifiers.
+- [x] Update behavior tests and verify the complete macOS app.
+
+Review:
+
+- macOS navigation, creation, Agent home, Activity, Connections, Settings, diagnostics, security, and interaction copy now use Agent and Agents.
+- Server-owned consumer presentation for Today, Agent home readiness, and run review uses the same language.
+- Stable `assistant_id`, `assistant:*`, `/presentation/assistants`, Swift type names, and accessibility identifiers remain unchanged for compatibility.
+- Verification passed: 538 Swift tests, 1,548 server tests with 4 expected skips, ESLint, TypeScript checks, server build, and unsigned app build.
 
 ## Settings Advanced Bento layout
 

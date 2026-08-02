@@ -36,7 +36,7 @@ extension GuidedAgentCreationView {
             Text("No files or folders selected")
                 .font(NTypography.bodyMedium)
                 .foregroundStyle(theme.tokens.foreground)
-            Text("Nothing on this Mac is available to the assistant until you choose it here.")
+            Text("Nothing on this Mac is available to the agent until you choose it here.")
                 .font(NTypography.caption)
                 .foregroundStyle(theme.tokens.mutedForeground)
                 .multilineTextAlignment(.center)
@@ -108,8 +108,8 @@ extension GuidedAgentCreationView {
         panel.canCreateDirectories = false
         panel.prompt = "Choose"
         panel.message = mode == .folder
-            ? "Choose the folder this assistant should use."
-            : "Choose the files or folders this assistant may use."
+            ? "Choose the folder this agent should use."
+            : "Choose the files or folders this agent may use."
         panel.begin { response in
             guard response == .OK else { return }
             chooseResources(panel.urls, mode: mode)

@@ -248,7 +248,7 @@ struct AgentDetailDrawer: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ContentUnavailableView(
-                    "Could not load this assistant",
+                    "Could not load this agent",
                     systemImage: "exclamationmark.circle",
                     description: Text(homeError ?? "Try again.")
                 )

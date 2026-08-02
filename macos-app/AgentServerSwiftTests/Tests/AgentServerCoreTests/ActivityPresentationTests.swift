@@ -8,7 +8,7 @@ final class ActivityPresentationTests: XCTestCase {
         let collapsed = ActivityToolbarPresentation(isSearchExpanded: false)
         let expanded = ActivityToolbarPresentation(isSearchExpanded: true)
 
-        XCTAssertEqual(collapsed.subtitle, "History of work performed by assistants on this Mac.")
+        XCTAssertEqual(collapsed.subtitle, "History of work performed by agents on this Mac.")
         XCTAssertEqual(
             collapsed.filterLabels,
             ["All", "Needs you", "Working", "Finished", "Problems"]
@@ -80,7 +80,7 @@ final class ActivityPresentationTests: XCTestCase {
     func testEmptyStateNamesTheActiveFilter() {
         XCTAssertEqual(
             ActivityPresentation(items: [], filter: .all).emptyStateExplanation,
-            "Assistant activity will appear here."
+            "Agent activity will appear here."
         )
         XCTAssertEqual(
             ActivityPresentation(items: [], filter: .problems).emptyStateExplanation,

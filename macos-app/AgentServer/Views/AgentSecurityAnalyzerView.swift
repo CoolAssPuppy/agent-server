@@ -82,7 +82,7 @@ struct AgentSecurityAnalyzerView: View {
         if isLoading {
             VStack(alignment: .leading, spacing: NSpacing.sm) {
                 ProgressView()
-                Text("Checking this assistant")
+                Text("Checking this agent")
                     .font(.system(size: 13, weight: .medium))
                 Text("Reviewing access, connections, schedule, and instructions.")
                     .font(NTypography.caption)

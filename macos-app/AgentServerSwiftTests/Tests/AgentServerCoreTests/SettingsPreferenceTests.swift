@@ -97,7 +97,7 @@ final class SettingsPreferenceTests: XCTestCase {
 
         XCTAssertEqual(summary.name, "This Mac")
         XCTAssertEqual(summary.status, "Online")
-        XCTAssertEqual(summary.assistantCountText, "4 assistants")
+        XCTAssertEqual(summary.assistantCountText, "4 agents")
         XCTAssertEqual(summary.machineID, "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99")
         XCTAssertEqual(summary.protocolText, "Protocol 2")
         XCTAssertEqual(summary.serverVersionText, "Agent Server 3.3.4")
@@ -114,7 +114,7 @@ final class SettingsPreferenceTests: XCTestCase {
         )
 
         XCTAssertEqual(summary.status, "Local server unavailable")
-        XCTAssertEqual(summary.assistantCountText, "1 assistant")
+        XCTAssertEqual(summary.assistantCountText, "1 agent")
         XCTAssertEqual(summary.lastHeardText, "Not checked yet")
     }
 

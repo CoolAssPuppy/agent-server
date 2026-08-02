@@ -295,7 +295,7 @@ struct ConnectServiceSheet: View {
                 Text(entry.envReady ? "Modify \(entry.label)" : "Connect \(entry.label)")
                     .font(NTypography.headlineMedium)
                     .foregroundStyle(theme.tokens.foreground)
-                Text("Stored privately in your Agent Server folder, never inside an assistant file.")
+                Text("Stored privately in your Agent Server folder, never inside an agent file.")
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
             }

@@ -83,7 +83,7 @@ public struct AgentDetailHeaderRunPresentation: Equatable, Sendable {
             symbol = "play.fill"
             tone = .standard
             isDisabled = !isAgentEnabled
-            help = isAgentEnabled ? "Run assistant now" : "Enable this assistant before running it"
+            help = isAgentEnabled ? "Run agent now" : "Enable this agent before running it"
         }
     }
 }

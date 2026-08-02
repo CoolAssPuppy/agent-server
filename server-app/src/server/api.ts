@@ -432,11 +432,11 @@ export function createApi(deps: ApiDependencies): Hono {
       return c.json({ error: 'Machine identity unavailable' }, 503);
     }
     if (!deps.assistantHomeFacts) {
-      return c.json({ error: 'Assistant readiness is unavailable' }, 503);
+      return c.json({ error: 'Agent readiness is unavailable' }, 503);
     }
     const agents = await deps.getAgents();
     const agent = agents.find((candidate) => candidate.id === c.req.param('id'));
-    if (!agent) return c.json({ error: 'Assistant not found' }, 404);
+    if (!agent) return c.json({ error: 'Agent not found' }, 404);
     const now = deps.presentationClock?.() ?? new Date();
     const facts = await deps.assistantHomeFacts(agent, agents);
     return c.json({

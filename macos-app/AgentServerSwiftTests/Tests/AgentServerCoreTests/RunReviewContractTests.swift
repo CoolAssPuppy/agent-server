@@ -44,7 +44,7 @@ final class RunReviewContractTests: XCTestCase {
             "evidenceReferences": ["interaction.status", "interaction.request"]
           },
           "summary": {
-            "text": "The assistant needs your response before it can continue.",
+            "text": "The agent needs your response before it can continue.",
             "evidenceReferences": ["interaction.status", "interaction.runId"]
           },
           "accomplishments": [],
@@ -60,7 +60,7 @@ final class RunReviewContractTests: XCTestCase {
               "evidenceReferences": ["interaction.request.message"]
             },
             "reason": {
-              "text": "The assistant needs your response before it can continue.",
+              "text": "The agent needs your response before it can continue.",
               "evidenceReferences": ["interaction.status", "interaction.runId"]
             },
             "userAction": {

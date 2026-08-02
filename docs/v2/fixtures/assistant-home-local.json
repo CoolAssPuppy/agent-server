@@ -37,7 +37,7 @@
         "kind": "engine",
         "state": "unknown",
         "explanation": {
-          "text": "AI engine sign-in will be checked when this assistant runs.",
+          "text": "AI engine sign-in will be checked when this agent runs.",
           "evidenceReferences": ["runtime.authentication"]
         },
         "evidenceSource": "runtime.authentication"
@@ -46,7 +46,7 @@
         "kind": "schedule",
         "state": "pass",
         "explanation": {
-          "text": "This assistant runs on demand.",
+          "text": "This agent runs on demand.",
           "evidenceReferences": ["agent.schedule"]
         },
         "evidenceSource": "agent.schedule"

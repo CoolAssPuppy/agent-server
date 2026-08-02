@@ -155,7 +155,7 @@ final class ConsumerFlowsUITests: XCTestCase {
         element("mainNavigation.activity").click()
         XCTAssertTrue(element("activity.screen").waitForExistence(timeout: 3))
         XCTAssertTrue(element("activity.search").exists)
-        XCTAssertTrue(text("Search the history of work performed by assistants on this Mac.").exists)
+        XCTAssertTrue(text("History of work performed by agents on this Mac.").exists)
         XCTAssertTrue(text("Today").exists)
         XCTAssertTrue(element("activity.filter.all").exists)
         XCTAssertTrue(element("activity.filter.needsYou").exists)

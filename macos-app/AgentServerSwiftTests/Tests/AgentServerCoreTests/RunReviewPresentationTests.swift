@@ -99,7 +99,7 @@ final class RunReviewPresentationTests: XCTestCase {
             evidence: ["interaction.request.message"]
         )
         let reason = makeStatement(
-            "The assistant needs your response before it can continue.",
+            "The agent needs your response before it can continue.",
             evidence: ["interaction.status", "interaction.runId"]
         )
         let action = PresentationAction(

@@ -135,14 +135,14 @@ final class ConsumerProductFlowTests: XCTestCase {
     }
 
     func testCreationSetupCopyUsesConsumerLanguage() {
-        XCTAssertEqual(CreationConnectionStepCopy.title, "Set up the connections your assistant needs")
+        XCTAssertEqual(CreationConnectionStepCopy.title, "Set up the connections your agent needs")
         XCTAssertEqual(
             CreationConnectionStepCopy.explanation,
-            "This helps your assistant get and send data to the right place."
+            "This helps your agent get and send data to the right place."
         )
         XCTAssertEqual(
             CreationFileAccessStepCopy.explanation,
-            "You choose exactly what your assistant can access on this Mac."
+            "You choose exactly what your agent can access on this Mac."
         )
     }
 
@@ -198,7 +198,7 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(question.serviceContextTitle, "You mentioned Notion")
         XCTAssertEqual(
             question.serviceContextExplanation,
-            "Choose the Notion account this assistant should use."
+            "Choose the Notion account this agent should use."
         )
     }
 
@@ -507,7 +507,7 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(flow.phase, .complete)
         XCTAssertEqual(
             flow.completionSummary,
-            "Your assistant is saved. The safe test completed."
+            "Your agent is saved. The safe test completed."
         )
     }
 
@@ -519,7 +519,7 @@ final class ConsumerProductFlowTests: XCTestCase {
         flow.didSave(SavedAgentPresentation(agentId: "weekly-summary", safeTestRunId: nil))
 
         XCTAssertEqual(flow.phase, .complete)
-        XCTAssertEqual(flow.completionSummary, "Your assistant is saved.")
+        XCTAssertEqual(flow.completionSummary, "Your agent is saved.")
     }
 
     func testFailedSafeTestKeepsTheSavedAgentAndOffersDebuggerRouting() {
@@ -550,7 +550,7 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertNil(flow.failedSafeTestRunId)
         XCTAssertEqual(
             flow.completionSummary,
-            "Your assistant is saved. The safe test was stopped."
+            "Your agent is saved. The safe test was stopped."
         )
     }
 
@@ -839,13 +839,13 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(CreationRequestEditorPresentation.footerHeight, 46)
         XCTAssertEqual(
             CreationRequestEditorPresentation.helperText,
-            "Describe what your assistant should do and how it should do it."
+            "Describe what your agent should do and how it should do it."
         )
     }
 
     func testSidebarFooterKeepsStorageOutOfPrimaryNavigation() {
         XCTAssertEqual(SidebarFooterAction.allCases, [.newAgent])
-        XCTAssertEqual(SidebarFooterAction.newAgent.title, "New Assistant")
+        XCTAssertEqual(SidebarFooterAction.newAgent.title, "New Agent")
         XCTAssertEqual(SidebarFooterAction.newAgent.systemImage, "plus")
     }
 

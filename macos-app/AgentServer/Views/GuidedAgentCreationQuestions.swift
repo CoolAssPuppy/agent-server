@@ -67,7 +67,7 @@ extension GuidedAgentCreationView {
         case .schedule:
             ScheduleField(draft: scheduleBinding)
                 .accessibilityElement(children: .contain)
-                .accessibilityLabel("Choose when this assistant runs")
+                .accessibilityLabel("Choose when this agent runs")
         case .choice(let choices):
             choiceControl(question, choices: choices)
         case .service(let serviceName, let choices):

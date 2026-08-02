@@ -4,14 +4,14 @@ import AgentServerDesignSystem
 extension GuidedAgentCreationView {
     func proposalStep(_ proposal: AgentProposalPresentation) -> some View {
         VStack(alignment: .leading, spacing: NSpacing.lg) {
-            ConsumerFlowHeader(title: "Review your assistant")
+            ConsumerFlowHeader(title: "Review your agent")
             AgentProposalView(proposal: proposal)
                 .accessibilityIdentifier(ConsumerFlowAccessibility.creationReview)
         }
     }
 
     var completionStep: some View {
-        ConsumerSection("Assistant saved") {
+        ConsumerSection("Agent saved") {
             Label(completionMessage, systemImage: "checkmark.circle")
                 .font(NTypography.headlineSmall)
                 .foregroundStyle(theme.tokens.success)
@@ -106,14 +106,14 @@ extension GuidedAgentCreationView {
         } else {
             switch model.flow.proposal?.protectedTestAvailability {
             case .available:
-                Button("Save assistant") { requestSave(runSafeTest: false) }
+                Button("Save agent") { requestSave(runSafeTest: false) }
                     .accessibilityIdentifier(ConsumerFlowAccessibility.creationSave)
                 Button("Save and run a safe test") { requestSave(runSafeTest: true) }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
                     .accessibilityIdentifier(ConsumerFlowAccessibility.creationSaveAndTest)
             case .unavailable, .none:
-                Button("Save assistant") { requestSave(runSafeTest: false) }
+                Button("Save agent") { requestSave(runSafeTest: false) }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
                     .accessibilityIdentifier(ConsumerFlowAccessibility.creationSave)

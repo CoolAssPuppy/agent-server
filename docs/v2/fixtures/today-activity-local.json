@@ -150,7 +150,7 @@
             "scheduledAt": "2026-08-02T11:00:00.000Z",
             "primaryAction": {
               "kind": "view_assistant",
-              "label": "View assistant",
+              "label": "View agent",
               "targetReference": "assistant:upcoming-agent"
             },
             "sourceReferences": ["agent.id", "agent.schedule"]

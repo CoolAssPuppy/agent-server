@@ -97,8 +97,8 @@ struct MainPane: View {
                 .foregroundStyle(theme.tokens.foreground)
             Text(
                 monitor.isServerReachable
-                    ? "Your latest assistant activity will appear here."
-                    : "Your assistants stay on this Mac and will appear when the local server returns."
+                    ? "Your latest agent activity will appear here."
+                    : "Your agents stay on this Mac and will appear when the local server returns."
             )
             .font(NTypography.bodyMedium)
             .foregroundStyle(theme.tokens.mutedForeground)

@@ -1,12 +1,12 @@
 import Foundation
 
 public enum CreationConnectionStepCopy {
-    public static let title = "Set up the connections your assistant needs"
-    public static let explanation = "This helps your assistant get and send data to the right place."
+    public static let title = "Set up the connections your agent needs"
+    public static let explanation = "This helps your agent get and send data to the right place."
 }
 
 public enum CreationFileAccessStepCopy {
-    public static let explanation = "You choose exactly what your assistant can access on this Mac."
+    public static let explanation = "You choose exactly what your agent can access on this Mac."
 }
 
 public enum UnsupportedCreationServiceClassifier {

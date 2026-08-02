@@ -14,7 +14,7 @@ final class AgentSafetyReadinessTests: XCTestCase {
         XCTAssertEqual(AgentDetailPresentation.lastRunTitle, "Last run")
         XCTAssertEqual(AgentDetailPresentation.producedTitle, "Produced")
         XCTAssertEqual(AgentDetailPresentation.notesTitle, "Agent notes")
-        XCTAssertEqual(AgentDetailPresentation.capabilitiesTitle, "This assistant can")
+        XCTAssertEqual(AgentDetailPresentation.capabilitiesTitle, "This agent can")
         XCTAssertEqual(AgentDetailPresentation.capabilityStyle, .iconText)
         XCTAssertNil(AgentDetailPresentation.emptyStateSupportingCopy)
     }
@@ -26,7 +26,7 @@ final class AgentSafetyReadinessTests: XCTestCase {
         )
 
         XCTAssertEqual(presentation.title, "Needs setup")
-        XCTAssertEqual(presentation.detail, "2 connected apps need attention before this assistant can run.")
+        XCTAssertEqual(presentation.detail, "2 connected apps need attention before this agent can run.")
         XCTAssertEqual(presentation.action, .openSettings)
     }
 

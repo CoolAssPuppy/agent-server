@@ -43,7 +43,7 @@ struct InteractionResponseSheet: View {
         ScrollView {
             VStack(alignment: .leading, spacing: NSpacing.xl) {
                 VStack(alignment: .leading, spacing: NSpacing.xs) {
-                    Text(interaction.options.isEmpty ? "Answer the assistant" : "Choose what happens next")
+                    Text(interaction.options.isEmpty ? "Reply to the agent" : "Choose what happens next")
                         .font(NTypography.headlineLarge)
                         .foregroundStyle(theme.tokens.foreground)
                     Text(interaction.message)

@@ -66,7 +66,7 @@ function waitingPresentation(interaction: PendingInteraction): RunReviewWaiting 
       'interaction.request.message',
     ),
     reason: statement(
-      'The assistant needs your response before it can continue.',
+      'The agent needs your response before it can continue.',
       'interaction.status',
       'interaction.runId',
     ),
@@ -165,7 +165,7 @@ function skippedMeaning(run: StoredRun): ReviewMeaning {
   const summary = run.code === 'lock_contention'
     ? 'Another run was already in progress. Nothing changed.'
     : run.code === 'already_completed_today'
-      ? 'This assistant had already finished today. Nothing changed.'
+      ? 'This agent had already finished today. Nothing changed.'
       : 'The run was skipped. Nothing changed.';
 
   return {
@@ -196,7 +196,7 @@ function meaningFor(
           'interaction.request',
         ),
         summary: statement(
-          'The assistant needs your response before it can continue.',
+          'The agent needs your response before it can continue.',
           'interaction.status',
           'interaction.runId',
         ),

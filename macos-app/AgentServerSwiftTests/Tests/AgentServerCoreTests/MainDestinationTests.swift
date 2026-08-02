@@ -25,7 +25,7 @@ final class MainDestinationTests: XCTestCase {
 
         XCTAssertEqual(
             presentations.map(\.0),
-            ["Today", "Assistants", "Activity", "Connections", "Settings"]
+            ["Today", "Agents", "Activity", "Connections", "Settings"]
         )
         XCTAssertEqual(
             presentations.map(\.1),

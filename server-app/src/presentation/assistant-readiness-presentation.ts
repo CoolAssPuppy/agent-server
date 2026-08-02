@@ -29,7 +29,7 @@ function engineCheck(input: AssistantHomeInput): ReadinessCheck {
   if (engine.authentication === 'unknown') {
     return {
       kind: 'engine', state: 'unknown',
-      explanation: evidenceStatement('AI engine sign-in will be checked when this assistant runs.', 'runtime.authentication'),
+      explanation: evidenceStatement('AI engine sign-in will be checked when this agent runs.', 'runtime.authentication'),
       evidenceSource: 'runtime.authentication',
     };
   }
@@ -44,7 +44,7 @@ function scheduleCheck(agent: AgentConfig, now: Date): ReadinessCheck {
   if (!agent.schedule) {
     return {
       kind: 'schedule', state: 'pass',
-      explanation: evidenceStatement('This assistant runs on demand.', 'agent.schedule'),
+      explanation: evidenceStatement('This agent runs on demand.', 'agent.schedule'),
       evidenceSource: 'agent.schedule',
     };
   }

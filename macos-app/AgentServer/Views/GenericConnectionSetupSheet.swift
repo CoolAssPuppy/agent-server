@@ -166,7 +166,7 @@ struct GenericConnectionSetupSheet: View {
             VStack(alignment: .leading, spacing: NSpacing.sm) {
                 detailRow("Adapter", "Custom connection")
                 detailRow("Transport", method == .web ? "HTTP" : "Standard input and output")
-                Text("The saved connection stores only references to the environment variables above. Secret values are never placed in the connection profile or an assistant file.")
+                Text("The saved connection stores only references to the environment variables above. Secret values are never placed in the connection profile or an agent file.")
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
                     .fixedSize(horizontal: false, vertical: true)
@@ -200,7 +200,7 @@ struct GenericConnectionSetupSheet: View {
     private var methodExplanation: String {
         method == .web
             ? "Connect to a service endpoint over HTTPS."
-            : "Start a tool installed on this Mac when an assistant needs it."
+            : "Start a tool installed on this Mac when an agent needs it."
     }
 
     private func setupSection<Content: View>(

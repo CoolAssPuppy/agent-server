@@ -134,7 +134,7 @@ public struct CurrentDevicePresentation: Equatable, Sendable {
     public var name: String { "This Mac" }
     public var status: String { isServerReachable ? "Online" : "Local server unavailable" }
     public var assistantCountText: String {
-        "\(assistantCount) \(assistantCount == 1 ? "assistant" : "assistants")"
+        "\(assistantCount) \(assistantCount == 1 ? "agent" : "agents")"
     }
     public var lastHeardText: String {
         lastHeardAt == nil ? "Not checked yet" : "Last heard recently"

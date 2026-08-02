@@ -174,7 +174,7 @@ function primaryAction(
   if (!input.agent.enabled || readiness.state !== 'ready') {
     return {
       kind: 'edit',
-      label: input.agent.enabled ? 'Finish setup' : 'Review assistant',
+      label: input.agent.enabled ? 'Finish setup' : 'Review agent',
       targetReference: `assistant:${input.agent.id}:edit`,
     };
   }

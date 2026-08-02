@@ -72,7 +72,7 @@ struct AgentDebuggerView: View {
         }
         .onDisappear { retryTask?.cancel() }
         .confirmationDialog(
-            "Retry this assistant without changes?",
+            "Retry this agent without changes?",
             isPresented: $showsRetryConfirmation,
             titleVisibility: .visible
         ) {

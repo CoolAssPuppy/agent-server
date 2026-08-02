@@ -57,7 +57,7 @@ struct Sidebar: View {
 
     private var header: some View {
         HStack {
-            Text("Assistants")
+            Text("Agents")
                 .font(NTypography.headlineLarge)
                 .foregroundStyle(theme.tokens.foreground)
             Spacer()
@@ -167,14 +167,14 @@ struct Sidebar: View {
 
     private var emptyStateTitle: String {
         if monitor.localAPISetupError != nil { return "Secure setup needed" }
-        return monitor.isServerReachable ? "No assistants yet" : "Server offline"
+        return monitor.isServerReachable ? "No agents yet" : "Server offline"
     }
 
     private var emptyStateMessage: String {
         if let error = monitor.localAPISetupError { return error }
         return monitor.isServerReachable
-            ? "Choose New Assistant below to create your first one."
-            : "Start Agent Server to see your assistants."
+            ? "Choose New Agent below to create your first one."
+            : "Start Agent Server to see your agents."
     }
 
     private var footer: some View {

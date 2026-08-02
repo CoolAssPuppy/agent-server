@@ -213,7 +213,7 @@ function scheduledTodayItem(
     scheduledAt: scheduledAt.toISOString(),
     primaryAction: {
       kind: 'view_assistant',
-      label: 'View assistant',
+      label: 'View agent',
       targetReference: `assistant:${agent.id}`,
     },
     sourceReferences: ['agent.id', 'agent.schedule'],
@@ -256,7 +256,7 @@ function readinessTodayItem(
     explanation: blocker.explanation,
     primaryAction: {
       kind: 'view_assistant',
-      label: 'Review assistant',
+      label: 'Review agent',
       targetReference: `assistant:${agent.id}`,
     },
     sourceReferences: ['assistant.readiness', blocker.evidenceSource],

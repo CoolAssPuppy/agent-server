@@ -35,7 +35,7 @@ struct ConnectionsView: View {
         CapabilityCatalogEntry(
             id: "telegram",
             label: "Telegram",
-            description: "Message your assistants and get their replies through a Telegram bot",
+            description: "Message your agents and get their replies through a Telegram bot",
             icon: "paperplane.fill",
             kind: "channel",
             auth: .apiKey,
@@ -49,7 +49,7 @@ struct ConnectionsView: View {
         CapabilityCatalogEntry(
             id: "slack-bot",
             label: "Slack",
-            description: "Message your assistants and get their replies through a Slack bot",
+            description: "Message your agents and get their replies through a Slack bot",
             icon: "bubble.left.and.bubble.right",
             kind: "channel",
             auth: .apiKey,

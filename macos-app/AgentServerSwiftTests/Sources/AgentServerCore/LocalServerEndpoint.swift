@@ -21,7 +21,7 @@ public enum LocalServerEndpoint {
     public static func assistantHomePath(assistantID: String) -> String {
         let allowed = CharacterSet.urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))
         guard let encodedID = assistantID.addingPercentEncoding(withAllowedCharacters: allowed) else {
-            preconditionFailure("Assistant ID could not be encoded as a URL path component.")
+            preconditionFailure("Agent ID could not be encoded as a URL path component.")
         }
         return "/presentation/assistants/\(encodedID)"
     }

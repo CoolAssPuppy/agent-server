@@ -13,7 +13,7 @@ enum MainDestination: String, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .today: "Today"
-        case .assistants: "Assistants"
+        case .assistants: "Agents"
         case .activity: "Activity"
         case .connections: "Connections"
         case .settings: "Settings"
