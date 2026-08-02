@@ -43,7 +43,7 @@ export const ENVIRONMENT_VARIABLE_REFERENCE: readonly EnvironmentVariableReferen
   { name: 'AGENT_SERVER_ANALYTICS_KEY', description: 'Product analytics project key. Injected by the macOS app at launch. Unset means analytics is off.' },
   { name: 'AGENT_SERVER_ANALYTICS_HOST', defaultValue: 'https://us.i.posthog.com', description: 'Product analytics ingest host' },
   { name: 'AGENT_SERVER_ANALYTICS_DISTINCT_ID', description: 'Per-install identifier passed down by the macOS app so both surfaces resolve to one person' },
-  { name: 'AGENT_SERVER_ANALYTICS_OPT_OUT', defaultValue: 'false', description: 'Set to `true` to send no product analytics. The value in `~/.agent-server/.env` wins over the shell so the macOS toggle reaches a running daemon.' },
+  { name: 'AGENT_SERVER_ANALYTICS_OPT_OUT', defaultValue: 'true', description: 'Product analytics stays off until this is explicitly set to `false`. The value in `~/.agent-server/.env` wins over the shell so the macOS toggle reaches a running daemon.' },
   { name: 'ANTHROPIC_API_KEY', description: 'Anthropic API key. Required for Telegram message routing (agent selection via Haiku).' },
 ];
 
