@@ -9,6 +9,7 @@ import { SqliteRunStore } from '../reporting/sqlite-store.js';
 import { createTempDir, makeAgent, makeStoredRun } from '../test-factories.js';
 import { RunPreflightDeniedError } from '../analysis/run-preflight-gate.js';
 import type { ConnectionProfile } from '../connections/profile.js';
+import type { PendingInteraction } from '../interaction/store.js';
 
 const API_TEST_KEY = 'local-api-test-key-1234567890';
 
@@ -823,6 +824,120 @@ describe('API routes', () => {
         server_version: '3.3.4',
       });
       await expect(health.json()).resolves.not.toHaveProperty('machine_id');
+    });
+  });
+
+  describe('GET /presentation/today-activity', () => {
+    it('returns one authenticated, machine-scoped snapshot without technical or secret source data', async () => {
+      const machineId = '1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99';
+      const now = new Date('2026-08-02T10:00:00.000Z');
+      const agents = [
+        makeAgent({
+          id: 'report-agent',
+          name: 'Weekly Report',
+          prompt: 'PROMPT_PRIVATE: inspect the private workspace.',
+          schedule: undefined,
+          tools: ['Bash', 'mcp__private__publish_report'],
+          working_directory: '/Users/person/Private/Workspace',
+          mcp_servers: {
+            private: {
+              command: 'private-service',
+              env: { PRIVATE_TOKEN: 'credential-secret' },
+            },
+          },
+        }),
+        makeAgent({
+          id: 'upcoming-agent',
+          name: 'Daily Brief',
+          schedule: '0 11 * * *',
+          timezone: 'UTC',
+        }),
+      ];
+      store.add(makeStoredRun({
+        runId: 'finished-run',
+        agentId: 'report-agent',
+        agentName: 'Weekly Report',
+        status: 'completed',
+        summary: 'Prepared the weekly report.',
+        startedAt: new Date('2026-08-02T08:00:00.000Z'),
+        completedAt: new Date('2026-08-02T08:02:00.000Z'),
+        toolsUsed: ['mcp__private__publish_report'],
+        filesRead: ['/Users/person/Private/Workspace/source.md'],
+        filesWritten: ['/Users/person/Private/Workspace/report.md'],
+        commandsRun: ['private-service --token credential-secret'],
+      }));
+      const interaction: PendingInteraction = {
+        id: 'interaction-1',
+        runId: 'waiting-run',
+        agentId: 'report-agent',
+        replyAgentId: 'report-agent',
+        request: {
+          message: 'Choose where to save the report.',
+          options: [{ label: 'Team page', value: 'team' }],
+          freeText: false,
+        },
+        channel: 'console',
+        createdAt: new Date('2026-08-02T09:30:00.000Z'),
+        expiresAt: new Date('2026-08-02T10:30:00.000Z'),
+        status: 'pending',
+      };
+      const getAgents = vi.fn().mockResolvedValue(agents);
+      const getPendingInteractions = vi.fn().mockReturnValue([interaction]);
+      const app = createApi({
+        getAgents,
+        getPendingInteractions,
+        store,
+        triggerRun,
+        machineId,
+        presentationClock: () => now,
+        presentationWindow: () => ({
+          recentSince: new Date('2026-08-02T00:00:00.000Z'),
+          upcomingUntil: new Date('2026-08-03T00:00:00.000Z'),
+        }),
+      });
+
+      const unauthorized = await app.request('/presentation/today-activity');
+      const response = await authenticatedRequest(app, '/presentation/today-activity');
+
+      expect(unauthorized.status).toBe(401);
+      expect(response.status).toBe(200);
+      const body = await response.json() as Record<string, unknown>;
+      expect(body).toMatchObject({
+        generatedAt: '2026-08-02T10:00:00.000Z',
+        today: {
+          sections: [
+            { kind: 'needs_you' },
+            { kind: 'finished' },
+            { kind: 'upcoming' },
+          ],
+        },
+        activity: {
+          items: [
+            { id: 'run:waiting-run', state: 'needs_you' },
+            { id: 'run:finished-run', state: 'finished' },
+          ],
+        },
+      });
+      expect(getAgents).toHaveBeenCalledOnce();
+      expect(getPendingInteractions).toHaveBeenCalledOnce();
+
+      const serialized = JSON.stringify(body);
+      expect(serialized).not.toContain('PROMPT_PRIVATE');
+      expect(serialized).not.toContain('private-service --token');
+      expect(serialized).not.toContain('mcp__private');
+      expect(serialized).not.toContain('/Users/person/Private');
+      expect(serialized).not.toContain('credential-secret');
+    });
+
+    it('refuses to create ambiguous presentation identities without a machine ID', async () => {
+      const app = createApp();
+
+      const response = await authenticatedRequest(app, '/presentation/today-activity');
+
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toEqual({
+        error: 'Machine identity unavailable',
+      });
     });
   });
 

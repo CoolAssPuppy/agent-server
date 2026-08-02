@@ -25,6 +25,11 @@ import { USER_CANCELED_CODE } from '../execution/runner.js';
 import { normalizeStoredRun } from '../reporting/run-normalization.js';
 import { computeAgentMetrics } from '../reporting/metrics.js';
 import { createRunReview } from '../presentation/run-review.js';
+import {
+  createActivityPresentation,
+  createTodayPresentation,
+} from '../presentation/today-activity.js';
+import type { PendingInteraction } from '../interaction/store.js';
 import type { PendingDecision } from '../reporting/realtime-client.js';
 import type { PreflightResult } from '../analysis/models.js';
 import { evaluateRunPreflight, type RunPreflightOutcome } from '../analysis/run-preflight.js';
@@ -56,6 +61,8 @@ type ConnectionSource = {
 
 type ApiDependencies = {
   getAgents: () => Promise<AgentConfig[]>;
+  /** Current machine-local interactions awaiting a user response. */
+  getPendingInteractions?: () => PendingInteraction[];
   store: RunStoreLike;
   triggerRun: (
     agentId: string,
@@ -100,6 +107,12 @@ type ApiDependencies = {
   guidanceApi?: Hono;
   apiKey: string;
   machineId?: string;
+  /** Injectable time sources keep presentation snapshots deterministic in tests. */
+  presentationClock?: () => Date;
+  presentationWindow?: (now: Date) => {
+    recentSince: Date;
+    upcomingUntil: Date;
+  };
   startedAt?: string;
   host?: string;
 };
@@ -115,6 +128,14 @@ const TriggerRunBodySchema = z.object({
 const ConnectionLabelSchema = z.object({
   label: z.string().trim().min(1).max(120),
 }).strict();
+
+function localTodayWindow(now: Date): { recentSince: Date; upcomingUntil: Date } {
+  const recentSince = new Date(now);
+  recentSince.setHours(0, 0, 0, 0);
+  const upcomingUntil = new Date(recentSince);
+  upcomingUntil.setDate(upcomingUntil.getDate() + 1);
+  return { recentSince, upcomingUntil };
+}
 
 function isAgentWriteRequest(method: string, path: string): boolean {
   if (method === 'POST' && path === '/agents') return true;
@@ -310,6 +331,29 @@ export function createApi(deps: ApiDependencies): Hono {
       machine_id: deps.machineId,
       protocol_version: MACHINE_PROTOCOL_VERSION,
       server_version: AGENT_SERVER_VERSION,
+    });
+  });
+
+  app.get('/presentation/today-activity', async (c) => {
+    if (!deps.machineId) {
+      return c.json({ error: 'Machine identity unavailable' }, 503);
+    }
+
+    const now = deps.presentationClock?.() ?? new Date();
+    const window = deps.presentationWindow?.(now) ?? localTodayWindow(now);
+    const input = {
+      machineId: deps.machineId,
+      agents: await deps.getAgents(),
+      runs: deps.store.list(),
+      pendingInteractions: deps.getPendingInteractions?.() ?? [],
+      now,
+      ...window,
+    };
+
+    return c.json({
+      generatedAt: now.toISOString(),
+      today: createTodayPresentation(input),
+      activity: createActivityPresentation(input),
     });
   });
 

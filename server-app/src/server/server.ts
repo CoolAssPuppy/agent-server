@@ -660,6 +660,7 @@ export function startServer(
 
   const app = createApi({
     getAgents,
+    getPendingInteractions: () => interactionStore.listPending(),
     store,
     triggerRun,
     triggerSafeTest,
