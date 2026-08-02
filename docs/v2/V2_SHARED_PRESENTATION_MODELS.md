@@ -39,17 +39,26 @@ Priority is Working, Needs attention, Paused, Offline, Healthy for local present
 ## Today item
 
 ```text
+TodayPresentation
+  sections[] in needs_you, working, finished, problems, upcoming order
+  allClear optional evidence-backed statement
+
 TodayItem
   id
   section: needs_you | working | finished | problems | upcoming
   assistant: AssistantIdentity
-  headline
-  explanation
+  headline: evidence-backed statement
+  explanation: evidence-backed statement
   occurredAt or scheduledAt
   expiresAt optional
   primaryAction
   secondaryDisclosure optional
   sourceReferences
+
+PresentationAction
+  kind: respond | view_activity | review | view_assistant
+  label
+  targetReference
 ```
 
 Section rules:
@@ -61,6 +70,14 @@ Section rules:
 - Upcoming: the next deterministic schedule occurrence.
 
 An item appears in one section only. Needs you wins over Problems. Working wins over Upcoming.
+The local adapter also suppresses Upcoming while an assistant has a current
+needs-you item, so a request never competes with its schedule for attention.
+Intentionally canceled runs group with Finished while retaining explicit
+canceled wording and their canceled run review. They never appear as failed.
+
+Callers provide the recent and upcoming window boundaries. The adapter does
+not infer a device locale or silently widen a window. Empty sections are
+omitted. `allClear` is present when no Needs you or Problems section exists.
 
 ## Needs-you item
 
@@ -169,15 +186,24 @@ ActivityItem
   assistant
   conversationId optional
   state: needs_you | working | finished | problem
-  headline
-  outcomeSummary optional
+  headline: evidence-backed statement
+  outcomeSummary optional evidence-backed statement
   startedAt
   endedAt optional
-  primaryOutput optional
+  primaryOutput optional evidence-backed statement
   reviewReference
+  sourceReferences
 ```
 
 Conversation grouping is presentation only. It does not move execution or session state across machines.
+Activity is sorted newest first and contains one item per local run. A current
+validated interaction overrides the run's Activity state to Needs you. An
+interaction remains visible when its run has aged out of local history, using
+the interaction timestamp and exact local run reference without inventing run
+evidence.
+
+The frozen local Today and Activity example is
+`fixtures/today-activity-local.json`.
 
 ## Pause and waiting reason
 

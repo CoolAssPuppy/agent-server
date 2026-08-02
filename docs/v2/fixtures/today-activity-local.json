@@ -1,0 +1,257 @@
+{
+  "today": {
+    "sections": [
+      {
+        "kind": "needs_you",
+        "items": [
+          {
+            "id": "run:needs-run",
+            "section": "needs_you",
+            "assistant": {
+              "installationId": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99:needs-agent",
+              "machineId": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99",
+              "localAgentId": "needs-agent",
+              "displayName": "Weekly Report"
+            },
+            "headline": {
+              "text": "Weekly Report needs your choice",
+              "evidenceReferences": ["interaction.request", "interaction.agentId"]
+            },
+            "explanation": {
+              "text": "Choose the report destination.",
+              "evidenceReferences": ["interaction.request.message"]
+            },
+            "occurredAt": "2026-08-02T09:30:00.000Z",
+            "expiresAt": "2026-08-02T10:30:00.000Z",
+            "primaryAction": {
+              "kind": "respond",
+              "label": "Choose",
+              "targetReference": "interaction:interaction-1"
+            },
+            "secondaryDisclosure": {
+              "kind": "view_activity",
+              "label": "View activity",
+              "targetReference": "run:needs-run"
+            },
+            "sourceReferences": ["interaction.id", "interaction.runId", "interaction.request"]
+          }
+        ]
+      },
+      {
+        "kind": "working",
+        "items": [
+          {
+            "id": "run:working-run",
+            "section": "working",
+            "assistant": {
+              "installationId": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99:working-agent",
+              "machineId": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99",
+              "localAgentId": "working-agent",
+              "displayName": "Release Summary"
+            },
+            "headline": {
+              "text": "Release Summary is working",
+              "evidenceReferences": ["run.status"]
+            },
+            "explanation": {
+              "text": "Work is in progress.",
+              "evidenceReferences": ["run.status"]
+            },
+            "occurredAt": "2026-08-02T09:00:00.000Z",
+            "primaryAction": {
+              "kind": "view_activity",
+              "label": "View activity",
+              "targetReference": "run:working-run"
+            },
+            "sourceReferences": ["run.runId", "run.status", "run.startedAt"]
+          }
+        ]
+      },
+      {
+        "kind": "finished",
+        "items": [
+          {
+            "id": "run:completed-run",
+            "section": "finished",
+            "assistant": {
+              "installationId": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99:complete-agent",
+              "machineId": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99",
+              "localAgentId": "complete-agent",
+              "displayName": "Reading List"
+            },
+            "headline": {
+              "text": "Reading List finished",
+              "evidenceReferences": ["run.status"]
+            },
+            "explanation": {
+              "text": "Added 6 articles.",
+              "evidenceReferences": ["run.summary"]
+            },
+            "occurredAt": "2026-08-02T08:02:00.000Z",
+            "primaryAction": {
+              "kind": "review",
+              "label": "Review result",
+              "targetReference": "run:completed-run"
+            },
+            "sourceReferences": ["run.runId", "run.status", "run.startedAt"]
+          }
+        ]
+      },
+      {
+        "kind": "problems",
+        "items": [
+          {
+            "id": "run:problem-run",
+            "section": "problems",
+            "assistant": {
+              "installationId": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99:problem-agent",
+              "machineId": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99",
+              "localAgentId": "problem-agent",
+              "displayName": "Continuity Review"
+            },
+            "headline": {
+              "text": "Continuity Review needs attention",
+              "evidenceReferences": ["run.status"]
+            },
+            "explanation": {
+              "text": "The run stopped before it finished.",
+              "evidenceReferences": ["run.status"]
+            },
+            "occurredAt": "2026-08-02T07:01:00.000Z",
+            "primaryAction": {
+              "kind": "review",
+              "label": "Review problem",
+              "targetReference": "run:problem-run"
+            },
+            "sourceReferences": ["run.runId", "run.status", "run.startedAt"]
+          }
+        ]
+      },
+      {
+        "kind": "upcoming",
+        "items": [
+          {
+            "id": "schedule:upcoming-agent",
+            "section": "upcoming",
+            "assistant": {
+              "installationId": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99:upcoming-agent",
+              "machineId": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99",
+              "localAgentId": "upcoming-agent",
+              "displayName": "Daily Brief"
+            },
+            "headline": {
+              "text": "Daily Brief runs next",
+              "evidenceReferences": ["agent.name", "agent.schedule"]
+            },
+            "explanation": {
+              "text": "Scheduled to run next.",
+              "evidenceReferences": ["agent.schedule"]
+            },
+            "scheduledAt": "2026-08-02T11:00:00.000Z",
+            "primaryAction": {
+              "kind": "view_assistant",
+              "label": "View assistant",
+              "targetReference": "assistant:upcoming-agent"
+            },
+            "sourceReferences": ["agent.id", "agent.schedule"]
+          }
+        ]
+      }
+    ]
+  },
+  "activity": {
+    "items": [
+      {
+        "id": "run:needs-run",
+        "assistant": {
+          "installationId": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99:needs-agent",
+          "machineId": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99",
+          "localAgentId": "needs-agent",
+          "displayName": "Weekly Report"
+        },
+        "state": "needs_you",
+        "headline": {
+          "text": "Weekly Report needs your choice",
+          "evidenceReferences": ["interaction.request", "interaction.agentId"]
+        },
+        "outcomeSummary": {
+          "text": "Choose the report destination.",
+          "evidenceReferences": ["interaction.request.message"]
+        },
+        "startedAt": "2026-08-02T09:30:00.000Z",
+        "endedAt": "2026-08-02T09:31:00.000Z",
+        "reviewReference": "/runs/needs-run/review",
+        "sourceReferences": ["run.runId", "run.status", "run.startedAt"]
+      },
+      {
+        "id": "run:working-run",
+        "assistant": {
+          "installationId": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99:working-agent",
+          "machineId": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99",
+          "localAgentId": "working-agent",
+          "displayName": "Release Summary"
+        },
+        "state": "working",
+        "headline": {
+          "text": "Release Summary is working",
+          "evidenceReferences": ["run.status"]
+        },
+        "outcomeSummary": {
+          "text": "Work is in progress.",
+          "evidenceReferences": ["run.status"]
+        },
+        "startedAt": "2026-08-02T09:00:00.000Z",
+        "reviewReference": "/runs/working-run/review",
+        "sourceReferences": ["run.runId", "run.status", "run.startedAt"]
+      },
+      {
+        "id": "run:completed-run",
+        "assistant": {
+          "installationId": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99:complete-agent",
+          "machineId": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99",
+          "localAgentId": "complete-agent",
+          "displayName": "Reading List"
+        },
+        "state": "finished",
+        "headline": {
+          "text": "Reading List finished",
+          "evidenceReferences": ["run.status"]
+        },
+        "outcomeSummary": {
+          "text": "Added 6 articles.",
+          "evidenceReferences": ["run.summary"]
+        },
+        "startedAt": "2026-08-02T08:00:00.000Z",
+        "endedAt": "2026-08-02T08:02:00.000Z",
+        "primaryOutput": {
+          "text": "Reading list is ready",
+          "evidenceReferences": ["agent.output.primary", "run.status"]
+        },
+        "reviewReference": "/runs/completed-run/review",
+        "sourceReferences": ["run.runId", "run.status", "run.startedAt"]
+      },
+      {
+        "id": "run:problem-run",
+        "assistant": {
+          "installationId": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99:problem-agent",
+          "machineId": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99",
+          "localAgentId": "problem-agent",
+          "displayName": "Continuity Review"
+        },
+        "state": "problem",
+        "headline": {
+          "text": "Continuity Review needs attention",
+          "evidenceReferences": ["run.status"]
+        },
+        "outcomeSummary": {
+          "text": "The run stopped before it finished.",
+          "evidenceReferences": ["run.status"]
+        },
+        "startedAt": "2026-08-02T07:00:00.000Z",
+        "endedAt": "2026-08-02T07:01:00.000Z",
+        "reviewReference": "/runs/problem-run/review",
+        "sourceReferences": ["run.runId", "run.status", "run.startedAt"]
+      }
+    ]
+  }
+}
