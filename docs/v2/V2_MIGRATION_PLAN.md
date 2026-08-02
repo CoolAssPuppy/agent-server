@@ -103,7 +103,8 @@ Retirement requires measured evidence that supported Servers use V2:
 
 ## Rollback
 
-- Presentation flags can return users to existing screens without changing data.
+- Agent Panel presentation flags can return users to its existing screens without changing data.
+- The macOS V2 root replaced the prior home implementation. Its safe rollback is reinstalling the previous signed app build; recreating the deleted UI behind a flag would duplicate presentation logic.
 - New nullable fields and tables remain unused if Server registration is disabled.
 - V1 telemetry ingestion remains available during rollout.
 - Remote command V2 can be disabled without affecting local runs.
