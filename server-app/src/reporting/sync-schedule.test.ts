@@ -243,6 +243,29 @@ describe('syncAgentSchedule', () => {
     expect(result.error).toBe('network down');
   });
 
+  it('bounds a Panel request that never settles and aborts it at the deadline', async () => {
+    writeAgent('a.yaml', 'id: x\nname: X\nprompt: p\n');
+    let requestSignal: AbortSignal | undefined;
+    const fetchFn = vi.fn<typeof fetch>((_input, init) => {
+      requestSignal = init?.signal ?? undefined;
+      return new Promise<Response>(() => {});
+    });
+
+    const result = await syncAgentSchedule({
+      agentsDir: dir,
+      panelUrl: 'https://panel.example.com',
+      panelApiKey: 'test-key',
+      fetch: fetchFn,
+      requestTimeoutMs: 25,
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('timed out'),
+    });
+    expect(requestSignal?.aborted).toBe(true);
+  });
+
   it('extracts description from markdown body when frontmatter description missing', async () => {
     writeAgent('doc.md', [
       '---',
@@ -287,17 +310,20 @@ describe('ScheduleSync', () => {
   it('fires sync on startup', async () => {
     writeAgent('a.yaml', 'id: x\nname: X\nprompt: p\n');
     const fetchFn = createMockFetch();
+    const watcher = createWatchHarness();
 
     const sync = new ScheduleSync({
       agentsDir: dir,
       panelUrl: 'https://panel.example.com',
       panelApiKey: 'test-key',
       fetch: fetchFn,
+      watchDirectory: watcher.watchDirectory,
       fileChangeDebounceMs: 10,
       hourlyIntervalMs: 3_600_000,
     });
 
     await sync.start();
+    await vi.waitFor(() => expect(fetchFn).toHaveBeenCalledOnce());
     sync.stop();
 
     expect(fetchFn).toHaveBeenCalledOnce();
@@ -319,7 +345,7 @@ describe('ScheduleSync', () => {
     });
 
     await sync.start();
-    expect(fetchFn).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(fetchFn).toHaveBeenCalledOnce());
 
     watcher.emit('a.yaml');
     watcher.emit('a.yaml');
@@ -369,6 +395,39 @@ describe('ScheduleSync', () => {
     finishStartup?.(new Response('{}', { status: 200 }));
     await startup;
     sync.stop();
+  });
+
+  it('finishes startup while the initial Panel sync is still pending', async () => {
+    writeAgent('a.yaml', 'id: x\nname: X\nprompt: p\n');
+    const watcher = createWatchHarness();
+    let finishFetch: ((response: Response) => void) | undefined;
+    const fetchFn = vi.fn<typeof fetch>(() => new Promise<Response>((resolve) => {
+      finishFetch = resolve;
+    }));
+    const sync = new ScheduleSync({
+      agentsDir: dir,
+      panelUrl: 'https://panel.example.com',
+      panelApiKey: 'test-key',
+      fetch: fetchFn,
+      watchDirectory: watcher.watchDirectory,
+      fileChangeDebounceMs: 10,
+      hourlyIntervalMs: 3_600_000,
+    });
+
+    const startup = sync.start();
+    try {
+      await vi.waitFor(() => expect(fetchFn).toHaveBeenCalledOnce());
+      const outcome = await Promise.race([
+        startup.then(() => 'started' as const),
+        new Promise<'blocked'>((resolve) => setTimeout(() => resolve('blocked'), 50)),
+      ]);
+
+      expect(outcome).toBe('started');
+    } finally {
+      finishFetch?.(new Response('{}', { status: 200 }));
+      await startup;
+      sync.stop();
+    }
   });
 
   it('does not install timers or watchers after stop wins a pending startup', async () => {

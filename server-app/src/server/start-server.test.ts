@@ -791,6 +791,54 @@ describe('startServer production composition', { timeout: 20_000 }, () => {
     }
   });
 
+  it('keeps the local API ready while Panel schedule sync is unavailable', async () => {
+    const panelUrl = 'https://panel-unavailable.example.com';
+    const context = await createTestServerContext('panel-unavailable-server', {
+      AGENT_SERVER_PANEL_URL: panelUrl,
+      AGENT_SERVER_PANEL_API_KEY: 'panel-test-key',
+    });
+    const localFetch = globalThis.fetch.bind(globalThis);
+    const panelRequests: string[] = [];
+    const releaseCallbacks: Array<() => void> = [];
+    let isReleased = false;
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      const url = typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+      if (!url.startsWith(panelUrl)) return localFetch(input, init);
+
+      panelRequests.push(url);
+      if (isReleased) return Promise.resolve(new Response('{}', { status: 503 }));
+      return new Promise<Response>((resolve) => {
+        releaseCallbacks.push(() => resolve(new Response('{}', { status: 503 })));
+      });
+    });
+    const server = startServer(context.config, { store: new RunStore() });
+
+    try {
+      const readiness = await Promise.race([
+        server.ready.then(() => 'ready' as const),
+        new Promise<'blocked'>((resolve) => setTimeout(() => resolve('blocked'), 1_000)),
+      ]);
+      expect(readiness).toBe('ready');
+
+      const health = await localFetch(`http://127.0.0.1:${context.port}/health`);
+      expect(health.status).toBe(200);
+      await expect(health.json()).resolves.toMatchObject({ status: 'ok' });
+      await vi.waitFor(() => {
+        expect(panelRequests).toContain(`${panelUrl}/api/agents/sync`);
+      });
+    } finally {
+      isReleased = true;
+      for (const release of releaseCallbacks) release();
+      await server.stop().catch(() => {});
+      fetchSpy.mockRestore();
+      rmSync(context.home, { recursive: true, force: true });
+    }
+  });
+
   it('composes deterministic Assistant home facts into the production HTTP API', async () => {
     const context = await createTestServerContext('assistant-home-server');
     writeAgent(context.home, 'reader.yaml', [

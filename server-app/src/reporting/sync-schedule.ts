@@ -3,9 +3,11 @@ import type { AgentConfig } from '../agents/config.js';
 import { discoverAgents, isAgentFile } from '../agents/discovery.js';
 import { getNextRun } from '../agents/scheduler.js';
 import { toErrorMessage } from '../util/errors.js';
+import { withTimeout } from '../util/with-timeout.js';
 
 const DEFAULT_FILE_CHANGE_DEBOUNCE_MS = 2_000;
 const DEFAULT_HOURLY_INTERVAL_MS = 60 * 60 * 1_000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 const MAX_DESCRIPTION_LENGTH = 2_000;
 
 export type AgentSyncRowPayload = {
@@ -83,6 +85,7 @@ type SyncOptions = {
   panelApiKey: string;
   fetch?: typeof globalThis.fetch;
   now?: Date;
+  requestTimeoutMs?: number;
 };
 
 export async function syncAgentSchedule(options: SyncOptions): Promise<SyncResult> {
@@ -100,14 +103,26 @@ export async function syncAgentSchedule(options: SyncOptions): Promise<SyncResul
   }
 
   try {
-    const response = await fetchFn(`${options.panelUrl}/api/agents/sync`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${options.panelApiKey}`,
+    const requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+    const requestController = new AbortController();
+    const response = await withTimeout(
+      fetchFn(`${options.panelUrl}/api/agents/sync`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${options.panelApiKey}`,
+        },
+        body: JSON.stringify(payload),
+        signal: requestController.signal,
+      }),
+      {
+        timeoutMs: requestTimeoutMs,
+        createError: () => new Error(
+          `Panel schedule sync timed out after ${requestTimeoutMs}ms`,
+        ),
+        onTimeout: () => requestController.abort(),
       },
-      body: JSON.stringify(payload),
-    });
+    );
 
     if (!response.ok) {
       console.error(`[sync-schedule] Panel responded ${response.status}`);
@@ -165,9 +180,10 @@ export class ScheduleSync {
   async start(): Promise<void> {
     this.stopped = false;
     this.startFileWatcher();
-    await this.runSync();
-    if (this.stopped) return;
-    this.startHourlyFallback();
+    void this.runSync().finally(() => {
+      if (this.stopped) return;
+      this.startHourlyFallback();
+    });
   }
 
   stop(): void {
