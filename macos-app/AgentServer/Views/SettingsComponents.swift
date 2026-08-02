@@ -184,7 +184,7 @@ struct SettingsAdvancedDisclosure: View {
                             size: CGFloat(SettingsPresentation.rowTitleFontSize),
                             weight: .medium
                         ))
-                    Text("Agent Panel and environment values")
+                    Text("AI engine, local server, telemetry, environment, and security")
                         .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
                         .foregroundStyle(theme.tokens.mutedForeground)
                 }

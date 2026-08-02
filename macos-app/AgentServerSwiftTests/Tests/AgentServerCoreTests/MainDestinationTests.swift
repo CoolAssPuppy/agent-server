@@ -11,6 +11,13 @@ final class MainDestinationTests: XCTestCase {
         )
     }
 
+    func testDesktopBarKeepsConnectionsAsAStableLabeledDestination() {
+        XCTAssertEqual(
+            MainDestination.desktopBarDestinations,
+            [.today, .activity, .connections]
+        )
+    }
+
     func testDestinationsUseDirectConsumerLabelsAndAccessibleIdentifiers() {
         let presentations = MainDestination.allCases.map {
             ($0.title, $0.systemImage, $0.accessibilityIdentifier)

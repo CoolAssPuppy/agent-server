@@ -20,7 +20,7 @@ final class ConnectionCategoryPresentationTests: XCTestCase {
 
     func testCategoryLabelsStayCompact() {
         XCTAssertEqual(ConnectionCategory.api.label, "API")
-        XCTAssertEqual(ConnectionCategory.mcp.label, "MCP")
+        XCTAssertEqual(ConnectionCategory.mcp.label, "App")
         XCTAssertEqual(ConnectionCategory.file.label, "File")
         XCTAssertEqual(ConnectionCategory.messaging.label, "Messaging")
     }

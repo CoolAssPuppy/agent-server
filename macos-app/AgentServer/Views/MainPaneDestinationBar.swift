@@ -6,11 +6,9 @@ struct MainPaneDestinationBar: View {
 
     @Environment(\.nTheme) private var theme
 
-    private let destinations: [MainDestination] = [.today, .activity]
-
     var body: some View {
         HStack(spacing: NSpacing.xs) {
-            ForEach(destinations) { destination in
+            ForEach(MainDestination.desktopBarDestinations) { destination in
                 Button {
                     selection = destination
                 } label: {

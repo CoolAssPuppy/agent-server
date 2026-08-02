@@ -15,7 +15,7 @@ final class ConnectionScreenPresentationTests: XCTestCase {
 
     func testConnectionTemplatesRemainAnAdvancedSection() {
         XCTAssertEqual(ConnectionScreenSection.advanced, [.templates])
-        XCTAssertEqual(ConnectionScreenSection.templates.title, "Connection templates")
+        XCTAssertEqual(ConnectionScreenSection.templates.title, "Advanced connections")
         XCTAssertTrue(ConnectionScreenSection.templates.isAdvanced)
     }
 
@@ -26,5 +26,13 @@ final class ConnectionScreenPresentationTests: XCTestCase {
         )
         XCTAssertEqual(ConnectionSetupSection.technical.title, "Technical details")
         XCTAssertTrue(ConnectionSetupSection.technical.isAdvanced)
+    }
+
+    func testCustomConnectionSetupIsExplicitlyAdvanced() {
+        XCTAssertEqual(ConnectionSetupSection.introductionTitle, "Add advanced connection")
+        XCTAssertEqual(
+            ConnectionSetupSection.introductionExplanation,
+            "Set up a custom web endpoint or local command. Most people can connect apps through Claude or use a service template instead."
+        )
     }
 }

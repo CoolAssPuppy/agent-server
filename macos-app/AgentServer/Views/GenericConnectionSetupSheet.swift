@@ -41,10 +41,10 @@ struct GenericConnectionSetupSheet: View {
 
     private var introduction: some View {
         VStack(alignment: .leading, spacing: NSpacing.xs) {
-            Text("Add connection")
+            Text(ConnectionSetupSection.introductionTitle)
                 .font(NTypography.headlineMedium)
                 .foregroundStyle(theme.tokens.foreground)
-            Text("Give agents controlled access to an app, API, or local tool. You choose the name and exactly how it connects.")
+            Text(ConnectionSetupSection.introductionExplanation)
                 .font(NTypography.bodyLarge)
                 .foregroundStyle(theme.tokens.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
@@ -164,9 +164,9 @@ struct GenericConnectionSetupSheet: View {
     private var technicalDetails: some View {
         DisclosureGroup(ConnectionSetupSection.technical.title) {
             VStack(alignment: .leading, spacing: NSpacing.sm) {
-                detailRow("Adapter", "Custom MCP")
+                detailRow("Adapter", "Custom connection")
                 detailRow("Transport", method == .web ? "HTTP" : "Standard input and output")
-                Text("The saved connection stores only references to the environment variables above. Secret values are never placed in the connection profile or an agent file.")
+                Text("The saved connection stores only references to the environment variables above. Secret values are never placed in the connection profile or an assistant file.")
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
                     .fixedSize(horizontal: false, vertical: true)
@@ -200,7 +200,7 @@ struct GenericConnectionSetupSheet: View {
     private var methodExplanation: String {
         method == .web
             ? "Connect to a service endpoint over HTTPS."
-            : "Start a tool installed on this Mac when an agent needs it."
+            : "Start a tool installed on this Mac when an assistant needs it."
     }
 
     private func setupSection<Content: View>(

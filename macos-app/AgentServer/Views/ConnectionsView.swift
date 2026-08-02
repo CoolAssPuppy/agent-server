@@ -35,7 +35,7 @@ struct ConnectionsView: View {
         CapabilityCatalogEntry(
             id: "telegram",
             label: "Telegram",
-            description: "Message your agents and get their replies through a Telegram bot",
+            description: "Message your assistants and get their replies through a Telegram bot",
             icon: "paperplane.fill",
             kind: "channel",
             auth: .apiKey,
@@ -49,7 +49,7 @@ struct ConnectionsView: View {
         CapabilityCatalogEntry(
             id: "slack-bot",
             label: "Slack",
-            description: "Message your agents and get their replies through a Slack bot",
+            description: "Message your assistants and get their replies through a Slack bot",
             icon: "bubble.left.and.bubble.right",
             kind: "channel",
             auth: .apiKey,
@@ -263,8 +263,8 @@ struct ConnectionsView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Add connection")
-            .accessibilityLabel("Add connection")
+            .help("Add advanced connection")
+            .accessibilityLabel("Add advanced connection")
             .accessibilityIdentifier("connections.add")
             refreshButton
         }
@@ -278,7 +278,7 @@ struct ConnectionsView: View {
                 Button {
                     isAddingConnection = true
                 } label: {
-                    Label("Add your first connection", systemImage: "plus.circle")
+                    Label("Add an advanced connection", systemImage: "plus.circle")
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(NSpacing.lg)
                 }
@@ -345,7 +345,7 @@ struct ConnectionsView: View {
                 .foregroundStyle(theme.tokens.accent)
                 .frame(width: 24)
             Text(snapshot.discoveredAt == nil
-                 ? "Checking what your agents can reach…"
+                 ? "Checking what your assistants can reach…"
                  : "No connections found yet. Connect apps in Claude, then Refresh.")
                 .font(NTypography.caption)
                 .foregroundStyle(theme.tokens.mutedForeground)
@@ -363,7 +363,7 @@ struct ConnectionsView: View {
     private var servicesSection: some View {
         DisclosureGroup(ConnectionScreenSection.templates.title, isExpanded: $showsConnectionTemplates) {
             VStack(alignment: .leading, spacing: NSpacing.sm) {
-                Text("\(ConnectionScreenSection.templates.explanation) Use Add connection for a custom web service or local tool.")
+                Text("\(ConnectionScreenSection.templates.explanation) Custom web endpoints and local commands are available through Add advanced connection.")
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
                     .fixedSize(horizontal: false, vertical: true)

@@ -7,7 +7,6 @@ struct SettingsGeneralSection: View {
     @Binding var launchAtLogin: Bool
     @Binding var resumeAfterWake: Bool
     let requiresRestart: Bool
-    @Binding var telemetryOptIn: Bool
     let onRestart: () -> Void
 
     var body: some View {
@@ -30,7 +29,7 @@ struct SettingsGeneralSection: View {
                 }
             SettingsRowDivider()
             SettingsToggleRow(
-                label: "Resume scheduled agents after wake",
+                label: "Resume scheduled assistants after wake",
                 description: "Run work missed while this Mac was asleep.",
                 isOn: $resumeAfterWake
             )
@@ -45,30 +44,6 @@ struct SettingsGeneralSection: View {
                     .padding(.top, 8)
             }
             SettingsRowDivider()
-            SettingsToggleRow(
-                label: "Help improve Agent Server",
-                description: "Send anonymous usage data.",
-                isOn: $telemetryOptIn
-            )
-                .onChange(of: telemetryOptIn) { _, value in
-                    // Capture the opt-out before the switch flips, otherwise
-                    // the one event that says why the data stops is the one
-                    // event that never gets sent.
-                    if !value {
-                        Telemetry.capture(.settingChanged, properties: [
-                            "setting": "telemetry_opt_in",
-                            "enabled": false,
-                        ])
-                    }
-                    Telemetry.setOptedIn(value)
-                    if value {
-                        Telemetry.capture(.settingChanged, properties: [
-                            "setting": "telemetry_opt_in",
-                            "enabled": true,
-                        ])
-                    }
-                }
-            SettingsRowDivider()
             SettingsValueRow(label: "Server status") {
                 SettingsStatusPill(
                     isHealthy: monitor.isServerReachable,
@@ -78,6 +53,68 @@ struct SettingsGeneralSection: View {
                     Button("Restart Agent Server", action: monitor.requestServerRestart)
                 }
             }
+        }
+    }
+}
+
+struct SettingsAppearanceSection: View {
+    @ObservedObject private var themeManager = ThemeManager.shared
+
+    var body: some View {
+        SettingsGroup(title: SettingsSection.appearance.title) {
+            SettingsValueRow(label: "Theme") {
+                Picker("Theme", selection: $themeManager.currentTheme) {
+                    ForEach(AgentServerThemeId.allCases) { appTheme in
+                        Text(appTheme.displayName).tag(appTheme)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 150)
+                .accessibilityIdentifier("settings.appearance.theme")
+            }
+        }
+    }
+}
+
+struct SettingsTelemetrySection: View {
+    @Binding var telemetryOptIn: Bool
+
+    var body: some View {
+        SettingsGroup(title: SettingsSection.telemetry.title) {
+            SettingsToggleRow(
+                label: "Help improve Agent Server",
+                description: "Send anonymous usage data.",
+                isOn: $telemetryOptIn
+            )
+            .onChange(of: telemetryOptIn) { _, value in
+                if !value {
+                    Telemetry.capture(.settingChanged, properties: [
+                        "setting": "telemetry_opt_in",
+                        "enabled": false,
+                    ])
+                }
+                Telemetry.setOptedIn(value)
+                if value {
+                    Telemetry.capture(.settingChanged, properties: [
+                        "setting": "telemetry_opt_in",
+                        "enabled": true,
+                    ])
+                }
+            }
+        }
+    }
+}
+
+struct SettingsSecuritySection: View {
+    let onOpen: () -> Void
+
+    var body: some View {
+        SettingsGroup(title: SettingsSection.security.title) {
+            SettingsFullWidthActionButton(
+                title: "Review assistant access and safety…",
+                action: onOpen
+            )
+            .accessibilityIdentifier("settings.openSecurity")
         }
     }
 }
@@ -116,7 +153,7 @@ struct SettingsStorageSection: View {
     var body: some View {
         SettingsGroup(title: SettingsSection.storage.title) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Your agents and private connection settings live here.")
+                Text("Your assistants and private connection settings live here.")
                     .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
                     .foregroundStyle(theme.tokens.mutedForeground)
                 Text(workspace.homeDirectory.path)
@@ -150,7 +187,7 @@ struct SettingsNotificationsSection: View {
             if preferences.enabled {
                 SettingsRowDivider()
                 SettingsToggleRow(
-                    label: "Notify for agent output",
+                    label: "Notify for assistant output",
                     isOn: $preferences.includeAgentOutput
                 )
             }

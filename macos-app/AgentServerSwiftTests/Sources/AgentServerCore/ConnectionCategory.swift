@@ -47,7 +47,7 @@ public enum ConnectionCategory: String, Equatable, Sendable {
     public var label: String {
         switch self {
         case .api: "API"
-        case .mcp: "MCP"
+        case .mcp: "App"
         case .file: "File"
         case .web: "Web"
         case .command: "Command"

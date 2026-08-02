@@ -17,7 +17,9 @@ struct SavedConnectionRow: View {
                     .accessibilityHidden(true)
                 identity
                 Spacer(minLength: NSpacing.md)
-                status
+                Text(presentation.rowActionTitle)
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.accent)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(theme.tokens.mutedForeground)
@@ -52,18 +54,6 @@ struct SavedConnectionRow: View {
         }
     }
 
-    private var status: some View {
-        Label(
-            presentation.statusTitle,
-            systemImage: presentation.status == .ready
-                ? "checkmark.circle.fill"
-                : "exclamationmark.circle"
-        )
-        .font(NTypography.caption)
-        .foregroundStyle(
-            presentation.status == .ready ? theme.tokens.success : theme.tokens.warning
-        )
-    }
 }
 
 struct SavedConnectionDetailView: View {
@@ -121,10 +111,6 @@ struct SavedConnectionDetailView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     readinessSection
                     sectionDivider
-                    connectionSection
-                    sectionDivider
-                    credentialSection
-                    sectionDivider
                     managementSection
                     sectionDivider
                     technicalDetails
@@ -143,7 +129,7 @@ struct SavedConnectionDetailView: View {
             Button("Remove connection", role: .destructive) { performRemoval() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Agents will no longer be able to select this connection. Credentials in your environment file will not be deleted.")
+            Text("Assistants will no longer be able to select this connection. Credentials in your environment file will not be deleted.")
         }
     }
 
@@ -180,40 +166,12 @@ struct SavedConnectionDetailView: View {
                 .font(NTypography.caption)
                 .foregroundStyle(theme.tokens.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
-        }
-        .connectionDetailSection()
-    }
-
-    private var connectionSection: some View {
-        VStack(alignment: .leading, spacing: NSpacing.sm) {
-            Text("Connection")
-                .font(NTypography.labelMedium)
-            detailRow("Method", presentation.connectionMethod)
-            detailRow("Address", presentation.location, usesMonospacedText: true)
-        }
-        .connectionDetailSection()
-    }
-
-    private var credentialSection: some View {
-        VStack(alignment: .leading, spacing: NSpacing.md) {
-            HStack {
-                Text("Credentials")
-                    .font(NTypography.labelMedium)
-                Spacer()
-                Button("Modify credentials", action: onModifyCredentials)
-                    .buttonStyle(.borderless)
-                    .accessibilityIdentifier("connections.modifyCredentials")
-            }
-            ForEach(presentation.credentialReferences, id: \.self) { reference in
-                Label(reference, systemImage: "key")
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                    .textSelection(.enabled)
-            }
-            Text("Secret values stay in the selected Agent Server folder and are never shown here.")
-                .font(NTypography.caption)
-                .foregroundStyle(theme.tokens.mutedForeground)
-                .fixedSize(horizontal: false, vertical: true)
+            Button(
+                presentation.status == .ready ? "Check readiness" : "Add credentials",
+                action: presentation.status == .ready ? performCheck : onModifyCredentials
+            )
+            .buttonStyle(.borderless)
+            .disabled(isBusy)
         }
         .connectionDetailSection()
     }
@@ -244,12 +202,6 @@ struct SavedConnectionDetailView: View {
                 })
             }
 
-            managementButton(
-                "Check readiness",
-                systemImage: "checkmark.circle",
-                tracks: .check,
-                action: performCheck
-            )
             managementButton(
                 "Duplicate",
                 systemImage: "plus.square.on.square",
@@ -368,10 +320,28 @@ struct SavedConnectionDetailView: View {
     }
 
     private var technicalDetails: some View {
-        DisclosureGroup("Advanced details") {
-            VStack(alignment: .leading, spacing: NSpacing.sm) {
-                detailRow("Transport", presentation.connectionMethod)
-                detailRow("Credential references", presentation.credentialSummary)
+        DisclosureGroup(presentation.technicalDetailsTitle) {
+            VStack(alignment: .leading, spacing: NSpacing.md) {
+                detailRow("Method", presentation.connectionMethod)
+                detailRow("Endpoint or command", presentation.location, usesMonospacedText: true)
+                HStack {
+                    Text("Credential references")
+                        .font(NTypography.labelMedium)
+                    Spacer()
+                    Button("Modify credentials", action: onModifyCredentials)
+                        .buttonStyle(.borderless)
+                        .accessibilityIdentifier("connections.modifyCredentials")
+                }
+                ForEach(presentation.credentialReferences, id: \.self) { reference in
+                    Label(reference, systemImage: "key")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                        .textSelection(.enabled)
+                }
+                Text("Secret values stay in the selected Agent Server folder and are never shown here.")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.top, NSpacing.sm)
         }

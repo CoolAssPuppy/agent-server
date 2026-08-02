@@ -14,15 +14,15 @@ public enum ConnectionScreenSection: String, CaseIterable, Equatable, Sendable {
         case .saved: "Your connections"
         case .claude: "Available through Claude"
         case .messaging: "Messaging"
-        case .templates: "Connection templates"
+        case .templates: "Advanced connections"
         }
     }
 
     public var explanation: String {
         switch self {
         case .saved: "Accounts and tools you have set up for Agent Server."
-        case .claude: "Apps connected in Claude are available to your agents through your existing sign-in."
-        case .messaging: "Chat with your agents and receive their replies."
+        case .claude: "Apps connected in Claude are available to your assistants through your existing sign-in."
+        case .messaging: "Chat with your assistants and receive their replies."
         case .templates: "Quick setup for common services."
         }
     }
@@ -37,6 +37,8 @@ public enum ConnectionSetupSection: String, CaseIterable, Equatable, Sendable {
     case technical
 
     public static let visible: [Self] = [.identity, .method, .credentials]
+    public static let introductionTitle = "Add advanced connection"
+    public static let introductionExplanation = "Set up a custom web endpoint or local command. Most people can connect apps through Claude or use a service template instead."
 
     public var title: String {
         switch self {
@@ -66,8 +68,13 @@ public struct ConnectionProfilePresentation: Equatable, Identifiable, Sendable {
     public let category: ConnectionCategory
 
     public var rowSummary: String {
-        "\(connectionMethod) · \(credentialSummary)"
+        "\(connectionMethod) · \(statusTitle)"
     }
+
+    public var rowActionTitle: String {
+        status == .ready ? "View" : "Add credentials"
+    }
+    public var technicalDetailsTitle: String { "Technical details" }
 
     public var statusTitle: String {
         status == .ready ? "Ready" : "Needs credentials"
@@ -76,9 +83,9 @@ public struct ConnectionProfilePresentation: Equatable, Identifiable, Sendable {
     public var statusExplanation: String {
         switch status {
         case .ready:
-            "Agents can use this connection when you grant them access."
+            "Assistants can use this connection when you grant them access."
         case .needsCredentials:
-            "Add the missing credential before an agent can use this connection."
+            "Add the missing credential before an assistant can use this connection."
         }
     }
 

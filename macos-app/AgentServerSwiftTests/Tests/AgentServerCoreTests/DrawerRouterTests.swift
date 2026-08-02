@@ -9,14 +9,14 @@ final class DrawerRouterTests: XCTestCase {
         XCTAssertEqual(TopDrawerPresentation.dividerOpacity, 0.3)
     }
 
-    func testFooterUtilitiesAreIconOnlyAndOrderedByIncreasingScope() {
+    func testFooterKeepsOnlySettingsAsAPersistentUtility() {
         XCTAssertEqual(
             MainFooterUtilityDestination.allCases,
-            [.security, .connections, .settings]
+            [.settings]
         )
         XCTAssertEqual(
             MainFooterUtilityDestination.allCases.map(\.title),
-            ["Security check", "Connections", "Settings"]
+            ["Settings"]
         )
         XCTAssertTrue(MainFooterUtilityDestination.allCases.allSatisfy(\.isIconOnly))
     }

@@ -5,11 +5,11 @@ final class SettingsPreferenceTests: XCTestCase {
     func testSettingsLeadWithEverydayChoicesAndKeepInfrastructureAdvanced() {
         XCTAssertEqual(
             SettingsPresentation.primarySections,
-            [.general, .runtimes, .notifications, .storage, .updates]
+            [.general, .notifications, .appearance, .updates]
         )
         XCTAssertEqual(
             SettingsPresentation.advancedSections,
-            [.agentPanel, .environment]
+            [.runtimes, .storage, .agentPanel, .telemetry, .environment, .security]
         )
     }
 
@@ -18,12 +18,15 @@ final class SettingsPreferenceTests: XCTestCase {
             SettingsSection.allCases.map(\.title),
             [
                 "General",
-                "Coding agents",
                 "Notifications",
-                "Agent Server folder",
+                "Appearance",
                 "Updates",
+                "AI engine",
+                "Local server",
                 "Agent Panel",
+                "Diagnostics and telemetry",
                 "Environment",
+                "Security",
             ]
         )
     }
@@ -69,8 +72,8 @@ final class SettingsPreferenceTests: XCTestCase {
         XCTAssertEqual(
             SettingsPresentation.primaryColumns,
             [
-                [.general, .runtimes, .notifications],
-                [.storage, .updates],
+                [.general, .notifications],
+                [.appearance, .updates],
             ]
         )
     }

@@ -55,9 +55,7 @@ struct CredentialConnectionRow: View {
                         .lineLimit(1)
                     ConnectionCategoryPill(category: .api)
                 }
-                Text(row.action == .addAnother
-                     ? "Add another account for this service"
-                     : catalogEntry?.description ?? "Private service connection")
+                Text("API key · \(row.status == .connected ? "Ready" : "Needs setup")")
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
                     .lineLimit(1)
@@ -71,20 +69,9 @@ struct CredentialConnectionRow: View {
 
     @ViewBuilder
     private var trailing: some View {
-        if row.status == .connected {
-            HStack(spacing: NSpacing.sm) {
-                Label("Connected", systemImage: "checkmark.circle.fill")
-                    .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.success)
-                Button(row.action.title, action: onAction)
-                    .buttonStyle(.borderless)
-                    .font(NTypography.caption)
-            }
-        } else {
-            Button(row.action.title, action: onAction)
-                .buttonStyle(.borderless)
-                .font(NTypography.caption)
-        }
+        Button(row.action.title, action: onAction)
+            .buttonStyle(.borderless)
+            .font(NTypography.caption)
     }
 
     private var iconCapability: AgentCapability {
@@ -128,7 +115,7 @@ struct ConnectionRow: View {
                         .lineLimit(1)
                     ConnectionCategoryPill(category: entry.category)
                 }
-                Text(entry.description)
+                Text("\(consumerMethod) · \(consumerReadiness)")
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
                     .lineLimit(1)
@@ -143,26 +130,24 @@ struct ConnectionRow: View {
     @ViewBuilder
     private var trailing: some View {
         if entry.auth == .oauth {
-            statusText("Sign in from Claude", color: theme.tokens.mutedForeground)
+            statusText("Managed in Claude", color: theme.tokens.mutedForeground)
         } else if isKeyless {
-            statusText("Built in", color: theme.tokens.mutedForeground)
-        } else if isConnected {
-            HStack(spacing: NSpacing.xs) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(theme.tokens.success)
-                Text("Connected")
-                    .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                Button("Edit", action: onConnect)
-                    .buttonStyle(.borderless)
-                    .font(NTypography.caption)
-            }
+            statusText("Included", color: theme.tokens.mutedForeground)
         } else {
-            Button("Set up", action: onConnect)
+            Button(isConnected ? "Manage" : "Set up", action: onConnect)
                 .buttonStyle(.borderless)
                 .font(NTypography.caption)
         }
+    }
+
+    private var consumerMethod: String {
+        entry.kind == "channel" ? "Messaging" : "Connected app"
+    }
+
+    private var consumerReadiness: String {
+        if entry.auth == .oauth { return "Uses your Claude sign-in" }
+        if isKeyless { return "Ready" }
+        return isConnected ? "Ready" : "Needs setup"
     }
 
     private func statusText(_ text: String, color: Color) -> some View {
@@ -181,12 +166,15 @@ struct DiscoveredConnectionRow: View {
         HStack(spacing: NSpacing.md) {
             CapabilityIconView(capability: iconCapability, size: 18, tint: theme.tokens.foreground)
                 .frame(width: 24)
-            HStack(spacing: NSpacing.xs) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(connector.displayName)
                     .font(NTypography.bodyMedium)
                     .foregroundStyle(theme.tokens.foreground)
                     .lineLimit(1)
-                ConnectionCategoryPill(category: .mcp)
+                Text("Connected through Claude · \(readinessText)")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .lineLimit(1)
             }
             Spacer()
             statusView
@@ -208,28 +196,24 @@ struct DiscoveredConnectionRow: View {
     @ViewBuilder
     private var statusView: some View {
         if connector.isConnected {
-            HStack(spacing: NSpacing.xs) {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(theme.tokens.success)
-                Text("Connected")
-                    .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-            }
+            Text("Managed in Claude")
+                .font(NTypography.caption)
+                .foregroundStyle(theme.tokens.mutedForeground)
         } else if connector.needsAuth {
-            HStack(spacing: NSpacing.xs) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 11))
-                    .foregroundStyle(theme.tokens.warning)
-                Text("Sign in from Claude")
-                    .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-            }
+            Text("Sign in with Claude")
+                .font(NTypography.caption)
+                .foregroundStyle(theme.tokens.mutedForeground)
         } else {
             Text(connector.status.replacingOccurrences(of: "-", with: " ").capitalized)
                 .font(NTypography.caption)
                 .foregroundStyle(theme.tokens.mutedForeground)
         }
+    }
+
+    private var readinessText: String {
+        if connector.isConnected { return "Ready" }
+        if connector.needsAuth { return "Needs sign-in" }
+        return connector.status.replacingOccurrences(of: "-", with: " ").capitalized
     }
 }
 
@@ -274,7 +258,7 @@ struct ConnectServiceSheet: View {
                 Text(entry.envReady ? "Modify \(entry.label)" : "Connect \(entry.label)")
                     .font(NTypography.headlineMedium)
                     .foregroundStyle(theme.tokens.foreground)
-                Text("Stored privately in your Agent Server folder, never inside an agent file.")
+                Text("Stored privately in your Agent Server folder, never inside an assistant file.")
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
             }

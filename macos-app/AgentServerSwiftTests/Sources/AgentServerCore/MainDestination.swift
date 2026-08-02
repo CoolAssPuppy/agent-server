@@ -6,6 +6,7 @@ enum MainDestination: String, CaseIterable, Identifiable, Sendable {
     case settings
 
     static let defaultDestination = MainDestination.today
+    static let desktopBarDestinations: [MainDestination] = [.today, .activity, .connections]
 
     var id: String { rawValue }
 

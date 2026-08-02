@@ -20,12 +20,25 @@ final class ConnectionProfilePresentationTests: XCTestCase {
         XCTAssertEqual(row.location, "https://archive.example/mcp")
         XCTAssertEqual(row.credentialSummary, "1 credential")
         XCTAssertEqual(row.status, .needsCredentials)
-        XCTAssertEqual(row.rowSummary, "Web service · 1 credential")
+        XCTAssertEqual(row.rowSummary, "Web service · Needs credentials")
+        XCTAssertEqual(row.rowActionTitle, "Add credentials")
         XCTAssertEqual(row.statusTitle, "Needs credentials")
         XCTAssertEqual(
             row.statusExplanation,
-            "Add the missing credential before an agent can use this connection."
+            "Add the missing credential before an assistant can use this connection."
         )
+    }
+
+
+    func testSavedConnectionRowLeadsWithConsumerMethodAndReadiness() throws {
+        let row = ConnectionProfilePresentation(
+            profile: try makeProfile(),
+            configuredEnvironmentVariables: ["ARCHIVE_TOKEN"]
+        )
+
+        XCTAssertEqual(row.rowSummary, "Web service · Ready")
+        XCTAssertEqual(row.rowActionTitle, "View")
+        XCTAssertEqual(row.technicalDetailsTitle, "Technical details")
     }
 
     func testConnectionIsReadyOnlyWhenEveryReferencedCredentialExists() throws {
@@ -45,7 +58,7 @@ final class ConnectionProfilePresentationTests: XCTestCase {
         XCTAssertEqual(ready.statusTitle, "Ready")
         XCTAssertEqual(
             ready.statusExplanation,
-            "Agents can use this connection when you grant them access."
+            "Assistants can use this connection when you grant them access."
         )
     }
 

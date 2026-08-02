@@ -126,7 +126,6 @@ struct SettingsDrawer: View {
                 launchAtLogin: $launchAtLogin,
                 resumeAfterWake: resumeAfterWakeBinding,
                 requiresRestart: draft.requiresGeneralRestart,
-                telemetryOptIn: $telemetryOptIn,
                 onRestart: restartForGeneralChange
             )
         case .runtimes:
@@ -137,6 +136,8 @@ struct SettingsDrawer: View {
             )
         case .notifications:
             SettingsNotificationsSection()
+        case .appearance:
+            SettingsAppearanceSection()
         case .storage:
             SettingsStorageSection(
                 workspace: workspace,
@@ -154,6 +155,8 @@ struct SettingsDrawer: View {
                 telemetry: telemetryBinding,
                 onRestart: restartForPanelChange
             )
+        case .telemetry:
+            SettingsTelemetrySection(telemetryOptIn: $telemetryOptIn)
         case .environment:
             EnvironmentSettingsCard(
                 pairs: $draft.pairs,
@@ -165,6 +168,8 @@ struct SettingsDrawer: View {
                 onRefreshValidation: {},
                 onPersist: persistEnvironmentDraft
             )
+        case .security:
+            SettingsSecuritySection(onOpen: { router.openSecurity() })
         }
     }
 }

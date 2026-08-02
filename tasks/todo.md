@@ -47,6 +47,21 @@ Protected test review:
 - Completed protected tests report recorded reads and blocked effects. They no longer repeat model readiness claims, and saving without a protected test no longer says the assistant is ready.
 - Verification passed with 1,519 server tests and 4 expected skips. Focused macOS contract, creation-flow, Connections, Settings, and navigation checks passed with 136 tests.
 
+Connections and Settings review:
+
+- Connections is now a labeled desktop destination. Saved, configured, and discovered rows lead with a human label, consumer method, readiness, and one trailing action.
+- Endpoint, command, transport, credential references, environment names, and custom connection setup are under Technical details or an explicitly advanced flow. Existing local credential storage and transactional rollback remain unchanged.
+- Settings now leads with General, Notifications, Appearance, and Updates. AI engine, local server paths, Agent Panel manual setup, telemetry, Environment, and Security are under Advanced.
+- Security was removed from persistent utility navigation but remains available from assistant context and Settings > Advanced.
+- True provider health, last-checked time, and assistant-usage counts remain unclaimed because current local evidence proves configuration readiness only.
+- Verification passed with 526 Swift behavior tests and an unsigned Debug macOS build. Visual capture was attempted against the compiled live route, but the overnight display session was locked and returned a black capture; no screenshot is claimed.
+
+Pairing hard stop:
+
+- Agent Server has stable machine identity and secure legacy manual setup, but Agent Panel has not frozen the pairing endpoint, response schema, code consumption point, credential rotation, revocation, recovery, capability negotiation, or machine-scoped RLS semantics.
+- A pairing client is intentionally not implemented from assumptions. Doing so could consume a one-time code without recoverable credential persistence or attach a machine credential to organization-scoped routes.
+- Manual API-key setup remains under Advanced. Local execution, connections, schedules, and history remain independent of Panel.
+
 Baseline review:
 
 - Runtime discovery now rejects stale Codex wrappers that cannot start and finds valid user-local installs, including NVM and Volta paths.
