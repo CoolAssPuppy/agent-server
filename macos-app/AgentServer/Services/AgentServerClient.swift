@@ -66,6 +66,10 @@ actor AgentServerClient {
         try await get(LocalServerEndpoint.runReviewPath(runID: id))
     }
 
+    func todayActivitySnapshot() async throws -> TodayActivitySnapshot {
+        try await get(LocalServerEndpoint.todayActivityPath)
+    }
+
     /// Pending decisions the daemon learned about over Supabase Realtime. The
     /// daemon serves these locally so the app never polls the panel for them.
     /// Uses a fractional-seconds-tolerant decoder because Postgres timestamps

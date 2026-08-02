@@ -10,6 +10,7 @@ final class StatusMonitor: ObservableObject {
     /// MainPane's Feed + Artifacts cards (which care about ALL recent runs,
     /// not just the ones currently running).
     @Published private(set) var recentRuns: [Run] = []
+    @Published private(set) var todayActivitySnapshot: TodayActivitySnapshot?
     /// Most recent completed/failed run per agent. Drives the sidebar's
     /// "failed last run" red indicator.
     @Published private(set) var lastRunByAgent: [String: Run] = [:]
@@ -76,6 +77,7 @@ final class StatusMonitor: ObservableObject {
     private var liveRecentRuns: [Run] = []
     private var liveLastRunByAgent: [String: Run] = [:]
     private var liveServerReachable = false
+    private var liveTodayActivitySnapshot = LastGoodSnapshotState<TodayActivitySnapshot>()
 
     init(demoModePreference: DemoModePreference = DemoModePreference()) {
         self.demoModePreference = demoModePreference
@@ -110,13 +112,13 @@ final class StatusMonitor: ObservableObject {
 
     private func presentDemoSnapshot() {
         let startOfToday = Calendar.current.startOfDay(for: Date())
-        let fixtures = DemoModeFixtures.make(
-            referenceDate: startOfToday.addingTimeInterval(12 * 3_600)
-        )
+        let referenceDate = startOfToday.addingTimeInterval(12 * 3_600)
+        let fixtures = DemoModeFixtures.make(referenceDate: referenceDate)
         agents = fixtures.presentedAgents
         recentRuns = fixtures.presentedRuns.sorted { $0.startedAt > $1.startedAt }
         activeRuns = recentRuns.filter(\.isActive)
         lastRunByAgent = latestTerminalRuns(from: recentRuns)
+        todayActivitySnapshot = DemoTodayActivitySnapshot.make(referenceDate: referenceDate)
         isServerReachable = true
         localAPISetupError = nil
     }
@@ -126,6 +128,7 @@ final class StatusMonitor: ObservableObject {
         activeRuns = liveActiveRuns
         recentRuns = liveRecentRuns
         lastRunByAgent = liveLastRunByAgent
+        todayActivitySnapshot = liveTodayActivitySnapshot.value
         isServerReachable = liveServerReachable
     }
 
@@ -395,9 +398,25 @@ final class StatusMonitor: ObservableObject {
                 }
             self.liveLastRunByAgent = latest
             if !self.isDemoMode { self.lastRunByAgent = latest }
+            await refreshTodayActivitySnapshot()
         } catch {
             guard !Task.isCancelled else { return }
             handlePollFailure(error)
+        }
+    }
+
+    private func refreshTodayActivitySnapshot() async {
+        let candidate: TodayActivitySnapshot?
+        do {
+            candidate = try await client.todayActivitySnapshot()
+        } catch {
+            candidate = nil
+        }
+
+        guard !Task.isCancelled else { return }
+        let retainedSnapshot = liveTodayActivitySnapshot.resolve(candidate)
+        if !isDemoMode {
+            todayActivitySnapshot = retainedSnapshot
         }
     }
 

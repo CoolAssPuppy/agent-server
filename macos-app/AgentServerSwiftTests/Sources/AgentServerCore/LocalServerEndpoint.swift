@@ -14,6 +14,22 @@ public enum LocalServerEndpoint {
     public static func runReviewPath(runID: String) -> String {
         "/runs/\(runID)/review"
     }
+
+    public static let todayActivityPath = "/presentation/today-activity"
+}
+
+/// Keeps consumer data stable across a failed refresh while allowing a later
+/// successful refresh to replace it.
+struct LastGoodSnapshotState<Snapshot> {
+    private(set) var value: Snapshot?
+
+    @discardableResult
+    mutating func resolve(_ candidate: Snapshot?) -> Snapshot? {
+        if let candidate {
+            value = candidate
+        }
+        return value
+    }
 }
 
 /// Bounded exponential retry timing for the local progress stream.

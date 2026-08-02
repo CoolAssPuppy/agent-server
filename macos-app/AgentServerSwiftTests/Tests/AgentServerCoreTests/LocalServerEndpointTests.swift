@@ -13,4 +13,11 @@ final class LocalServerEndpointTests: XCTestCase {
             "/runs/e566a8f5-becf-49e7-a384-a72d42e9f807/review"
         )
     }
+
+    func testBuildsTheAuthenticatedTodayAndActivitySnapshotPath() {
+        XCTAssertEqual(
+            LocalServerEndpoint.todayActivityPath,
+            "/presentation/today-activity"
+        )
+    }
 }
