@@ -41,7 +41,14 @@ final class SettingsPreferenceTests: XCTestCase {
     func testSettingsUseResponsiveArrangedCards() {
         XCTAssertEqual(SettingsPresentation.sectionStyle, .card)
         XCTAssertEqual(SettingsPresentation.columnCount(availableWidth: 900), 2)
-        XCTAssertEqual(SettingsPresentation.columnCount(availableWidth: 620), 1)
+        XCTAssertEqual(SettingsPresentation.columnCount(availableWidth: 740), 1)
+        XCTAssertEqual(
+            SettingsPresentation.advancedColumns,
+            [
+                [.runtimes, .storage, .environment],
+                [.agentPanel, .telemetry, .security],
+            ]
+        )
     }
 
     func testSettingsMatchMailNotifierCompactTypographyAndSpacing() {

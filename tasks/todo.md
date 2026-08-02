@@ -36,9 +36,17 @@ Review:
 
 ## Settings Advanced Bento layout
 
-- [ ] Inventory every existing Settings > Advanced control and preserve its behavior.
-- [ ] Group related controls into a responsive Bento-style card layout.
-- [ ] Verify narrow widths, keyboard access, VoiceOver order, tests, and the app build.
+- [x] Inventory every existing Settings > Advanced control and preserve its behavior.
+- [x] Group related controls into a responsive Bento-style card layout.
+- [x] Verify narrow widths, keyboard access, VoiceOver order, tests, and the app build.
+
+Review:
+
+- Wide Settings > Advanced uses two independent card stacks: AI engine, Local server, and Environment on the left; Agent Panel, Diagnostics and telemetry, and Security on the right.
+- The independent stacks remove empty grid-row space while preserving all six cards and every existing control.
+- Widths below 760 points use the original single-column reading order so environment fields, steppers, and action rows do not crowd.
+- Card titles now expose heading semantics, and the disclosure announces itself as Advanced settings with expanded or collapsed state.
+- Verification passed: 14 focused Settings tests, 538 full Swift tests, and the unsigned app build.
 
 ## Compact Activity search
 

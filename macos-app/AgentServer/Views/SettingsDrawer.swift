@@ -56,10 +56,7 @@ struct SettingsDrawer: View {
                     primarySectionColumns
                     SettingsAdvancedDisclosure(isExpanded: $showAdvancedSettings)
                     if showAdvancedSettings {
-                        sectionGrid(
-                            SettingsPresentation.advancedSections,
-                            availableWidth: proxy.size.width
-                        )
+                        advancedSectionLayout(availableWidth: proxy.size.width)
                         .accessibilityIdentifier("settings.advancedContent")
                     }
                 }
@@ -92,28 +89,34 @@ struct SettingsDrawer: View {
         }
     }
 
-    private func sectionGrid(
-        _ sections: [SettingsSection],
-        availableWidth: CGFloat
-    ) -> some View {
+    @ViewBuilder
+    private func advancedSectionLayout(availableWidth: CGFloat) -> some View {
         let contentWidth = max(
             0,
             availableWidth - (CGFloat(SettingsPresentation.outerHorizontalPadding) * 2)
         )
         let count = SettingsPresentation.columnCount(availableWidth: Double(contentWidth))
-        return LazyVGrid(
-            columns: Array(
-                repeating: GridItem(
-                    .flexible(minimum: 280),
-                    spacing: CGFloat(SettingsPresentation.interCardSpacing),
-                    alignment: .top
-                ),
-                count: count
-            ),
-            alignment: .leading,
-            spacing: CGFloat(SettingsPresentation.interCardSpacing)
-        ) {
-            ForEach(sections, id: \.self) { sectionView(for: $0) }
+
+        if count == 1 {
+            VStack(alignment: .leading, spacing: CGFloat(SettingsPresentation.interCardSpacing)) {
+                ForEach(SettingsPresentation.advancedSections, id: \.self) {
+                    sectionView(for: $0)
+                }
+            }
+        } else {
+            HStack(alignment: .top, spacing: CGFloat(SettingsPresentation.interCardSpacing)) {
+                ForEach(SettingsPresentation.advancedColumns.indices, id: \.self) { columnIndex in
+                    VStack(
+                        alignment: .leading,
+                        spacing: CGFloat(SettingsPresentation.interCardSpacing)
+                    ) {
+                        ForEach(SettingsPresentation.advancedColumns[columnIndex], id: \.self) {
+                            sectionView(for: $0)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+            }
         }
     }
 

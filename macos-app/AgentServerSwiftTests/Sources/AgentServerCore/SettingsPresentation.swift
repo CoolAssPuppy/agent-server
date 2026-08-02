@@ -98,12 +98,17 @@ public enum SettingsPresentation {
     ]
 
     public static func columnCount(availableWidth: Double) -> Int {
-        availableWidth >= 640 ? 2 : 1
+        availableWidth >= 760 ? 2 : 1
     }
 
     public static let primaryColumns: [[SettingsSection]] = [
         [.general, .device, .notifications],
         [.appearance, .updates],
+    ]
+
+    public static let advancedColumns: [[SettingsSection]] = [
+        [.runtimes, .storage, .environment],
+        [.agentPanel, .telemetry, .security],
     ]
 }
 

@@ -36,6 +36,7 @@ struct SettingsGroup<Content: View>: View {
                 ))
                 .tracking(SettingsPresentation.cardHeadingTracking)
                 .foregroundStyle(theme.tokens.mutedForeground)
+                .accessibilityAddTraits(.isHeader)
                 .contextMenu {
                     if let titleContextActionLabel, let onTitleContextAction {
                         Button(titleContextActionLabel, action: onTitleContextAction)
@@ -202,6 +203,7 @@ struct SettingsAdvancedDisclosure: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Advanced settings")
         .accessibilityIdentifier("settings.advanced")
         .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
     }
