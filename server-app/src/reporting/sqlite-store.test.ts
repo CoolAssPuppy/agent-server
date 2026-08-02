@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
-import { mkdtempSync, rmSync, existsSync } from 'fs';
+import { existsSync, mkdtempSync, rmSync, statSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { SqliteRunStore } from './sqlite-store.js';
@@ -26,6 +26,15 @@ describe('SqliteRunStore', () => {
     const run = makeStoredRun();
     store.add(run);
     expect(store.get('run-1')).toEqual(run);
+  });
+
+  it('keeps durable run history and SQLite sidecar files owner-only', () => {
+    store.add(makeStoredRun());
+
+    for (const path of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) {
+      expect(existsSync(path)).toBe(true);
+      expect(statSync(path).mode & 0o777).toBe(0o600);
+    }
   });
 
   it('round-trips every field including usage and conversation id', () => {

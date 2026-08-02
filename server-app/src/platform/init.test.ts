@@ -27,6 +27,18 @@ describe('initAgentServer', () => {
     expect(existsSync(join(base, 'logs'))).toBe(true);
   });
 
+  it('restricts the local workspace and runtime directories to the owner', () => {
+    const base = createTempPath();
+    dirs.push(base);
+    mkdirSync(join(base, 'agents'), { recursive: true, mode: 0o755 });
+
+    initAgentServer(base);
+
+    for (const path of [base, join(base, 'agents'), join(base, 'locks'), join(base, 'logs')]) {
+      expect(statSync(path).mode & 0o777).toBe(0o700);
+    }
+  });
+
   it('creates and preserves the workspace machine identity', () => {
     const base = createTempPath();
     dirs.push(base);

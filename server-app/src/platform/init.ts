@@ -128,6 +128,9 @@ export function initAgentServer(baseDir: string, options: InitOptions = {}): voi
   mkdirSync(agentsDir, { recursive: true });
   mkdirSync(locksDir, { recursive: true });
   mkdirSync(logsDir, { recursive: true });
+  for (const directory of [baseDir, agentsDir, locksDir, logsDir]) {
+    chmodSync(directory, 0o700);
+  }
   loadOrCreateMachineId(baseDir);
 
   // Seed sample agents only on a true first run: no seed marker AND

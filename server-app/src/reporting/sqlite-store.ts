@@ -1,5 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
-import { mkdirSync } from 'fs';
+import { chmodSync, existsSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
 import type { StoredRun, RunStoreLike } from './store.js';
 import {
@@ -60,9 +60,11 @@ type RunRow = {
  */
 export class SqliteRunStore implements RunStoreLike {
   private readonly db: DatabaseSync;
+  private readonly dbPath: string;
   private readonly maxRuns: number;
 
   constructor(options: SqliteRunStoreOptions) {
+    this.dbPath = options.path;
     this.maxRuns = options.maxRuns ?? DEFAULT_MAX_RUNS;
 
     if (options.path !== ':memory:') {
@@ -72,11 +74,13 @@ export class SqliteRunStore implements RunStoreLike {
     this.db = new DatabaseSync(options.path);
     this.configure();
     this.migrate();
+    this.restrictDatabaseFiles(options.path);
   }
 
   add(run: StoredRun): void {
     this.writeRun(normalizeStoredRun({ ...run }));
     this.evictOldest();
+    this.restrictDatabaseFiles();
   }
 
   get(runId: string): StoredRun | undefined {
@@ -104,6 +108,7 @@ export class SqliteRunStore implements RunStoreLike {
     const existing = this.get(runId);
     if (!existing) return;
     this.writeRun(normalizeStoredRun({ ...existing, ...updates }));
+    this.restrictDatabaseFiles();
   }
 
   delete(runId: string): boolean {
@@ -120,6 +125,7 @@ export class SqliteRunStore implements RunStoreLike {
     this.db
       .prepare('UPDATE runs SET progress_messages = ? WHERE run_id = ?')
       .run(JSON.stringify(nextMessages), runId);
+    this.restrictDatabaseFiles();
   }
 
   close(): void {
@@ -137,6 +143,13 @@ export class SqliteRunStore implements RunStoreLike {
     } catch {
       // A read-only or restricted environment may reject pragmas; the store
       // still functions without them.
+    }
+  }
+
+  private restrictDatabaseFiles(path = this.dbPath): void {
+    if (path === ':memory:') return;
+    for (const filePath of [path, `${path}-wal`, `${path}-shm`]) {
+      if (existsSync(filePath)) chmodSync(filePath, 0o600);
     }
   }
 
