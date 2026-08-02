@@ -137,6 +137,49 @@ describe('replayPendingTerminals', () => {
     expect(existsSync(file)).toBe(false);
   });
 
+  it('projects legacy rich terminal files to operational fields before replay', async () => {
+    writePendingFile(tmp, {
+      runId: 'run-rich-legacy',
+      endpoint: 'https://panel.example/api/runs/run-rich-legacy/status',
+      body: {
+        agent: 'A',
+        state: 'completed',
+        message: 'Private progress',
+        metadata: { worker_id: 'worker-1', secret: 'private metadata' },
+        result: {
+          summary: 'Private summary',
+          accomplishments: ['Wrote /Users/private/report.md'],
+          usage: { input_tokens: 500 },
+          model: 'private-model',
+          output: { file: '/Users/private/report.md' },
+        },
+      },
+    });
+    const fetchImpl = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+
+    await replayPendingTerminals({
+      fetchImpl,
+      getApiKey: () => 'ap_live_secret',
+      panelUrl: 'https://panel.example',
+    }, tmp);
+
+    const body = JSON.parse(fetchImpl.mock.calls[0][1].body) as StatusEvent;
+    expect(body.metadata).toEqual({ worker_id: 'worker-1' });
+    expect(body.result).toEqual({
+      summary: 'Run completed.',
+      accomplishments: ['Run completed.'],
+      usage: {
+        input_tokens: 0,
+        output_tokens: 0,
+        total_tokens: 0,
+        estimated_cost_usd: 0,
+      },
+      model: 'not_shared',
+    });
+    expect(JSON.stringify(body)).not.toContain('Private');
+    expect(JSON.stringify(body)).not.toContain('/Users/private');
+  });
+
   it('exports the default PENDING_TERMINALS_DIR pointing at the user home', () => {
     expect(PENDING_TERMINALS_DIR).toMatch(/\.agent-server\/pending-terminals$/);
   });

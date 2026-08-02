@@ -1,7 +1,7 @@
 import { mkdir, writeFile, readdir, readFile, unlink } from 'fs/promises';
 import { homedir } from 'os';
 import { join } from 'path';
-import { sanitizeMetadata, sanitizeStructuredValue, sanitizeText } from '../server/security-utils.js';
+import { sanitizeText } from '../server/security-utils.js';
 import { toErrorMessage } from '../util/errors.js';
 import { withTimeout } from '../util/with-timeout.js';
 
@@ -64,6 +64,54 @@ const TERMINAL_RETRY_COUNT = 3;
 const TERMINAL_RETRY_BASE_MS = 500;
 const DEFERRED_RETRY_COUNT = 5;
 const DEFERRED_RETRY_BASE_MS = 5_000;
+const STABLE_REASON_CODE = /^[a-z][a-z0-9_]{0,119}$/;
+const ZERO_USAGE = Object.freeze({
+  input_tokens: 0,
+  output_tokens: 0,
+  total_tokens: 0,
+  estimated_cost_usd: 0,
+});
+
+/**
+ * Reduce legacy status payloads to the operational fields approved for
+ * default Panel delivery. This also protects replay of older rich outbox
+ * files that may contain local paths, commands, result text, or tool names.
+ */
+export function toOperationalStatusEvent(event: StatusEvent): StatusEvent {
+  const metadata: Record<string, unknown> = {};
+  if (typeof event.metadata?.worker_id === 'string') {
+    metadata.worker_id = event.metadata.worker_id;
+  }
+  if (typeof event.metadata?.conversation_id === 'string') {
+    metadata.conversation_id = event.metadata.conversation_id;
+  }
+
+  const projected: StatusEvent = {
+    agent: event.agent,
+    state: event.state,
+    ...(event.timestamp ? { timestamp: event.timestamp } : {}),
+    ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
+  };
+
+  if (event.state === 'completed') {
+    projected.result = {
+      summary: 'Run completed.',
+      accomplishments: ['Run completed.'],
+      usage: { ...ZERO_USAGE },
+      model: 'not_shared',
+    };
+  } else if (event.state === 'failed' || event.state === 'rejected' || event.state === 'canceled') {
+    const code = event.error?.code;
+    projected.error = {
+      message: event.state === 'canceled' ? 'Run canceled.' : 'Run failed.',
+      ...(typeof code === 'string' && STABLE_REASON_CODE.test(code) ? { code } : {}),
+    };
+  } else if (event.state === 'input_required') {
+    projected.message = 'Input required.';
+  }
+
+  return projected;
+}
 
 /**
  * HTTP status 409 from the panel means "run is already in a terminal state".
@@ -139,23 +187,12 @@ export class TelemetryReporter {
       this.throttledProgressCount += 1;
       return;
     }
-    const throttled = this.throttledProgressCount;
     this.throttledProgressCount = 0;
     this.lastProgressSentAt = now;
-    const safeMessage = sanitizeText(message, 1_000);
-    await this.send({
-      state: 'working',
-      message: throttled > 0
-        ? `[batched ${throttled + 1} updates] ${safeMessage}`
-        : safeMessage,
-      metadata: {
-        ...sanitizeMetadata(metadata ?? {}),
-        ...(throttled > 0 ? { batched_progress_updates: throttled } : {}),
-      },
-    });
+    await this.send({ state: 'working' });
   }
 
-  async complete(executionResult: {
+  async complete(_executionResult: {
     summary: string;
     output: Record<string, unknown>;
     usage: Record<string, unknown>;
@@ -172,50 +209,14 @@ export class TelemetryReporter {
     }
     this.terminalSent = true;
     console.log(`[telemetry] Sending completion for "${this.config.agentName}" to ${this.config.endpoint}`);
-    const safeSummary = sanitizeText(executionResult.summary, 2_000);
-    const safeTools = executionResult.toolsUsed.slice(0, 128).map((value) => sanitizeText(value, 120));
-    const safeFilesRead = executionResult.filesRead.slice(0, 128).map((value) => sanitizeText(value, 240));
-    const safeFilesWritten = executionResult.filesWritten.slice(0, 128).map((value) => sanitizeText(value, 240));
-    const safeCommands = executionResult.commandsRun.slice(0, 128).map((value) => sanitizeText(value, 400));
-    const accomplishments: string[] = [];
-    if (safeFilesWritten.length > 0) {
-      accomplishments.push(`Wrote ${safeFilesWritten.length} file(s): ${safeFilesWritten.join(', ')}`);
-    }
-    if (safeCommands.length > 0) {
-      accomplishments.push(`Ran ${safeCommands.length} command(s)`);
-    }
-    if (safeFilesRead.length > 0) {
-      accomplishments.push(`Read ${safeFilesRead.length} file(s)`);
-    }
-    // AgentResultSchema requires accomplishments.min(1). When a run produced
-    // no observable side-effects we still need one non-empty entry. (Fix 1)
-    if (accomplishments.length === 0) {
-      accomplishments.push(`Completed in ${executionResult.turnCount} turn(s)`);
-    }
-
-    const usage = sanitizeStructuredValue(this.normalizeUsage(executionResult.usage)) as Record<string, unknown>;
-    const model = executionResult.model
-      ?? (typeof executionResult.usage.model === 'string' ? executionResult.usage.model : undefined)
-      ?? 'unknown';
-
     try {
       await this.send({
         state: 'completed',
         result: {
-          summary: safeSummary,
-          accomplishments: accomplishments.map((value) => sanitizeText(value, 500)),
-          usage,
-          model,
-          output: {
-            turn_count: executionResult.turnCount,
-            tools_used: safeTools,
-            files_read: safeFilesRead,
-            files_written: safeFilesWritten,
-            commands_run: safeCommands,
-            ...(this.progressEntries.length > 0
-              ? { progress_updates: this.progressEntries, progress_updates_dropped: this.progressEntriesDropped }
-              : {}),
-          },
+          summary: 'Run completed.',
+          accomplishments: ['Run completed.'],
+          usage: { ...ZERO_USAGE },
+          model: 'not_shared',
         },
       });
     } finally {
@@ -240,7 +241,7 @@ export class TelemetryReporter {
       await this.send({
         state: 'failed',
         error: {
-          message: sanitizeText(error.message, 1_000),
+          message: 'Run failed.',
           ...(errorCode ? { code: errorCode } : {}),
         },
       });
@@ -259,39 +260,13 @@ export class TelemetryReporter {
       await this.send({
         state: 'canceled',
         error: {
-          message: sanitizeText(reason ?? 'Canceled', 1_000),
+          message: 'Run canceled.',
           ...(code ? { code } : {}),
         },
       });
     } finally {
       this.stopHeartbeat();
     }
-  }
-
-  /**
-   * AgentResultSchema requires numeric input_tokens, output_tokens,
-   * total_tokens, and estimated_cost_usd. Older callers send only legacy
-   * counters. Coalesce to the required shape while keeping extra fields.
-   */
-  private normalizeUsage(raw: Record<string, unknown>): Record<string, unknown> {
-    const coerceNonNeg = (value: unknown): number => {
-      if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return value;
-      return 0;
-    };
-    const input = coerceNonNeg(raw.input_tokens);
-    const output = coerceNonNeg(raw.output_tokens);
-    const totalCandidate = raw.total_tokens;
-    const total = typeof totalCandidate === 'number' && Number.isFinite(totalCandidate)
-      ? totalCandidate
-      : input + output;
-    const cost = coerceNonNeg(raw.estimated_cost_usd);
-    return {
-      ...raw,
-      input_tokens: Math.trunc(input),
-      output_tokens: Math.trunc(output),
-      total_tokens: Math.trunc(total),
-      estimated_cost_usd: cost,
-    };
   }
 
   stop(): void {
@@ -314,7 +289,7 @@ export class TelemetryReporter {
     if (this.config.heartbeatMs <= 0) return;
 
     this.heartbeatTimer = setInterval(() => {
-      void this.send({ state: 'working', message: 'heartbeat' });
+      void this.send({ state: 'working' });
     }, this.config.heartbeatMs);
   }
 
@@ -327,12 +302,12 @@ export class TelemetryReporter {
       workerMetadata.conversation_id = this.config.conversationId;
     }
 
-    const body: StatusEvent = {
+    const body = toOperationalStatusEvent({
       agent: this.config.agentName,
       timestamp: new Date().toISOString(),
       ...event,
       metadata: { ...workerMetadata, ...event.metadata },
-    };
+    });
 
     const maxAttempts = TERMINAL_STATES.has(event.state) ? TERMINAL_RETRY_COUNT : 1;
 
@@ -432,26 +407,12 @@ export class TelemetryReporter {
     this.deferredRetryTimer = timer;
   }
 
-  private recordProgress(message: string, metadata?: Record<string, unknown>): void {
+  private recordProgress(_message: string, _metadata?: Record<string, unknown>): void {
     if (this.progressEntries.length >= this.config.maxProgressEntries) {
       this.progressEntriesDropped += 1;
       return;
     }
-    const entry: Record<string, unknown> = {
-      timestamp: new Date().toISOString(),
-      message: sanitizeText(message, 280),
-    };
-    if (this.config.includeProgressMetadata && metadata) {
-      entry.metadata = sanitizeMetadata(metadata);
-    } else if (metadata) {
-      const compact: Record<string, unknown> = {};
-      if (typeof metadata.turns_completed === 'number') compact.turns_completed = metadata.turns_completed;
-      if (Array.isArray(metadata.tools_used)) {
-        compact.tools_used = metadata.tools_used.slice(0, 64).map((value) => sanitizeText(String(value), 120));
-      }
-      if (Object.keys(compact).length > 0) entry.metadata = compact;
-    }
-    this.progressEntries.push(entry);
+    this.progressEntries.push({ timestamp: new Date().toISOString() });
   }
 }
 
@@ -566,7 +527,7 @@ export async function replayPendingTerminals(
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`,
         },
-        body: JSON.stringify(entry.body),
+        body: JSON.stringify(toOperationalStatusEvent(entry.body)),
       }, options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS);
       if (isTerminalAcceptedStatus(response)) {
         await unlink(path);

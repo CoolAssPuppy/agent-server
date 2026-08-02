@@ -78,7 +78,7 @@ describe('TelemetryReporter', () => {
     expect(options?.signal?.aborted).toBe(true);
   });
 
-  it('sends a completed event with full execution data', async () => {
+  it('sends a schema-compatible operational completion', async () => {
     const mockFetch = createMockFetch();
     const reporter = makeReporter({ fetch: mockFetch });
 
@@ -97,31 +97,17 @@ describe('TelemetryReporter', () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
     const body = JSON.parse(mockFetch.mock.calls[1][1].body) as StatusEvent;
     expect(body.state).toBe('completed');
-    expect(body.result?.summary).toBe('Created report');
-    expect(body.result?.accomplishments).toEqual([
-      'Wrote 1 file(s): /output.md',
-      'Ran 2 command(s)',
-      'Read 3 file(s)',
-    ]);
+    expect(body.result?.summary).toBe('Run completed.');
+    expect(body.result?.accomplishments).toEqual(['Run completed.']);
     expect(body.result?.usage).toEqual({
-      turns: 5,
-      files_read: 3,
-      files_written: 1,
-      commands_run: 2,
       input_tokens: 0,
       output_tokens: 0,
       total_tokens: 0,
       estimated_cost_usd: 0,
     });
-    expect(body.result?.model).toBe('unknown');
+    expect(body.result?.model).toBe('not_shared');
     expect(body.result?.accomplishments?.length ?? 0).toBeGreaterThan(0);
-    expect(body.result?.output).toEqual({
-      turn_count: 5,
-      tools_used: ['Read', 'Write', 'Bash'],
-      files_read: ['/a.ts', '/b.ts', '/c.ts'],
-      files_written: ['/output.md'],
-      commands_run: ['npm test', 'npm run build'],
-    });
+    expect(body.result?.output).toBeUndefined();
   });
 
   it('redacts secrets from every terminal result string', async () => {
@@ -141,12 +127,54 @@ describe('TelemetryReporter', () => {
     });
 
     const bodyText = String(mockFetch.mock.calls[1][1].body);
-    expect(bodyText).toContain('[REDACTED]');
+    expect(bodyText).not.toContain('[REDACTED]');
     expect(bodyText).not.toContain('hidden-summary-token');
     expect(bodyText).not.toContain('hidden-tool-token');
     expect(bodyText).not.toContain('hidden-read-secret');
     expect(bodyText).not.toContain('hidden-write-secret');
     expect(bodyText).not.toContain('hidden-command-token');
+  });
+
+  it('defaults to an operational allowlist without local result content', async () => {
+    const mockFetch = createMockFetch();
+    const reporter = makeReporter({ fetch: mockFetch });
+
+    await reporter.progress('Reading /Users/private/customer-notes.md', {
+      turns_completed: 2,
+      tools_used: ['Read', 'mcp__notion__search'],
+      customer: 'Private customer name',
+    });
+    await reporter.complete({
+      summary: 'Private customer summary',
+      output: { document: 'Private document body' },
+      usage: { input_tokens: 400, output_tokens: 200, estimated_cost_usd: 1.25 },
+      turnCount: 2,
+      toolsUsed: ['Read', 'mcp__notion__search'],
+      filesRead: ['/Users/private/customer-notes.md'],
+      filesWritten: ['/Users/private/report.md'],
+      commandsRun: ['publish --customer private'],
+      model: 'private-model-name',
+    });
+
+    const payloads = mockFetch.mock.calls.map((call) => String(call[1].body)).join('\n');
+    expect(payloads).not.toContain('Private customer');
+    expect(payloads).not.toContain('/Users/private');
+    expect(payloads).not.toContain('mcp__notion');
+    expect(payloads).not.toContain('publish --customer');
+    expect(payloads).not.toContain('private-model-name');
+
+    const terminal = JSON.parse(mockFetch.mock.calls.at(-1)?.[1].body) as StatusEvent;
+    expect(terminal.result).toEqual({
+      summary: 'Run completed.',
+      accomplishments: ['Run completed.'],
+      usage: {
+        input_tokens: 0,
+        output_tokens: 0,
+        total_tokens: 0,
+        estimated_cost_usd: 0,
+      },
+      model: 'not_shared',
+    });
   });
 
   it('sends a failed event on error', async () => {
@@ -158,7 +186,7 @@ describe('TelemetryReporter', () => {
 
     const body = JSON.parse(mockFetch.mock.calls[1][1].body) as StatusEvent;
     expect(body.state).toBe('failed');
-    expect(body.error?.message).toBe('Something broke');
+    expect(body.error?.message).toBe('Run failed.');
   });
 
   it('sends a stable machine-readable failure code', async () => {
@@ -173,12 +201,12 @@ describe('TelemetryReporter', () => {
 
     const body = JSON.parse(mockFetch.mock.calls[1][1].body) as StatusEvent;
     expect(body.error).toEqual({
-      message: 'The required result was not created.',
+      message: 'Run failed.',
       code: 'output_contract_unmet',
     });
   });
 
-  it('sends progress events with message and metadata', async () => {
+  it('sends progress state without local message or metadata', async () => {
     const mockFetch = createMockFetch();
     const reporter = makeReporter({ fetch: mockFetch });
 
@@ -190,8 +218,8 @@ describe('TelemetryReporter', () => {
 
     const body = JSON.parse(mockFetch.mock.calls[1][1].body) as StatusEvent;
     expect(body.state).toBe('working');
-    expect(body.message).toBe('Processing items');
-    expect(body.metadata?.turns_completed).toBe(5);
+    expect(body.message).toBeUndefined();
+    expect(body.metadata).toBeUndefined();
   });
 
   it('throttles high-frequency progress updates in live mode', async () => {
@@ -205,10 +233,10 @@ describe('TelemetryReporter', () => {
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
     const body = JSON.parse(mockFetch.mock.calls[1][1].body) as StatusEvent;
-    expect(body.message).toBe('step 1');
+    expect(body.message).toBeUndefined();
   });
 
-  it('batches progress updates into the terminal completed payload', async () => {
+  it('does not place batched local progress into the terminal payload', async () => {
     const mockFetch = createMockFetch();
     const reporter = makeReporter({ fetch: mockFetch, progressMode: 'batched' });
 
@@ -228,10 +256,7 @@ describe('TelemetryReporter', () => {
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
     const body = JSON.parse(mockFetch.mock.calls[1][1].body) as StatusEvent;
-    const progressUpdates = (body.result?.output?.progress_updates ?? []) as Array<Record<string, unknown>>;
-    expect(progressUpdates).toHaveLength(2);
-    expect(progressUpdates[0].message).toBe('step 1');
-    expect((progressUpdates[0].metadata as Record<string, unknown>).turns_completed).toBe(1);
+    expect(body.result?.output).toBeUndefined();
   });
 
   it('includes authorization header', async () => {
@@ -537,7 +562,7 @@ describe('TelemetryReporter', () => {
     reporter.stop();
   });
 
-  it('sends a canceled event with the provided reason and code', async () => {
+  it('sends a canceled event with a generic message and stable code', async () => {
     const mockFetch = createMockFetch();
     const reporter = makeReporter({ fetch: mockFetch });
 
@@ -547,7 +572,7 @@ describe('TelemetryReporter', () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
     const body = JSON.parse(mockFetch.mock.calls[1][1].body) as StatusEvent;
     expect(body.state).toBe('canceled');
-    expect(body.error?.message).toBe('Another run in progress');
+    expect(body.error?.message).toBe('Run canceled.');
     expect(body.error?.code).toBe('lock_contention');
   });
 
@@ -569,8 +594,8 @@ describe('TelemetryReporter', () => {
     });
 
     const body = JSON.parse(mockFetch.mock.calls[1][1].body) as StatusEvent;
-    expect(body.result?.accomplishments).toEqual(['Completed in 2 turn(s)']);
-    expect(body.result?.model).toBe('claude-haiku-4-5-20251001');
+    expect(body.result?.accomplishments).toEqual(['Run completed.']);
+    expect(body.result?.model).toBe('not_shared');
   });
 
   it('treats 409 from the panel as terminal success (no retry)', async () => {
@@ -655,7 +680,7 @@ describe('TelemetryReporter', () => {
     expect(existsSync(pendingFile)).toBe(true);
     const pending = JSON.parse(readFileSync(pendingFile, 'utf8')) as { body: StatusEvent };
     expect(pending.body.state).toBe('completed');
-    expect(pending.body.result?.summary).toBe('Durable result');
+    expect(pending.body.result?.summary).toBe('Run completed.');
   });
 
   it('stops heartbeat when stop is called', async () => {
