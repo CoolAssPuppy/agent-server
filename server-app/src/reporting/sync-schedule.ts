@@ -8,7 +8,6 @@ import { withTimeout } from '../util/with-timeout.js';
 const DEFAULT_FILE_CHANGE_DEBOUNCE_MS = 2_000;
 const DEFAULT_HOURLY_INTERVAL_MS = 60 * 60 * 1_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
-const MAX_DESCRIPTION_LENGTH = 2_000;
 
 export type AgentSyncRowPayload = {
   slug: string;
@@ -26,22 +25,6 @@ export type AgentSyncPayload = {
 export type SyncResult =
   | { ok: true; status: number; count: number }
   | { ok: false; status?: number; error?: string };
-
-export function extractDescription(agent: AgentConfig): string | undefined {
-  const explicit = agent.description?.trim();
-  if (explicit) return explicit;
-
-  const prompt = agent.prompt?.trim();
-  if (!prompt) return undefined;
-
-  const firstParagraph = prompt.split(/\r?\n\s*\r?\n/)[0]?.trim();
-  if (!firstParagraph) return undefined;
-
-  if (firstParagraph.length > MAX_DESCRIPTION_LENGTH) {
-    return firstParagraph.slice(0, MAX_DESCRIPTION_LENGTH);
-  }
-  return firstParagraph;
-}
 
 function computeNextRun(agent: AgentConfig, now: Date): string | undefined {
   if (!agent.schedule) return undefined;
@@ -63,9 +46,6 @@ export function buildAgentSyncPayload(agents: AgentConfig[], now: Date): AgentSy
       slug: agent.id,
       name: agent.name,
     };
-
-    const description = extractDescription(agent);
-    if (description) row.description = description;
 
     if (agent.schedule) row.cron_expression = agent.schedule;
     if (agent.timezone) row.timezone = agent.timezone;

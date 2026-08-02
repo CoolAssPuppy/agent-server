@@ -5,7 +5,6 @@ import { tmpdir } from 'os';
 import { CronExpressionParser } from 'cron-parser';
 import {
   buildAgentSyncPayload,
-  extractDescription,
   syncAgentSchedule,
   ScheduleSync,
   type WatchDirectory,
@@ -43,34 +42,6 @@ function createWatchHarness(): {
   };
 }
 
-describe('extractDescription', () => {
-  it('returns explicit description when provided', () => {
-    const agent = makeAgent({ description: 'Summarizes daily news.', prompt: 'Long prompt here.' });
-    expect(extractDescription(agent)).toBe('Summarizes daily news.');
-  });
-
-  it('falls back to first paragraph of prompt when description missing', () => {
-    const agent = makeAgent({
-      description: undefined,
-      prompt: 'First paragraph describes work.\n\nSecond paragraph has details.',
-    });
-    expect(extractDescription(agent)).toBe('First paragraph describes work.');
-  });
-
-  it('returns undefined when no description and no prompt body', () => {
-    const agent = makeAgent({ description: undefined, prompt: '' as unknown as string });
-    expect(extractDescription(agent)).toBeUndefined();
-  });
-
-  it('truncates very long first paragraphs to 2000 chars', () => {
-    const long = 'x'.repeat(3000);
-    const agent = makeAgent({ description: undefined, prompt: long });
-    const result = extractDescription(agent);
-    expect(result).toBeDefined();
-    expect(result!.length).toBeLessThanOrEqual(2000);
-  });
-});
-
 describe('buildAgentSyncPayload', () => {
   it('builds payload for scheduled, watch-only, and on-demand agents while excluding disabled agents', () => {
     const now = new Date('2026-04-14T10:00:00Z');
@@ -106,7 +77,6 @@ describe('buildAgentSyncPayload', () => {
     expect(payload.agents[0]).toMatchObject({
       slug: 'scheduled',
       name: 'Scheduled Agent',
-      description: 'Runs on a cron.',
       cron_expression: '0 9 * * *',
       timezone: 'UTC',
     });
@@ -114,18 +84,30 @@ describe('buildAgentSyncPayload', () => {
     expect(payload.agents[1]).toMatchObject({
       slug: 'watch-only',
       name: 'Watch-Only Agent',
-      description: 'Triggered by a file change.',
     });
     expect(payload.agents[1].cron_expression).toBeUndefined();
     expect(payload.agents[1].next_run_at).toBeUndefined();
     expect(payload.agents[2]).toMatchObject({
       slug: 'on-demand',
       name: 'On-Demand Agent',
-      description: 'Triggered manually.',
     });
     expect(payload.agents[2].cron_expression).toBeUndefined();
     expect(payload.agents[2].next_run_at).toBeUndefined();
     expect(payload.agents.map((agent) => agent.slug)).not.toContain('disabled');
+  });
+
+  it('never projects descriptions or instructions into legacy Panel sync', () => {
+    const payload = buildAgentSyncPayload([
+      makeAgent({
+        id: 'private-assistant',
+        description: 'Private customer description',
+        prompt: 'Read /Users/private/customer-notes.md and publish the result.',
+      }),
+    ], new Date('2026-04-14T10:00:00Z'));
+
+    expect(payload.agents[0]).not.toHaveProperty('description');
+    expect(JSON.stringify(payload)).not.toContain('Private customer');
+    expect(JSON.stringify(payload)).not.toContain('/Users/private');
   });
 
   it('computes next_run_at correctly for cron + timezone', () => {
@@ -206,7 +188,6 @@ describe('syncAgentSchedule', () => {
     expect(body.agents[0]).toMatchObject({
       slug: 'news',
       name: 'News',
-      description: 'Daily news digest.',
       cron_expression: '0 9 * * *',
       timezone: 'UTC',
     });
@@ -266,7 +247,7 @@ describe('syncAgentSchedule', () => {
     expect(requestSignal?.aborted).toBe(true);
   });
 
-  it('extracts description from markdown body when frontmatter description missing', async () => {
+  it('does not extract private instructions from a markdown body', async () => {
     writeAgent('doc.md', [
       '---',
       'id: doc',
@@ -288,7 +269,8 @@ describe('syncAgentSchedule', () => {
     });
 
     const body = JSON.parse(fetchFn.mock.calls[0][1].body);
-    expect(body.agents[0].description).toBe('This is the first paragraph of the agent body.');
+    expect(body.agents[0].description).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain('first paragraph');
   });
 });
 
