@@ -1,5 +1,26 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Compact Activity search
+
+- [x] Add behavior tests for the normal tab labels and expanded search state.
+- [x] Put search on the same toolbar row as the Activity filters.
+- [x] Expand the search field leftward from a trailing search button.
+- [x] Collapse filter labels to circular initials while search is open.
+- [x] Verify keyboard focus, accessibility labels, reduced motion, Swift tests, and the unsigned app build.
+
+Constraints:
+
+- Keep Activity filtering and search semantics unchanged.
+- Reuse the existing design system and native SwiftUI controls.
+- Do not alter Today, server APIs, or persisted state.
+
+Review:
+
+- Activity now keeps filters and search on one row. The trailing search button opens a focused field toward the left while filters animate into 30-point circles labeled A, N, W, F, and P.
+- Full filter meaning remains available to VoiceOver, Escape closes and clears search, and reduced-motion settings remove the spring animation.
+- The subtitle now reads “History of work performed by assistants on this Mac.”
+- Verification passed: 6 focused Activity tests, 536 full Swift tests, and the unsigned Debug app build.
+
 ## Agent Server V2 implementation
 
 - [x] Restore and record a green TypeScript, Swift, lint, and build baseline.

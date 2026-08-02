@@ -76,6 +76,26 @@ enum ActivityFilter: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+struct ActivityToolbarPresentation: Equatable, Sendable {
+    let isSearchExpanded: Bool
+
+    let subtitle = "History of work performed by assistants on this Mac."
+
+    var filterLabels: [String] {
+        ActivityFilter.allCases.map { filter in
+            isSearchExpanded ? String(filter.title.prefix(1)) : filter.title
+        }
+    }
+
+    var filterAccessibilityLabels: [String] {
+        ActivityFilter.allCases.map(\.accessibilityLabel)
+    }
+
+    func label(for filter: ActivityFilter) -> String {
+        isSearchExpanded ? String(filter.title.prefix(1)) : filter.title
+    }
+}
+
 struct ActivityPresentation: Equatable, Sendable {
     let filter: ActivityFilter
     let searchText: String

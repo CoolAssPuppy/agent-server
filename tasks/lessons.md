@@ -144,3 +144,4 @@
 - A date-keyed agent needs an explicit server-enforced rerun policy. Check durable completed history in the agent timezone before execution. Never infer idempotent success from model prose or weaken the required output contract after the model has started.
 - Separate SDK adapters from platform runtimes in release packaging. When the product requires an installed coding agent, do not add hundreds of megabytes of fallback executables. Detect the installed executable and return clear setup guidance when it is absent.
 - When the user warns about tangents, define the current acceptance gap in one sentence, assign bounded file ownership, and commit the smallest verified behavior before opening another thread. Do not turn adjacent product ideas into implementation work unless they block the stated goal.
+- Consumer UI subtitles should begin with the subject and purpose. Remove instructional verbs such as “Search” when the adjacent control already explains the action.

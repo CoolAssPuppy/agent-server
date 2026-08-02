@@ -6,11 +6,18 @@ struct ActivityView: View {
     let onOpen: (ActivityItem) -> Void
 
     @Environment(\.nTheme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var isReduceMotionEnabled
     @State private var filter = ActivityFilter.all
     @State private var searchText = ""
+    @State private var isSearchExpanded = false
+    @FocusState private var isSearchFocused: Bool
 
     private var presentation: ActivityPresentation {
         ActivityPresentation(items: items, filter: filter, searchText: searchText)
+    }
+
+    private var toolbarPresentation: ActivityToolbarPresentation {
+        ActivityToolbarPresentation(isSearchExpanded: isSearchExpanded)
     }
 
     var body: some View {
@@ -31,36 +38,43 @@ struct ActivityView: View {
                     .font(NTypography.displayMedium)
                     .foregroundStyle(theme.tokens.foreground)
                     .accessibilityAddTraits(.isHeader)
-                Text("Search the history of work performed by assistants on this Mac.")
+                Text(toolbarPresentation.subtitle)
                     .font(NTypography.bodyMedium)
                     .foregroundStyle(theme.tokens.mutedForeground)
             }
 
-            VStack(alignment: .leading, spacing: NSpacing.sm) {
-                HStack(spacing: NSpacing.sm) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                        .accessibilityHidden(true)
+            HStack(spacing: NSpacing.xs) {
+                ForEach(ActivityFilter.allCases) { option in
+                    filterButton(option)
+                }
+
+                Spacer(minLength: NSpacing.sm)
+
+                if isSearchExpanded {
                     TextField("Search activity", text: $searchText)
                         .textFieldStyle(.plain)
                         .font(NTypography.bodyMedium)
+                        .focused($isSearchFocused)
+                        .onExitCommand(perform: closeSearch)
+                        .padding(.horizontal, NSpacing.md)
+                        .frame(minWidth: 160, maxWidth: .infinity)
+                        .frame(height: 34)
+                        .background(theme.tokens.card)
+                        .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: NRadius.md)
+                                .stroke(theme.tokens.border, lineWidth: 1)
+                        )
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
                         .accessibilityIdentifier("activity.search")
                 }
-                .padding(.horizontal, NSpacing.md)
-                .frame(height: 34)
-                .background(theme.tokens.card)
-                .clipShape(RoundedRectangle(cornerRadius: NRadius.md))
-                .overlay(
-                    RoundedRectangle(cornerRadius: NRadius.md)
-                        .stroke(theme.tokens.border, lineWidth: 1)
-                )
 
-                HStack(spacing: NSpacing.xs) {
-                    ForEach(ActivityFilter.allCases) { option in
-                        filterButton(option)
-                    }
-                }
+                searchButton
             }
+            .animation(
+                isReduceMotionEnabled ? nil : .spring(response: 0.3, dampingFraction: 0.86),
+                value: isSearchExpanded
+            )
         }
         .padding(.horizontal, NSpacing.xxl)
         .padding(.top, NSpacing.xxl)
@@ -111,10 +125,11 @@ struct ActivityView: View {
         Button {
             filter = option
         } label: {
-            Text(option.title)
+            Text(toolbarPresentation.label(for: option))
                 .font(NTypography.labelMedium)
                 .foregroundStyle(filter == option ? theme.tokens.primaryForeground : theme.tokens.foreground)
-                .padding(.horizontal, NSpacing.md)
+                .padding(.horizontal, isSearchExpanded ? 0 : NSpacing.md)
+                .frame(width: isSearchExpanded ? 30 : nil)
                 .frame(height: 30)
                 .background(filter == option ? theme.tokens.primary : theme.tokens.muted)
                 .clipShape(Capsule())
@@ -123,6 +138,39 @@ struct ActivityView: View {
         .accessibilityLabel(option.accessibilityLabel)
         .accessibilityAddTraits(filter == option ? .isSelected : [])
         .accessibilityIdentifier("activity.filter.\(option.rawValue)")
+    }
+
+    private var searchButton: some View {
+        Button(action: toggleSearch) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(theme.tokens.foreground)
+                .frame(width: 34, height: 34)
+                .background(isSearchExpanded ? theme.tokens.muted : theme.tokens.card)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(theme.tokens.border, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isSearchExpanded ? "Close activity search" : "Search activity")
+        .accessibilityIdentifier("activity.search.toggle")
+    }
+
+    private func toggleSearch() {
+        if isSearchExpanded {
+            closeSearch()
+            return
+        }
+
+        isSearchExpanded = true
+        DispatchQueue.main.async {
+            isSearchFocused = true
+        }
+    }
+
+    private func closeSearch() {
+        searchText = ""
+        isSearchFocused = false
+        isSearchExpanded = false
     }
 }
 

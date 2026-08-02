@@ -4,6 +4,22 @@ import XCTest
 @testable import AgentServerCore
 
 final class ActivityPresentationTests: XCTestCase {
+    func testToolbarUsesFullFilterLabelsUntilSearchExpands() {
+        let collapsed = ActivityToolbarPresentation(isSearchExpanded: false)
+        let expanded = ActivityToolbarPresentation(isSearchExpanded: true)
+
+        XCTAssertEqual(collapsed.subtitle, "History of work performed by assistants on this Mac.")
+        XCTAssertEqual(
+            collapsed.filterLabels,
+            ["All", "Needs you", "Working", "Finished", "Problems"]
+        )
+        XCTAssertEqual(expanded.filterLabels, ["A", "N", "W", "F", "P"])
+        XCTAssertEqual(
+            expanded.filterAccessibilityLabels,
+            collapsed.filterAccessibilityLabels
+        )
+    }
+
     func testFiltersUseConsumerLabelsAndMatchTheExpectedStates() {
         let items = [
             makeItem(id: "needs-you", state: .needsYou, startedAt: date(1)),
