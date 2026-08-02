@@ -30,8 +30,12 @@ function createFetchStub(): { fetchImpl: typeof fetch; requests: CapturedRequest
 }
 
 describe('analytics opt-out resolution', () => {
-  it('defaults to opted in when nothing says otherwise', () => {
-    expect(isAnalyticsOptedOut(createHome(), {})).toBe(false);
+  it('defaults to opted out until the user explicitly opts in', () => {
+    expect(isAnalyticsOptedOut(createHome(), {})).toBe(true);
+  });
+
+  it('honors an explicit shell opt-in when the workspace file is silent', () => {
+    expect(isAnalyticsOptedOut(createHome(), { AGENT_SERVER_ANALYTICS_OPT_OUT: 'false' })).toBe(false);
   });
 
   it('honors a shell variable when the workspace file is silent', () => {
@@ -72,6 +76,7 @@ describe('analytics factory', () => {
         AGENT_SERVER_HOME: createHome(),
         AGENT_SERVER_ANALYTICS_KEY: 'phc_test',
         AGENT_SERVER_ANALYTICS_DISTINCT_ID: '11111111-2222-4333-8444-555555555555',
+        AGENT_SERVER_ANALYTICS_OPT_OUT: 'false',
       },
       fetchImpl,
     });

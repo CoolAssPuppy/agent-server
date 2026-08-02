@@ -1,5 +1,11 @@
 import Foundation
 
+public enum ProductAnalyticsConsent {
+    public static func isOptedIn(storedValue: Bool?) -> Bool {
+        storedValue == true
+    }
+}
+
 public enum SettingsSection: String, CaseIterable, Equatable, Sendable {
     case general
     case device

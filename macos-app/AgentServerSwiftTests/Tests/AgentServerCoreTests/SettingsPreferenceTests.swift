@@ -2,6 +2,12 @@ import XCTest
 @testable import AgentServerCore
 
 final class SettingsPreferenceTests: XCTestCase {
+    func testProductAnalyticsRequiresExplicitConsent() {
+        XCTAssertFalse(ProductAnalyticsConsent.isOptedIn(storedValue: nil))
+        XCTAssertFalse(ProductAnalyticsConsent.isOptedIn(storedValue: false))
+        XCTAssertTrue(ProductAnalyticsConsent.isOptedIn(storedValue: true))
+    }
+
     func testSettingsLeadWithEverydayChoicesAndKeepInfrastructureAdvanced() {
         XCTAssertEqual(
             SettingsPresentation.primarySections,

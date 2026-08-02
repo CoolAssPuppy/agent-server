@@ -14,8 +14,7 @@ import PostHog
 /// reinstalls or multiple Macs appears as several distinctIds. No PII, no
 /// email, no device fingerprint, no agent names, no prompts, no file paths.
 ///
-/// Opt-out: defaults ON, read from UserDefaults, surfaced as "Help improve
-/// Agent Server" in Settings. On opt-out we call `optOut` on every destination
+/// Analytics requires explicit consent in Settings. On opt-out we call `optOut` on every destination
 /// so buffered events are dropped and capture stops immediately.
 ///
 /// Config, all from Info.plist. A missing `POSTHOG_API_KEY` silently disables
@@ -29,8 +28,7 @@ enum Telemetry {
     // MARK: - Storage keys
 
     private static let distinctIdKey = "com.strategicnerds.agent-server.distinctId"
-    /// Surfaced to the user as "Help improve Agent Server" in Settings. Opt-out,
-    /// defaults to ON. Nil in UserDefaults means "never set" → treat as opted in.
+    /// Surfaced to the user as "Help improve Agent Server" in Settings.
     static let optInKey = "com.strategicnerds.agent-server.telemetryOptIn"
     /// Mirror of the preference in the workspace `.env`, read by the daemon.
     private static let daemonOptOutKey = "AGENT_SERVER_ANALYTICS_OPT_OUT"
@@ -49,13 +47,13 @@ enum Telemetry {
 
     // MARK: - Public API
 
-    /// Reads the user's current opt-in preference. Defaults to `true` when unset.
+    /// Reads the user's current opt-in preference. An unset preference is off.
     static var isOptedIn: Bool {
         let defaults = UserDefaults.standard
-        if defaults.object(forKey: optInKey) == nil {
-            return true
-        }
-        return defaults.bool(forKey: optInKey)
+        let storedValue = defaults.object(forKey: optInKey) == nil
+            ? nil
+            : defaults.bool(forKey: optInKey)
+        return ProductAnalyticsConsent.isOptedIn(storedValue: storedValue)
     }
 
     /// Updates the preference and propagates it to every live destination and

@@ -35,7 +35,9 @@ export function isAnalyticsOptedOut(
 ): boolean {
   const fromFile = loadEnvFile(home, {})[OPT_OUT_KEY];
   if (fromFile !== undefined) return fromFile === 'true';
-  return env[OPT_OUT_KEY] === 'true';
+  const fromEnvironment = env[OPT_OUT_KEY];
+  if (fromEnvironment !== undefined) return fromEnvironment === 'true';
+  return true;
 }
 
 /**
