@@ -9,8 +9,10 @@
 - [x] Normalize approve, pick, answer, and defer decisions at the local boundary.
 - [x] Add tested consumer presentation adapters for Today, health, readiness, permissions, activity, run review, and human timelines.
 - [x] Build consumer-grade macOS Today and Activity with Technical details disclosure.
-- [ ] Build Assistant home, readiness, pairing client, Connections, and Settings integrations.
-- [ ] Verify offline operation, privacy defaults, compatibility, screenshots, and all required test suites.
+- [x] Build Assistant home, readiness, Connections, and Settings integrations.
+- [ ] Build the pairing client after Agent Panel freezes the secure machine-scoped contract.
+- [x] Verify offline operation, privacy defaults, compatibility, and all automated test suites.
+- [ ] Complete the signed visual matrix in an unlocked macOS session.
 
 Constraints:
 
@@ -61,6 +63,20 @@ Pairing hard stop:
 - Agent Server has stable machine identity and secure legacy manual setup, but Agent Panel has not frozen the pairing endpoint, response schema, code consumption point, credential rotation, revocation, recovery, capability negotiation, or machine-scoped RLS semantics.
 - A pairing client is intentionally not implemented from assumptions. Doing so could consume a one-time code without recoverable credential persistence or attach a machine credential to organization-scoped routes.
 - Manual API-key setup remains under Advanced. Local execution, connections, schedules, and history remain independent of Panel.
+
+Final local-first review:
+
+- Panel startup sync and run reporting no longer block local server readiness, execution, terminal state, history, or lock release. Terminal events are written to the local outbox before asynchronous delivery.
+- Production-composition coverage proves manual and scheduled execution, restart, and durable history perform zero external requests when Panel is not configured.
+- Panel reporting defaults to operational status only. Instructions, summaries, paths, commands, model names, raw tool names, usage, and credentials stay local.
+- Workspace runtime directories are owner-only and SQLite history files, including WAL and SHM sidecars, are owner-readable and writable only.
+- Product analytics is off until the user explicitly opts in. Disabling Panel in macOS prevents Panel requests and history enrichment.
+- Historical run reviews, Today, Activity, and Assistant home never apply a newly edited output contract to an older run.
+- Primary macOS navigation and creation use Assistant and Safe test language. The old technical concepts remain unchanged in APIs and persistence.
+- Assistant Advanced details expose the raw schedule, AI engine, configured model, permission mode, exact allow and deny rules, and connection IDs in a collapsed local disclosure. They do not source prompts, credentials, MCP configuration, or the working directory.
+- Screen specifications and the visual acceptance matrix are recorded under `docs/v2/`. The previous macOS root was deleted when V2 replaced it, so presentation rollback requires installing the prior signed build rather than maintaining duplicate UI logic behind a flag.
+- Final verification passed: 1,546 server tests with 4 expected skips, 535 Swift presentation tests, 12 EventKit tests, strict TypeScript checking, ESLint, server compilation, and an unsigned Debug app build.
+- Signed UI automation and final screenshots remain unverified because the overnight display session is locked. Pairing and remote command transport remain blocked on Agent Panel's endpoint, credential, RLS, scope, rotation, revocation, and atomic machine-claim contracts.
 
 Baseline review:
 
