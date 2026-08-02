@@ -60,6 +60,24 @@ Each item contains protocol version, machine ID, local agent ID, display name, e
 
 Sync reconciliation is limited to one machine ID. It cannot deactivate rows from another machine.
 
+## Local Assistant home
+
+Agent Server serves the authenticated, read-only consumer projection at
+`GET /presentation/assistants/:localAgentId`. The response is machine-local and
+contains `generatedAt`, assistant identity, purpose, health, readiness checks,
+schedule, effective permission statements, connection summaries, destination,
+recent outcomes, current attention, and presentation actions.
+
+Readiness facts come from Agent Server. Unknown engine authentication,
+connection reachability, and destination validity remain `unknown` and cannot
+produce `ready`. Credential presence proves setup only. It does not prove that
+a provider is healthy. Safe test is omitted until effect-class enforcement has
+been verified for the selected executor.
+
+The endpoint never returns instructions, credentials, environment values,
+commands, raw tool names, or run logs. Its frozen local example is
+`fixtures/assistant-home-local.json`.
+
 ## Status event
 
 Required envelope:

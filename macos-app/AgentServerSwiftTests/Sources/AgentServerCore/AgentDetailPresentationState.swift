@@ -5,9 +5,9 @@ public enum AgentDetailTab: String, CaseIterable, Equatable, Sendable {
 
     public var title: String {
         switch self {
-        case .recentRuns: "Recent runs"
-        case .editAgent: "Edit agent"
-        case .runHistory: "Run history"
+        case .recentRuns: "Overview"
+        case .editAgent: "Edit"
+        case .runHistory: "History"
         }
     }
 
@@ -38,6 +38,10 @@ public struct AgentDetailPresentationState: Equatable, Sendable {
         case .editAgent: [.agentEditor]
         case .runHistory: [.runHistory]
         }
+    }
+
+    public var showsHeaderActions: Bool {
+        selectedTab != .recentRuns
     }
 
     public mutating func select(_ tab: AgentDetailTab) {

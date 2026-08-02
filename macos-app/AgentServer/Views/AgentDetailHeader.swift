@@ -8,6 +8,7 @@ struct AgentDetailHeader: View {
     let nextRun: String?
     let run: AgentDetailHeaderRunPresentation
     let security: AgentDetailSecurityIndicatorPresentation
+    let showsActions: Bool
     let onClose: () -> Void
     let onRun: () -> Void
     let onSecurity: () -> Void
@@ -19,11 +20,37 @@ struct AgentDetailHeader: View {
             closeButton
             identity
             Spacer()
-            runButton
-            securityButton
+            if showsActions {
+                runButton
+                securityButton
+            }
         }
         .padding(.horizontal, NSpacing.xl)
         .padding(.vertical, NSpacing.md)
+    }
+
+    init(
+        name: String,
+        description: String?,
+        schedule: String?,
+        nextRun: String?,
+        run: AgentDetailHeaderRunPresentation,
+        security: AgentDetailSecurityIndicatorPresentation,
+        showsActions: Bool = true,
+        onClose: @escaping () -> Void,
+        onRun: @escaping () -> Void,
+        onSecurity: @escaping () -> Void
+    ) {
+        self.name = name
+        self.description = description
+        self.schedule = schedule
+        self.nextRun = nextRun
+        self.run = run
+        self.security = security
+        self.showsActions = showsActions
+        self.onClose = onClose
+        self.onRun = onRun
+        self.onSecurity = onSecurity
     }
 
     private var closeButton: some View {

@@ -70,6 +70,10 @@ actor AgentServerClient {
         try await get(LocalServerEndpoint.todayActivityPath)
     }
 
+    func assistantHome(id: String) async throws -> AssistantHomeContract {
+        try await get(LocalServerEndpoint.assistantHomePath(assistantID: id))
+    }
+
     func interaction(id: String) async throws -> LocalInteraction {
         try await get(LocalServerEndpoint.interactionPath(interactionID: id))
     }

@@ -5,7 +5,7 @@ final class AgentDetailPresentationTests: XCTestCase {
     func testTabsUseTheRequestedOrderAndLabels() {
         XCTAssertEqual(AgentDetailTab.allCases, [.recentRuns, .editAgent, .runHistory])
         XCTAssertEqual(AgentDetailTab.allCases.map(\.title), [
-            "Recent runs", "Edit agent", "Run history",
+            "Overview", "Edit", "History",
         ])
     }
 
@@ -13,10 +13,13 @@ final class AgentDetailPresentationTests: XCTestCase {
         var state = AgentDetailPresentationState(agentId: "writer")
 
         XCTAssertEqual(state.sections, [.lastRun, .capabilities])
+        XCTAssertFalse(state.showsHeaderActions)
         state.select(.editAgent)
         XCTAssertEqual(state.sections, [.agentEditor])
+        XCTAssertTrue(state.showsHeaderActions)
         state.select(.runHistory)
         XCTAssertEqual(state.sections, [.runHistory])
+        XCTAssertTrue(state.showsHeaderActions)
     }
 
     func testSelectingAnotherAgentReturnsToRecentRunsAndClearsTheSelectedRun() {

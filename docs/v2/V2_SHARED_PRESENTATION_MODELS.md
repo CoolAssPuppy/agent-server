@@ -138,6 +138,11 @@ Examples:
 - Must ask before pushing to GitHub.
 - Cannot send email.
 
+The frozen local Assistant home example is
+`fixtures/assistant-home-local.json`. Unknown checks remain visible and a safe
+test action is absent until the selected executor has verified effect-class
+enforcement.
+
 ## Run review
 
 ```text

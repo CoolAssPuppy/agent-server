@@ -7,7 +7,7 @@
 - [x] Add V2 status and assistant-sync serialization behind V1 compatibility controls.
 - [x] Add the pure machine-targeted command boundary for target, expiry, replay, support, and local policy checks. Keep transport claim blocked until Panel supplies atomic machine-scoped semantics.
 - [x] Normalize approve, pick, answer, and defer decisions at the local boundary.
-- [ ] Add tested consumer presentation adapters for Today, health, readiness, permissions, activity, run review, and human timelines.
+- [x] Add tested consumer presentation adapters for Today, health, readiness, permissions, activity, run review, and human timelines.
 - [x] Build consumer-grade macOS Today and Activity with Technical details disclosure.
 - [ ] Build Assistant home, readiness, pairing client, Connections, and Settings integrations.
 - [ ] Verify offline operation, privacy defaults, compatibility, screenshots, and all required test suites.
@@ -28,6 +28,15 @@ Today and Activity review:
 - Offline snapshot failures retain the last good local presentation instead of blanking the screen. Panel availability is not required.
 - Visual inspection covered Today, dated Activity, and the interaction response sheet in the compiled macOS app. The review found and fixed low-contrast secondary actions, content alignment, and excessive Today and Activity similarity.
 - Verification passed with 1,495 server tests and 4 expected skips, 513 Swift behavior tests, 12 EventKit tests, strict TypeScript checking, ESLint, server compilation, and an unsigned Debug macOS build. The deterministic UI scenarios remain in the UI-test target; an unsigned XCTest host result is not counted as a passing gate.
+
+Assistant home review:
+
+- Added an authenticated, read-only Assistant home endpoint that composes machine-scoped identity, purpose, health, readiness, schedule, effective permissions, connections, destination, recent outcomes, attention, and server-selected actions.
+- Readiness uses deterministic runtime, filesystem, schedule, connection, and permission checks. Unknown or unsupported evidence stays visible as unavailable and cannot enable Run or Safe test.
+- Effective permission rules are translated into human statements without creating a second permission system. Secret values, full paths, instructions, and raw technical state remain outside the default presentation.
+- The macOS Assistant home now leads with health and one primary action, then readiness, schedule, results, access, connections, recent outcomes, secondary actions, and Advanced details. Edit and History remain available without duplicating the home surface.
+- Visual inspection of the compiled light-theme scenario confirmed a clear reading order, one primary action, readable access rules, and calm card density at 1280 by 932 points.
+- Verification passed with 1,510 server tests and 4 expected skips, 521 Swift behavior tests, 12 EventKit tests, strict TypeScript checking, ESLint, server compilation, and an unsigned Debug macOS build.
 
 Baseline review:
 

@@ -11,6 +11,7 @@ enum UITestScenario: String {
     case runtimeCreation = "runtime-creation"
     case runReview = "run-review"
     case todayActivity = "today-activity"
+    case assistantHome = "assistant-home"
 
     static var current: UITestScenario? {
         ProcessInfo.processInfo.environment["AGENT_SERVER_UI_TEST_SCENARIO"]
@@ -64,6 +65,13 @@ private struct UITestScenarioRoot: View {
             RunReviewSummaryView(review: Self.completedRunReview)
         case .todayActivity:
             TodayActivityScenarioView()
+        case .assistantHome:
+            AssistantHomeView(
+                presentation: AssistantHomePresentation(contract: DemoAssistantHome.ready()),
+                onPrimaryAction: { _ in },
+                onSecondaryAction: { _ in },
+                onOpenRun: { _ in }
+            )
         case .debugger:
             debuggerView
         case .security:

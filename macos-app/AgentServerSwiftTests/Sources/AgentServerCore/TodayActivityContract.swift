@@ -106,7 +106,17 @@ struct PresentationAction: Decodable, Equatable, Sendable {
 }
 
 enum PresentationActionKind: Equatable, Sendable {
-    case respond, viewActivity, review, viewAssistant, unknown
+    case respond
+    case viewActivity
+    case review
+    case viewAssistant
+    case resolveAttention
+    case run
+    case safeTest
+    case pause
+    case edit
+    case advanced
+    case unknown
 }
 
 extension PresentationActionKind: Decodable {
@@ -117,6 +127,12 @@ extension PresentationActionKind: Decodable {
         case "view_activity": .viewActivity
         case "review": .review
         case "view_assistant": .viewAssistant
+        case "resolve_attention": .resolveAttention
+        case "run": .run
+        case "safe_test": .safeTest
+        case "pause": .pause
+        case "edit": .edit
+        case "advanced": .advanced
         default: .unknown
         }
     }

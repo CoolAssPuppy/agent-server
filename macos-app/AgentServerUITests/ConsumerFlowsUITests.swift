@@ -169,6 +169,30 @@ final class ConsumerFlowsUITests: XCTestCase {
         add(screenshot)
     }
 
+    func testAssistantHomeExplainsReadinessAccessAndResultsBeforeTechnicalDetails() {
+        launch(scenario: "assistant-home")
+
+        XCTAssertTrue(element("assistantHome.screen").waitForExistence(timeout: 5))
+        XCTAssertTrue(text("Weekly Report").exists)
+        XCTAssertTrue(text("Healthy").exists)
+        XCTAssertTrue(text("Ready").exists)
+        XCTAssertTrue(text("Run now").exists)
+        XCTAssertEqual(app.buttons.matching(identifier: "assistantHome.primaryAction").count, 1)
+        XCTAssertTrue(text("Schedule").exists)
+        XCTAssertTrue(text("Access").exists)
+        XCTAssertTrue(text("Connections").exists)
+        XCTAssertTrue(text("Results").exists)
+        XCTAssertTrue(text("Recent outcomes").exists)
+        XCTAssertTrue(text("Advanced details").exists)
+        XCTAssertFalse(textContaining("0 9 * * 1").exists)
+        XCTAssertFalse(textContaining("machine-1").exists)
+
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screenshot.name = "Assistant home"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
     private func launch(scenario: String) {
         app.launchEnvironment["AGENT_SERVER_UI_TEST_SCENARIO"] = scenario
         app.launch()

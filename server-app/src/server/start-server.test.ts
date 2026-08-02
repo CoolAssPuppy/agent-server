@@ -791,6 +791,49 @@ describe('startServer production composition', { timeout: 20_000 }, () => {
     }
   });
 
+  it('composes deterministic Assistant home facts into the production HTTP API', async () => {
+    const context = await createTestServerContext('assistant-home-server');
+    writeAgent(context.home, 'reader.yaml', [
+      'id: reader',
+      'name: Local Reader',
+      'description: Reviews local notes.',
+      'prompt: Read the notes.',
+      `working_directory: ${context.home}`,
+      'tools: [Read, Glob, Grep]',
+      'disallowed_tools: [Write, Edit, Bash]',
+      'enabled: true',
+      '',
+    ].join('\n'));
+    const server = startServer(context.config, { store: new RunStore() });
+
+    try {
+      await server.ready;
+      const response = await fetch(
+        `http://127.0.0.1:${context.port}/presentation/assistants/reader`,
+        { headers: { Authorization: `Bearer ${API_KEY}` } },
+      );
+      const body = await response.json() as {
+        assistant: { localAgentId: string };
+        readiness: { checks: Array<{ kind: string; state: string }> };
+        permissions: Array<{ action: string; exactScopeReference: string }>;
+      };
+
+      expect(response.status).toBe(200);
+      expect(body.assistant.localAgentId).toBe('reader');
+      expect(body.readiness.checks).toContainEqual(expect.objectContaining({
+        kind: 'file',
+        state: 'pass',
+      }));
+      expect(body.permissions).toContainEqual(expect.objectContaining({
+        action: 'read',
+        exactScopeReference: context.home,
+      }));
+    } finally {
+      await server.stop();
+      rmSync(context.home, { recursive: true, force: true });
+    }
+  });
+
   it('awaits one idempotent shutdown before releasing the listener', async () => {
     const context = await createTestServerContext('stop-server');
     const store = new RunStore();

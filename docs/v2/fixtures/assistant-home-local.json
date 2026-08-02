@@ -1,0 +1,189 @@
+{
+  "assistant": {
+    "installationId": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99:weekly-report",
+    "machineId": "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99",
+    "localAgentId": "weekly-report",
+    "displayName": "Weekly Report"
+  },
+  "purpose": {
+    "text": "Prepares the weekly report from local notes.",
+    "evidenceReferences": ["agent.description"]
+  },
+  "health": {
+    "state": "working",
+    "summary": {
+      "text": "Working now.",
+      "evidenceReferences": ["run.status"]
+    },
+    "reasonReferences": ["run.status"]
+  },
+  "readiness": {
+    "state": "needs_setup",
+    "summary": {
+      "text": "Finish setup before running.",
+      "evidenceReferences": ["readiness.checks"]
+    },
+    "checks": [
+      {
+        "kind": "server",
+        "state": "pass",
+        "explanation": {
+          "text": "Agent Server is running on this Mac.",
+          "evidenceReferences": ["server.health"]
+        },
+        "evidenceSource": "server.health"
+      },
+      {
+        "kind": "engine",
+        "state": "unknown",
+        "explanation": {
+          "text": "AI engine sign-in will be checked when this assistant runs.",
+          "evidenceReferences": ["runtime.authentication"]
+        },
+        "evidenceSource": "runtime.authentication"
+      },
+      {
+        "kind": "schedule",
+        "state": "pass",
+        "explanation": {
+          "text": "This assistant runs on demand.",
+          "evidenceReferences": ["agent.schedule"]
+        },
+        "evidenceSource": "agent.schedule"
+      },
+      {
+        "kind": "file",
+        "state": "pass",
+        "explanation": {
+          "text": "Reports is available.",
+          "evidenceReferences": ["agent.working_directory"]
+        },
+        "evidenceSource": "agent.working_directory"
+      },
+      {
+        "kind": "connection",
+        "state": "action_required",
+        "explanation": {
+          "text": "Team reports needs setup.",
+          "evidenceReferences": ["agent.connection_bindings.reports"]
+        },
+        "action": {
+          "kind": "edit",
+          "label": "Review connection",
+          "targetReference": "assistant:weekly-report:edit"
+        },
+        "evidenceSource": "agent.connection_bindings.reports"
+      },
+      {
+        "kind": "permission",
+        "state": "pass",
+        "explanation": {
+          "text": "The saved permission rules are valid.",
+          "evidenceReferences": ["agent.permissions", "agent.file_access"]
+        },
+        "evidenceSource": "agent.permissions"
+      },
+      {
+        "kind": "destination",
+        "state": "unknown",
+        "explanation": {
+          "text": "The result destination will be checked during the run.",
+          "evidenceReferences": ["agent.output.primary"]
+        },
+        "evidenceSource": "agent.output.primary"
+      }
+    ]
+  },
+  "schedule": {
+    "kind": "on_demand",
+    "summary": {
+      "text": "Runs when you ask.",
+      "evidenceReferences": ["agent.schedule", "agent.watch"]
+    }
+  },
+  "permissions": [
+    {
+      "effect": "can",
+      "action": "read",
+      "targetLabel": "Reports",
+      "exactScopeReference": "/Users/example/Reports",
+      "sourceRuleReference": "agent.permissions.allow"
+    },
+    {
+      "effect": "can",
+      "action": "edit",
+      "targetLabel": "Reports",
+      "exactScopeReference": "/Users/example/Reports",
+      "sourceRuleReference": "agent.permissions.allow"
+    },
+    {
+      "effect": "cannot",
+      "action": "execute",
+      "targetLabel": "terminal commands",
+      "exactScopeReference": "/Users/example/Reports",
+      "sourceRuleReference": "agent.permissions.deny"
+    }
+  ],
+  "connections": [
+    {
+      "id": "reports",
+      "label": "Team reports",
+      "state": "needs_setup",
+      "explanation": {
+        "text": "Team reports needs setup.",
+        "evidenceReferences": ["agent.connection_bindings.reports"]
+      }
+    }
+  ],
+  "destination": {
+    "text": "Results go to Weekly report.",
+    "evidenceReferences": ["agent.output.primary.description"]
+  },
+  "recentOutcomes": [
+    {
+      "runId": "waiting-run",
+      "outcome": "working",
+      "headline": {
+        "text": "Weekly Report is working",
+        "evidenceReferences": ["run.status"]
+      },
+      "occurredAt": "2026-08-02T09:30:00.000Z",
+      "reviewReference": "/runs/waiting-run/review"
+    }
+  ],
+  "attention": {
+    "summary": {
+      "text": "Choose where to save the report.",
+      "evidenceReferences": ["interaction.request.message"]
+    },
+    "action": {
+      "kind": "resolve_attention",
+      "label": "Choose",
+      "targetReference": "interaction:interaction-1"
+    },
+    "expiresAt": "2026-08-02T10:30:00.000Z"
+  },
+  "primaryAction": {
+    "kind": "resolve_attention",
+    "label": "Choose",
+    "targetReference": "interaction:interaction-1"
+  },
+  "secondaryActions": [
+    {
+      "kind": "pause",
+      "label": "Pause",
+      "targetReference": "assistant:weekly-report:pause"
+    },
+    {
+      "kind": "edit",
+      "label": "Edit",
+      "targetReference": "assistant:weekly-report:edit"
+    },
+    {
+      "kind": "advanced",
+      "label": "Advanced details",
+      "targetReference": "/agents/weekly-report"
+    }
+  ],
+  "advancedReference": "/agents/weekly-report"
+}

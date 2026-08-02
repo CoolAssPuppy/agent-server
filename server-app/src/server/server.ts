@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server';
 import { createNodeWebSocket } from '@hono/node-ws';
 import { hostname, homedir } from 'os';
 import { join } from 'path';
+import { accessSync, constants } from 'fs';
 import type { ServerConfig } from '../platform/config.js';
 import type { AgentConfig } from '../agents/config.js';
 import { createApi } from './api.js';
@@ -26,7 +27,7 @@ import { RealtimeClient } from '../reporting/realtime-client.js';
 import { TriggerHandler } from '../execution/trigger-handler.js';
 import type { DecisionContext } from '../execution/decision-handler.js';
 import { shouldRun, hasMissedRun } from '../agents/scheduler.js';
-import { AgentFileWatchManager } from '../agents/file-watcher.js';
+import { AgentFileWatchManager, expandHome } from '../agents/file-watcher.js';
 import { ChannelDispatcher } from '../channels/dispatcher.js';
 import { InteractionStore } from '../interaction/store.js';
 import { ConversationStore } from '../conversation/store.js';
@@ -60,6 +61,7 @@ import { createNoopAnalytics, type Analytics } from '../analytics/analytics.js';
 import { ANALYTICS_EVENTS } from '../analytics/events.js';
 import { classifyErrorReason } from '../analytics/reason.js';
 import { loadOrCreateMachineId } from '../platform/machine-identity.js';
+import { collectAssistantHomeFacts } from '../presentation/assistant-readiness.js';
 
 export type ServerInstance = {
   ready: Promise<void>;
@@ -689,6 +691,38 @@ export function startServer(
     connectionProfiles: connectionProfileStore,
     apiKey,
     machineId,
+    assistantHomeFacts: async (agent, allAgents) => {
+      const executor = agent.executor ?? 'claude-code';
+      if (executor === 'claude-code') await connectionCache.ensure();
+      const registry = buildServiceRegistry({
+        agents: allAgents,
+        environment: loadEnvFile(join(config.agentsDir, '..'), process.env),
+        discovered: executor === 'claude-code' ? connectionCache.servers() : [],
+        executor,
+        profiles: await connectionProfileStore.list(),
+      });
+      return collectAssistantHomeFacts({
+        agent,
+        runtimePaths,
+        registry,
+        inspectPath: (configuredPath) => {
+          const path = expandHome(configuredPath);
+          const hasAccess = (mode: number): boolean => {
+            try {
+              accessSync(path, mode);
+              return true;
+            } catch {
+              return false;
+            }
+          };
+          return {
+            exists: hasAccess(constants.F_OK),
+            readable: hasAccess(constants.R_OK),
+            writable: hasAccess(constants.W_OK),
+          };
+        },
+      });
+    },
     startedAt,
     host: config.host,
     analysisApi: analysisRuntime.api,

@@ -29,6 +29,10 @@ import {
   createActivityPresentation,
   createTodayPresentation,
 } from '../presentation/today-activity.js';
+import {
+  createAssistantHomePresentation,
+  type AssistantHomeFacts,
+} from '../presentation/assistant-home.js';
 import type { InteractionStore, PendingInteraction } from '../interaction/store.js';
 import type { PendingDecision } from '../reporting/realtime-client.js';
 import type { PreflightResult } from '../analysis/models.js';
@@ -115,6 +119,11 @@ type ApiDependencies = {
     recentSince: Date;
     upcomingUntil: Date;
   };
+  /** Deterministic local facts used by the consumer Assistant home adapter. */
+  assistantHomeFacts?: (
+    agent: AgentConfig,
+    allAgents: AgentConfig[],
+  ) => Promise<AssistantHomeFacts>;
   startedAt?: string;
   host?: string;
 };
@@ -388,6 +397,31 @@ export function createApi(deps: ApiDependencies): Hono {
       generatedAt: now.toISOString(),
       today: createTodayPresentation(input),
       activity: createActivityPresentation(input),
+    });
+  });
+
+  app.get('/presentation/assistants/:id', async (c) => {
+    if (!deps.machineId) {
+      return c.json({ error: 'Machine identity unavailable' }, 503);
+    }
+    if (!deps.assistantHomeFacts) {
+      return c.json({ error: 'Assistant readiness is unavailable' }, 503);
+    }
+    const agents = await deps.getAgents();
+    const agent = agents.find((candidate) => candidate.id === c.req.param('id'));
+    if (!agent) return c.json({ error: 'Assistant not found' }, 404);
+    const now = deps.presentationClock?.() ?? new Date();
+    const facts = await deps.assistantHomeFacts(agent, agents);
+    return c.json({
+      generatedAt: now.toISOString(),
+      ...createAssistantHomePresentation({
+        machineId: deps.machineId,
+        agent,
+        runs: deps.store.listByAgent(agent.id),
+        pendingInteractions: deps.getPendingInteractions?.() ?? [],
+        now,
+        facts,
+      }),
     });
   });
 

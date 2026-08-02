@@ -941,6 +941,112 @@ describe('API routes', () => {
     });
   });
 
+  describe('GET /presentation/assistants/:id', () => {
+    it('returns one authenticated machine-local Assistant home without prompt or secret data', async () => {
+      const machineId = '1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99';
+      const now = new Date('2026-08-02T10:00:00.000Z');
+      const agent = makeAgent({
+        id: 'weekly-report',
+        name: 'Weekly Report',
+        description: 'Prepares the weekly report.',
+        schedule: undefined,
+        prompt: 'PROMPT_PRIVATE: send credential-secret.',
+        working_directory: '/Users/person/Documents/Reports',
+        permissions: { allow: ['Read', 'Write'], deny: ['Bash'] },
+        mcp_servers: {
+          reports: {
+            command: 'private-mcp',
+            env: { REPORTS_TOKEN: 'credential-secret' },
+          },
+        },
+      });
+      store.add(makeStoredRun({
+        runId: 'run-7',
+        agentId: agent.id,
+        agentName: agent.name,
+        status: 'completed',
+        summary: 'Prepared the weekly report.',
+        completedAt: new Date('2026-08-02T09:05:00.000Z'),
+      }));
+      const assistantHomeFacts = vi.fn().mockResolvedValue({
+        engine: { runtimeAvailable: true, authentication: 'verified' },
+        paths: [{
+          path: '/Users/person/Documents/Reports',
+          exists: true,
+          readable: true,
+          writable: true,
+        }],
+        connections: [{
+          id: 'inline:reports',
+          label: 'Reports',
+          status: 'ready',
+          sourceReference: 'agent.mcp_servers.reports',
+        }],
+        canEnforceSafeTest: false,
+      });
+      const app = createApi({
+        getAgents: async () => [agent],
+        store,
+        triggerRun,
+        machineId,
+        presentationClock: () => now,
+        assistantHomeFacts,
+      });
+
+      const unauthorized = await app.request('/presentation/assistants/weekly-report');
+      const response = await authenticatedRequest(app, '/presentation/assistants/weekly-report');
+      const body = await response.json() as Record<string, unknown>;
+
+      expect(unauthorized.status).toBe(401);
+      expect(response.status).toBe(200);
+      expect(body).toMatchObject({
+        generatedAt: '2026-08-02T10:00:00.000Z',
+        assistant: {
+          installationId: `${machineId}:weekly-report`,
+          localAgentId: 'weekly-report',
+          displayName: 'Weekly Report',
+        },
+        health: { state: 'healthy' },
+        readiness: { state: 'ready' },
+        primaryAction: { kind: 'run', label: 'Run now' },
+        recentOutcomes: [{ runId: 'run-7', outcome: 'succeeded' }],
+      });
+      expect(assistantHomeFacts).toHaveBeenCalledWith(agent, [agent]);
+      const serialized = JSON.stringify(body);
+      expect(serialized).not.toContain('PROMPT_PRIVATE');
+      expect(serialized).not.toContain('credential-secret');
+      expect(serialized).not.toContain('private-mcp');
+      expect(serialized).not.toContain('mcp__');
+    });
+
+    it('returns explicit errors for missing identity, unknown assistants, and unavailable facts', async () => {
+      const agent = makeAgent({ id: 'known' });
+      const withoutIdentity = createApi({ getAgents: async () => [agent], store, triggerRun });
+      const withoutFacts = createApi({
+        getAgents: async () => [agent],
+        store,
+        triggerRun,
+        machineId: '1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99',
+      });
+      const app = createApi({
+        getAgents: async () => [agent],
+        store,
+        triggerRun,
+        machineId: '1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99',
+        assistantHomeFacts: vi.fn().mockResolvedValue({
+          engine: { runtimeAvailable: true, authentication: 'unknown' },
+          paths: [],
+          connections: [],
+          canEnforceSafeTest: false,
+        }),
+      });
+
+      expect((await authenticatedRequest(withoutIdentity, '/presentation/assistants/known')).status).toBe(503);
+      expect((await authenticatedRequest(withoutFacts, '/presentation/assistants/known')).status).toBe(503);
+      expect((await authenticatedRequest(app, '/presentation/assistants/missing')).status).toBe(404);
+    });
+  });
+
   describe('local interaction responses', () => {
     function createInteractionStore(
       overrides: Partial<Omit<PendingInteraction, 'status'>> = {},

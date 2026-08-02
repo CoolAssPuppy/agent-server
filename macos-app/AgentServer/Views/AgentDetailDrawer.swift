@@ -16,7 +16,13 @@ struct AgentDetailDrawer: View {
     @State private var dragOffset: CGFloat = 0
     @State private var detailState: AgentDetailPresentationState
     @State private var runState = AgentRunTriggerState.idle
-    @State private var runRequestedAt: Date?
+    @State private var homeContract: AssistantHomeContract?
+    @State private var isLoadingHome = false
+    @State private var homeError: String?
+    @State private var isPerformingHomeAction = false
+    @State private var presentedInteraction: AgentHomePresentedInteraction?
+
+    private let client = AgentServerClient()
 
     static let width: CGFloat = 780
     static let slideDuration: Double = 0.22
@@ -59,10 +65,30 @@ struct AgentDetailDrawer: View {
         .compositingGroup()
         .shadow(color: Color.black.opacity(0.25), radius: 20, x: -8, y: 0)
         .offset(x: dragOffset)
+        .task(id: agentId) {
+            await loadAssistantHome()
+        }
+        .sheet(item: $presentedInteraction) { presented in
+            InteractionResponseSheet(
+                interaction: presented.interaction,
+                submit: { reply in
+                    try await client.replyToInteraction(
+                        id: presented.interaction.interactionID,
+                        reply: reply
+                    )
+                },
+                onAccepted: { _ in
+                    presentedInteraction = nil
+                    Task { await loadAssistantHome() }
+                    monitor.poll()
+                }
+            )
+        }
         .onChange(of: agentId) { _, selectedAgentId in
             detailState.selectAgent(id: selectedAgentId)
             runState = .idle
-            runRequestedAt = nil
+            homeContract = nil
+            homeError = nil
         }
         .onChange(of: router.requestedRun) { _, requestedRun in
             guard requestedRun?.agentId == agentId,
@@ -144,6 +170,7 @@ struct AgentDetailDrawer: View {
             nextRun: nextRunDescription,
             run: headerRunPresentation,
             security: securityIndicator,
+            showsActions: detailState.showsHeaderActions,
             onClose: router.close,
             onRun: startRun,
             onSecurity: { router.openSecurity(agentId: agentId) }
@@ -175,10 +202,10 @@ struct AgentDetailDrawer: View {
 
     @ViewBuilder
     private var content: some View {
-        if let agent {
+        if agent != nil {
             switch detailState.selectedTab {
             case .recentRuns:
-                recentRunsView(for: agent)
+                assistantHomeView
             case .editAgent:
                 AgentSettingsSheet(
                     monitor: monitor,
@@ -205,20 +232,32 @@ struct AgentDetailDrawer: View {
         }
     }
 
-    private func recentRunsView(for agent: Agent) -> some View {
-        VStack(alignment: .leading, spacing: NSpacing.lg) {
-            if let feedback = runState.presentation {
-                AgentRunFeedbackView(
-                    state: runState,
-                    feedback: feedback,
-                    onRecover: recoverRun
+    private var assistantHomeView: some View {
+        Group {
+            if let homeContract {
+                AssistantHomeView(
+                    presentation: AssistantHomePresentation(contract: homeContract),
+                    showsIdentity: false,
+                    isPerformingAction: isPerformingHomeAction,
+                    onPrimaryAction: performHomeAction,
+                    onSecondaryAction: performHomeAction,
+                    onOpenRun: { detailState.openRun(id: $0.runId) }
                 )
+            } else if isLoadingHome {
+                ProgressView("Checking readiness")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ContentUnavailableView(
+                    "Could not load this assistant",
+                    systemImage: "exclamationmark.circle",
+                    description: Text(homeError ?? "Try again.")
+                )
+                Button("Try again") {
+                    Task { await loadAssistantHome() }
+                }
+                .buttonStyle(.borderedProminent)
             }
-            lastRunCard(for: agent)
-                .frame(maxHeight: .infinity)
-            capabilitiesStrip(for: agent)
         }
-        .padding(NSpacing.xl)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
@@ -260,258 +299,95 @@ struct AgentDetailDrawer: View {
 
     private func startRun() {
         guard let agent, !headerRunPresentation.isDisabled else { return }
-        runRequestedAt = Date()
         runState = .starting
+        isPerformingHomeAction = true
         Task {
             runState = await monitor.triggerRun(agentId: agent.id)
+            await loadAssistantHome()
+            isPerformingHomeAction = false
         }
     }
 
-    private func recoverRun(_ recovery: AgentRunTriggerRecovery) {
-        switch recovery {
-        case .retry:
+    private func loadAssistantHome() async {
+        let requestedAgentID = agentId
+        isLoadingHome = homeContract == nil
+        homeError = nil
+        do {
+            let contract = try await client.assistantHome(id: requestedAgentID)
+            guard requestedAgentID == agentId, !Task.isCancelled else { return }
+            homeContract = contract
+        } catch {
+            guard requestedAgentID == agentId, !Task.isCancelled else { return }
+            homeError = error.localizedDescription
+        }
+        isLoadingHome = false
+    }
+
+    private func performHomeAction(_ action: PresentationAction) {
+        guard !isPerformingHomeAction else { return }
+        switch action.kind {
+        case .run:
             startRun()
-        case .openAgentSettings:
+        case .pause:
+            updateEnabled(false)
+        case .edit, .advanced:
             selectTab(.editAgent)
-        case .reviewSecurity:
-            router.openSecurity(agentId: agentId)
-        case .openRun:
-            guard let runId = runState.startedRunId else { return }
-            detailState.openRun(id: runId)
-        case .checkStatus:
-            guard let runRequestedAt else { return }
-            runState = .starting
-            Task {
-                runState = await monitor.reconcileTriggeredRun(
-                    agentId: agentId,
-                    requestedAt: runRequestedAt
-                )
+        case .viewActivity, .review:
+            if let runID = action.targetReference.removingPrefix("run:") {
+                detailState.openRun(id: runID)
+            }
+        case .resolveAttention, .respond:
+            openInteraction(from: action.targetReference)
+        case .safeTest:
+            startSafeTest()
+        case .viewAssistant, .unknown:
+            break
+        }
+    }
+
+    private func updateEnabled(_ isEnabled: Bool) {
+        isPerformingHomeAction = true
+        Task {
+            _ = await monitor.updateAgent(id: agentId, patch: ["enabled": isEnabled])
+            await loadAssistantHome()
+            isPerformingHomeAction = false
+        }
+    }
+
+    private func startSafeTest() {
+        isPerformingHomeAction = true
+        Task {
+            defer { isPerformingHomeAction = false }
+            do {
+                let response = try await client.triggerSafeTest(agentId: agentId)
+                detailState.openRun(id: response.runId)
+                monitor.poll()
+            } catch {
+                homeError = error.localizedDescription
             }
         }
     }
 
-    // MARK: - Last run
-
-    private var lastRun: Run? {
-        guard let agent else { return nil }
-        return monitor.recentRuns
-            .filter { $0.agentId == agent.id || $0.agentName == agent.name }
-            .max(by: { $0.startedAt < $1.startedAt })
-    }
-
-    @ViewBuilder
-    private func lastRunCard(for agent: Agent) -> some View {
-        VStack(alignment: .leading, spacing: NSpacing.sm) {
-            HStack(spacing: NSpacing.sm) {
-                Text(AgentDetailPresentation.lastRunTitle)
-                    .font(NTypography.labelSmall)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-                Spacer()
-            }
-
-            if let run = lastRun {
-                VStack(alignment: .leading, spacing: NSpacing.sm) {
-                    HStack(spacing: NSpacing.xs) {
-                        Image(systemName: statusIcon(for: run))
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(statusColor(for: run))
-                        Text(statusLine(for: run))
-                            .font(NTypography.bodySmall)
-                            .fontWeight(.medium)
-                            .foregroundStyle(theme.tokens.foreground)
-                        Spacer()
-                    }
-
-                    if let facts = runFacts(for: run) {
-                        Text(facts)
-                            .font(NTypography.captionSmall)
-                            .foregroundStyle(theme.tokens.mutedForeground)
-                    }
-
-                    if !run.filesWritten.isEmpty {
-                        producedList(run.filesWritten)
-                    }
-
-                    if run.status == .failed, let error = run.error {
-                        Text(error)
-                            .font(NTypography.caption)
-                            .foregroundStyle(.red)
-                            .lineLimit(3)
-                    }
-
-                    if let summary = run.summary, !summary.isEmpty {
-                        VStack(alignment: .leading, spacing: NSpacing.xxs) {
-                            Text(AgentDetailPresentation.notesTitle)
-                                .font(NTypography.labelSmall)
-                                .foregroundStyle(theme.tokens.mutedForeground.opacity(0.8))
-                            ScrollView {
-                                MarkdownContentView(source: summary)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.bottom, NSpacing.sm)
-                            }
-                            .frame(maxHeight: .infinity)
-                        }
-                    } else if run.status == .running {
-                        Text("Running")
-                            .font(NTypography.caption)
-                            .foregroundStyle(theme.tokens.mutedForeground)
-                    }
+    private func openInteraction(from reference: String) {
+        guard let interactionID = reference.removingPrefix("interaction:") else { return }
+        isPerformingHomeAction = true
+        Task {
+            defer { isPerformingHomeAction = false }
+            do {
+                let interaction = try await client.interaction(id: interactionID)
+                guard interaction.status.canRespond else {
+                    await loadAssistantHome()
+                    return
                 }
-            } else {
-                Text("This agent hasn't run yet.")
-                    .font(NTypography.bodySmall)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-            }
-        }
-        .padding(NSpacing.md)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(theme.tokens.card)
-        .overlay(
-            RoundedRectangle(cornerRadius: NRadius.sm)
-                .stroke(theme.tokens.border, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: NRadius.sm))
-    }
-
-    private func statusIcon(for run: Run) -> String {
-        switch run.status {
-        case .completed: return "checkmark.circle.fill"
-        case .failed: return "xmark.circle.fill"
-        case .running: return "arrow.triangle.2.circlepath"
-        case .skipped: return "minus.circle"
-        }
-    }
-
-    private func statusColor(for run: Run) -> Color {
-        switch run.status {
-        case .completed: return theme.tokens.success
-        case .failed: return theme.tokens.destructive
-        case .running: return theme.tokens.primary
-        case .skipped: return theme.tokens.mutedForeground
-        }
-    }
-
-    private func statusLine(for run: Run) -> String {
-        let when = run.startedAt.formatted(.relative(presentation: .numeric))
-        switch run.status {
-        case .completed: return "Succeeded \(when)"
-        case .failed: return "Failed \(when)"
-        case .running: return "Running now"
-        case .skipped: return "Skipped \(when)"
-        }
-    }
-
-    /// A concise, concrete facts line — how long it took and which model ran it —
-    /// so the box leads with something real instead of the agent's monologue.
-    private func runFacts(for run: Run) -> String? {
-        var parts: [String] = []
-        if let duration = run.duration {
-            parts.append("Took \(formatDuration(duration))")
-        }
-        if let model = run.model, !model.isEmpty, model != "<synthetic>" {
-            parts.append(prettyModel(model))
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
-    }
-
-    private func formatDuration(_ seconds: TimeInterval) -> String {
-        if seconds < 1 { return "under a second" }
-        if seconds < 60 { return "\(Int(seconds.rounded()))s" }
-        let minutes = Int(seconds) / 60
-        let rem = Int(seconds) % 60
-        return rem == 0 ? "\(minutes)m" : "\(minutes)m \(rem)s"
-    }
-
-    private func prettyModel(_ model: String) -> String {
-        let lower = model.lowercased()
-        if lower.contains("opus") { return "Claude Opus" }
-        if lower.contains("sonnet") { return "Claude Sonnet" }
-        if lower.contains("haiku") { return "Claude Haiku" }
-        if lower.contains("kimi") { return ModelDisplayName.format(model) }
-        if lower.contains("gpt") || lower.contains("codex") { return "Codex" }
-        return model
-    }
-
-    /// What the run actually produced — the concrete deliverable, named plainly.
-    private func producedList(_ files: [String]) -> some View {
-        VStack(alignment: .leading, spacing: NSpacing.xxs) {
-            Text(AgentDetailPresentation.producedTitle)
-                .font(NTypography.labelSmall)
-                .foregroundStyle(theme.tokens.mutedForeground.opacity(0.8))
-            ForEach(files.prefix(6), id: \.self) { file in
-                HStack(spacing: NSpacing.xs) {
-                    Image(systemName: "doc.text")
-                        .font(.system(size: 11))
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                    Text((file as NSString).lastPathComponent)
-                        .font(NTypography.caption)
-                        .foregroundStyle(theme.tokens.foreground)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-            }
-        }
-    }
-
-    // MARK: - Capabilities strip
-
-    @ViewBuilder
-    private func capabilitiesStrip(for agent: Agent) -> some View {
-        let capabilities = agent.capabilities ?? []
-        let enabled = capabilities.filter(\.enabled)
-        let offCount = capabilities.count - enabled.count
-
-        VStack(alignment: .leading, spacing: NSpacing.xs) {
-            Text(AgentDetailPresentation.capabilitiesTitle)
-                .font(NTypography.labelSmall)
-                .foregroundStyle(theme.tokens.mutedForeground)
-
-            if enabled.isEmpty {
-                Text("No capabilities enabled")
-                    .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-            } else {
-                CapabilitySummary(
-                    capabilities: enabled,
-                    trailing: offCount > 0 ? "+\(offCount) off" : nil
-                )
+                presentedInteraction = AgentHomePresentedInteraction(interaction: interaction)
+            } catch {
+                homeError = error.localizedDescription
             }
         }
     }
 }
 
-/// Compact icon-and-text summary. Exact permissions stay in agent settings.
-private struct CapabilitySummary: View {
-    let capabilities: [AgentCapability]
-    let trailing: String?
-
-    @Environment(\.nTheme) private var theme
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: NSpacing.xs) {
-                ForEach(capabilities) { capability in
-                    HStack(spacing: NSpacing.xxs) {
-                        CapabilityIconView(capability: capability, size: 12, tint: theme.tokens.foreground)
-                        Text(capability.label)
-                            .font(NTypography.caption)
-                    }
-                    .foregroundStyle(theme.tokens.foreground)
-                    .padding(.vertical, NSpacing.xxs)
-                    if capability.id != capabilities.last?.id {
-                        Divider()
-                            .frame(height: 14)
-                    }
-                }
-                if let trailing {
-                    Text(trailing)
-                        .font(NTypography.caption)
-                        .foregroundStyle(theme.tokens.mutedForeground)
-                        .padding(.horizontal, NSpacing.sm)
-                        .padding(.vertical, NSpacing.xxs)
-                }
-            }
-        }
-    }
-
+private struct AgentHomePresentedInteraction: Identifiable {
+    let interaction: LocalInteraction
+    var id: String { interaction.interactionID }
 }
