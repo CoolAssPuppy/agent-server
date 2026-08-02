@@ -2,13 +2,20 @@
 
 ## CI cost audit
 
-- [ ] Inventory GitHub Actions in Agent Server and Agent Panel.
-- [ ] Identify paid runner exposure, duplicate work, schedules, and expensive matrices.
-- [ ] Recommend the smallest local-first CI policy without changing workflows.
+- [x] Inventory GitHub Actions in Agent Server and Agent Panel.
+- [x] Identify paid runner exposure, duplicate work, schedules, and expensive matrices.
+- [x] Recommend the smallest local-first CI policy without changing workflows.
 
 Constraint:
 
 - Do not add or expand GitHub Actions without explicit approval.
+
+Review:
+
+- Agent Server is public and currently incurs no direct hosted-runner charge, but its macOS job runs for server-only and documentation changes. Split path gates before the repository ever becomes private.
+- Agent Panel is private. Its Web CI repeats dependency installation, build work, and the same test selection with and without coverage. Its production workflow runs on every main push and uses a separate runner only for a summary.
+- Neither repository uses scheduled Actions, matrices, or artifact upload/download. Existing concurrency cancellation already limits superseded runs.
+- Recommended next change, pending approval: narrow Panel production paths, fold the summary into an existing job, run one cheap PR lane, reserve full Supabase integration for relevant changes, and keep Server macOS checks limited to macOS code.
 
 ## Coding-agent MCP inventory
 
