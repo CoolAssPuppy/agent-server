@@ -20,4 +20,15 @@ final class LocalServerEndpointTests: XCTestCase {
             "/presentation/today-activity"
         )
     }
+
+    func testBuildsAuthenticatedInteractionPaths() {
+        XCTAssertEqual(
+            LocalServerEndpoint.interactionPath(interactionID: "interaction-1"),
+            "/interactions/interaction-1"
+        )
+        XCTAssertEqual(
+            LocalServerEndpoint.interactionReplyPath(interactionID: "interaction-1"),
+            "/interactions/interaction-1/reply"
+        )
+    }
 }

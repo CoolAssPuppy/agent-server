@@ -70,6 +70,21 @@ actor AgentServerClient {
         try await get(LocalServerEndpoint.todayActivityPath)
     }
 
+    func interaction(id: String) async throws -> LocalInteraction {
+        try await get(LocalServerEndpoint.interactionPath(interactionID: id))
+    }
+
+    func replyToInteraction(
+        id: String,
+        reply: LocalInteractionReply
+    ) async throws -> InteractionReplyAcceptance {
+        try await routeRequest(
+            path: LocalServerEndpoint.interactionReplyPath(interactionID: id),
+            method: .post,
+            bodyData: try JSONEncoder().encode(reply)
+        )
+    }
+
     /// Pending decisions the daemon learned about over Supabase Realtime. The
     /// daemon serves these locally so the app never polls the panel for them.
     /// Uses a fractional-seconds-tolerant decoder because Postgres timestamps

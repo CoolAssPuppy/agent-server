@@ -16,6 +16,14 @@ public enum LocalServerEndpoint {
     }
 
     public static let todayActivityPath = "/presentation/today-activity"
+
+    public static func interactionPath(interactionID: String) -> String {
+        "/interactions/\(interactionID)"
+    }
+
+    public static func interactionReplyPath(interactionID: String) -> String {
+        "\(interactionPath(interactionID: interactionID))/reply"
+    }
 }
 
 /// Keeps consumer data stable across a failed refresh while allowing a later
