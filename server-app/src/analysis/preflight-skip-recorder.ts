@@ -42,6 +42,7 @@ export class PreflightSkipRecorder {
       agentId: agent.id,
       agentName: agent.name,
       status: 'skipped',
+      code: `security_preflight_${outcome.code}`,
       startedAt: now,
       completedAt: now,
       summary: `${SOURCE_LABELS[source]} run skipped pending security review`,

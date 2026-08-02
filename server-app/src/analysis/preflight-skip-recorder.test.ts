@@ -26,6 +26,7 @@ describe('automatic preflight skips', () => {
     expect(store.list()).toHaveLength(1);
     expect(store.list()[0]).toMatchObject({
       status: 'skipped',
+      code: 'security_preflight_review_required',
       summary: 'Scheduled run skipped pending security review',
       error: blocked.message,
       progressMessages: ['Security review required before automatic run.'],
