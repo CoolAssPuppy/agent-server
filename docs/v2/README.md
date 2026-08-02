@@ -14,3 +14,5 @@ This directory is the canonical planning source for Agent Server and Agent Panel
 - [Interface contracts](V2_INTERFACE_CONTRACTS.md)
 
 The `fixtures/` directory contains operational V2 payloads shared by both coding agents. Agent Server tests generate these exact shapes. Agent Panel should validate the same fixtures before enabling V2 traffic.
+
+Consumer UI implementation is governed by [V2 screen specifications](V2_SCREEN_SPECIFICATIONS.md) and the [V2 visual acceptance matrix](V2_VISUAL_ACCEPTANCE_MATRIX.md).
