@@ -217,6 +217,43 @@ struct DiscoveredConnectionRow: View {
     }
 }
 
+struct RuntimeConnectionRow: View {
+    let presentation: RuntimeConnectionPresentation
+
+    @Environment(\.nTheme) private var theme
+
+    var body: some View {
+        HStack(spacing: NSpacing.md) {
+            Image(systemName: "terminal")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(theme.tokens.foreground)
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(presentation.name)
+                    .font(NTypography.bodyMedium)
+                    .foregroundStyle(theme.tokens.foreground)
+                Text(presentation.authenticationSummary)
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            }
+
+            Spacer()
+
+            Text(presentation.statusTitle)
+                .font(NTypography.caption)
+                .foregroundStyle(
+                    presentation.status == .installed
+                        ? theme.tokens.success
+                        : theme.tokens.mutedForeground
+                )
+        }
+        .padding(.horizontal, NSpacing.md)
+        .padding(.vertical, NSpacing.md)
+        .accessibilityElement(children: .combine)
+    }
+}
+
 struct CatalogConnectTarget: Identifiable {
     let entry: CapabilityCatalogEntry
     var id: String { entry.id }

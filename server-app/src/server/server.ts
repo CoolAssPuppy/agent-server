@@ -316,6 +316,26 @@ export function startServer(
   // can fall back to SDK runtimes; Kimi Code requires an installed executable.
   // Resolve once because a `which` lookup per run would be wasteful.
   const runtimePaths = discoverRuntimePaths();
+  const runtimeConnections = [
+    {
+      id: 'claude-code',
+      label: 'Claude Code',
+      installed: runtimePaths.claudeExecutablePath !== undefined,
+      authentication: 'unknown' as const,
+    },
+    {
+      id: 'codex',
+      label: 'Codex',
+      installed: runtimePaths.codexExecutablePath !== undefined,
+      authentication: 'unknown' as const,
+    },
+    {
+      id: 'kimi-code',
+      label: 'Kimi Code',
+      installed: runtimePaths.kimiExecutablePath !== undefined,
+      authentication: 'unknown' as const,
+    },
+  ];
   if (runtimePaths.claudeExecutablePath) {
     console.log(`  Claude runtime: ${runtimePaths.claudeExecutablePath} (installed)`);
   }
@@ -597,7 +617,9 @@ export function startServer(
   // App-wide, regenerable cache of the MCP discovery probe. Warmed in the
   // background at boot so the first capability read has connectors populated;
   // the app can force a re-probe via POST /connections/refresh.
-  const connectionCache = new ConnectionCache(() => probeMcpServers());
+  const connectionCache = new ConnectionCache(
+    () => probeMcpServers(runtimePaths.claudeExecutablePath),
+  );
   void connectionCache.refresh().catch(() => {});
   const agentWriter = createAgentWriter(config.agentsDir, {
     connections: () => [],
@@ -684,9 +706,9 @@ export function startServer(
     // are visible to capability checks without a server restart.
     getEnv: () => loadEnvFile(join(config.agentsDir, '..'), process.env),
     connections: {
-      get: () => connectionCache.get(),
-      ensure: () => connectionCache.ensure(),
-      refresh: () => connectionCache.refresh(),
+      get: () => ({ ...connectionCache.get(), runtimes: runtimeConnections }),
+      ensure: async () => ({ ...await connectionCache.ensure(), runtimes: runtimeConnections }),
+      refresh: async () => ({ ...await connectionCache.refresh(), runtimes: runtimeConnections }),
     },
     connectionProfiles: connectionProfileStore,
     apiKey,

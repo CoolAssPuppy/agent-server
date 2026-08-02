@@ -1037,6 +1037,25 @@ describe('MCP server status handling', () => {
   });
 });
 
+describe('Claude connection discovery', () => {
+  it('uses the installed Claude Code runtime that owns the local sign-in', async () => {
+    const { probeMcpServers } = await import('./claude-code.js');
+    mockMcpServerStatus.mockResolvedValue([
+      { name: 'claude.ai Notion', status: 'connected' },
+    ]);
+    mockQuery.mockReturnValue(createAsyncGenerator([]));
+
+    const servers = await probeMcpServers('/Users/test/.local/bin/claude');
+
+    expect(servers).toEqual([{ name: 'claude.ai Notion', status: 'connected' }]);
+    expect(mockQuery).toHaveBeenCalledWith(expect.objectContaining({
+      options: expect.objectContaining({
+        pathToClaudeCodeExecutable: '/Users/test/.local/bin/claude',
+      }),
+    }));
+  });
+});
+
 describe('buildMcpServers eventkit auto-injection', () => {
   const ORIGINAL_ENV = process.env.AGENT_SERVER_EVENTKIT_BIN;
 

@@ -569,16 +569,17 @@ function logMcpStatus(servers: McpServerInfo[]): void {
  * `mcpServerStatus()`, then aborts before any model turn is consumed, so the
  * probe costs an MCP connection but no tokens.
  *
- * The result is a cache of what's available, never a source of truth — it's
- * regenerated on demand. Returns [] on any failure so the UI degrades to "no
- * connectors discovered" rather than erroring.
+ * The result is a cache of what's available, never a source of truth. It is
+ * regenerated on demand. Failures propagate to the cache so the UI can tell a
+ * failed check from a successful check that found no connections.
  */
-export async function probeMcpServers(): Promise<McpServerInfo[]> {
+export async function probeMcpServers(claudeExecutablePath?: string): Promise<McpServerInfo[]> {
   const abortController = new AbortController();
   const options: Options = {
     maxTurns: 1,
     permissionMode: 'bypassPermissions',
     abortController,
+    pathToClaudeCodeExecutable: claudeExecutablePath,
     // No agent servers; account-level connectors are inherited from the
     // subscription automatically. eventkit is injected when the app set the bin.
     mcpServers: buildMcpServers({ mcp_servers: undefined, tools: [], disallowed_tools: [] } as unknown as AgentConfig),
@@ -586,11 +587,17 @@ export async function probeMcpServers(): Promise<McpServerInfo[]> {
 
   try {
     const stream = query({ prompt: 'probe', options });
-    const servers = await fetchMcpStatus(stream);
+    const statuses = await stream.mcpServerStatus();
+    const servers = statuses.map((status) => ({
+      name: status.name,
+      status: status.status,
+      error: status.error,
+    }));
     try { abortController.abort(); } catch { /* ignore */ }
     return servers;
-  } catch {
-    return [];
+  } catch (error) {
+    try { abortController.abort(); } catch { /* ignore */ }
+    throw error;
   }
 }
 

@@ -180,9 +180,25 @@ struct ConnectionsView: View {
     private func primarySection(_ section: ConnectionScreenSection) -> some View {
         switch section {
         case .saved: savedConnectionsSection
+        case .engines: enginesSection
         case .claude: availableSection
         case .messaging: messagingSection
         case .templates: EmptyView()
+        }
+    }
+
+    private var enginesSection: some View {
+        VStack(alignment: .leading, spacing: NSpacing.sm) {
+            ConnectionSectionHeader(section: .engines)
+
+            ConnectionInsetGroup {
+                ForEach(Array(snapshot.runtimes.enumerated()), id: \.element.id) { index, runtime in
+                    if index > 0 { Divider().opacity(0.25) }
+                    RuntimeConnectionRow(
+                        presentation: RuntimeConnectionPresentation(runtime: runtime)
+                    )
+                }
+            }
         }
     }
 
@@ -339,14 +355,19 @@ struct ConnectionsView: View {
     }
 
     private var emptyAvailableCard: some View {
-        HStack(spacing: NSpacing.md) {
-            Image(systemName: snapshot.discoveredAt == nil ? "sparkles" : "questionmark.circle")
+        let presentation = ClaudeConnectionDiscoveryPresentation(
+            discoveredAt: snapshot.discoveredAt,
+            didProbeFail: snapshot.didProbeFail,
+            connectionCount: snapshot.servers.count
+        )
+        return HStack(spacing: NSpacing.md) {
+            Image(systemName: snapshot.didProbeFail
+                  ? "exclamationmark.arrow.triangle.2.circlepath"
+                  : snapshot.discoveredAt == nil ? "sparkles" : "questionmark.circle")
                 .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(theme.tokens.accent)
                 .frame(width: 24)
-            Text(snapshot.discoveredAt == nil
-                 ? "Checking what your assistants can reach…"
-                 : "No connections found yet. Connect apps in Claude, then Refresh.")
+            Text(presentation.emptyMessage ?? "")
                 .font(NTypography.caption)
                 .foregroundStyle(theme.tokens.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)

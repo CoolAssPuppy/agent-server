@@ -1827,6 +1827,11 @@ describe('API routes', () => {
       const snapshot = {
         servers: [{ name: 'claude.ai Slack', status: 'connected' }],
         discovered_at: '2026-07-18T00:00:00.000Z',
+        runtimes: [
+          { id: 'claude-code', label: 'Claude Code', installed: true, authentication: 'unknown' },
+          { id: 'codex', label: 'Codex', installed: true, authentication: 'unknown' },
+          { id: 'kimi-code', label: 'Kimi Code', installed: false, authentication: 'unknown' },
+        ],
       };
       const app = createApi({
         getAgents: async () => [makeAgent()],

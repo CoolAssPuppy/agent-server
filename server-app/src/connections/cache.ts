@@ -7,6 +7,7 @@ import type { McpServerInfo } from '../execution/executor.js';
 export type ConnectionSnapshot = {
   servers: McpServerInfo[];
   discovered_at: string | null;
+  probe_failed: boolean;
 };
 
 type ProbeFn = () => Promise<McpServerInfo[]>;
@@ -25,7 +26,11 @@ type ProbeFn = () => Promise<McpServerInfo[]>;
  * transient runtime hiccup never blanks the user's connection list.
  */
 export class ConnectionCache {
-  private snapshot: ConnectionSnapshot = { servers: [], discovered_at: null };
+  private snapshot: ConnectionSnapshot = {
+    servers: [],
+    discovered_at: null,
+    probe_failed: false,
+  };
   private inflight: Promise<ConnectionSnapshot> | null = null;
   private readonly now: () => string;
 
@@ -66,9 +71,10 @@ export class ConnectionCache {
       const knownNames = new Set(this.snapshot.servers.map(({ name }) => name));
       const servers = this.snapshot.servers.map((server) => latestByName.get(server.name) ?? server);
       servers.push(...probed.filter(({ name }) => !knownNames.has(name)));
-      this.snapshot = { servers, discovered_at: this.now() };
+      this.snapshot = { servers, discovered_at: this.now(), probe_failed: false };
     } catch {
       // Keep the last good snapshot; a transient failure must not blank it.
+      this.snapshot = { ...this.snapshot, probe_failed: true };
     } finally {
       this.inflight = null;
     }

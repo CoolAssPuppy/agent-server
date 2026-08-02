@@ -1,5 +1,38 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Local coding agents in Connections
+
+- [x] Prove Claude connection discovery uses the installed Claude Code runtime.
+- [x] Expose Claude Code, Codex, and Kimi Code availability without paths or false login claims.
+- [x] Add an AI engines section to Connections with honest local status.
+- [x] Distinguish a failed Claude connection check from a successful empty result.
+- [x] Verify focused server and Swift tests, full suites, lint, type-check, and builds.
+
+Constraints:
+
+- Never expose executable paths or claim an agent is signed in without a deterministic check.
+- Keep project-scoped Claude MCP connections on the owning agent, not in a global list.
+- Preserve the existing connection profile and messaging flows.
+
+Review:
+
+- The machine-local Connections response now includes bounded availability for Claude Code, Codex, and Kimi Code. It never includes executable paths and reports authentication as unknown.
+- Claude MCP discovery now uses the installed Claude Code executable, matching the runtime and account used for real agent runs.
+- Connections shows an AI engines section and separates checking, failed-check, successful-empty, installed, and unavailable states.
+- Verification passed: 156 focused server tests, 6 focused Swift tests, 1,548 full server tests with 4 expected skips, 538 full Swift tests, ESLint, TypeScript checks, server build, and unsigned app build.
+
+## Agent terminology
+
+- [ ] Replace consumer-facing Assistant and Assistants copy with Agent and Agents.
+- [ ] Preserve stable API, schema, YAML, persistence, type, and accessibility identifiers.
+- [ ] Update behavior tests and verify the complete macOS app.
+
+## Settings Advanced Bento layout
+
+- [ ] Inventory every existing Settings > Advanced control and preserve its behavior.
+- [ ] Group related controls into a responsive Bento-style card layout.
+- [ ] Verify narrow widths, keyboard access, VoiceOver order, tests, and the app build.
+
 ## Compact Activity search
 
 - [x] Add behavior tests for the normal tab labels and expanded search state.

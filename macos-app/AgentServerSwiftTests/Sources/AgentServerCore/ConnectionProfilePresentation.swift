@@ -2,16 +2,18 @@ import Foundation
 
 public enum ConnectionScreenSection: String, CaseIterable, Equatable, Sendable {
     case saved
+    case engines
     case claude
     case messaging
     case templates
 
-    public static let primary: [Self] = [.saved, .claude, .messaging]
+    public static let primary: [Self] = [.saved, .engines, .claude, .messaging]
     public static let advanced: [Self] = [.templates]
 
     public var title: String {
         switch self {
         case .saved: "Your connections"
+        case .engines: "AI engines"
         case .claude: "Available through Claude"
         case .messaging: "Messaging"
         case .templates: "Advanced connections"
@@ -21,6 +23,7 @@ public enum ConnectionScreenSection: String, CaseIterable, Equatable, Sendable {
     public var explanation: String {
         switch self {
         case .saved: "Accounts and tools you have set up for Agent Server."
+        case .engines: "Coding agents available on this Mac."
         case .claude: "Apps connected in Claude are available to your assistants through your existing sign-in."
         case .messaging: "Chat with your assistants and receive their replies."
         case .templates: "Quick setup for common services."
@@ -28,6 +31,61 @@ public enum ConnectionScreenSection: String, CaseIterable, Equatable, Sendable {
     }
 
     public var isAdvanced: Bool { Self.advanced.contains(self) }
+}
+
+public struct RuntimeConnection: Codable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let label: String
+    public let installed: Bool
+    public let authentication: String
+
+    public init(id: String, label: String, installed: Bool, authentication: String) {
+        self.id = id
+        self.label = label
+        self.installed = installed
+        self.authentication = authentication
+    }
+}
+
+public struct RuntimeConnectionPresentation: Equatable, Identifiable, Sendable {
+    public enum Status: Equatable, Sendable {
+        case installed
+        case notInstalled
+    }
+
+    public let id: String
+    public let name: String
+    public let status: Status
+    public let authenticationSummary = "Sign-in checked when an agent runs"
+
+    public init(runtime: RuntimeConnection) {
+        id = runtime.id
+        name = runtime.label
+        status = runtime.installed ? .installed : .notInstalled
+    }
+
+    public var statusTitle: String {
+        status == .installed ? "Installed" : "Not installed"
+    }
+}
+
+public struct ClaudeConnectionDiscoveryPresentation: Equatable, Sendable {
+    public let discoveredAt: String?
+    public let didProbeFail: Bool
+    public let connectionCount: Int
+
+    public init(discoveredAt: String?, didProbeFail: Bool, connectionCount: Int) {
+        self.discoveredAt = discoveredAt
+        self.didProbeFail = didProbeFail
+        self.connectionCount = connectionCount
+    }
+
+    public var emptyMessage: String? {
+        guard connectionCount == 0 else { return nil }
+        if didProbeFail { return "Could not check Claude connections. Try again." }
+        if discoveredAt == nil { return "Checking connections from Claude Code…" }
+        return "No Claude connections found yet. Connect an app in Claude Code, then refresh."
+    }
 }
 
 public enum ConnectionSetupSection: String, CaseIterable, Equatable, Sendable {

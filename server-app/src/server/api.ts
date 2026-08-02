@@ -54,6 +54,13 @@ const MACHINE_PROTOCOL_VERSION = 2;
 type ConnectionSnapshot = {
   servers: DiscoveredConnection[];
   discovered_at: string | null;
+  probe_failed?: boolean;
+  runtimes?: Array<{
+    id: string;
+    label: string;
+    installed: boolean;
+    authentication: 'unknown';
+  }>;
 };
 
 /** Read/refresh surface over the app-wide connection discovery cache. */

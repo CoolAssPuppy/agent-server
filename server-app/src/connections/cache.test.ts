@@ -11,6 +11,7 @@ describe('ConnectionCache', () => {
     const state = cache.get();
     expect(state.servers).toEqual([]);
     expect(state.discovered_at).toBeNull();
+    expect(state.probe_failed).toBe(false);
   });
 
   it('populates from a refresh and stamps discovered_at', async () => {
@@ -71,6 +72,15 @@ describe('ConnectionCache', () => {
     const after = await cache.refresh();
     // The failed refresh degrades to the last good snapshot rather than wiping it.
     expect(after.servers.map((s) => s.name)).toEqual(['eventkit']);
+    expect(after.probe_failed).toBe(true);
+  });
+
+  it('distinguishes a failed first check from a successful empty result', async () => {
+    const failed = new ConnectionCache(async () => { throw new Error('not signed in'); });
+    const empty = new ConnectionCache(async () => []);
+
+    expect((await failed.refresh()).probe_failed).toBe(true);
+    expect((await empty.refresh()).probe_failed).toBe(false);
   });
 
   it('keeps known connector identities when a later status probe is incomplete', async () => {

@@ -199,13 +199,42 @@ struct DiscoveredConnection: Codable, Identifiable, Equatable {
 struct ConnectionSnapshot: Codable, Equatable {
     let servers: [DiscoveredConnection]
     let discoveredAt: String?
+    let runtimes: [RuntimeConnection]
+    let didProbeFail: Bool
 
     enum CodingKeys: String, CodingKey {
         case servers
         case discoveredAt = "discovered_at"
+        case runtimes
+        case didProbeFail = "probe_failed"
     }
 
-    static let empty = ConnectionSnapshot(servers: [], discoveredAt: nil)
+    init(
+        servers: [DiscoveredConnection],
+        discoveredAt: String?,
+        runtimes: [RuntimeConnection] = [],
+        didProbeFail: Bool = false
+    ) {
+        self.servers = servers
+        self.discoveredAt = discoveredAt
+        self.runtimes = runtimes
+        self.didProbeFail = didProbeFail
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        servers = try container.decode([DiscoveredConnection].self, forKey: .servers)
+        discoveredAt = try container.decodeIfPresent(String.self, forKey: .discoveredAt)
+        runtimes = try container.decodeIfPresent([RuntimeConnection].self, forKey: .runtimes) ?? []
+        didProbeFail = try container.decodeIfPresent(Bool.self, forKey: .didProbeFail) ?? false
+    }
+
+    static let empty = ConnectionSnapshot(
+        servers: [],
+        discoveredAt: nil,
+        runtimes: [],
+        didProbeFail: false
+    )
 }
 
 struct FileWatch: Codable {
