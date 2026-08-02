@@ -10,4 +10,5 @@ public struct AgentPanelSettings: Equatable, Sendable {
     }
 
     public var hasRequiredCredentials: Bool { hasURL && hasAPIKey }
+    public var allowsPanelRequests: Bool { isSendingEnabled && hasRequiredCredentials }
 }

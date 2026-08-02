@@ -24,10 +24,13 @@ struct SettingsAgentPanelSection: View {
             }
             SettingsRowDivider()
             SettingsValueRow(label: "Agent Panel connection") {
-                SettingsStatusPill(
-                    isHealthy: connection == .connected,
-                    label: connection.rawValue
-                )
+                Text(connection.rawValue)
+                    .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
+                    .foregroundStyle(
+                        connection == .unavailable
+                            ? theme.tokens.warning
+                            : theme.tokens.foreground
+                    )
             }
             if requiresRestart {
                 SettingsRestartNotice(action: onRestart)
@@ -89,7 +92,7 @@ struct SettingsAgentPanelSection: View {
     }
 
     private var hasRequiredCredentials: Bool {
-        connection != .notSetUp
+        connection.hasRequiredCredentials
     }
 
     private var telemetryMode: Binding<TelemetryProgressMode> {

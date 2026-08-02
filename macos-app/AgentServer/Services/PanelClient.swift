@@ -39,19 +39,17 @@ actor PanelClient {
     }
 
     static func fromEnv() -> PanelClient? {
-        let environmentURLs = EnvFileStore.configuredURLs()
-        let url = (try? EnvFileStore.firstValue(
-            forKey: "AGENT_SERVER_PANEL_URL",
-            from: environmentURLs
-        )) ?? ""
-        let key = (try? EnvFileStore.firstValue(
-            forKey: "AGENT_SERVER_PANEL_API_KEY",
-            from: environmentURLs
-        )) ?? ""
-        return PanelClient(panelURL: url, apiKey: key)
+        let environment = currentEnvironment()
+        let settings = AgentPanelSettings(environment: environment)
+        guard settings.allowsPanelRequests else { return nil }
+        return PanelClient(
+            panelURL: environment["AGENT_SERVER_PANEL_URL"] ?? "",
+            apiKey: environment["AGENT_SERVER_PANEL_API_KEY"] ?? ""
+        )
     }
 
     func fetchRun(id: String) async throws -> PanelRun? {
+        try requirePanelRequestsEnabled()
         let url = baseURL.appendingPathComponent("/api/runs/\(id)")
         var request = URLRequest(url: url)
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -70,6 +68,7 @@ actor PanelClient {
     }
 
     func fetchLogs(runId: String) async throws -> [PanelLog] {
+        try requirePanelRequestsEnabled()
         let url = baseURL.appendingPathComponent("/api/runs/\(runId)/logs")
         var request = URLRequest(url: url)
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -82,6 +81,7 @@ actor PanelClient {
     }
 
     func fetchRuns(agent: String? = nil, limit: Int = 50) async throws -> [PanelRun] {
+        try requirePanelRequestsEnabled()
         var components = URLComponents(url: baseURL.appendingPathComponent("/api/runs"), resolvingAgainstBaseURL: false)!
         var queryItems: [URLQueryItem] = [
             URLQueryItem(name: "limit", value: String(limit)),
@@ -108,6 +108,7 @@ actor PanelClient {
     /// route is missing or unreachable we return `[]` so local-first rendering
     /// keeps working.
     func fetchArtifacts(windowDays: Int) async -> [PanelArtifact] {
+        guard Self.currentSettings.allowsPanelRequests else { return [] }
         var components = URLComponents(
             url: baseURL.appendingPathComponent("/api/artifacts"),
             resolvingAgainstBaseURL: false
@@ -138,6 +139,7 @@ actor PanelClient {
     // Supabase Realtime), not the panel — see AgentServerClient. Resolution is
     // still a panel write, authenticated with the API key.
     func resolveDecision(id: String, body: DecisionResolveBody) async throws {
+        try requirePanelRequestsEnabled()
         let url = baseURL.appendingPathComponent("/api/decisions/\(id)/resolve")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -160,4 +162,33 @@ actor PanelClient {
             throw ClientError.httpError(statusCode: httpResponse.statusCode)
         }
     }
+
+    private func requirePanelRequestsEnabled() throws {
+        guard Self.currentSettings.allowsPanelRequests else {
+            throw PanelClientError.disabled
+        }
+    }
+
+    private static var currentSettings: AgentPanelSettings {
+        AgentPanelSettings(environment: currentEnvironment())
+    }
+
+    private static func currentEnvironment() -> [String: String] {
+        let environmentURLs = EnvFileStore.configuredURLs()
+        let keys = [
+            "AGENT_SERVER_PANEL_URL",
+            "AGENT_SERVER_PANEL_API_KEY",
+            "AGENT_SERVER_PANEL_ENABLED",
+        ]
+        return keys.reduce(into: [:]) { environment, key in
+            environment[key] = try? EnvFileStore.firstValue(
+                forKey: key,
+                from: environmentURLs
+            )
+        }
+    }
+}
+
+private enum PanelClientError: Error {
+    case disabled
 }

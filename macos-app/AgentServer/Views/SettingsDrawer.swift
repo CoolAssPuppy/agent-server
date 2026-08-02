@@ -152,7 +152,7 @@ struct SettingsDrawer: View {
         case .agentPanel:
             SettingsAgentPanelSection(
                 isSending: panelSendingBinding,
-                connection: draft.panelConnection(isServerReachable: monitor.isServerReachable),
+                connection: draft.panelConnection(),
                 requiresRestart: draft.requiresPanelRestart,
                 telemetry: telemetryBinding,
                 onRestart: restartForPanelChange

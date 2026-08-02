@@ -23,5 +23,19 @@ final class AgentPanelSettingsTests: XCTestCase {
 
         XCTAssertTrue(settings.hasRequiredCredentials)
         XCTAssertFalse(settings.isSendingEnabled)
+        XCTAssertFalse(settings.allowsPanelRequests)
+    }
+
+    func testPanelRequestsRequireCredentialsAndAnEnabledPreference() {
+        let incomplete = AgentPanelSettings(environment: [
+            "AGENT_SERVER_PANEL_URL": "https://panel.example",
+        ])
+        let enabled = AgentPanelSettings(environment: [
+            "AGENT_SERVER_PANEL_URL": "https://panel.example",
+            "AGENT_SERVER_PANEL_API_KEY": "secret",
+        ])
+
+        XCTAssertFalse(incomplete.allowsPanelRequests)
+        XCTAssertTrue(enabled.allowsPanelRequests)
     }
 }

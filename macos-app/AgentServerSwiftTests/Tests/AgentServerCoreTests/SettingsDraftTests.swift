@@ -91,23 +91,23 @@ final class SettingsDraftTests: XCTestCase {
         XCTAssertNil(draft.errorMessage)
     }
 
-    func testPanelSendingIsGatedByCredentialsAndReportsConnectionState() {
+    func testPanelSendingIsGatedByCredentialsAndReportsOnlyObservedStatus() {
         var draft = SettingsDraft()
 
         XCTAssertFalse(draft.setPanelSendingEnabled(true))
-        XCTAssertEqual(draft.panelConnection(isServerReachable: true), .notSetUp)
+        XCTAssertEqual(draft.panelConnection(), .unavailable)
 
         draft = SettingsDraft(pairs: [
             EnvPair(key: "AGENT_SERVER_PANEL_URL", value: "https://panel.example"),
             EnvPair(key: "AGENT_SERVER_PANEL_API_KEY", value: "secret"),
         ])
         XCTAssertTrue(draft.setPanelSendingEnabled(false))
-        XCTAssertEqual(draft.panelConnection(isServerReachable: true), .off)
+        XCTAssertEqual(draft.panelConnection(), .disabled)
         XCTAssertTrue(draft.requiresPanelRestart)
 
         XCTAssertTrue(draft.setPanelSendingEnabled(true))
-        XCTAssertEqual(draft.panelConnection(isServerReachable: false), .reconnecting)
-        XCTAssertEqual(draft.panelConnection(isServerReachable: true), .connected)
+        XCTAssertEqual(draft.panelConnection(), .configured)
+        XCTAssertFalse(draft.panelConnection().rawValue.contains("Connected"))
         XCTAssertFalse(draft.requiresPanelRestart)
     }
 

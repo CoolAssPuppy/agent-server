@@ -6,10 +6,13 @@ public enum SettingsDraftError: Error, Equatable {
 }
 
 public enum AgentPanelConnection: String, Equatable, Sendable {
-    case notSetUp = "Not set up"
-    case off = "Off"
-    case connected = "Connected"
-    case reconnecting = "Reconnecting"
+    case disabled = "Disabled"
+    case configured = "Configured"
+    case unavailable = "Unavailable"
+
+    public var hasRequiredCredentials: Bool {
+        self != .unavailable
+    }
 }
 
 public struct SettingsDraft {
@@ -87,10 +90,10 @@ public struct SettingsDraft {
         return true
     }
 
-    public func panelConnection(isServerReachable: Bool) -> AgentPanelConnection {
-        guard panelSettings.hasRequiredCredentials else { return .notSetUp }
-        guard panelSettings.isSendingEnabled else { return .off }
-        return isServerReachable ? .connected : .reconnecting
+    public func panelConnection() -> AgentPanelConnection {
+        guard panelSettings.hasRequiredCredentials else { return .unavailable }
+        guard panelSettings.isSendingEnabled else { return .disabled }
+        return .configured
     }
 
     public mutating func setTelemetryProgress(_ settings: TelemetryProgressSettings) {
