@@ -68,6 +68,17 @@ enum DemoAssistantHome {
         {"kind":"pause","label":"Pause","targetReference":"assistant:weekly-report"},
         {"kind":"edit","label":"Edit","targetReference":"assistant:weekly-report"}
       ],
+      "advanced": {
+        "scheduleExpression": "0 9 * * 1",
+        "executor": "claude-code",
+        "model": "claude-sonnet-4-5",
+        "permissionMode": "default",
+        "permissionRules": {
+          "allow": ["Read", "Write", "mcp__notion__create_page"],
+          "deny": ["Bash"]
+        },
+        "connectionIds": ["notion-personal"]
+      },
       "advancedReference": "/agents/weekly-report"
     }
     """

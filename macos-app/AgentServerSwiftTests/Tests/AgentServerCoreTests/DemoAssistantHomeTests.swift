@@ -16,5 +16,7 @@ final class DemoAssistantHomeTests: XCTestCase {
         ])
         XCTAssertEqual(presentation.contract.connections.map(\.label), ["Personal Notion"])
         XCTAssertEqual(presentation.recentOutcomes.count, 2)
+        XCTAssertEqual(presentation.contract.advanced?.executor, "claude-code")
+        XCTAssertFalse(presentation.isAdvancedExpandedByDefault)
     }
 }
