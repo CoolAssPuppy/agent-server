@@ -135,14 +135,14 @@ final class ConsumerProductFlowTests: XCTestCase {
     }
 
     func testCreationSetupCopyUsesConsumerLanguage() {
-        XCTAssertEqual(CreationConnectionStepCopy.title, "Let's setup the connections you need for your agent")
+        XCTAssertEqual(CreationConnectionStepCopy.title, "Set up the connections your assistant needs")
         XCTAssertEqual(
             CreationConnectionStepCopy.explanation,
-            "This helps your agent get and send data to the right place"
+            "This helps your assistant get and send data to the right place."
         )
         XCTAssertEqual(
             CreationFileAccessStepCopy.explanation,
-            "You have to explicitly grant your agent access to your machine."
+            "You choose exactly what your assistant can access on this Mac."
         )
     }
 
@@ -198,7 +198,7 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(question.serviceContextTitle, "You mentioned Notion")
         XCTAssertEqual(
             question.serviceContextExplanation,
-            "Choose the Notion account this agent should use."
+            "Choose the Notion account this assistant should use."
         )
     }
 
@@ -507,7 +507,7 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(flow.phase, .complete)
         XCTAssertEqual(
             flow.completionSummary,
-            "Your assistant is saved. The protected test completed."
+            "Your assistant is saved. The safe test completed."
         )
     }
 
@@ -550,7 +550,7 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertNil(flow.failedSafeTestRunId)
         XCTAssertEqual(
             flow.completionSummary,
-            "Your assistant is saved. The protected test was stopped."
+            "Your assistant is saved. The safe test was stopped."
         )
     }
 
@@ -839,13 +839,13 @@ final class ConsumerProductFlowTests: XCTestCase {
         XCTAssertEqual(CreationRequestEditorPresentation.footerHeight, 46)
         XCTAssertEqual(
             CreationRequestEditorPresentation.helperText,
-            "Agents are Markdown files in which you describe what they do and how they do it."
+            "Describe what your assistant should do and how it should do it."
         )
     }
 
     func testSidebarFooterKeepsStorageOutOfPrimaryNavigation() {
         XCTAssertEqual(SidebarFooterAction.allCases, [.newAgent])
-        XCTAssertEqual(SidebarFooterAction.newAgent.title, "New Agent")
+        XCTAssertEqual(SidebarFooterAction.newAgent.title, "New Assistant")
         XCTAssertEqual(SidebarFooterAction.newAgent.systemImage, "plus")
     }
 

@@ -63,7 +63,7 @@ struct AgentProposalView: View {
     }
 
     private var reminders: some View {
-        ConsumerSection("Reminder lists this agent can access", style: .flat) {
+        ConsumerSection("Reminder lists this assistant can access", style: .flat) {
             VStack(spacing: NSpacing.xs) {
                 ForEach(proposal.reminderAccess, id: \.id) { access in
                     HStack {
@@ -81,7 +81,7 @@ struct AgentProposalView: View {
     }
 
     private var contacts: some View {
-        ConsumerSection("Contacts this agent can access", style: .flat) {
+        ConsumerSection("Contacts this assistant can access", style: .flat) {
             VStack(spacing: NSpacing.xs) {
                 ForEach(proposal.contactAccess, id: \.id) { access in
                     HStack {
@@ -99,7 +99,7 @@ struct AgentProposalView: View {
     }
 
     private var calendars: some View {
-        ConsumerSection("Calendars this agent can access", style: .flat) {
+        ConsumerSection("Calendars this assistant can access", style: .flat) {
             VStack(spacing: NSpacing.xs) {
                 ForEach(proposal.calendarAccess, id: \.id) { access in
                     HStack {
@@ -154,7 +154,7 @@ struct AgentProposalView: View {
     }
 
     private var files: some View {
-        ConsumerSection("Files this agent can access", style: .flat) {
+        ConsumerSection("Files this assistant can access", style: .flat) {
             VStack(spacing: NSpacing.xs) {
                 ForEach(proposal.fileAccess, id: \.path) { access in
                     HStack {
@@ -200,7 +200,7 @@ struct AgentProposalView: View {
             }
             .buttonStyle(.borderless)
             DisclosureGroup("Advanced configuration", isExpanded: $showsAdvanced) {
-                Text("Secrets never appear in the agent file.")
+                Text("Secrets never appear in the assistant file.")
                     .font(NTypography.caption)
                     .foregroundStyle(theme.tokens.mutedForeground)
                     .padding(.top, NSpacing.xs)

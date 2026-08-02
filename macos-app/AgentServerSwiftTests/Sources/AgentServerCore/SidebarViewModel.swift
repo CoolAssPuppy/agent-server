@@ -12,7 +12,7 @@ enum SidebarFooterAction: CaseIterable, Equatable {
 
     var title: String {
         switch self {
-        case .newAgent: return "New Agent"
+        case .newAgent: return "New Assistant"
         }
     }
 

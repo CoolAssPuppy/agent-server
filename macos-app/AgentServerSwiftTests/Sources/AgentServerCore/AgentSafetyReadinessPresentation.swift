@@ -6,7 +6,7 @@ public enum AgentDetailPresentation {
     public static let lastRunTitle = "Last run"
     public static let producedTitle = "Produced"
     public static let notesTitle = "Agent notes"
-    public static let capabilitiesTitle = "This agent can"
+    public static let capabilitiesTitle = "This assistant can"
     public static let capabilityStyle = AgentDetailCapabilityStyle.iconText
     public static let emptyStateSupportingCopy: String? = nil
 }
@@ -47,7 +47,7 @@ public struct AgentSafetyReadinessPresentation: Equatable, Sendable {
         if missingConnectionCount > 0 {
             title = "Needs setup"
             let noun = missingConnectionCount == 1 ? "app needs" : "apps need"
-            detail = "\(missingConnectionCount) connected \(noun) attention before this agent can run."
+            detail = "\(missingConnectionCount) connected \(noun) attention before this assistant can run."
             icon = "link.badge.plus"
             risk = nil
             action = .openSettings
@@ -72,7 +72,7 @@ public struct AgentSafetyReadinessPresentation: Equatable, Sendable {
             risk = nil
         case .pending:
             title = "Safety not checked yet"
-            detail = "Open the security check before this agent's first run."
+            detail = "Open the security check before this assistant's first run."
             icon = "shield"
             risk = nil
         }

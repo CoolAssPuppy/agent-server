@@ -4,14 +4,14 @@ import AgentServerDesignSystem
 extension GuidedAgentCreationView {
     func proposalStep(_ proposal: AgentProposalPresentation) -> some View {
         VStack(alignment: .leading, spacing: NSpacing.lg) {
-            ConsumerFlowHeader(title: "Review your agent")
+            ConsumerFlowHeader(title: "Review your assistant")
             AgentProposalView(proposal: proposal)
                 .accessibilityIdentifier(ConsumerFlowAccessibility.creationReview)
         }
     }
 
     var completionStep: some View {
-        ConsumerSection("Agent saved") {
+        ConsumerSection("Assistant saved") {
             Label(completionMessage, systemImage: "checkmark.circle")
                 .font(NTypography.headlineSmall)
                 .foregroundStyle(theme.tokens.success)
@@ -64,7 +64,7 @@ extension GuidedAgentCreationView {
             }
         case .failed:
             if let runId = model.flow.failedSafeTestRunId {
-                Button("Open Agent Debugger") { onTestFailed(runId) }
+                Button("Open debugger") { onTestFailed(runId) }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
             }
@@ -108,7 +108,7 @@ extension GuidedAgentCreationView {
             case .available:
                 Button("Save assistant") { requestSave(runSafeTest: false) }
                     .accessibilityIdentifier(ConsumerFlowAccessibility.creationSave)
-                Button("Save and run a protected test") { requestSave(runSafeTest: true) }
+                Button("Save and run a safe test") { requestSave(runSafeTest: true) }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
                     .accessibilityIdentifier(ConsumerFlowAccessibility.creationSaveAndTest)

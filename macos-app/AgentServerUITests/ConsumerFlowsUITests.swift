@@ -32,8 +32,8 @@ final class ConsumerFlowsUITests: XCTestCase {
         XCTAssertTrue(textContaining("Read-only").waitForExistence(timeout: 3))
 
         element("creation.saveAndTest").click()
-        XCTAssertTrue(text("Agent saved").waitForExistence(timeout: 5))
-        XCTAssertTrue(text("Your agent is ready.").exists)
+        XCTAssertTrue(text("Assistant saved").waitForExistence(timeout: 5))
+        XCTAssertTrue(text("Your assistant is saved.").exists)
     }
 
     func testDebuggerReviewsLowRiskFixAndPreservesFailedRunDuringRetry() {
@@ -83,7 +83,7 @@ final class ConsumerFlowsUITests: XCTestCase {
         element("creation.saveAndTest").click()
         let reviewSheet = app.sheets.firstMatch
         XCTAssertTrue(reviewSheet.waitForExistence(timeout: 3))
-        XCTAssertTrue(reviewSheet.buttons["Save reviewed agent"].exists)
+        XCTAssertTrue(reviewSheet.buttons["Save reviewed assistant"].exists)
         reviewSheet.buttons["Cancel"].click()
         XCTAssertTrue(element("creation.saveAndTest").exists)
     }

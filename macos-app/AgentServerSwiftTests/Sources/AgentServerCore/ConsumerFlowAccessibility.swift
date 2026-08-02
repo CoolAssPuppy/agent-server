@@ -30,5 +30,5 @@ public enum CreationRequestEditorPresentation {
     public static let usesMarkdownEditor = true
     public static let fillsAvailableSpace = true
     public static let footerHeight: Double = 46
-    public static let helperText = "Agents are Markdown files in which you describe what they do and how they do it."
+    public static let helperText = "Describe what your assistant should do and how it should do it."
 }

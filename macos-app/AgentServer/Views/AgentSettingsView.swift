@@ -71,7 +71,7 @@ struct AgentSettingsSheet: View {
 
     private var header: some View {
         HStack(spacing: NSpacing.sm) {
-            Text("Edit agent")
+            Text("Edit assistant")
                 .font(NTypography.headlineMedium)
                 .foregroundStyle(theme.tokens.foreground)
             Spacer()

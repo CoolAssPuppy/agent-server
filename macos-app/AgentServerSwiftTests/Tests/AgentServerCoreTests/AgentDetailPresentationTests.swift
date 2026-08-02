@@ -53,7 +53,7 @@ final class AgentDetailPresentationTests: XCTestCase {
         XCTAssertEqual(running.tone, .highlight)
         XCTAssertTrue(running.isDisabled)
         XCTAssertTrue(paused.isDisabled)
-        XCTAssertEqual(paused.help, "Enable this agent before running it")
+        XCTAssertEqual(paused.help, "Enable this assistant before running it")
     }
 
     func testOnlyCurrentLowRiskWithoutFindingsIsGood() {
