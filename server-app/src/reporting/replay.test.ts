@@ -249,9 +249,9 @@ describe('TelemetryReporter persistence', () => {
     });
 
     const failPromise = reporter.fail(new Error('boom'));
+    await failPromise;
     // Immediate retries: 500 + 1000 + 2000 ms.
     await vi.advanceTimersByTimeAsync(5000);
-    await failPromise;
     // Deferred retries: 5s + 10s + 20s + 40s + 80s.
     await vi.advanceTimersByTimeAsync(200_000);
 

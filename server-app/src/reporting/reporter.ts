@@ -174,7 +174,7 @@ export class TelemetryReporter {
   }
 
   async start(): Promise<void> {
-    await this.send({ state: 'working' });
+    void this.send({ state: 'working' });
     this.startHeartbeat();
   }
 
@@ -189,7 +189,7 @@ export class TelemetryReporter {
     }
     this.throttledProgressCount = 0;
     this.lastProgressSentAt = now;
-    await this.send({ state: 'working' });
+    void this.send({ state: 'working' });
   }
 
   async complete(_executionResult: {
@@ -210,7 +210,7 @@ export class TelemetryReporter {
     this.terminalSent = true;
     console.log(`[telemetry] Sending completion for "${this.config.agentName}" to ${this.config.endpoint}`);
     try {
-      await this.send({
+      await this.queueTerminal({
         state: 'completed',
         result: {
           summary: 'Run completed.',
@@ -220,10 +220,8 @@ export class TelemetryReporter {
         },
       });
     } finally {
-      // Stop the heartbeat only. Deferred retries (if any were scheduled)
-      // continue in the background with .unref()'d timers so that a late
-      // panel recovery still gets the terminal event. Full teardown happens
-      // in the explicit .stop() call from the runner.
+      // Network delivery continues independently. The runner can stop this
+      // reporter immediately because the terminal event is already durable.
       this.stopHeartbeat();
     }
   }
@@ -238,7 +236,7 @@ export class TelemetryReporter {
       ? sanitizeText(error.code, 120)
       : undefined;
     try {
-      await this.send({
+      await this.queueTerminal({
         state: 'failed',
         error: {
           message: 'Run failed.',
@@ -257,7 +255,7 @@ export class TelemetryReporter {
     }
     this.terminalSent = true;
     try {
-      await this.send({
+      await this.queueTerminal({
         state: 'canceled',
         error: {
           message: 'Run canceled.',
@@ -294,6 +292,22 @@ export class TelemetryReporter {
   }
 
   private async send(event: Omit<StatusEvent, 'agent' | 'timestamp'>): Promise<void> {
+    await this.deliver(this.buildStatusEvent(event));
+  }
+
+  private async queueTerminal(
+    event: Omit<StatusEvent, 'agent' | 'timestamp'>,
+  ): Promise<void> {
+    const body = this.buildStatusEvent(event);
+    await persistPendingTerminal({
+      runId: this.config.runId,
+      endpoint: this.config.endpoint,
+      body,
+    }, this.config.pendingTerminalsDir);
+    void this.deliver(body);
+  }
+
+  private buildStatusEvent(event: Omit<StatusEvent, 'agent' | 'timestamp'>): StatusEvent {
     const workerMetadata: Record<string, unknown> = {};
     if (this.config.serverId) {
       workerMetadata.worker_id = this.config.serverId;
@@ -302,14 +316,16 @@ export class TelemetryReporter {
       workerMetadata.conversation_id = this.config.conversationId;
     }
 
-    const body = toOperationalStatusEvent({
+    return toOperationalStatusEvent({
       agent: this.config.agentName,
       timestamp: new Date().toISOString(),
       ...event,
       metadata: { ...workerMetadata, ...event.metadata },
     });
+  }
 
-    const maxAttempts = TERMINAL_STATES.has(event.state) ? TERMINAL_RETRY_COUNT : 1;
+  private async deliver(body: StatusEvent): Promise<void> {
+    const maxAttempts = TERMINAL_STATES.has(body.state) ? TERMINAL_RETRY_COUNT : 1;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
@@ -322,21 +338,21 @@ export class TelemetryReporter {
           body: JSON.stringify(body),
         }, this.config.requestTimeoutMs);
         if (isTerminalAcceptedStatus(response)) {
-          if (TERMINAL_STATES.has(event.state)) {
+          if (TERMINAL_STATES.has(body.state)) {
             await removePendingTerminal(this.config.runId, this.config.pendingTerminalsDir);
           }
-          console.log(`[telemetry] Successfully sent ${event.state} event for "${this.config.agentName}" (${response.status})`);
+          console.log(`[telemetry] Successfully sent ${body.state} event for "${this.config.agentName}" (${response.status})`);
           return;
         }
 
         console.error(
           `[telemetry] POST ${this.config.endpoint} returned ${response.status} ${response.statusText} ` +
-          `for ${event.state} event of "${this.config.agentName}" (attempt ${attempt}/${maxAttempts})`
+          `for ${body.state} event of "${this.config.agentName}" (attempt ${attempt}/${maxAttempts})`
         );
       } catch (err) {
         const message = sanitizeText(toErrorMessage(err), 300);
         console.error(
-          `[telemetry] Failed to send ${event.state} event for "${this.config.agentName}" ` +
+          `[telemetry] Failed to send ${body.state} event for "${this.config.agentName}" ` +
           `(attempt ${attempt}/${maxAttempts}): ${message}`
         );
       }
@@ -347,12 +363,7 @@ export class TelemetryReporter {
       }
     }
 
-    if (TERMINAL_STATES.has(event.state)) {
-      await persistPendingTerminal({
-        runId: this.config.runId,
-        endpoint: this.config.endpoint,
-        body,
-      }, this.config.pendingTerminalsDir);
+    if (TERMINAL_STATES.has(body.state)) {
       this.scheduleDeferredRetry(body);
     }
   }
@@ -441,8 +452,8 @@ async function persistPendingTerminal(entry: PendingTerminal, dir?: string): Pro
   try {
     await mkdir(targetDir, { recursive: true });
     const file = join(targetDir, `${entry.runId}.json`);
-    // 0600 — only the current user can read. These files contain the panel
-    // endpoint and the full terminal payload including run output.
+    // 0600 means only the current user can read the endpoint and projected
+    // operational terminal payload.
     await writeFile(file, JSON.stringify(entry), { encoding: 'utf8', mode: 0o600 });
   } catch (err) {
     const message = toErrorMessage(err);

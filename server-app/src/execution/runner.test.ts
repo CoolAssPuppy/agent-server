@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { rmSync } from 'fs';
+import { existsSync, rmSync } from 'fs';
+import { join } from 'path';
 import { runAgent } from './runner.js';
 import { OUTPUT_CONTRACT_UNMET_CODE } from './output-contract.js';
+import { TelemetryReporter } from '../reporting/reporter.js';
 import { makeAgent, makeExecutionResult, createTempDir } from '../test-factories.js';
 
 const noop = async () => {};
@@ -218,6 +220,52 @@ describe('runAgent', () => {
 
     const { isLocked } = await import('./lockfile.js');
     expect(isLocked(lockDir, 'test-agent')).toBe(false);
+  });
+
+  it('returns and releases the lock after durable queuing while Panel delivery hangs', async () => {
+    const lockDir = createTempDir('runner');
+    const pendingTerminalsDir = createTempDir('runner-pending-terminals');
+    dirs.push(lockDir, pendingTerminalsDir);
+    const releaseRequests: Array<() => void> = [];
+    let isReleased = false;
+    const fetchImpl = vi.fn(() => {
+      if (isReleased) return Promise.resolve(new Response('{}', { status: 200 }));
+      return new Promise<Response>((resolve) => {
+        releaseRequests.push(() => resolve(new Response('{}', { status: 200 })));
+      });
+    });
+
+    const run = runAgent({
+      runId: 'hanging-panel-run',
+      agent: makeAgent(),
+      lockDir,
+      execute: async () => makeExecutionResult(),
+      createReporter: (runId, agentName) => new TelemetryReporter({
+        runId,
+        agentName,
+        endpoint: `https://panel.example/api/runs/${runId}/status`,
+        apiKey: 'panel-key',
+        fetch: fetchImpl as typeof fetch,
+        heartbeatMs: 0,
+        pendingTerminalsDir,
+      }),
+    });
+
+    try {
+      const outcome = await Promise.race([
+        run.then((result) => result.status),
+        new Promise<'blocked'>((resolve) => setTimeout(() => resolve('blocked'), 100)),
+      ]);
+
+      const { isLocked } = await import('./lockfile.js');
+      expect(outcome).toBe('completed');
+      expect(isLocked(lockDir, 'test-agent')).toBe(false);
+      expect(existsSync(join(pendingTerminalsDir, 'hanging-panel-run.json'))).toBe(true);
+    } finally {
+      isReleased = true;
+      for (const release of releaseRequests) release();
+      await run;
+    }
   });
 
   it('releases lock after failed execution', async () => {

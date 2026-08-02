@@ -14,16 +14,18 @@ function createMockFetch() {
 let testPendingDir = '';
 
 function makeReporter(overrides: {
+  runId?: string;
   fetch?: typeof fetch;
   heartbeatMs?: number;
   progressMode?: 'live' | 'batched';
   progressSampleMs?: number;
   requestTimeoutMs?: number;
 } = {}) {
+  const runId = overrides.runId ?? 'run-123';
   return new TelemetryReporter({
-    runId: 'run-123',
+    runId,
     agentName: 'Test Agent',
-    endpoint: 'https://panel.example.com/api/runs/run-123/status',
+    endpoint: `https://panel.example.com/api/runs/${runId}/status`,
     apiKey: 'ap_live_test',
     fetch: overrides.fetch ?? createMockFetch(),
     heartbeatMs: overrides.heartbeatMs ?? 0,
@@ -76,6 +78,30 @@ describe('TelemetryReporter', () => {
 
     const options = mockFetch.mock.calls[0]?.[1];
     expect(options?.signal?.aborted).toBe(true);
+  });
+
+  it('does not wait for a hanging Panel request before startup completes', async () => {
+    vi.useRealTimers();
+    let releaseRequest: ((response: Response) => void) | undefined;
+    const mockFetch = vi.fn(() => new Promise<Response>((resolve) => {
+      releaseRequest = resolve;
+    }));
+    const reporter = makeReporter({ fetch: mockFetch as typeof fetch });
+
+    const startup = reporter.start();
+    try {
+      const outcome = await Promise.race([
+        startup.then(() => 'started' as const),
+        new Promise<'blocked'>((resolve) => setTimeout(() => resolve('blocked'), 50)),
+      ]);
+
+      expect(outcome).toBe('started');
+      expect(mockFetch).toHaveBeenCalledOnce();
+    } finally {
+      releaseRequest?.(new Response('{}', { status: 200 }));
+      await startup;
+      reporter.stop();
+    }
   });
 
   it('sends a schema-compatible operational completion', async () => {
@@ -371,9 +397,9 @@ describe('TelemetryReporter', () => {
       commandsRun: [],
     });
 
-    // Advance past retry delays (500ms, 1000ms)
-    await vi.advanceTimersByTimeAsync(2000);
     await completePromise;
+    // Delivery begins after the durable queue write. Advance past retry delays (500ms, 1000ms).
+    await vi.advanceTimersByTimeAsync(2000);
 
     // start (1) + 3 complete attempts = 4 total
     expect(mockFetch).toHaveBeenCalledTimes(4);
@@ -391,8 +417,8 @@ describe('TelemetryReporter', () => {
     await reporter.start();
 
     const failPromise = reporter.fail(new Error('Agent crashed'));
-    await vi.advanceTimersByTimeAsync(1000);
     await failPromise;
+    await vi.advanceTimersByTimeAsync(1000);
 
     expect(mockFetch).toHaveBeenCalledTimes(3);
     const lastBody = JSON.parse(mockFetch.mock.calls[2][1].body) as StatusEvent;
@@ -420,8 +446,8 @@ describe('TelemetryReporter', () => {
       commandsRun: [],
     });
 
-    await vi.advanceTimersByTimeAsync(3000);
     await completePromise;
+    await vi.advanceTimersByTimeAsync(3000);
 
     // start (1) + 3 failed attempts = 4
     expect(mockFetch).toHaveBeenCalledTimes(4);
@@ -449,9 +475,9 @@ describe('TelemetryReporter', () => {
       commandsRun: [],
     });
 
-    // Advance past immediate retry delays (500ms + 1000ms)
-    await vi.advanceTimersByTimeAsync(3000);
     await completePromise;
+    // Delivery begins after the durable queue write. Advance past immediate retry delays.
+    await vi.advanceTimersByTimeAsync(3000);
 
     // start (1) + 3 failed immediate attempts = 4 so far
     expect(mockFetch).toHaveBeenCalledTimes(4);
@@ -479,8 +505,8 @@ describe('TelemetryReporter', () => {
     await reporter.start();
 
     const failPromise = reporter.fail(new Error('Agent crashed'));
-    await vi.advanceTimersByTimeAsync(3000);
     await failPromise;
+    await vi.advanceTimersByTimeAsync(3000);
 
     // Deferred retry 1 at 5s
     await vi.advanceTimersByTimeAsync(5000);
@@ -517,8 +543,8 @@ describe('TelemetryReporter', () => {
       commandsRun: [],
     });
 
-    await vi.advanceTimersByTimeAsync(3000);
     await completePromise;
+    await vi.advanceTimersByTimeAsync(3000);
 
     // 1 (start) + 3 (immediate) = 4
     expect(mockFetch).toHaveBeenCalledTimes(4);
@@ -574,6 +600,65 @@ describe('TelemetryReporter', () => {
     expect(body.state).toBe('canceled');
     expect(body.error?.message).toBe('Run canceled.');
     expect(body.error?.code).toBe('lock_contention');
+  });
+
+  it.each([
+    {
+      name: 'completion',
+      state: 'completed',
+      report: (reporter: TelemetryReporter) => reporter.complete({
+        summary: 'Done',
+        output: {},
+        usage: {},
+        turnCount: 1,
+        toolsUsed: [],
+        filesRead: [],
+        filesWritten: [],
+        commandsRun: [],
+      }),
+    },
+    {
+      name: 'failure',
+      state: 'failed',
+      report: (reporter: TelemetryReporter) => reporter.fail(new Error('Agent failed')),
+    },
+    {
+      name: 'cancellation',
+      state: 'canceled',
+      report: (reporter: TelemetryReporter) => reporter.cancel('Canceled', 'user_canceled'),
+    },
+  ])('durably queues $name before returning while Panel delivery hangs', async ({ state, report }) => {
+    vi.useRealTimers();
+    const runId = `hanging-${state}`;
+    const pendingFile = join(testPendingDir, `${runId}.json`);
+    rmSync(pendingFile, { force: true });
+    let didExistWhenDeliveryStarted = false;
+    let releaseRequest: ((response: Response) => void) | undefined;
+    const mockFetch = vi.fn(() => {
+      didExistWhenDeliveryStarted = existsSync(pendingFile);
+      return new Promise<Response>((resolve) => {
+        releaseRequest = resolve;
+      });
+    });
+    const reporter = makeReporter({ runId, fetch: mockFetch as typeof fetch });
+
+    const reporting = report(reporter);
+    try {
+      const outcome = await Promise.race([
+        reporting.then(() => 'queued' as const),
+        new Promise<'blocked'>((resolve) => setTimeout(() => resolve('blocked'), 100)),
+      ]);
+
+      expect(outcome).toBe('queued');
+      expect(mockFetch).toHaveBeenCalledOnce();
+      expect(didExistWhenDeliveryStarted).toBe(true);
+      const pending = JSON.parse(readFileSync(pendingFile, 'utf8')) as { body: StatusEvent };
+      expect(pending.body.state).toBe(state);
+    } finally {
+      releaseRequest?.(new Response('{}', { status: 200 }));
+      await reporting;
+      reporter.stop();
+    }
   });
 
   it('defaults accomplishments to non-empty when no side effects occurred', async () => {
@@ -642,8 +727,8 @@ describe('TelemetryReporter', () => {
       filesWritten: [],
       commandsRun: [],
     });
-    await vi.advanceTimersByTimeAsync(3000);
     await completePromise;
+    await vi.advanceTimersByTimeAsync(3000);
 
     // After immediate retries: 1 start + 3 complete attempts = 4.
     expect(mockFetch).toHaveBeenCalledTimes(4);
