@@ -50,11 +50,7 @@ final class TodayActivityContractTests: XCTestCase {
         XCTAssertEqual(finished.endedAt, Self.date("2026-08-02T08:02:00.000Z"))
         XCTAssertEqual(finished.headlineStatement.evidenceReferences, ["run.status"])
         XCTAssertEqual(finished.outcomeSummaryStatement?.evidenceReferences, ["run.summary"])
-        XCTAssertEqual(finished.primaryOutputStatement?.text, "Reading list is ready")
-        XCTAssertEqual(
-            finished.primaryOutputStatement?.evidenceReferences,
-            ["agent.output.primary", "run.status"]
-        )
+        XCTAssertNil(finished.primaryOutputStatement)
         XCTAssertEqual(finished.reviewReference, "/runs/completed-run/review")
         XCTAssertEqual(finished.sourceReferences, ["run.runId", "run.status", "run.startedAt"])
     }

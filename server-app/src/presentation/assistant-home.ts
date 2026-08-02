@@ -93,12 +93,7 @@ function recentOutcomes(input: AssistantHomeInput): RecentOutcome[] {
     .sort((left, right) => right.startedAt.getTime() - left.startedAt.getTime())
     .slice(0, 5)
     .map((run) => {
-      const review = createRunReview({
-        run,
-        ...(input.agent.output?.primary.required === true
-          ? { requiredOutput: { label: input.agent.output.primary.description } }
-          : {}),
-      });
+      const review = createRunReview({ run });
       return {
         runId: run.runId,
         outcome: review.outcome,

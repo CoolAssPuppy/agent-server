@@ -261,4 +261,37 @@ describe('Assistant home presentation', () => {
       sourceRuleReference: 'agent.permissions.allow',
     }));
   });
+
+  it('keeps historical outcomes unchanged after the current output contract is edited', () => {
+    const run = makeStoredRun({
+      runId: 'historical-run',
+      status: 'completed',
+      summary: 'Prepared the earlier report.',
+    });
+    const createPresentation = (agent: ReturnType<typeof makeAgent>) => (
+      createAssistantHomePresentation({
+        machineId: MACHINE_ID,
+        agent,
+        runs: [run],
+        pendingInteractions: [],
+        now: NOW,
+        facts: makeFacts(),
+      })
+    );
+
+    const beforeEdit = createPresentation(makeAgent({ output: undefined }));
+    const afterEdit = createPresentation(makeAgent({
+      output: {
+        primary: {
+          description: 'Newly edited private report',
+          tool: 'Write',
+          required: true,
+        },
+      },
+    }));
+
+    expect(afterEdit.recentOutcomes).toEqual(beforeEdit.recentOutcomes);
+    expect(JSON.stringify(afterEdit.recentOutcomes)).not.toContain('Newly edited private report');
+    expect(JSON.stringify(afterEdit.recentOutcomes)).not.toContain('agent.output.primary');
+  });
 });

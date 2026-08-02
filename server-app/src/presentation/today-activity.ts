@@ -132,11 +132,6 @@ function interactionTodayItem(
   };
 }
 
-function requiredOutput(agent: AgentConfig | undefined): { label: string } | undefined {
-  const primary = agent?.output?.primary;
-  return primary?.required === true ? { label: primary.description } : undefined;
-}
-
 function actionForRun(run: StoredRun, section: TodayItem['section']): PresentationAction {
   if (section === 'working') {
     return {
@@ -166,8 +161,7 @@ function runTodayItem(
   run: StoredRun,
   agents: AgentLookup,
 ): TodayItem | undefined {
-  const agent = agents.get(run.agentId);
-  const review = createRunReview({ run, requiredOutput: requiredOutput(agent) });
+  const review = createRunReview({ run });
   const assistant = assistantIdentity(input.machineId, run.agentId, run.agentName, agents);
   if (run.status === 'running') {
     return {
@@ -373,8 +367,7 @@ function runActivityItem(
   agents: AgentLookup,
   interaction?: PendingInteraction,
 ): ActivityItem {
-  const agent = agents.get(run.agentId);
-  const review = createRunReview({ run, requiredOutput: requiredOutput(agent) });
+  const review = createRunReview({ run });
   const assistant = assistantIdentity(input.machineId, run.agentId, run.agentName, agents);
   const interactionPresentation = interaction
     ? interactionTodayItem(input, interaction, agents, run)

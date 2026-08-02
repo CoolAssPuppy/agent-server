@@ -414,12 +414,9 @@ describe('unified Activity presentation', () => {
     });
     expect(activity.items[2]).toMatchObject({
       conversationId: 'conversation-1',
-      primaryOutput: {
-        text: 'Reading list is ready',
-        evidenceReferences: ['agent.output.primary', 'run.status'],
-      },
       reviewReference: '/runs/completed-run/review',
     });
+    expect(activity.items[2]).not.toHaveProperty('primaryOutput');
     expect(activity.items[4]).toMatchObject({
       headline: { text: 'Daily Brief was canceled' },
       outcomeSummary: { text: 'The run was canceled. No further work was allowed.' },
@@ -442,6 +439,57 @@ describe('unified Activity presentation', () => {
       localAgentId: 'removed-agent',
       displayName: 'Retained History',
     });
+  });
+
+  it('does not apply an edited current output contract to stored run history', () => {
+    const agent = makeAgent({
+      id: 'historical-agent',
+      name: 'Historical Assistant',
+      schedule: undefined,
+      output: {
+        primary: {
+          description: 'Newly edited private report',
+          tool: 'Write',
+          required: true,
+        },
+      },
+    });
+    const input = makeInput({
+      agents: [agent],
+      runs: [
+        makeStoredRun({
+          runId: 'completed-history',
+          agentId: agent.id,
+          agentName: agent.name,
+          status: 'completed',
+          summary: 'Prepared the earlier report.',
+          completedAt: new Date('2026-08-02T09:00:00.000Z'),
+        }),
+        makeStoredRun({
+          runId: 'failed-history',
+          agentId: agent.id,
+          agentName: agent.name,
+          status: 'failed',
+          code: 'output_contract_unmet',
+          completedAt: new Date('2026-08-02T08:00:00.000Z'),
+        }),
+      ],
+    });
+
+    const today = createTodayPresentation(input);
+    const activity = createActivityPresentation(input);
+
+    expect(activity.items.find(({ id }) => id === 'run:completed-history'))
+      .not.toHaveProperty('primaryOutput');
+    expect(today.sections.flatMap(({ items }) => items).find(({ id }) => id === 'run:failed-history'))
+      .toMatchObject({
+        explanation: {
+          text: 'The run stopped because the required output was not produced.',
+          evidenceReferences: ['run.code'],
+        },
+      });
+    expect(JSON.stringify({ today, activity })).not.toContain('Newly edited private report');
+    expect(JSON.stringify({ today, activity })).not.toContain('agent.output.primary');
   });
 });
 
