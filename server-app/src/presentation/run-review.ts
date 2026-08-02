@@ -1,10 +1,12 @@
 import { basename } from 'node:path';
+import type { PendingInteraction } from '../interaction/store.js';
 import type { StoredRun } from '../reporting/store.js';
 import {
   RunReviewSchema,
   type HumanTimelineEntry,
   type PresentationStatement,
   type RunReview,
+  type RunReviewWaiting,
 } from './models.js';
 
 type RequiredOutput = {
@@ -14,6 +16,9 @@ type RequiredOutput = {
 export type CreateRunReviewInput = {
   run: StoredRun;
   requiredOutput?: RequiredOutput;
+  observedAccomplishments?: PresentationStatement[];
+  pendingInteraction?: PendingInteraction;
+  now?: Date;
 };
 
 type ReviewMeaning = Pick<
@@ -28,6 +33,49 @@ function statement(text: string, ...evidenceReferences: string[]): PresentationS
 function safeFileLabel(path: string): string {
   const label = basename(path.trim());
   return label || 'a local file';
+}
+
+function currentPendingInteraction(
+  run: StoredRun,
+  interaction: PendingInteraction | undefined,
+  now: Date,
+): PendingInteraction | undefined {
+  if (
+    run.status !== 'running'
+    || interaction?.status !== 'pending'
+    || interaction.runId !== run.runId
+    || interaction.agentId !== run.agentId
+    || interaction.expiresAt <= now
+  ) {
+    return undefined;
+  }
+  return interaction;
+}
+
+function waitingActionLabel(interaction: PendingInteraction): string {
+  if ((interaction.request.options?.length ?? 0) > 0) return 'Choose';
+  if (interaction.request.freeText) return 'Answer';
+  return 'Review';
+}
+
+function waitingPresentation(interaction: PendingInteraction): RunReviewWaiting {
+  return {
+    waitingFor: statement(
+      interaction.request.message,
+      'interaction.request.message',
+    ),
+    reason: statement(
+      'The assistant needs your response before it can continue.',
+      'interaction.status',
+      'interaction.runId',
+    ),
+    userAction: {
+      kind: 'respond',
+      label: waitingActionLabel(interaction),
+      targetReference: `interaction:${interaction.id}`,
+    },
+    expiresAt: interaction.expiresAt.toISOString(),
+  };
 }
 
 function completedMeaning(
@@ -132,11 +180,30 @@ function skippedMeaning(run: StoredRun): ReviewMeaning {
 function meaningFor(
   run: StoredRun,
   requiredOutput: RequiredOutput | undefined,
+  pendingInteraction: PendingInteraction | undefined,
 ): ReviewMeaning {
   if (run.status === 'completed') return completedMeaning(run, requiredOutput);
   if (run.status === 'failed') return failedMeaning(run, requiredOutput);
   if (run.status === 'skipped') return skippedMeaning(run);
   if (run.status === 'running') {
+    if (pendingInteraction) {
+      return {
+        outcome: 'waiting',
+        headline: statement(
+          `${run.agentName} is waiting for your response`,
+          'interaction.status',
+          'interaction.request',
+        ),
+        summary: statement(
+          'The assistant needs your response before it can continue.',
+          'interaction.status',
+          'interaction.runId',
+        ),
+        problems: [],
+        suggestions: [],
+        operationalCompleteness: 'not_assessed',
+      };
+    }
     return {
       outcome: 'working',
       headline: statement(`${run.agentName} is working`, 'run.status'),
@@ -157,7 +224,11 @@ function meaningFor(
   };
 }
 
-function timelineFor(run: StoredRun, outcome: RunReview['outcome']): HumanTimelineEntry[] {
+function timelineFor(
+  run: StoredRun,
+  outcome: RunReview['outcome'],
+  pendingInteraction: PendingInteraction | undefined,
+): HumanTimelineEntry[] {
   const terminalTimestamp = (run.completedAt ?? run.startedAt).toISOString();
   const entries: HumanTimelineEntry[] = [{
     kind: 'started',
@@ -180,6 +251,18 @@ function timelineFor(run: StoredRun, outcome: RunReview['outcome']): HumanTimeli
     });
   }
 
+  if (pendingInteraction) {
+    entries.push({
+      kind: 'waiting',
+      label: statement(
+        'Waiting for your response',
+        'interaction.status',
+        'interaction.request',
+      ),
+      occurredAt: pendingInteraction.createdAt.toISOString(),
+    });
+  }
+
   if (run.status !== 'running') {
     const terminal = outcome === 'canceled'
       ? { kind: 'finished' as const, label: statement('Canceled', 'run.code') }
@@ -197,7 +280,12 @@ function timelineFor(run: StoredRun, outcome: RunReview['outcome']): HumanTimeli
 /** Translate durable local run evidence into a consumer-facing review. */
 export function createRunReview(input: CreateRunReviewInput): RunReview {
   const { run, requiredOutput } = input;
-  const meaning = meaningFor(run, requiredOutput);
+  const pendingInteraction = currentPendingInteraction(
+    run,
+    input.pendingInteraction,
+    input.now ?? new Date(),
+  );
+  const meaning = meaningFor(run, requiredOutput, pendingInteraction);
   const changes = run.filesWritten.map((path, index) => statement(
     `Updated ${safeFileLabel(path)}`,
     `run.filesWritten[${index}]`,
@@ -212,10 +300,11 @@ export function createRunReview(input: CreateRunReviewInput): RunReview {
 
   return RunReviewSchema.parse({
     ...meaning,
-    accomplishments: [],
+    accomplishments: input.observedAccomplishments ?? [],
     changes,
     outputs,
-    timeline: timelineFor(run, meaning.outcome),
+    timeline: timelineFor(run, meaning.outcome, pendingInteraction),
+    ...(pendingInteraction ? { waiting: waitingPresentation(pendingInteraction) } : {}),
     technicalDetailsReference: `/runs/${encodeURIComponent(run.runId)}`,
   });
 }

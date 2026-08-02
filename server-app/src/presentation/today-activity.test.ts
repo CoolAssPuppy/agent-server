@@ -5,6 +5,10 @@ import { describe, expect, it } from 'vitest';
 
 import type { PendingInteraction } from '../interaction/store.js';
 import { makeAgent, makeStoredRun } from '../test-factories.js';
+import type {
+  ReadinessCheck,
+  ReadinessPresentation,
+} from './assistant-home-models.js';
 import {
   createActivityPresentation,
   createTodayPresentation,
@@ -50,6 +54,31 @@ function makeInput(overrides: Partial<TodayActivityInput> = {}): TodayActivityIn
     recentSince,
     upcomingUntil,
     ...overrides,
+  };
+}
+
+function makeReadiness(
+  checks: readonly ReadinessCheck[],
+): ReadinessPresentation {
+  return {
+    state: 'blocked',
+    summary: {
+      text: 'Resolve the blocked checks before running.',
+      evidenceReferences: ['readiness.checks'],
+    },
+    checks: [...checks],
+  };
+}
+
+function makeBlockingCheck(
+  kind: ReadinessCheck['kind'],
+  text: string,
+): ReadinessCheck {
+  return {
+    kind,
+    state: 'fail',
+    explanation: { text, evidenceReferences: [`check.${kind}`] },
+    evidenceSource: `check.${kind}`,
   };
 }
 
@@ -208,6 +237,103 @@ describe('consumer Today presentation', () => {
     }));
 
     expect(today.sections.map((section) => section.kind)).toEqual(['working']);
+  });
+
+  it('shows one actionable readiness blocker per assistant in consumer priority order', () => {
+    const agent = makeAgent({ id: 'setup-agent', name: 'Weekly Report', schedule: undefined });
+    const readiness = makeReadiness([
+      makeBlockingCheck('permission', 'The saved access rules need review.'),
+      makeBlockingCheck('schedule', 'The automatic schedule is not valid.'),
+      makeBlockingCheck('file', 'Reports is missing or does not allow the required access.'),
+      makeBlockingCheck('connection', 'Notion needs setup.'),
+    ]);
+
+    const today = createTodayPresentation(makeInput({
+      agents: [agent],
+      readinessByAgent: new Map([[agent.id, readiness]]),
+    }));
+
+    expect(today.sections).toEqual([{
+      kind: 'needs_you',
+      items: [expect.objectContaining({
+        id: 'readiness:setup-agent',
+        section: 'needs_you',
+        assistant: expect.objectContaining({
+          localAgentId: 'setup-agent',
+          displayName: 'Weekly Report',
+        }),
+        headline: {
+          text: 'Weekly Report needs setup',
+          evidenceReferences: ['assistant.readiness'],
+        },
+        explanation: {
+          text: 'Notion needs setup.',
+          evidenceReferences: ['check.connection'],
+        },
+        primaryAction: {
+          kind: 'view_assistant',
+          label: 'Review assistant',
+          targetReference: 'assistant:setup-agent',
+        },
+        sourceReferences: ['assistant.readiness', 'check.connection'],
+      })],
+    }]);
+  });
+
+  it.each([
+    ['connection', 'Notion needs setup.'],
+    ['file', 'Reports is missing.'],
+    ['schedule', 'The automatic schedule is not valid.'],
+    ['permission', 'The saved access rules need review.'],
+  ] as const)('shows an actionable %s blocker when no higher-priority blocker exists', (kind, text) => {
+    const agent = makeAgent({ id: `${kind}-agent`, name: 'Weekly Report', schedule: undefined });
+
+    const today = createTodayPresentation(makeInput({
+      agents: [agent],
+      readinessByAgent: new Map([[
+        agent.id,
+        makeReadiness([makeBlockingCheck(kind, text)]),
+      ]]),
+    }));
+
+    expect(today.sections[0]?.items[0]).toMatchObject({
+      section: 'needs_you',
+      explanation: { text },
+      primaryAction: {
+        kind: 'view_assistant',
+        targetReference: `assistant:${kind}-agent`,
+      },
+    });
+  });
+
+  it('does not duplicate readiness attention while an assistant is working or awaiting a reply', () => {
+    const workingAgent = makeAgent({ id: 'working-agent', schedule: undefined });
+    const waitingAgent = makeAgent({ id: 'needs-agent', schedule: undefined });
+    const readiness = makeReadiness([
+      makeBlockingCheck('connection', 'A connection needs setup.'),
+    ]);
+
+    const today = createTodayPresentation(makeInput({
+      agents: [workingAgent, waitingAgent],
+      runs: [makeStoredRun({
+        runId: 'working-run',
+        agentId: workingAgent.id,
+        status: 'running',
+        completedAt: undefined,
+      })],
+      pendingInteractions: [makeInteraction()],
+      readinessByAgent: new Map([
+        [workingAgent.id, readiness],
+        [waitingAgent.id, readiness],
+      ]),
+    }));
+
+    expect(today.sections.flatMap((section) => section.items)).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'readiness:working-agent' }),
+        expect.objectContaining({ id: 'readiness:needs-agent' }),
+      ]),
+    );
   });
 });
 

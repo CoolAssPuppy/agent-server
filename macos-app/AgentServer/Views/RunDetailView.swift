@@ -14,6 +14,8 @@ struct RunDetailView: View {
     @State private var showsNoticeDetails = false
     @State private var showsTechnicalDetails = false
     @State private var reviewLoadState: ReviewLoadState = .loading
+    @State private var presentedWaitingInteraction: RunReviewPresentedInteraction?
+    @State private var waitingActionError: String?
     @FocusState private var focusedTab: RunDetailTabKind?
 
     private let localClient = AgentServerClient()
@@ -45,6 +47,32 @@ struct RunDetailView: View {
         .task(id: "\(run.runId):\(run.status.rawValue)") {
             await loadReview()
         }
+        .sheet(item: $presentedWaitingInteraction) { presented in
+            InteractionResponseSheet(
+                interaction: presented.interaction,
+                submit: { reply in
+                    try await localClient.replyToInteraction(
+                        id: presented.interaction.interactionID,
+                        reply: reply
+                    )
+                },
+                onAccepted: { _ in
+                    presentedWaitingInteraction = nil
+                    Task { await loadReview() }
+                }
+            )
+        }
+        .alert(
+            "Could not open this request",
+            isPresented: Binding(
+                get: { waitingActionError != nil },
+                set: { if !$0 { waitingActionError = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(waitingActionError ?? "Try again.")
+        }
     }
 
     @ViewBuilder
@@ -59,13 +87,39 @@ struct RunDetailView: View {
             if showsTechnicalDetails {
                 technicalContent
             } else {
-                RunReviewSummaryView(review: review)
+                RunReviewSummaryView(
+                    review: review,
+                    onWaitingAction: openWaitingAction
+                )
             }
         case .unavailable:
             VStack(spacing: 0) {
                 reviewUnavailableBanner
                 Divider()
                 technicalContent
+            }
+        }
+    }
+
+    private func openWaitingAction(_ action: PresentationAction) {
+        guard action.kind == .respond,
+              let interactionID = action.targetReference.removingPrefix("interaction:") else {
+            return
+        }
+        waitingActionError = nil
+        Task {
+            do {
+                let interaction = try await localClient.interaction(id: interactionID)
+                guard interaction.status.canRespond else {
+                    waitingActionError = "This request is no longer waiting for a response."
+                    await loadReview()
+                    return
+                }
+                presentedWaitingInteraction = RunReviewPresentedInteraction(
+                    interaction: interaction
+                )
+            } catch {
+                waitingActionError = error.localizedDescription
             }
         }
     }
@@ -409,4 +463,9 @@ private enum ReviewLoadState {
     case loading
     case loaded(RunReview)
     case unavailable
+}
+
+private struct RunReviewPresentedInteraction: Identifiable {
+    let interaction: LocalInteraction
+    var id: String { interaction.interactionID }
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { PendingInteraction } from '../interaction/store.js';
 import { makeStoredRun } from '../test-factories.js';
 import { createRunReview } from './run-review.js';
 
@@ -171,4 +172,118 @@ describe('consumer run review', () => {
       expect.not.objectContaining({ occurredAt: expect.anything() }),
     ]);
   });
+
+  it('preserves explicit evidence-backed accomplishments without deriving new claims', () => {
+    const accomplishment = {
+      text: 'Published the approved weekly report.',
+      evidenceReferences: ['run.summary', 'agent.output.primary'],
+    };
+
+    const withEvidence = createRunReview({
+      run: makeStoredRun({ status: 'completed' }),
+      observedAccomplishments: [accomplishment],
+    });
+    const withoutEvidence = createRunReview({
+      run: makeStoredRun({
+        status: 'completed',
+        filesWritten: ['/tmp/report.md'],
+        toolsUsed: ['mcp__notion__create_page'],
+      }),
+    });
+
+    expect(withEvidence.accomplishments).toEqual([accomplishment]);
+    expect(withoutEvidence.accomplishments).toEqual([]);
+  });
+
+  it('shows a waiting request, reason, action, and expiry only from a current matching interaction', () => {
+    const run = makeStoredRun({ status: 'running', completedAt: undefined });
+    const interaction = makePendingInteraction({ runId: run.runId });
+
+    const review = createRunReview({
+      run,
+      pendingInteraction: interaction,
+      now: new Date('2026-08-02T09:30:00.000Z'),
+    });
+
+    expect(review).toMatchObject({
+      outcome: 'waiting',
+      headline: {
+        text: 'Test Agent is waiting for your response',
+        evidenceReferences: ['interaction.status', 'interaction.request'],
+      },
+      waiting: {
+        waitingFor: {
+          text: 'Choose which report to publish.',
+          evidenceReferences: ['interaction.request.message'],
+        },
+        reason: {
+          text: 'The assistant needs your response before it can continue.',
+          evidenceReferences: ['interaction.status', 'interaction.runId'],
+        },
+        userAction: {
+          kind: 'respond',
+          label: 'Choose',
+          targetReference: 'interaction:interaction-1',
+        },
+        expiresAt: '2026-08-02T10:30:00.000Z',
+      },
+    });
+    expect(review.timeline.at(-1)).toMatchObject({
+      kind: 'waiting',
+      label: {
+        text: 'Waiting for your response',
+        evidenceReferences: ['interaction.status', 'interaction.request'],
+      },
+    });
+  });
+
+  it('does not claim a run is waiting from expired, resolved, or unrelated interaction evidence', () => {
+    const run = makeStoredRun({ status: 'running', completedAt: undefined });
+    const now = new Date('2026-08-02T11:00:00.000Z');
+
+    const reviews = [
+      createRunReview({ run, pendingInteraction: makePendingInteraction(), now }),
+      createRunReview({
+        run,
+        pendingInteraction: makePendingInteraction({ status: 'acted' }),
+        now: new Date('2026-08-02T09:30:00.000Z'),
+      }),
+      createRunReview({
+        run,
+        pendingInteraction: makePendingInteraction({ runId: 'another-run' }),
+        now: new Date('2026-08-02T09:30:00.000Z'),
+      }),
+    ];
+
+    expect(reviews.map((review) => review.outcome)).toEqual([
+      'working',
+      'working',
+      'working',
+    ]);
+    expect(reviews.every((review) => review.waiting === undefined)).toBe(true);
+  });
 });
+
+function makePendingInteraction(
+  overrides: Partial<PendingInteraction> = {},
+): PendingInteraction {
+  return {
+    id: 'interaction-1',
+    runId: 'run-1',
+    agentId: 'test-agent',
+    replyAgentId: 'reply-agent',
+    request: {
+      message: 'Choose which report to publish.',
+      options: [
+        { label: 'Weekly report', value: 'weekly' },
+        { label: 'Monthly report', value: 'monthly' },
+      ],
+      freeText: false,
+    },
+    channel: 'console',
+    createdAt: new Date('2026-08-02T09:00:00.000Z'),
+    expiresAt: new Date('2026-08-02T10:30:00.000Z'),
+    status: 'pending',
+    ...overrides,
+  };
+}

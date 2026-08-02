@@ -702,6 +702,65 @@ describe('API routes', () => {
       expect(body.operationalCompleteness).toBe('not_assessed');
     });
 
+    it('returns waiting details only from the matching current interaction', async () => {
+      const now = new Date('2026-08-02T09:30:00.000Z');
+      store.add(makeStoredRun({
+        runId: 'waiting-review-run',
+        status: 'running',
+        completedAt: undefined,
+      }));
+      const matching: PendingInteraction = {
+        id: 'interaction-1',
+        runId: 'waiting-review-run',
+        agentId: 'test-agent',
+        replyAgentId: 'reply-agent',
+        request: {
+          message: 'Choose which report to publish.',
+          options: [{ label: 'Weekly report', value: 'weekly' }],
+          freeText: false,
+        },
+        channel: 'console',
+        createdAt: new Date('2026-08-02T09:00:00.000Z'),
+        expiresAt: new Date('2026-08-02T10:30:00.000Z'),
+        status: 'pending',
+      };
+      const app = createApi({
+        getAgents: async () => [makeAgent()],
+        getPendingInteractions: () => [
+          { ...matching, id: 'unrelated', runId: 'another-run' },
+          matching,
+        ],
+        presentationClock: () => now,
+        store,
+        triggerRun,
+      });
+
+      const unauthorized = await app.request('/runs/waiting-review-run/review');
+      const response = await authenticatedRequest(app, '/runs/waiting-review-run/review');
+      const body = await response.json();
+
+      expect(unauthorized.status).toBe(401);
+      expect(response.status).toBe(200);
+      expect(body).toMatchObject({
+        outcome: 'waiting',
+        waiting: {
+          waitingFor: {
+            text: 'Choose which report to publish.',
+            evidenceReferences: ['interaction.request.message'],
+          },
+          reason: {
+            evidenceReferences: ['interaction.status', 'interaction.runId'],
+          },
+          userAction: {
+            kind: 'respond',
+            label: 'Choose',
+            targetReference: 'interaction:interaction-1',
+          },
+          expiresAt: '2026-08-02T10:30:00.000Z',
+        },
+      });
+    });
+
     it('returns 404 for an unknown run', async () => {
       const response = await authenticatedRequest(createApp(), '/runs/missing/review');
 
@@ -948,6 +1007,58 @@ describe('API routes', () => {
       expect(serialized).not.toContain('mcp__private');
       expect(serialized).not.toContain('/Users/person/Private');
       expect(serialized).not.toContain('credential-secret');
+    });
+
+    it('composes deterministic Assistant readiness blockers into Today', async () => {
+      const machineId = '1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99';
+      const now = new Date('2026-08-02T10:00:00.000Z');
+      const agent = makeAgent({
+        id: 'weekly-report',
+        name: 'Weekly Report',
+        schedule: undefined,
+        mcp_servers: {
+          notion: { command: 'notion-service' },
+        },
+      });
+      const assistantHomeFacts = vi.fn().mockResolvedValue({
+        engine: { runtimeAvailable: true, authentication: 'verified' },
+        paths: [],
+        connections: [{
+          id: 'inline:notion',
+          label: 'Notion',
+          status: 'needs_setup',
+          sourceReference: 'agent.mcp_servers.notion',
+        }],
+        canEnforceSafeTest: false,
+      });
+      const app = createApi({
+        getAgents: async () => [agent],
+        store,
+        triggerRun,
+        machineId,
+        presentationClock: () => now,
+        assistantHomeFacts,
+      });
+
+      const response = await authenticatedRequest(app, '/presentation/today-activity');
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({
+        today: {
+          sections: [{
+            kind: 'needs_you',
+            items: [{
+              id: 'readiness:weekly-report',
+              explanation: { text: 'Notion needs setup.' },
+              primaryAction: {
+                kind: 'view_assistant',
+                targetReference: 'assistant:weekly-report',
+              },
+            }],
+          }],
+        },
+      });
+      expect(assistantHomeFacts).toHaveBeenCalledWith(agent, [agent]);
     });
 
     it('refuses to create ambiguous presentation identities without a machine ID', async () => {

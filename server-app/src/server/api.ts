@@ -378,19 +378,39 @@ export function createApi(deps: ApiDependencies): Hono {
   });
 
   app.get('/presentation/today-activity', async (c) => {
-    if (!deps.machineId) {
+    const machineId = deps.machineId;
+    if (!machineId) {
       return c.json({ error: 'Machine identity unavailable' }, 503);
     }
 
     const now = deps.presentationClock?.() ?? new Date();
     const window = deps.presentationWindow?.(now) ?? localTodayWindow(now);
+    const agents = await deps.getAgents();
+    const runs = deps.store.list();
+    const pendingInteractions = deps.getPendingInteractions?.() ?? [];
+    const assistantHomeFacts = deps.assistantHomeFacts;
+    const readinessByAgent = assistantHomeFacts
+      ? new Map(await Promise.all(agents.map(async (agent) => {
+        const facts = await assistantHomeFacts(agent, agents);
+        const assistantHome = createAssistantHomePresentation({
+          machineId,
+          agent,
+          runs,
+          pendingInteractions,
+          now,
+          facts,
+        });
+        return [agent.id, assistantHome.readiness] as const;
+      })))
+      : undefined;
     const input = {
-      machineId: deps.machineId,
-      agents: await deps.getAgents(),
-      runs: deps.store.list(),
-      pendingInteractions: deps.getPendingInteractions?.() ?? [],
+      machineId,
+      agents,
+      runs,
+      pendingInteractions,
       now,
       ...window,
+      ...(readinessByAgent ? { readinessByAgent } : {}),
     };
 
     return c.json({
@@ -868,8 +888,14 @@ export function createApi(deps: ApiDependencies): Hono {
     if (!run) return c.json({ error: 'Run not found' }, 404);
     const agent = (await deps.getAgents()).find((candidate) => candidate.id === run.agentId);
     const primaryOutput = agent?.output?.primary;
+    const now = deps.presentationClock?.() ?? new Date();
+    const pendingInteraction = deps.getPendingInteractions?.().find(
+      (interaction) => interaction.runId === run.runId && interaction.agentId === run.agentId,
+    );
     return c.json(createRunReview({
       run,
+      now,
+      ...(pendingInteraction ? { pendingInteraction } : {}),
       ...(primaryOutput?.required === true
         ? { requiredOutput: { label: primaryOutput.description } }
         : {}),

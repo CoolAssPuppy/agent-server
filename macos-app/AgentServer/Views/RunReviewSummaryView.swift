@@ -3,6 +3,7 @@ import AgentServerDesignSystem
 
 struct RunReviewSummaryView: View {
     let review: RunReview
+    let onWaitingAction: (PresentationAction) -> Void
 
     @Environment(\.nTheme) private var theme
 
@@ -10,10 +11,22 @@ struct RunReviewSummaryView: View {
         RunReviewPresentation(review: review)
     }
 
+    init(
+        review: RunReview,
+        onWaitingAction: @escaping (PresentationAction) -> Void = { _ in }
+    ) {
+        self.review = review
+        self.onWaitingAction = onWaitingAction
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: NSpacing.xl) {
                 outcomeHeader
+
+                if let waiting = presentation.waiting {
+                    waitingSection(waiting)
+                }
 
                 ForEach(Array(presentation.sections.enumerated()), id: \.offset) { _, section in
                     ConsumerSection(section.title) {
@@ -24,6 +37,8 @@ struct RunReviewSummaryView: View {
                         }
                     }
                 }
+
+                operationalCompleteness
 
                 if !review.timeline.isEmpty {
                     ConsumerSection("What happened") {
@@ -41,6 +56,45 @@ struct RunReviewSummaryView: View {
         }
         .background(theme.tokens.background)
         .accessibilityIdentifier("runReview.summary")
+    }
+
+    private func waitingSection(_ waiting: RunReviewWaiting) -> some View {
+        ConsumerSection("Needs your response") {
+            VStack(alignment: .leading, spacing: NSpacing.sm) {
+                Text(waiting.waitingFor.text)
+                    .font(NTypography.bodyMedium)
+                    .foregroundStyle(theme.tokens.foreground)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(waiting.reason.text)
+                    .font(NTypography.bodySmall)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let expiresAt = waiting.expiresAt {
+                    Text("Respond by \(expiresAt.formatted(date: .abbreviated, time: .shortened))")
+                        .font(NTypography.caption)
+                        .foregroundStyle(theme.tokens.warning)
+                }
+                if let action = waiting.userAction, action.kind != .unknown {
+                    Button(action.label) { onWaitingAction(action) }
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("runReview.waitingAction")
+                }
+            }
+        }
+    }
+
+    private var operationalCompleteness: some View {
+        ConsumerSection("Result check") {
+            VStack(alignment: .leading, spacing: NSpacing.xxs) {
+                Text(presentation.operationalCompletenessLabel)
+                    .font(NTypography.bodyMedium)
+                    .fontWeight(.medium)
+                    .foregroundStyle(theme.tokens.foreground)
+                Text(presentation.operationalCompletenessExplanation)
+                    .font(NTypography.bodySmall)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            }
+        }
     }
 
     private var outcomeHeader: some View {
@@ -120,6 +174,7 @@ struct RunReviewSummaryView: View {
 
     private func sectionSymbol(_ kind: RunReviewSectionKind) -> String {
         switch kind {
+        case .accomplishments: "checkmark.circle"
         case .outputs: "arrow.up.right.square"
         case .changes: "pencil.line"
         case .problems: "exclamationmark.circle"
@@ -129,6 +184,7 @@ struct RunReviewSummaryView: View {
 
     private func sectionColor(_ kind: RunReviewSectionKind) -> Color {
         switch kind {
+        case .accomplishments: theme.tokens.success
         case .outputs: theme.tokens.success
         case .changes: theme.tokens.accent
         case .problems: theme.tokens.error

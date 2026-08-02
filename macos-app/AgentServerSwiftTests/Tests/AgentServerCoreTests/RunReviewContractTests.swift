@@ -28,10 +28,65 @@ final class RunReviewContractTests: XCTestCase {
         XCTAssertNil(review.timeline[1].occurredAt)
         XCTAssertEqual(review.timeline.last?.occurredAt, "2026-08-01T09:02:00.000Z")
         XCTAssertEqual(review.operationalCompleteness, .complete)
+        XCTAssertNil(review.waiting)
         XCTAssertEqual(
             review.technicalDetailsReference,
             "/runs/e566a8f5-becf-49e7-a384-a72d42e9f807"
         )
+    }
+
+    func testDecodesEvidenceBackedWaitingDetailsWithoutChangingOlderPayloads() throws {
+        let payload = """
+        {
+          "outcome": "waiting",
+          "headline": {
+            "text": "Weekly Report is waiting for your response",
+            "evidenceReferences": ["interaction.status", "interaction.request"]
+          },
+          "summary": {
+            "text": "The assistant needs your response before it can continue.",
+            "evidenceReferences": ["interaction.status", "interaction.runId"]
+          },
+          "accomplishments": [],
+          "changes": [],
+          "outputs": [],
+          "problems": [],
+          "suggestions": [],
+          "timeline": [],
+          "operationalCompleteness": "not_assessed",
+          "waiting": {
+            "waitingFor": {
+              "text": "Choose which report to publish.",
+              "evidenceReferences": ["interaction.request.message"]
+            },
+            "reason": {
+              "text": "The assistant needs your response before it can continue.",
+              "evidenceReferences": ["interaction.status", "interaction.runId"]
+            },
+            "userAction": {
+              "kind": "respond",
+              "label": "Choose",
+              "targetReference": "interaction:interaction-1"
+            },
+            "expiresAt": "2026-08-02T10:30:00.000Z"
+          },
+          "technicalDetailsReference": "/runs/run-1"
+        }
+        """
+
+        let review = try JSONDecoder().decode(
+            RunReview.self,
+            from: Data(payload.utf8)
+        )
+
+        XCTAssertEqual(review.waiting?.waitingFor.text, "Choose which report to publish.")
+        XCTAssertEqual(
+            review.waiting?.reason.evidenceReferences,
+            ["interaction.status", "interaction.runId"]
+        )
+        XCTAssertEqual(review.waiting?.userAction?.kind, .respond)
+        XCTAssertEqual(review.waiting?.userAction?.targetReference, "interaction:interaction-1")
+        XCTAssertNotNil(review.waiting?.expiresAt)
     }
 
     private static func completedFixtureData() throws -> Data {

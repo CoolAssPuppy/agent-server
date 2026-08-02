@@ -10,6 +10,7 @@ public enum RunReviewPresentationTone: Equatable, Sendable {
 
 /// Stable consumer sections shown beneath a run summary.
 public enum RunReviewSectionKind: Equatable, Sendable {
+    case accomplishments
     case outputs
     case changes
     case problems
@@ -17,6 +18,7 @@ public enum RunReviewSectionKind: Equatable, Sendable {
 
     public var title: String {
         switch self {
+        case .accomplishments: "Accomplishments"
         case .outputs: "Outputs"
         case .changes: "Changes"
         case .problems: "Problems"
@@ -39,6 +41,9 @@ public struct RunReviewPresentation: Equatable, Sendable {
     public let tone: RunReviewPresentationTone
     public let symbolName: String
     public let sections: [RunReviewPresentationSection]
+    public let operationalCompletenessLabel: String
+    public let operationalCompletenessExplanation: String
+    let waiting: RunReviewWaiting?
     public let isTechnicalDetailsAvailable: Bool
 
     public init(review: RunReview) {
@@ -47,9 +52,26 @@ public struct RunReviewPresentation: Equatable, Sendable {
         tone = outcome.tone
         symbolName = outcome.symbolName
         sections = Self.consumerSections(for: review)
+        let completeness = Self.completenessPresentation(for: review.operationalCompleteness)
+        operationalCompletenessLabel = completeness.label
+        operationalCompletenessExplanation = completeness.explanation
+        waiting = review.waiting
         isTechnicalDetailsAvailable = !review.technicalDetailsReference
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .isEmpty
+    }
+
+    private static func completenessPresentation(
+        for completeness: OperationalCompleteness
+    ) -> (label: String, explanation: String) {
+        switch completeness {
+        case .complete:
+            ("Complete", "All required outputs were produced.")
+        case .incomplete:
+            ("Incomplete", "A required output or step is missing.")
+        case .notAssessed:
+            ("Not assessed", "No deterministic output requirement was available to check.")
+        }
     }
 
     private static func outcomePresentation(
@@ -69,6 +91,10 @@ public struct RunReviewPresentation: Equatable, Sendable {
 
     private static func consumerSections(for review: RunReview) -> [RunReviewPresentationSection] {
         [
+            RunReviewPresentationSection(
+                kind: .accomplishments,
+                statements: review.accomplishments
+            ),
             RunReviewPresentationSection(kind: .outputs, statements: review.outputs),
             RunReviewPresentationSection(kind: .changes, statements: review.changes),
             RunReviewPresentationSection(kind: .problems, statements: review.problems),

@@ -2,6 +2,10 @@ import type { AgentConfig } from '../agents/config.js';
 import { getNextRun } from '../agents/scheduler.js';
 import type { PendingInteraction } from '../interaction/store.js';
 import type { StoredRun } from '../reporting/store.js';
+import type {
+  ReadinessCheck,
+  ReadinessPresentation,
+} from './assistant-home-models.js';
 import {
   ActivityPresentationSchema,
   TodayPresentationSchema,
@@ -24,6 +28,7 @@ export type TodayActivityInput = {
   now: Date;
   recentSince: Date;
   upcomingUntil: Date;
+  readinessByAgent?: ReadonlyMap<string, ReadinessPresentation>;
 };
 
 type AgentLookup = ReadonlyMap<string, AgentConfig>;
@@ -221,6 +226,49 @@ function scheduledTodayItem(
   };
 }
 
+const READINESS_ATTENTION_PRIORITY: readonly ReadinessCheck['kind'][] = [
+  'connection',
+  'file',
+  'schedule',
+  'permission',
+];
+
+function readinessBlocker(
+  readiness: ReadinessPresentation | undefined,
+): ReadinessCheck | undefined {
+  if (!readiness) return undefined;
+  for (const kind of READINESS_ATTENTION_PRIORITY) {
+    const blocker = readiness.checks.find((check) => (
+      check.kind === kind && (check.state === 'action_required' || check.state === 'fail')
+    ));
+    if (blocker) return blocker;
+  }
+  return undefined;
+}
+
+function readinessTodayItem(
+  input: TodayActivityInput,
+  agent: AgentConfig,
+  agents: AgentLookup,
+): TodayItem | undefined {
+  const blocker = readinessBlocker(input.readinessByAgent?.get(agent.id));
+  if (!blocker) return undefined;
+
+  return {
+    id: `readiness:${agent.id}`,
+    section: 'needs_you',
+    assistant: assistantIdentity(input.machineId, agent.id, agent.name, agents),
+    headline: statement(`${agent.name} needs setup`, 'assistant.readiness'),
+    explanation: blocker.explanation,
+    primaryAction: {
+      kind: 'view_assistant',
+      label: 'Review assistant',
+      targetReference: `assistant:${agent.id}`,
+    },
+    sourceReferences: ['assistant.readiness', blocker.evidenceSource],
+  };
+}
+
 function todaySortTime(item: TodayItem): number {
   const timestamp = item.expiresAt ?? item.scheduledAt ?? item.occurredAt;
   return timestamp ? Date.parse(timestamp) : 0;
@@ -277,6 +325,13 @@ export function createTodayPresentation(input: TodayActivityInput): TodayPresent
   const attentionAgentIds = new Set(
     [...interactions.values()].map((interaction) => interaction.agentId),
   );
+  input.agents.forEach((agent) => {
+    if (workingAgentIds.has(agent.id) || attentionAgentIds.has(agent.id)) return;
+    const item = readinessTodayItem(input, agent, agents);
+    if (!item) return;
+    items.push(item);
+    attentionAgentIds.add(agent.id);
+  });
   input.agents.forEach((agent) => {
     if (workingAgentIds.has(agent.id) || attentionAgentIds.has(agent.id)) return;
     const item = scheduledTodayItem(input, agent);

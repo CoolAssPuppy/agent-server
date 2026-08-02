@@ -60,6 +60,13 @@ export const HumanTimelineEntrySchema = z.object({
   occurredAt: z.iso.datetime().optional(),
 }).strict();
 
+export const RunReviewWaitingSchema = z.object({
+  waitingFor: PresentationStatementSchema,
+  reason: PresentationStatementSchema,
+  userAction: PresentationActionSchema.optional(),
+  expiresAt: z.iso.datetime().optional(),
+}).strict();
+
 export const RunReviewSchema = z.object({
   outcome: z.enum([
     'succeeded',
@@ -80,6 +87,7 @@ export const RunReviewSchema = z.object({
   suggestions: z.array(PresentationStatementSchema),
   timeline: z.array(HumanTimelineEntrySchema),
   operationalCompleteness: z.enum(['complete', 'incomplete', 'not_assessed']),
+  waiting: RunReviewWaitingSchema.optional(),
   technicalDetailsReference: z.string().regex(/^\/runs\/[A-Za-z0-9._~-]+$/),
 }).strict();
 
@@ -108,6 +116,7 @@ export type TodayItem = z.infer<typeof TodayItemSchema>;
 export type TodaySection = z.infer<typeof TodaySectionSchema>;
 export type TodayPresentation = z.infer<typeof TodayPresentationSchema>;
 export type HumanTimelineEntry = z.infer<typeof HumanTimelineEntrySchema>;
+export type RunReviewWaiting = z.infer<typeof RunReviewWaitingSchema>;
 export type RunReview = z.infer<typeof RunReviewSchema>;
 export type ActivityItem = z.infer<typeof ActivityItemSchema>;
 export type ActivityPresentation = z.infer<typeof ActivityPresentationSchema>;
