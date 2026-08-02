@@ -108,7 +108,7 @@ public struct RuntimeMcpServerPresentation: Equatable, Sendable {
         case "configured", "enabled": "Configured"
         case "disabled": "Disabled"
         case "failed": "Unavailable"
-        case "pending": "Connecting"
+        case "pending": "Available"
         default: "Status unknown"
         }
     }

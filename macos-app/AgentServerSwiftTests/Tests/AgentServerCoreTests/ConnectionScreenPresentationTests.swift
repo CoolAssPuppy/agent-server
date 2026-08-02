@@ -33,7 +33,7 @@ final class ConnectionScreenPresentationTests: XCTestCase {
         XCTAssertEqual(presentation.mcpServers.map(\.name), ["Notion", "Slack", "Old server", "Starting server"])
         XCTAssertEqual(
             presentation.mcpServers.map(\.statusTitle),
-            ["Connected", "Needs sign-in", "Disabled", "Connecting"]
+            ["Connected", "Needs sign-in", "Disabled", "Available"]
         )
     }
 

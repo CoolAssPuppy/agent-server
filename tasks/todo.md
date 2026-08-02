@@ -15,7 +15,8 @@ Review:
 
 - The installed Claude runtime moved from 15 pending servers to zero pending servers after about four seconds, proving the original UI sampled startup state too early.
 - Connection discovery now checks every 500 milliseconds for up to five seconds and returns as soon as all servers settle.
-- The probe still aborts before a model turn, and a server that exceeds the bounded window remains truthfully labeled Connecting.
+- The probe still aborts before a model turn, and a server that exceeds the bounded window retains its raw pending state.
+- A connector still pending when the disposable probe ends is labeled Available in the consumer UI. Its raw Technical details state remains pending.
 - Verification passed: 61 focused tests, 1,555 full server tests with 4 expected skips, ESLint, strict TypeScript checks, server build, and unsigned macOS app build.
 
 ## CI cost audit
