@@ -10,6 +10,7 @@ enum UITestScenario: String {
     case highRiskCreation = "high-risk-creation"
     case runtimeCreation = "runtime-creation"
     case runReview = "run-review"
+    case todayActivity = "today-activity"
 
     static var current: UITestScenario? {
         ProcessInfo.processInfo.environment["AGENT_SERVER_UI_TEST_SCENARIO"]
@@ -61,6 +62,8 @@ private struct UITestScenarioRoot: View {
             runtimeCreationView
         case .runReview:
             RunReviewSummaryView(review: Self.completedRunReview)
+        case .todayActivity:
+            TodayActivityScenarioView()
         case .debugger:
             debuggerView
         case .security:
@@ -240,6 +243,96 @@ private struct UITestScenarioRoot: View {
         operationalCompleteness: .complete,
         technicalDetailsReference: "/runs/run-review-fixture"
     )
+}
+
+private struct TodayActivityScenarioView: View {
+    @State private var destination: MainDestination
+    @State private var isInteractionPresented = false
+
+    private let snapshot = DemoTodayActivitySnapshot.make(referenceDate: Date())
+
+    init() {
+        let requestedDestination = ProcessInfo.processInfo.environment[
+            "AGENT_SERVER_UI_TEST_DESTINATION"
+        ]
+        let shouldOpenInteraction = ProcessInfo.processInfo.environment[
+            "AGENT_SERVER_UI_TEST_OPEN_INTERACTION"
+        ] == "true"
+        _destination = State(
+            initialValue: requestedDestination == MainDestination.activity.rawValue
+                ? .activity
+                : .today
+        )
+        _isInteractionPresented = State(initialValue: shouldOpenInteraction)
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            MainPaneDestinationBar(selection: $destination)
+            switch destination {
+            case .today:
+                TodayView(
+                    presentation: snapshot.makeTodayPresentation(),
+                    onAction: { _, action in
+                        if action.kind == .respond {
+                            isInteractionPresented = true
+                        }
+                    }
+                )
+            case .activity:
+                ActivityView(
+                    items: snapshot.makeActivityPresentation(filter: .all).items,
+                    onOpen: { _ in }
+                )
+            case .assistants, .connections, .settings:
+                EmptyView()
+            }
+        }
+        .sheet(isPresented: $isInteractionPresented) {
+            if let interaction = Self.interaction {
+                InteractionResponseSheet(
+                    interaction: interaction,
+                    submit: { _ in throw UITestScenarioError.submissionUnavailable },
+                    onAccepted: { _ in isInteractionPresented = false }
+                )
+            }
+        }
+    }
+
+    private static let interaction: LocalInteraction? = {
+        let json = """
+        {
+          "interaction_id": "interaction-review-draft",
+          "run_id": "run-needs-you",
+          "assistant_id": "weekly-report",
+          "message": "The weekly report is ready. What should happen next?",
+          "options": [
+            {
+              "index": 0,
+              "label": "Publish the draft",
+              "description": "Send the reviewed report to the connected workspace."
+            },
+            {
+              "index": 1,
+              "label": "Keep it as a draft",
+              "description": "Leave the report on this Mac without publishing it."
+            }
+          ],
+          "allows_free_text": true,
+          "expires_at": "2030-08-02T18:00:00.000Z",
+          "status": "pending"
+        }
+        """
+        return try? JSONDecoder().decode(LocalInteraction.self, from: Data(json.utf8))
+    }()
+}
+
+private enum UITestScenarioError: LocalizedError {
+    case submissionUnavailable
+
+    var errorDescription: String? {
+        "Submission is disabled in this preview."
+    }
 }
 
 @MainActor

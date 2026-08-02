@@ -94,9 +94,9 @@ enum DemoTodayActivitySnapshot {
             occurredAt: referenceDate.addingTimeInterval(-5 * 60),
             expiresAt: referenceDate.addingTimeInterval(55 * 60),
             action: PresentationAction(
-                kind: .review,
-                label: "Review",
-                targetReference: "run:demo-run-inbox"
+                kind: .respond,
+                label: "Choose",
+                targetReference: "interaction:demo-interaction-inbox"
             )
         )
     }

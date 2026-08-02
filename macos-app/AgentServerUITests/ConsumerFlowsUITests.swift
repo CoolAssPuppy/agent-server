@@ -128,6 +128,47 @@ final class ConsumerFlowsUITests: XCTestCase {
         add(screenshot)
     }
 
+    func testTodayLeadsWithNeedsYouAndActivityUsesConsumerFilters() {
+        launch(scenario: "today-activity")
+
+        XCTAssertTrue(element("today.screen").waitForExistence(timeout: 5))
+        XCTAssertTrue(text("Today").exists)
+        XCTAssertTrue(text("Needs you").exists)
+        XCTAssertTrue(text("Working").exists)
+        XCTAssertTrue(text("Finished").exists)
+        XCTAssertTrue(text("Problems").exists)
+        XCTAssertTrue(text("Upcoming").exists)
+        XCTAssertTrue(app.buttons["Choose"].exists)
+        XCTAssertFalse(textContaining("mcp__").exists)
+        XCTAssertFalse(textContaining("token").exists)
+
+        app.buttons["Choose"].click()
+        XCTAssertTrue(element("interaction.responseSheet").waitForExistence(timeout: 3))
+        XCTAssertTrue(text("Choose what happens next").exists)
+        XCTAssertTrue(text("Publish the draft").exists)
+        XCTAssertTrue(text("Keep it as a draft").exists)
+        XCTAssertFalse(element("interaction.submit").isEnabled)
+        element("interaction.option.1").click()
+        XCTAssertTrue(element("interaction.submit").isEnabled)
+        app.sheets.firstMatch.buttons["Cancel"].click()
+
+        element("mainNavigation.activity").click()
+        XCTAssertTrue(element("activity.screen").waitForExistence(timeout: 3))
+        XCTAssertTrue(element("activity.search").exists)
+        XCTAssertTrue(text("Search the history of work performed by assistants on this Mac.").exists)
+        XCTAssertTrue(text("Today").exists)
+        XCTAssertTrue(element("activity.filter.all").exists)
+        XCTAssertTrue(element("activity.filter.needsYou").exists)
+        XCTAssertTrue(element("activity.filter.working").exists)
+        XCTAssertTrue(element("activity.filter.finished").exists)
+        XCTAssertTrue(element("activity.filter.problems").exists)
+
+        let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screenshot.name = "Today and Activity"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
     private func launch(scenario: String) {
         app.launchEnvironment["AGENT_SERVER_UI_TEST_SCENARIO"] = scenario
         app.launch()

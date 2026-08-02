@@ -60,6 +60,27 @@ final class DrawerRouterTests: XCTestCase {
         XCTAssertEqual(router.openAgentId, "agent-1")
     }
 
+    func testOpenRunRetainsTheExactRunForTheAssistantDrawer() {
+        let router = DrawerRouter()
+
+        router.openRun(agentId: "agent-1", runId: "run-2")
+
+        XCTAssertEqual(router.open, .detail(agentId: "agent-1"))
+        XCTAssertEqual(
+            router.requestedRun,
+            RequestedRun(agentId: "agent-1", runId: "run-2")
+        )
+    }
+
+    func testOpeningAnAssistantClearsARequestedRun() {
+        let router = DrawerRouter()
+        router.openRun(agentId: "agent-1", runId: "run-2")
+
+        router.openDetail(agentId: "agent-2")
+
+        XCTAssertNil(router.requestedRun)
+    }
+
     func testOpeningSettingsClosesDetail() {
         let router = DrawerRouter(open: .detail(agentId: "agent-1"))
         router.openSettings()

@@ -8,7 +8,7 @@
 - [x] Add the pure machine-targeted command boundary for target, expiry, replay, support, and local policy checks. Keep transport claim blocked until Panel supplies atomic machine-scoped semantics.
 - [x] Normalize approve, pick, answer, and defer decisions at the local boundary.
 - [ ] Add tested consumer presentation adapters for Today, health, readiness, permissions, activity, run review, and human timelines.
-- [ ] Build consumer-grade macOS Today and Activity with Technical details disclosure.
+- [x] Build consumer-grade macOS Today and Activity with Technical details disclosure.
 - [ ] Build Assistant home, readiness, pairing client, Connections, and Settings integrations.
 - [ ] Verify offline operation, privacy defaults, compatibility, screenshots, and all required test suites.
 
@@ -18,6 +18,16 @@ Constraints:
 - Keep V1 compatibility throughout V2 and keep all new remote behavior disabled until the compatible Panel capability is proven.
 - Write every production change in response to a failing behavior test and commit only verified batches.
 - Do not weaken permissions, security analysis, content hashes, output contracts, local API authentication, or executor-specific safety.
+
+Today and Activity review:
+
+- The macOS app now opens on a server-owned Today snapshot with Needs you, Working, Finished, Problems, and Upcoming sections. Each row has one primary action.
+- Needs-you choices load through the authenticated local API, expose only safe labels and descriptions, validate the response locally, and atomically claim the interaction before triggering follow-up work.
+- Activity is deliberately different from Today. It is a chronological local history with search, status filters, dated groups, and direct run-review navigation. Today remains a bounded current-work queue.
+- Run selection now opens the exact retained run in the existing detail drawer. Raw events, logs, models, tool names, and tokens remain behind Technical details.
+- Offline snapshot failures retain the last good local presentation instead of blanking the screen. Panel availability is not required.
+- Visual inspection covered Today, dated Activity, and the interaction response sheet in the compiled macOS app. The review found and fixed low-contrast secondary actions, content alignment, and excessive Today and Activity similarity.
+- Verification passed with 1,495 server tests and 4 expected skips, 513 Swift behavior tests, 12 EventKit tests, strict TypeScript checking, ESLint, server compilation, and an unsigned Debug macOS build. The deterministic UI scenarios remain in the UI-test target; an unsigned XCTest host result is not counted as a passing gate.
 
 Baseline review:
 

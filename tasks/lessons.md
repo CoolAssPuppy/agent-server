@@ -108,6 +108,7 @@
 
 - Decorative agent-count claims such as “on watch” add noise without helping the user decide or act.
 - Repeated conversational turns can overwhelm operational activity. Group them by stable conversation ID in the concise home feed, label the source channel and start time, and keep each turn in full history.
+- Today and Activity must answer different questions. Today is a bounded action queue for current attention, active work, important recent outcomes, and the next scheduled work. Activity is a chronological history with search, time range, and state filters. Sharing source records must not make the two screens share the same information density or card treatment.
 - Do not explain exclusions the selection UI already makes obvious, such as stating that unselected service accounts will not be added.
 
 ## Repeated model questions are normal input noise

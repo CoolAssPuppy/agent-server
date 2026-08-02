@@ -73,27 +73,90 @@ final class ActivityPresentationTests: XCTestCase {
         XCTAssertTrue(ActivityPresentation(items: [], filter: .working).isEmpty)
     }
 
+    func testSearchMatchesAssistantOutcomeSummaryAndOutputWithoutChangingStateFiltering() {
+        let items = [
+            makeItem(
+                id: "release",
+                state: .finished,
+                startedAt: date(3),
+                assistantName: "Release notes",
+                headline: "Published version 2.0",
+                summary: "Prepared the customer summary",
+                output: "release-notes.md"
+            ),
+            makeItem(
+                id: "backup",
+                state: .problem,
+                startedAt: date(2),
+                assistantName: "Backup check",
+                headline: "Could not reach the archive"
+            ),
+        ]
+
+        XCTAssertEqual(
+            ActivityPresentation(items: items, filter: .all, searchText: "customer").items.map(\.id),
+            ["release"]
+        )
+        XCTAssertEqual(
+            ActivityPresentation(items: items, filter: .problems, searchText: "release").items,
+            []
+        )
+        XCTAssertEqual(
+            ActivityPresentation(items: items, filter: .problems, searchText: "release")
+                .emptyStateExplanation,
+            "No activity matches your search."
+        )
+        XCTAssertEqual(
+            ActivityPresentation(items: items, filter: .all, searchText: "  RELEASE-NOTES  ").items.map(\.id),
+            ["release"]
+        )
+    }
+
+    func testGroupsHistoryByCalendarDayWithCurrentDayLabels() {
+        let calendar = Calendar(identifier: .gregorian)
+        let referenceDate = Date(timeIntervalSince1970: 10 * 86_400 + 12 * 3_600)
+        let items = [
+            makeItem(id: "today", state: .working, startedAt: referenceDate),
+            makeItem(id: "yesterday", state: .finished, startedAt: referenceDate.addingTimeInterval(-86_400)),
+            makeItem(id: "earlier", state: .problem, startedAt: referenceDate.addingTimeInterval(-3 * 86_400)),
+        ]
+
+        let groups = ActivityPresentation(items: items, filter: .all)
+            .groups(referenceDate: referenceDate, calendar: calendar)
+
+        XCTAssertEqual(groups.map(\.title).prefix(2), ["Today", "Yesterday"])
+        XCTAssertEqual(groups.map { $0.items.map(\.id) }, [["today"], ["yesterday"], ["earlier"]])
+    }
+
     private func makeItem(
         id: String,
         state: ActivityState,
-        startedAt: Date
+        startedAt: Date,
+        assistantName: String = "Weekly Report",
+        headline: String = "Weekly Report ran",
+        summary: String? = nil,
+        output: String? = nil
     ) -> ActivityItem {
         ActivityItem(
             id: id,
             assistantID: "assistant-1",
             assistantInstallationID: "machine-1:assistant-1",
             assistantMachineID: "machine-1",
-            assistantName: "Weekly Report",
+            assistantName: assistantName,
             conversationID: nil,
             state: state,
             headlineStatement: PresentationStatement(
-                text: "Weekly Report ran",
+                text: headline,
                 evidenceReferences: ["test.headline"]
             ),
-            outcomeSummaryStatement: nil,
+            outcomeSummaryStatement: summary.map {
+                PresentationStatement(text: $0, evidenceReferences: ["test.summary"])
+            },
             startedAt: startedAt,
             endedAt: nil,
-            primaryOutputStatement: nil,
+            primaryOutputStatement: output.map {
+                PresentationStatement(text: $0, evidenceReferences: ["test.output"])
+            },
             reviewReference: "/runs/\(id)/review",
             sourceReferences: ["test.source"]
         )

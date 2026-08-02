@@ -30,7 +30,12 @@ struct AgentDetailDrawer: View {
         self.monitor = monitor
         self.router = router
         self.agentId = agentId
-        _detailState = State(initialValue: AgentDetailPresentationState(agentId: agentId))
+        var initialState = AgentDetailPresentationState(agentId: agentId)
+        if let requestedRun = router.requestedRun,
+           requestedRun.agentId == agentId {
+            initialState.openRun(id: requestedRun.runId)
+        }
+        _detailState = State(initialValue: initialState)
     }
 
     var body: some View {
@@ -58,6 +63,11 @@ struct AgentDetailDrawer: View {
             detailState.selectAgent(id: selectedAgentId)
             runState = .idle
             runRequestedAt = nil
+        }
+        .onChange(of: router.requestedRun) { _, requestedRun in
+            guard requestedRun?.agentId == agentId,
+                  let runId = requestedRun?.runId else { return }
+            detailState.openRun(id: runId)
         }
         .onExitCommand(perform: router.close)
     }

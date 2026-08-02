@@ -48,6 +48,7 @@ final class DrawerRouter: ObservableObject {
     static let shared = DrawerRouter()
 
     @Published private(set) var open: Drawer?
+    @Published private(set) var requestedRun: RequestedRun?
     /// Route requested by the popover but not yet committed to `open`.
     /// MainWindow.onAppear consumes this inside `withAnimation` so the
     /// drawer transition plays on the initial insert.
@@ -60,10 +61,16 @@ final class DrawerRouter: ObservableObject {
     // MARK: Opening
 
     func openDetail(agentId: String) {
+        requestedRun = nil
         if case .detail(let current) = open, current == agentId {
             open = nil
             return
         }
+        open = .detail(agentId: agentId)
+    }
+
+    func openRun(agentId: String, runId: String) {
+        requestedRun = RequestedRun(agentId: agentId, runId: runId)
         open = .detail(agentId: agentId)
     }
 
@@ -96,6 +103,7 @@ final class DrawerRouter: ObservableObject {
     // MARK: Closing
 
     func close() {
+        requestedRun = nil
         open = nil
     }
 
@@ -179,6 +187,11 @@ final class DrawerRouter: ObservableObject {
             return nil
         }
     }
+}
+
+struct RequestedRun: Equatable {
+    let agentId: String
+    let runId: String
 }
 
 // MARK: - Agent settings selection

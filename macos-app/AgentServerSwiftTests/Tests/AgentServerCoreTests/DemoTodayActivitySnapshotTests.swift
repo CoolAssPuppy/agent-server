@@ -19,5 +19,10 @@ final class DemoTodayActivitySnapshotTests: XCTestCase {
             first.makeActivityPresentation(filter: .all).items.map(\.state),
             [.needsYou, .working, .finished, .problem]
         )
+        let needsYouAction = try? XCTUnwrap(
+            first.makeTodayPresentation().sections.first?.items.first?.primaryAction
+        )
+        XCTAssertEqual(needsYouAction?.kind, .respond)
+        XCTAssertEqual(needsYouAction?.label, "Choose")
     }
 }

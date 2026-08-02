@@ -26,6 +26,14 @@ struct ActivityItem: Equatable, Identifiable, Sendable {
     var headline: String { headlineStatement.text }
     var outcomeSummary: String? { outcomeSummaryStatement?.text }
     var primaryOutput: String? { primaryOutputStatement?.text }
+    var runID: String { String(id.dropFirst("run:".count)) }
+}
+
+extension String {
+    func removingPrefix(_ prefix: String) -> String? {
+        guard hasPrefix(prefix) else { return nil }
+        return String(dropFirst(prefix.count))
+    }
 }
 
 enum ActivityFilter: String, CaseIterable, Identifiable, Sendable {
@@ -70,12 +78,16 @@ enum ActivityFilter: String, CaseIterable, Identifiable, Sendable {
 
 struct ActivityPresentation: Equatable, Sendable {
     let filter: ActivityFilter
+    let searchText: String
     let items: [ActivityItem]
 
     var isEmpty: Bool { items.isEmpty }
 
     var emptyStateExplanation: String {
-        switch filter {
+        if !searchText.isEmpty {
+            return "No activity matches your search."
+        }
+        return switch filter {
         case .all: "Assistant activity will appear here."
         case .needsYou: "Nothing needs you right now."
         case .working: "No assistants are working right now."
@@ -84,10 +96,15 @@ struct ActivityPresentation: Equatable, Sendable {
         }
     }
 
-    init(items: [ActivityItem], filter: ActivityFilter) {
+    init(items: [ActivityItem], filter: ActivityFilter, searchText: String = "") {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         self.filter = filter
+        self.searchText = query
         self.items = items.enumerated()
-            .filter { filter.includes($0.element.state) }
+            .filter {
+                filter.includes($0.element.state)
+                    && (query.isEmpty || $0.element.matches(searchText: query))
+            }
             .sorted { left, right in
                 if left.element.startedAt == right.element.startedAt {
                     return left.offset < right.offset
@@ -95,5 +112,42 @@ struct ActivityPresentation: Equatable, Sendable {
                 return left.element.startedAt > right.element.startedAt
             }
             .map(\.element)
+    }
+
+    func groups(
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [ActivityDateGroup] {
+        let today = calendar.startOfDay(for: referenceDate)
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today)
+        let grouped = Dictionary(grouping: items) { calendar.startOfDay(for: $0.startedAt) }
+
+        return grouped.keys.sorted(by: >).map { date in
+            let title: String
+            if date == today {
+                title = "Today"
+            } else if date == yesterday {
+                title = "Yesterday"
+            } else {
+                title = date.formatted(.dateTime.month(.wide).day().year())
+            }
+            return ActivityDateGroup(date: date, title: title, items: grouped[date] ?? [])
+        }
+    }
+}
+
+struct ActivityDateGroup: Equatable, Identifiable, Sendable {
+    let date: Date
+    let title: String
+    let items: [ActivityItem]
+
+    var id: Date { date }
+}
+
+private extension ActivityItem {
+    func matches(searchText: String) -> Bool {
+        [assistantName, headline, outcomeSummary, primaryOutput]
+            .compactMap { $0 }
+            .contains { $0.localizedCaseInsensitiveContains(searchText) }
     }
 }
