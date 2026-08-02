@@ -83,6 +83,9 @@ describe('consumer run review', () => {
     expect(JSON.stringify(incomplete)).not.toContain('agent.output.primary');
     expect(locked).toMatchObject({
       outcome: 'skipped',
+      headline: {
+        text: 'Test Agent did not run',
+      },
       summary: {
         text: 'Another run was already in progress. Nothing changed.',
         evidenceReferences: ['run.code'],
@@ -90,6 +93,9 @@ describe('consumer run review', () => {
     });
     expect(alreadyDone).toMatchObject({
       outcome: 'skipped',
+      headline: {
+        text: 'Test Agent already ran today',
+      },
       summary: {
         text: 'This agent had already finished today. Nothing changed.',
         evidenceReferences: ['run.code'],

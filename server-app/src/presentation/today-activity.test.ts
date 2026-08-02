@@ -424,6 +424,40 @@ describe('unified Activity presentation', () => {
     expect(JSON.stringify(activity)).not.toContain('mcp__notion__create_page');
   });
 
+  it('keeps benign and blocked skipped runs visually distinct in Activity', () => {
+    const activity = createActivityPresentation(makeInput({
+      runs: [
+        makeStoredRun({
+          runId: 'already-done',
+          agentName: 'CMO Coaching Report',
+          status: 'skipped',
+          code: 'already_completed_today',
+          startedAt: new Date('2026-08-02T09:00:00.000Z'),
+        }),
+        makeStoredRun({
+          runId: 'blocked',
+          agentName: 'CMO Coaching Report',
+          status: 'skipped',
+          code: 'lock_contention',
+          startedAt: new Date('2026-08-02T08:00:00.000Z'),
+        }),
+      ],
+    }));
+
+    expect(activity.items).toEqual([
+      expect.objectContaining({
+        id: 'run:already-done',
+        state: 'finished',
+        headline: expect.objectContaining({ text: 'CMO Coaching Report already ran today' }),
+      }),
+      expect.objectContaining({
+        id: 'run:blocked',
+        state: 'problem',
+        headline: expect.objectContaining({ text: 'CMO Coaching Report did not run' }),
+      }),
+    ]);
+  });
+
   it('uses explicit local identity even when an assistant definition is gone', () => {
     const activity = createActivityPresentation(makeInput({
       runs: [makeStoredRun({

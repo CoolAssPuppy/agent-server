@@ -162,6 +162,9 @@ function failedMeaning(
 }
 
 function skippedMeaning(run: StoredRun): ReviewMeaning {
+  const headline = run.code === 'already_completed_today'
+    ? `${run.agentName} already ran today`
+    : `${run.agentName} did not run`;
   const summary = run.code === 'lock_contention'
     ? 'Another run was already in progress. Nothing changed.'
     : run.code === 'already_completed_today'
@@ -170,7 +173,7 @@ function skippedMeaning(run: StoredRun): ReviewMeaning {
 
   return {
     outcome: 'skipped',
-    headline: statement(`${run.agentName} did not run`, 'run.status', 'run.code'),
+    headline: statement(headline, 'run.status', 'run.code'),
     summary: statement(summary, 'run.code'),
     problems: [],
     suggestions: [],

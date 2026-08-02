@@ -147,3 +147,4 @@
 - Consumer UI subtitles should begin with the subject and purpose. Remove instructional verbs such as “Search” when the adjacent control already explains the action.
 - A global Connections screen must distinguish coding-agent installation from authentication and app connections. Expose bounded local availability, never executable paths, and never infer sign-in from a runnable binary.
 - When a user refers to an Advanced area, resolve the exact parent surface before proposing layout work. Settings > Advanced and an agent detail Advanced tab are separate products even when their labels match.
+- Two different run codes must not share a failure-sounding headline when their consumer states and colors differ. Name benign no-ops and blocked skips distinctly so All and filtered Activity views tell the same story.

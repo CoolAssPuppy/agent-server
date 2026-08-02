@@ -1,5 +1,23 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Activity skipped-run meaning
+
+- [x] Distinguish a successful already-completed no-op from a blocked skipped run.
+- [x] Keep the same state and color in All and Problems.
+- [x] Verify the presentation tests, full server suite, and app build.
+
+Constraints:
+
+- Preserve the retained run status and code as the source of truth.
+- Do not hide or merge historical runs in this fix.
+
+Review:
+
+- `already_completed_today` remains a green Finished outcome but now says the agent “already ran today.”
+- Blocked skips such as `lock_contention` remain red Problems and say the agent “did not run.”
+- The shared run review supplies the headline, so All and Problems cannot assign competing meanings to one run.
+- Verification passed: 22 focused presentation tests, 1,549 full server tests with 4 expected skips, TypeScript checks, ESLint, server build, and unsigned app build.
+
 ## Local coding agents in Connections
 
 - [x] Prove Claude connection discovery uses the installed Claude Code runtime.
