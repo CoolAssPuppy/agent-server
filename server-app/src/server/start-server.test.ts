@@ -354,6 +354,112 @@ describe('startServer production composition', { timeout: 20_000 }, () => {
     }
   });
 
+  it('keeps manual and scheduled execution local with durable history when Panel is not configured', async () => {
+    const context = await createTestServerContext('local-only-durable-server');
+    writeAgent(context.home, 'manual.yaml', [
+      'id: manual',
+      'name: Manual',
+      'prompt: Run manually',
+      ...restrictedAgentLines(context.home),
+      'enabled: true',
+      '',
+    ].join('\n'));
+    writeAgent(context.home, 'scheduled.yaml', [
+      'id: scheduled',
+      'name: Scheduled',
+      'prompt: Run on schedule',
+      'schedule: "* * * * *"',
+      ...restrictedAgentLines(context.home),
+      'enabled: true',
+      '',
+    ].join('\n'));
+    const callCountBefore = executeAgent.mock.calls.length;
+    executeAgent
+      .mockResolvedValueOnce(executionResult('First local run completed'))
+      .mockResolvedValueOnce(executionResult('Second local run completed'));
+
+    const localFetch = globalThis.fetch.bind(globalThis);
+    const externalRequests: string[] = [];
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+      const url = typeof input === 'string'
+        ? new URL(input)
+        : input instanceof URL
+          ? input
+          : new URL(input.url);
+      if (url.hostname === '127.0.0.1' || url.hostname === 'localhost') {
+        return localFetch(input, init);
+      }
+      externalRequests.push(url.href);
+      return Promise.reject(new Error(`Unexpected external request: ${url.href}`));
+    });
+
+    expect(context.config.panelUrl).toBeUndefined();
+    expect(context.config.panelApiKey).toBeUndefined();
+
+    let server: ServerInstance | undefined;
+    let restartedServer: ServerInstance | undefined;
+    try {
+      server = startServer(context.config);
+      await server.ready;
+      const manualRunId = await triggerAgent(context.port, 'manual');
+
+      await waitForIntegration(async () => {
+        const response = await fetch(`http://127.0.0.1:${context.port}/runs`, {
+          headers: { Authorization: `Bearer ${API_KEY}` },
+        });
+        expect(response.status).toBe(200);
+        const runs = await response.json() as Array<{
+          runId: string;
+          agentId: string;
+          status: string;
+        }>;
+        expect(runs).toHaveLength(2);
+        expect(runs).toEqual(expect.arrayContaining([
+          expect.objectContaining({ runId: manualRunId, agentId: 'manual', status: 'completed' }),
+          expect.objectContaining({ agentId: 'scheduled', status: 'completed' }),
+        ]));
+      });
+
+      await server.stop();
+      server = undefined;
+      writeAgent(context.home, 'scheduled.yaml', [
+        'id: scheduled',
+        'name: Scheduled',
+        'prompt: Run on schedule',
+        ...restrictedAgentLines(context.home),
+        'enabled: false',
+        '',
+      ].join('\n'));
+
+      restartedServer = startServer(context.config);
+      await restartedServer.ready;
+      const historyResponse = await fetch(`http://127.0.0.1:${context.port}/runs`, {
+        headers: { Authorization: `Bearer ${API_KEY}` },
+      });
+      expect(historyResponse.status).toBe(200);
+      const durableRuns = await historyResponse.json() as Array<{
+        runId: string;
+        agentId: string;
+        status: string;
+      }>;
+      expect(durableRuns).toHaveLength(2);
+      expect(durableRuns).toEqual(expect.arrayContaining([
+        expect.objectContaining({ runId: manualRunId, agentId: 'manual', status: 'completed' }),
+        expect.objectContaining({ agentId: 'scheduled', status: 'completed' }),
+      ]));
+      expect(executeAgent).toHaveBeenCalledTimes(callCountBefore + 2);
+
+      await restartedServer.stop();
+      restartedServer = undefined;
+      expect(externalRequests).toEqual([]);
+    } finally {
+      await restartedServer?.stop().catch(() => {});
+      await server?.stop().catch(() => {});
+      fetchSpy.mockRestore();
+      rmSync(context.home, { recursive: true, force: true });
+    }
+  });
+
   it('runs a watched agent after its configured file changes', async () => {
     const context = await createTestServerContext('watched-run-server');
     const store = new RunStore();

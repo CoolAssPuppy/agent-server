@@ -8,11 +8,9 @@ import { makeAgent } from '../test-factories.js';
 import type { ExecutionResult } from '../execution/executor.js';
 
 /**
- * Validates the SIGTERM-drain guarantee: when the daemon's shutdown aborts
- * an active run's controller, the reporter emits a `canceled` terminal event
- * to the panel before the process exits. This is the behavior that keeps
- * the panel from showing "working" for runs that were killed by macOS sleep
- * / app quit / launchd restart.
+ * Validates the SIGTERM-drain guarantee: when shutdown aborts an active run,
+ * the reporter queues and emits the generic operational cancellation state.
+ * Local abort details must not cross the Panel boundary.
  */
 describe('active-run shutdown drain', () => {
   it('aborting the run controller causes a canceled terminal POST', async () => {
@@ -32,6 +30,7 @@ describe('active-run shutdown drain', () => {
           apiKey: 'local-drain-test-key-123456',
           fetch: fetchImpl,
           heartbeatMs: 0,
+          pendingTerminalsDir: join(lockDir, 'pending-terminals'),
         });
       };
 
@@ -73,7 +72,11 @@ describe('active-run shutdown drain', () => {
       expect(terminalCalls.length).toBe(1);
       const canceledBody = JSON.parse(terminalCalls[0][1].body) as StatusEvent;
       expect(canceledBody.state).toBe('canceled');
-      expect(canceledBody.error?.message).toMatch(/abort/i);
+      expect(canceledBody.error).toEqual({
+        message: 'Run canceled.',
+        code: 'run_canceled',
+      });
+      expect(JSON.stringify(canceledBody)).not.toMatch(/abort/i);
     } finally {
       rmSync(lockDir, { recursive: true, force: true });
     }
