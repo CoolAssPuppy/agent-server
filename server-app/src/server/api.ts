@@ -29,7 +29,7 @@ import {
   createActivityPresentation,
   createTodayPresentation,
 } from '../presentation/today-activity.js';
-import type { PendingInteraction } from '../interaction/store.js';
+import type { InteractionStore, PendingInteraction } from '../interaction/store.js';
 import type { PendingDecision } from '../reporting/realtime-client.js';
 import type { PreflightResult } from '../analysis/models.js';
 import { evaluateRunPreflight, type RunPreflightOutcome } from '../analysis/run-preflight.js';
@@ -63,6 +63,8 @@ type ApiDependencies = {
   getAgents: () => Promise<AgentConfig[]>;
   /** Current machine-local interactions awaiting a user response. */
   getPendingInteractions?: () => PendingInteraction[];
+  /** Machine-local interaction response authority. */
+  interactions?: Pick<InteractionStore, 'get' | 'claim' | 'complete' | 'restore'>;
   store: RunStoreLike;
   triggerRun: (
     agentId: string,
@@ -128,6 +130,38 @@ const TriggerRunBodySchema = z.object({
 const ConnectionLabelSchema = z.object({
   label: z.string().trim().min(1).max(120),
 }).strict();
+const InteractionReplyBodySchema = z.object({
+  response: z.discriminatedUnion('type', [
+    z.object({
+      type: z.literal('option'),
+      optionIndex: z.number().int(),
+    }).strict(),
+    z.object({
+      type: z.literal('text'),
+      text: z.string(),
+    }).strict(),
+  ]),
+}).strict();
+
+function projectInteraction(interaction: PendingInteraction, now = new Date()): Record<string, unknown> {
+  const status = interaction.status === 'pending' && interaction.expiresAt <= now
+    ? 'expired'
+    : interaction.status;
+  return {
+    interaction_id: interaction.id,
+    run_id: interaction.runId,
+    assistant_id: interaction.agentId,
+    message: interaction.request.message,
+    options: (interaction.request.options ?? []).map((option, index) => ({
+      index,
+      label: option.label,
+      ...(option.description ? { description: option.description } : {}),
+    })),
+    allows_free_text: interaction.request.freeText,
+    expires_at: interaction.expiresAt.toISOString(),
+    status,
+  };
+}
 
 function localTodayWindow(now: Date): { recentSince: Date; upcomingUntil: Date } {
   const recentSince = new Date(now);
@@ -355,6 +389,68 @@ export function createApi(deps: ApiDependencies): Hono {
       today: createTodayPresentation(input),
       activity: createActivityPresentation(input),
     });
+  });
+
+  app.get('/interactions/:id', (c) => {
+    if (!deps.interactions) {
+      return c.json({ error: 'Interaction responses are unavailable' }, 501);
+    }
+    const interaction = deps.interactions.get(c.req.param('id'));
+    if (!interaction) {
+      return c.json({ error: 'Interaction not found', code: 'not_found' }, 404);
+    }
+    return c.json(projectInteraction(interaction));
+  });
+
+  app.post('/interactions/:id/reply', async (c) => {
+    if (!deps.interactions) {
+      return c.json({ error: 'Interaction responses are unavailable' }, 501);
+    }
+
+    const read = await readJsonBody(c);
+    if (!read.ok) return read.response;
+    const parsed = InteractionReplyBodySchema.safeParse(read.body);
+    if (!parsed.success) {
+      return c.json({
+        error: 'Invalid interaction response body',
+        code: 'invalid_body',
+      }, 400);
+    }
+
+    const interactionId = c.req.param('id');
+    const claimed = deps.interactions.claim(interactionId, parsed.data.response);
+    if (!claimed.ok) {
+      switch (claimed.reason) {
+        case 'not_found':
+          return c.json({ error: 'Interaction not found', code: claimed.reason }, 404);
+        case 'expired':
+          return c.json({ error: 'This request has expired', code: claimed.reason }, 410);
+        case 'not_pending':
+          return c.json({ error: 'This request is no longer pending', code: claimed.reason }, 409);
+        case 'invalid_response':
+          return c.json({ error: 'The response is not valid for this request', code: claimed.reason }, 422);
+      }
+    }
+
+    try {
+      const runId = await deps.triggerRun(
+        claimed.claim.replyAgentId,
+        claimed.claim.response.value,
+      );
+      deps.interactions.complete(interactionId, claimed.claim.claimToken);
+      return c.json({
+        interaction_id: interactionId,
+        run_id: runId,
+        status: 'accepted',
+      }, 202);
+    } catch (error) {
+      deps.interactions.restore(interactionId, claimed.claim.claimToken);
+      console.error(`[api] Interaction response was not accepted: ${sanitizeText(toErrorMessage(error), 300)}`);
+      return c.json({
+        error: 'The response was not accepted. Try again.',
+        code: 'run_not_accepted',
+      }, 503);
+    }
   });
 
   if (deps.analysisApi) app.route('/', deps.analysisApi);

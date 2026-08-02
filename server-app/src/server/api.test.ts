@@ -9,7 +9,7 @@ import { SqliteRunStore } from '../reporting/sqlite-store.js';
 import { createTempDir, makeAgent, makeStoredRun } from '../test-factories.js';
 import { RunPreflightDeniedError } from '../analysis/run-preflight-gate.js';
 import type { ConnectionProfile } from '../connections/profile.js';
-import type { PendingInteraction } from '../interaction/store.js';
+import { InteractionStore, type PendingInteraction } from '../interaction/store.js';
 
 const API_TEST_KEY = 'local-api-test-key-1234567890';
 
@@ -938,6 +938,196 @@ describe('API routes', () => {
       await expect(response.json()).resolves.toEqual({
         error: 'Machine identity unavailable',
       });
+    });
+  });
+
+  describe('local interaction responses', () => {
+    function createInteractionStore(
+      overrides: Partial<Omit<PendingInteraction, 'status'>> = {},
+    ): InteractionStore {
+      const interactions = new InteractionStore(() => 'private-claim-token');
+      interactions.add({
+        id: 'interaction-1',
+        runId: 'run-1',
+        agentId: 'request-agent',
+        replyAgentId: 'reply-agent',
+        request: {
+          message: 'Where should I save the report?',
+          options: [
+            {
+              label: 'Team page',
+              value: 'private-team-page-value',
+              description: 'Share it with the team.',
+            },
+          ],
+          freeText: true,
+        },
+        channel: 'telegram',
+        createdAt: new Date('2026-08-02T09:00:00.000Z'),
+        expiresAt: new Date('2099-08-02T11:00:00.000Z'),
+        ...overrides,
+      });
+      return interactions;
+    }
+
+    function createInteractionApp(interactions: InteractionStore) {
+      return createApi({
+        getAgents: async () => [makeAgent({ id: 'reply-agent' })],
+        store,
+        triggerRun,
+        interactions,
+      });
+    }
+
+    it('projects a pending request without exposing option values, reply routing, or channel details', async () => {
+      const app = createInteractionApp(createInteractionStore());
+
+      const unauthorized = await app.request('/interactions/interaction-1');
+      const response = await authenticatedRequest(app, '/interactions/interaction-1');
+
+      expect(unauthorized.status).toBe(401);
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        interaction_id: 'interaction-1',
+        run_id: 'run-1',
+        assistant_id: 'request-agent',
+        message: 'Where should I save the report?',
+        options: [{
+          index: 0,
+          label: 'Team page',
+          description: 'Share it with the team.',
+        }],
+        allows_free_text: true,
+        expires_at: '2099-08-02T11:00:00.000Z',
+        status: 'pending',
+      });
+
+      const serialized = JSON.stringify(await (
+        await authenticatedRequest(app, '/interactions/interaction-1')
+      ).json());
+      expect(serialized).not.toContain('private-team-page-value');
+      expect(serialized).not.toContain('reply-agent');
+      expect(serialized).not.toContain('telegram');
+    });
+
+    it('derives the selected option value locally and completes only after accepting the run', async () => {
+      const interactions = createInteractionStore();
+      const app = createInteractionApp(interactions);
+
+      const response = await authenticatedRequest(app, '/interactions/interaction-1/reply', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ response: { type: 'option', optionIndex: 0 } }),
+      });
+
+      expect(response.status).toBe(202);
+      await expect(response.json()).resolves.toEqual({
+        interaction_id: 'interaction-1',
+        run_id: 'run-123',
+        status: 'accepted',
+      });
+      expect(triggerRun).toHaveBeenCalledWith('reply-agent', 'private-team-page-value');
+      expect(interactions.get('interaction-1')?.status).toBe('acted');
+    });
+
+    it('restores a claimed interaction when local run acceptance fails', async () => {
+      const interactions = createInteractionStore();
+      const app = createInteractionApp(interactions);
+      triggerRun.mockRejectedValueOnce(new Error('Security review is required'));
+
+      const response = await authenticatedRequest(app, '/interactions/interaction-1/reply', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ response: { type: 'text', text: ' Save it privately. ' } }),
+      });
+
+      expect(response.status).toBe(503);
+      await expect(response.json()).resolves.toEqual({
+        error: 'The response was not accepted. Try again.',
+        code: 'run_not_accepted',
+      });
+      expect(triggerRun).toHaveBeenCalledWith('reply-agent', 'Save it privately.');
+      expect(interactions.get('interaction-1')?.status).toBe('pending');
+    });
+
+    it.each([
+      {
+        name: 'missing request',
+        id: 'missing',
+        interactions: createInteractionStore(),
+        body: { response: { type: 'option', optionIndex: 0 } },
+        status: 404,
+        code: 'not_found',
+      },
+      {
+        name: 'expired request',
+        id: 'interaction-1',
+        interactions: createInteractionStore({ expiresAt: new Date('2000-01-01T00:00:00.000Z') }),
+        body: { response: { type: 'option', optionIndex: 0 } },
+        status: 410,
+        code: 'expired',
+      },
+      {
+        name: 'invalid response',
+        id: 'interaction-1',
+        interactions: createInteractionStore(),
+        body: { response: { type: 'option', optionIndex: 4 } },
+        status: 422,
+        code: 'invalid_response',
+      },
+    ])('maps a $name to an explicit response', async ({ id, interactions, body, status, code }) => {
+      const app = createInteractionApp(interactions);
+
+      const response = await authenticatedRequest(app, `/interactions/${id}/reply`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      expect(response.status).toBe(status);
+      await expect(response.json()).resolves.toMatchObject({ code });
+      expect(triggerRun).not.toHaveBeenCalled();
+    });
+
+    it('maps a response already being processed to conflict', async () => {
+      const interactions = createInteractionStore();
+      expect(interactions.claim(
+        'interaction-1',
+        { type: 'option', optionIndex: 0 },
+      ).ok).toBe(true);
+      const app = createInteractionApp(interactions);
+
+      const response = await authenticatedRequest(app, '/interactions/interaction-1/reply', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ response: { type: 'option', optionIndex: 0 } }),
+      });
+
+      expect(response.status).toBe(409);
+      await expect(response.json()).resolves.toMatchObject({ code: 'not_pending' });
+      expect(triggerRun).not.toHaveBeenCalled();
+    });
+
+    it('rejects request-envelope additions before claiming the interaction', async () => {
+      const interactions = createInteractionStore();
+      const app = createInteractionApp(interactions);
+
+      const response = await authenticatedRequest(app, '/interactions/interaction-1/reply', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          response: { type: 'option', optionIndex: 0 },
+          replyAgentId: 'attacker-agent',
+        }),
+      });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        error: 'Invalid interaction response body',
+        code: 'invalid_body',
+      });
+      expect(interactions.get('interaction-1')?.status).toBe('pending');
+      expect(triggerRun).not.toHaveBeenCalled();
     });
   });
 

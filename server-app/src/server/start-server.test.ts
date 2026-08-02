@@ -647,6 +647,88 @@ describe('startServer production composition', { timeout: 20_000 }, () => {
     }
   });
 
+  it('wires authenticated HTTP interaction responses into the local follow-up path', async () => {
+    const context = await createTestServerContext('http-interaction-reply-server', {
+      AGENT_SERVER_TELEGRAM_BOT_TOKEN: 'telegram-test-token',
+    });
+    const store = new RunStore();
+    writeAgent(context.home, 'requester.yaml', [
+      'id: requester',
+      'name: Requester',
+      'prompt: Ask for a choice',
+      ...restrictedAgentLines(context.home),
+      'interaction:',
+      '  channel: telegram',
+      '  on_reply: responder',
+      '  timeout: 1h',
+      'enabled: true',
+      '',
+    ].join('\n'));
+    writeAgent(context.home, 'responder.yaml', [
+      'id: responder',
+      'name: Responder',
+      'prompt: Handle the choice',
+      ...restrictedAgentLines(context.home),
+      'enabled: true',
+      '',
+    ].join('\n'));
+    const telegram = createFakeChatChannel('telegram', 42);
+    createTelegramChannel.mockResolvedValueOnce(telegram);
+    executeAgent
+      .mockResolvedValueOnce(executionResult('Choose', {
+        interaction: {
+          message: 'Continue?',
+          options: [{ label: 'Yes', value: 'Continue through HTTP' }],
+          freeText: false,
+        },
+      }))
+      .mockResolvedValueOnce(executionResult('HTTP follow-up completed'));
+    const server = startServer(context.config, { store });
+
+    try {
+      await server.ready;
+      await triggerAgent(context.port, 'requester');
+      await waitForIntegration(() => expect(telegram.send).toHaveBeenCalledOnce());
+      const interactionId = telegram.send.mock.calls[0]?.[0];
+      expect(typeof interactionId).toBe('string');
+
+      const projection = await fetch(
+        `http://127.0.0.1:${context.port}/interactions/${String(interactionId)}`,
+        { headers: { Authorization: `Bearer ${API_KEY}` } },
+      );
+      expect(projection.status).toBe(200);
+      await expect(projection.json()).resolves.toMatchObject({
+        interaction_id: interactionId,
+        options: [{ index: 0, label: 'Yes' }],
+      });
+
+      const response = await fetch(
+        `http://127.0.0.1:${context.port}/interactions/${String(interactionId)}/reply`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ response: { type: 'option', optionIndex: 0 } }),
+        },
+      );
+      expect(response.status).toBe(202);
+
+      await waitForIntegration(() => {
+        expect(store.list()).toHaveLength(2);
+        expect(store.list()[0]).toMatchObject({
+          agentId: 'responder',
+          status: 'completed',
+          summary: 'HTTP follow-up completed',
+        });
+      });
+    } finally {
+      await server.stop();
+      rmSync(context.home, { recursive: true, force: true });
+    }
+  });
+
   it('rejects readiness and remains safely stoppable when the listener cannot bind', async () => {
     const context = await createTestServerContext('failed-start-server');
     const blocker = await listenOnPort(context.port);
