@@ -11,6 +11,11 @@ import { createAgentWriter } from '../agents/writer.js';
 import { ConnectionCache } from '../connections/cache.js';
 import { ConnectionProfileStore } from '../connections/profile-store.js';
 import { createConnectionResolvingExecutor } from '../connections/connection-executor.js';
+import {
+  discoverCodexMcpInventory,
+  discoverKimiMcpInventory,
+  runtimeConnectionInventory,
+} from '../connections/runtime-mcp-inventory.js';
 import { loadEnvFile } from '../platform/config.js';
 import type { RunStoreLike } from '../reporting/store.js';
 import { RunStore } from '../reporting/store.js';
@@ -316,26 +321,14 @@ export function startServer(
   // can fall back to SDK runtimes; Kimi Code requires an installed executable.
   // Resolve once because a `which` lookup per run would be wasteful.
   const runtimePaths = discoverRuntimePaths();
-  const runtimeConnections = [
-    {
-      id: 'claude-code',
-      label: 'Claude Code',
-      installed: runtimePaths.claudeExecutablePath !== undefined,
-      authentication: 'unknown' as const,
-    },
-    {
-      id: 'codex',
-      label: 'Codex',
-      installed: runtimePaths.codexExecutablePath !== undefined,
-      authentication: 'unknown' as const,
-    },
-    {
-      id: 'kimi-code',
-      label: 'Kimi Code',
-      installed: runtimePaths.kimiExecutablePath !== undefined,
-      authentication: 'unknown' as const,
-    },
-  ];
+  let codexMcpServers = discoverCodexMcpInventory(runtimePaths.codexExecutablePath);
+  let kimiMcpServers = discoverKimiMcpInventory(runtimePaths.kimiExecutablePath);
+  let codexMcpState = runtimePaths.codexExecutablePath === undefined
+    ? 'unavailable' as const
+    : codexMcpServers === undefined ? 'failed' as const : 'ready' as const;
+  let kimiMcpState = runtimePaths.kimiExecutablePath === undefined
+    ? 'unavailable' as const
+    : kimiMcpServers === undefined ? 'failed' as const : 'ready' as const;
   if (runtimePaths.claudeExecutablePath) {
     console.log(`  Claude runtime: ${runtimePaths.claudeExecutablePath} (installed)`);
   }
@@ -620,6 +613,39 @@ export function startServer(
   const connectionCache = new ConnectionCache(
     () => probeMcpServers(runtimePaths.claudeExecutablePath),
   );
+  const runtimeConnections = () => {
+    const claudeSnapshot = connectionCache.get();
+    const claudeState = claudeSnapshot.probe_failed
+      ? 'failed' as const
+      : claudeSnapshot.discovered_at === null ? 'not_checked' as const : 'ready' as const;
+    return runtimeConnectionInventory({
+      paths: runtimePaths,
+      claudeServers: claudeSnapshot.servers,
+      claudeState,
+      codexServers: codexMcpServers,
+      kimiServers: kimiMcpServers,
+      codexState: codexMcpState,
+      kimiState: kimiMcpState,
+    });
+  };
+  const refreshConnections = async () => {
+    const snapshot = await connectionCache.refresh();
+    const nextCodexServers = discoverCodexMcpInventory(runtimePaths.codexExecutablePath);
+    const nextKimiServers = discoverKimiMcpInventory(runtimePaths.kimiExecutablePath);
+    if (nextCodexServers === undefined) {
+      if (runtimePaths.codexExecutablePath) codexMcpState = 'failed';
+    } else {
+      codexMcpServers = nextCodexServers;
+      codexMcpState = runtimePaths.codexExecutablePath ? 'ready' : 'unavailable';
+    }
+    if (nextKimiServers === undefined) {
+      if (runtimePaths.kimiExecutablePath) kimiMcpState = 'failed';
+    } else {
+      kimiMcpServers = nextKimiServers;
+      kimiMcpState = runtimePaths.kimiExecutablePath ? 'ready' : 'unavailable';
+    }
+    return { ...snapshot, runtimes: runtimeConnections() };
+  };
   void connectionCache.refresh().catch(() => {});
   const agentWriter = createAgentWriter(config.agentsDir, {
     connections: () => [],
@@ -706,9 +732,9 @@ export function startServer(
     // are visible to capability checks without a server restart.
     getEnv: () => loadEnvFile(join(config.agentsDir, '..'), process.env),
     connections: {
-      get: () => ({ ...connectionCache.get(), runtimes: runtimeConnections }),
-      ensure: async () => ({ ...await connectionCache.ensure(), runtimes: runtimeConnections }),
-      refresh: async () => ({ ...await connectionCache.refresh(), runtimes: runtimeConnections }),
+      get: () => ({ ...connectionCache.get(), runtimes: runtimeConnections() }),
+      ensure: async () => ({ ...await connectionCache.ensure(), runtimes: runtimeConnections() }),
+      refresh: refreshConnections,
     },
     connectionProfiles: connectionProfileStore,
     apiKey,

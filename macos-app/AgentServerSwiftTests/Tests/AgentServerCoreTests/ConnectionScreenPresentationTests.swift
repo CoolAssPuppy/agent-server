@@ -14,6 +14,43 @@ final class ConnectionScreenPresentationTests: XCTestCase {
         XCTAssertTrue(rows.allSatisfy { $0.authenticationSummary == "Sign-in checked when an agent runs" })
     }
 
+    func testRuntimeRowsExposeOnlyMCPNamesAndHumanStates() {
+        let runtime = RuntimeConnection(
+            id: "claude-code",
+            label: "Claude Code",
+            installed: true,
+            authentication: "unknown",
+            mcpServers: [
+                RuntimeMcpServer(name: "Notion", status: "connected"),
+                RuntimeMcpServer(name: "Slack", status: "needs_auth"),
+                RuntimeMcpServer(name: "Old server", status: "disabled"),
+                RuntimeMcpServer(name: "Starting server", status: "pending"),
+            ]
+        )
+
+        let presentation = RuntimeConnectionPresentation(runtime: runtime)
+
+        XCTAssertEqual(presentation.mcpServers.map(\.name), ["Notion", "Slack", "Old server", "Starting server"])
+        XCTAssertEqual(
+            presentation.mcpServers.map(\.statusTitle),
+            ["Connected", "Needs sign-in", "Disabled", "Connecting"]
+        )
+    }
+
+    func testFailedInventoryWarnsEvenWhenLastKnownServersRemain() {
+        let presentation = RuntimeConnectionPresentation(runtime: RuntimeConnection(
+            id: "codex",
+            label: "Codex",
+            installed: true,
+            authentication: "unknown",
+            mcpServers: [RuntimeMcpServer(name: "GitHub", status: "configured")],
+            mcpInventoryState: "failed"
+        ))
+
+        XCTAssertEqual(presentation.inventoryNotice, "Could not refresh. Showing the last known MCP servers.")
+        XCTAssertEqual(presentation.mcpCountTitle, "1 MCP server")
+    }
+
     func testClaudeDiscoverySeparatesCheckingFailureAndSuccessfulEmptyStates() {
         XCTAssertEqual(
             ClaudeConnectionDiscoveryPresentation(
@@ -44,7 +81,7 @@ final class ConnectionScreenPresentationTests: XCTestCase {
     func testPrimaryConnectionSectionsUseSentenceCaseConsumerCopy() {
         XCTAssertEqual(
             ConnectionScreenSection.primary.map(\.title),
-            ["Your connections", "AI engines", "Available through Claude", "Messaging"]
+            ["Your connections", "AI engines", "Messaging"]
         )
         XCTAssertEqual(
             ConnectionScreenSection.saved.explanation,

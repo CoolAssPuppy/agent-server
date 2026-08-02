@@ -1,5 +1,37 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## CI cost audit
+
+- [ ] Inventory GitHub Actions in Agent Server and Agent Panel.
+- [ ] Identify paid runner exposure, duplicate work, schedules, and expensive matrices.
+- [ ] Recommend the smallest local-first CI policy without changing workflows.
+
+Constraint:
+
+- Do not add or expand GitHub Actions without explicit approval.
+
+## Coding-agent MCP inventory
+
+- [x] Discover bounded MCP inventories for Claude Code, Codex, and Kimi Code.
+- [x] Return only server names and coarse states from the local API.
+- [x] Show each coding agent's MCP servers in Connections without duplicating Claude.
+- [x] Preserve truthful distinctions between live health and configured state.
+- [x] Verify focused tests, full suites, lint, builds, and the running app.
+
+Constraints:
+
+- Never return commands, URLs, headers, environment values, tokens, or executable paths.
+- Keep agent-definition MCP servers on the owning Agent home.
+- A failed inventory check must not erase the last good result.
+
+Review:
+
+- Claude Code uses its structured live MCP status probe. Codex uses its JSON MCP inventory, and Kimi Code reads its bounded user-level MCP configuration.
+- The local API returns only sanitized server names, coarse states, inventory state, and evidence type. It omits paths, commands, URLs, headers, environment values, and raw errors.
+- Connections now nests each MCP server under its coding agent. Claude health says Connected when proven; Codex and Kimi entries say Configured because configuration alone does not prove connectivity.
+- Project-scoped MCP configuration remains attached to the owning Agent instead of being presented as machine-wide availability.
+- Verification passed: 1,553 server tests with 4 expected skips, 540 Swift tests, ESLint, strict TypeScript checks, server build, and unsigned macOS app build.
+
 ## Activity skipped-run meaning
 
 - [x] Distinguish a successful already-completed no-op from a blocked skipped run.

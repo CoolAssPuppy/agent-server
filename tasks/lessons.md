@@ -1,5 +1,7 @@
 # Lessons
 
+- Keep comprehensive verification local by default. Do not add, broaden, or schedule GitHub Actions without reviewing runner minutes, trigger frequency, matrices, artifacts, and the user's explicit cost tolerance.
+- A coding-agent connection inventory must query each runtime's own MCP source. An executable check proves installation only; it does not prove which MCP servers that runtime can use.
 - When the user asks for focused product work, treat the stated phase and deliverables as a hard scope boundary. Do not add adjacent initiatives, speculative architecture, or extra process. Complete the smallest requested artifact, report it concisely, and wait at review gates.
 - When matching an existing macOS settings screen, copy its layout primitives as well as its font sizes. A custom card-and-row layout cannot be reproduced reliably by retuning SwiftUI Form modifiers.
 - Creation and editing should use the same Markdown control so syntax, cursor behavior, undo, and file semantics do not diverge between workflows.

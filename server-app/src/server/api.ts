@@ -60,6 +60,12 @@ type ConnectionSnapshot = {
     label: string;
     installed: boolean;
     authentication: 'unknown';
+    mcp_servers?: Array<{
+      name: string;
+      status: string;
+    }>;
+    mcp_inventory_state?: 'not_checked' | 'ready' | 'failed' | 'unavailable';
+    mcp_evidence?: 'runtime_status' | 'configuration';
   }>;
 };
 

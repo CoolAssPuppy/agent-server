@@ -221,36 +221,104 @@ struct RuntimeConnectionRow: View {
     let presentation: RuntimeConnectionPresentation
 
     @Environment(\.nTheme) private var theme
+    @State private var showsMcpServers = false
 
     var body: some View {
-        HStack(spacing: NSpacing.md) {
-            Image(systemName: "terminal")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(theme.tokens.foreground)
-                .frame(width: 24)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(presentation.name)
-                    .font(NTypography.bodyMedium)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: NSpacing.md) {
+                Image(systemName: "terminal")
+                    .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(theme.tokens.foreground)
-                Text(presentation.authenticationSummary)
+                    .frame(width: 24)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(presentation.name)
+                        .font(NTypography.bodyMedium)
+                        .foregroundStyle(theme.tokens.foreground)
+                    Text(presentation.authenticationSummary)
+                        .font(NTypography.caption)
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                }
+
+                Spacer()
+
+                Text(presentation.statusTitle)
                     .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .foregroundStyle(
+                        presentation.status == .installed
+                            ? theme.tokens.success
+                            : theme.tokens.mutedForeground
+                    )
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(presentation.name), \(presentation.statusTitle), \(presentation.mcpCountTitle)")
 
-            Spacer()
+            if presentation.status == .installed {
+                Divider()
+                    .opacity(0.25)
+                    .padding(.leading, 24 + NSpacing.md)
+                    .padding(.vertical, NSpacing.sm)
 
-            Text(presentation.statusTitle)
-                .font(NTypography.caption)
-                .foregroundStyle(
-                    presentation.status == .installed
-                        ? theme.tokens.success
-                        : theme.tokens.mutedForeground
-                )
+                if let notice = presentation.inventoryNotice {
+                    Text(notice)
+                        .font(NTypography.caption)
+                        .foregroundStyle(theme.tokens.error)
+                        .padding(.leading, 24 + NSpacing.md)
+                        .padding(.bottom, NSpacing.sm)
+                }
+
+                if let emptyMessage = presentation.emptyMcpMessage {
+                    Text(emptyMessage)
+                        .font(NTypography.caption)
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                        .padding(.leading, 24 + NSpacing.md)
+                } else {
+                    DisclosureGroup(isExpanded: $showsMcpServers) {
+                        VStack(spacing: NSpacing.sm) {
+                            ForEach(presentation.mcpServers, id: \.name) { server in
+                                runtimeMcpRow(server)
+                            }
+                        }
+                        .padding(.top, NSpacing.sm)
+                    } label: {
+                        Text(presentation.mcpCountTitle)
+                            .font(NTypography.caption)
+                            .foregroundStyle(theme.tokens.mutedForeground)
+                    }
+                    .padding(.leading, 24 + NSpacing.md)
+                    .accessibilityValue(showsMcpServers ? "Expanded" : "Collapsed")
+                }
+            }
         }
         .padding(.horizontal, NSpacing.md)
         .padding(.vertical, NSpacing.md)
+    }
+
+    private func runtimeMcpRow(_ server: RuntimeMcpServerPresentation) -> some View {
+        HStack(spacing: NSpacing.md) {
+            Image(systemName: "puzzlepiece.extension")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(theme.tokens.mutedForeground)
+                .frame(width: 24)
+                .accessibilityHidden(true)
+            Text(server.name)
+                .font(NTypography.caption)
+                .foregroundStyle(theme.tokens.foreground)
+                .lineLimit(1)
+            Spacer()
+            Text(server.statusTitle)
+                .font(NTypography.captionSmall)
+                .foregroundStyle(runtimeMcpStatusColor(server.status))
+        }
         .accessibilityElement(children: .combine)
+    }
+
+    private func runtimeMcpStatusColor(_ status: String) -> Color {
+        switch status {
+        case "connected": theme.tokens.success
+        case "needs_auth", "failed": theme.tokens.error
+        default: theme.tokens.mutedForeground
+        }
     }
 }
 
