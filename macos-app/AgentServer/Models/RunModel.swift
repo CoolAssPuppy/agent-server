@@ -148,6 +148,18 @@ struct HealthResponse: Codable {
     }
 }
 
+struct MachineResponse: Codable {
+    let machineId: String
+    let protocolVersion: Int
+    let serverVersion: String
+
+    enum CodingKeys: String, CodingKey {
+        case machineId = "machine_id"
+        case protocolVersion = "protocol_version"
+        case serverVersion = "server_version"
+    }
+}
+
 struct CleanupResponse: Codable {
     let ok: Bool
     let cleaned: Int

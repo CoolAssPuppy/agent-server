@@ -35,6 +35,10 @@ actor AgentServerClient {
         try await get("/health", requiresAuthentication: false)
     }
 
+    func machine() async throws -> MachineResponse {
+        try await get(LocalServerEndpoint.machinePath)
+    }
+
     func agents() async throws -> [Agent] {
         try await get("/agents")
     }

@@ -128,6 +128,8 @@ struct SettingsDrawer: View {
                 requiresRestart: draft.requiresGeneralRestart,
                 onRestart: restartForGeneralChange
             )
+        case .device:
+            SettingsDeviceSection(presentation: monitor.currentDevicePresentation)
         case .runtimes:
             SettingsRuntimeSection(
                 usesInstalledKimi: runtimeBinding(\.usesInstalledKimi),

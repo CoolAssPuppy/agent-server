@@ -21,6 +21,10 @@ final class LocalServerEndpointTests: XCTestCase {
         )
     }
 
+    func testBuildsTheAuthenticatedMachineIdentityPath() {
+        XCTAssertEqual(LocalServerEndpoint.machinePath, "/machine")
+    }
+
     func testBuildsTheAuthenticatedAssistantHomePathWithEncodedIdentity() {
         XCTAssertEqual(
             LocalServerEndpoint.assistantHomePath(assistantID: "weekly report/primary"),

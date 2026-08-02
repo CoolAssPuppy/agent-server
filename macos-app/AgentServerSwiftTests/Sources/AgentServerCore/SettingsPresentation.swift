@@ -1,5 +1,8 @@
+import Foundation
+
 public enum SettingsSection: String, CaseIterable, Equatable, Sendable {
     case general
+    case device
     case notifications
     case appearance
     case updates
@@ -13,6 +16,7 @@ public enum SettingsSection: String, CaseIterable, Equatable, Sendable {
     public var title: String {
         switch self {
         case .general: "General"
+        case .device: "This Mac"
         case .notifications: "Notifications"
         case .appearance: "Appearance"
         case .updates: "Updates"
@@ -72,6 +76,7 @@ public enum SettingsPresentation {
 
     public static let primarySections: [SettingsSection] = [
         .general,
+        .device,
         .notifications,
         .appearance,
         .updates,
@@ -91,7 +96,49 @@ public enum SettingsPresentation {
     }
 
     public static let primaryColumns: [[SettingsSection]] = [
-        [.general, .notifications],
+        [.general, .device, .notifications],
         [.appearance, .updates],
     ]
+}
+
+public struct CurrentDevicePresentation: Equatable, Sendable {
+    public let machineID: String
+    public let protocolVersion: Int
+    public let serverVersion: String
+    public let assistantCount: Int
+    public let isServerReachable: Bool
+    public let lastHeardAt: Date?
+
+    public init(
+        machineID: String,
+        protocolVersion: Int,
+        serverVersion: String,
+        assistantCount: Int,
+        isServerReachable: Bool,
+        lastHeardAt: Date?
+    ) {
+        self.machineID = machineID
+        self.protocolVersion = protocolVersion
+        self.serverVersion = serverVersion
+        self.assistantCount = assistantCount
+        self.isServerReachable = isServerReachable
+        self.lastHeardAt = lastHeardAt
+    }
+
+    public var name: String { "This Mac" }
+    public var status: String { isServerReachable ? "Online" : "Local server unavailable" }
+    public var assistantCountText: String {
+        "\(assistantCount) \(assistantCount == 1 ? "assistant" : "assistants")"
+    }
+    public var lastHeardText: String {
+        lastHeardAt == nil ? "Not checked yet" : "Last heard recently"
+    }
+    public var protocolText: String { "Protocol \(protocolVersion)" }
+    public var serverVersionText: String { "Agent Server \(serverVersion)" }
+
+    public static func normalizedName(_ candidate: String) -> String {
+        let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "This Mac" }
+        return String(trimmed.prefix(80))
+    }
 }

@@ -16,6 +16,7 @@ public enum LocalServerEndpoint {
     }
 
     public static let todayActivityPath = "/presentation/today-activity"
+    public static let machinePath = "/machine"
 
     public static func assistantHomePath(assistantID: String) -> String {
         let allowed = CharacterSet.urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))

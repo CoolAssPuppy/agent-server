@@ -15,6 +15,8 @@ final class StatusMonitor: ObservableObject {
     /// "failed last run" red indicator.
     @Published private(set) var lastRunByAgent: [String: Run] = [:]
     @Published private(set) var isServerReachable = false
+    @Published private(set) var machineIdentity: MachineResponse?
+    @Published private(set) var machineLastHeardAt: Date?
     @Published var localAPISetupError: String?
     @Published var staleRunCount: Int = 0
     @Published private(set) var pendingDecisions: [Decision] = []
@@ -89,6 +91,18 @@ final class StatusMonitor: ObservableObject {
 
     var demoModeState: DemoModeState {
         DemoModeState(isEnabled: isDemoMode)
+    }
+
+    var currentDevicePresentation: CurrentDevicePresentation? {
+        guard let machineIdentity else { return nil }
+        return CurrentDevicePresentation(
+            machineID: machineIdentity.machineId,
+            protocolVersion: machineIdentity.protocolVersion,
+            serverVersion: machineIdentity.serverVersion,
+            assistantCount: agents.count,
+            isServerReachable: isServerReachable,
+            lastHeardAt: machineLastHeardAt
+        )
     }
 
     func toggleDemoMode() {
@@ -317,8 +331,11 @@ final class StatusMonitor: ObservableObject {
         let agentSnapshotToken = agentSnapshotRevision.beginSnapshot()
         do {
             let health = try await client.health()
+            let machine = try await client.machine()
             liveServerReachable = true
             if !isDemoMode { isServerReachable = true }
+            machineIdentity = machine
+            machineLastHeardAt = Date()
             consecutiveFailures = 0
 
             let fetchedAgents = try await client.agents()

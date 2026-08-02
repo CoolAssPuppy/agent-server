@@ -5,7 +5,7 @@ final class SettingsPreferenceTests: XCTestCase {
     func testSettingsLeadWithEverydayChoicesAndKeepInfrastructureAdvanced() {
         XCTAssertEqual(
             SettingsPresentation.primarySections,
-            [.general, .notifications, .appearance, .updates]
+            [.general, .device, .notifications, .appearance, .updates]
         )
         XCTAssertEqual(
             SettingsPresentation.advancedSections,
@@ -18,6 +18,7 @@ final class SettingsPreferenceTests: XCTestCase {
             SettingsSection.allCases.map(\.title),
             [
                 "General",
+                "This Mac",
                 "Notifications",
                 "Appearance",
                 "Updates",
@@ -72,10 +73,49 @@ final class SettingsPreferenceTests: XCTestCase {
         XCTAssertEqual(
             SettingsPresentation.primaryColumns,
             [
-                [.general, .notifications],
+                [.general, .device, .notifications],
                 [.appearance, .updates],
             ]
         )
+    }
+
+    func testCurrentDeviceSummaryUsesHumanStatusAndKeepsIdentityTechnical() {
+        let summary = CurrentDevicePresentation(
+            machineID: "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99",
+            protocolVersion: 2,
+            serverVersion: "3.3.4",
+            assistantCount: 4,
+            isServerReachable: true,
+            lastHeardAt: Date(timeIntervalSince1970: 1_786_050_000)
+        )
+
+        XCTAssertEqual(summary.name, "This Mac")
+        XCTAssertEqual(summary.status, "Online")
+        XCTAssertEqual(summary.assistantCountText, "4 assistants")
+        XCTAssertEqual(summary.machineID, "1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99")
+        XCTAssertEqual(summary.protocolText, "Protocol 2")
+        XCTAssertEqual(summary.serverVersionText, "Agent Server 3.3.4")
+    }
+
+    func testCurrentDeviceSummaryExplainsOfflineStateWithoutClaimingAssistantsStopped() {
+        let summary = CurrentDevicePresentation(
+            machineID: "machine-1",
+            protocolVersion: 2,
+            serverVersion: "3.3.4",
+            assistantCount: 1,
+            isServerReachable: false,
+            lastHeardAt: nil
+        )
+
+        XCTAssertEqual(summary.status, "Local server unavailable")
+        XCTAssertEqual(summary.assistantCountText, "1 assistant")
+        XCTAssertEqual(summary.lastHeardText, "Not checked yet")
+    }
+
+    func testCurrentDeviceNameIsEditableButNeverBlankOrUnbounded() {
+        XCTAssertEqual(CurrentDevicePresentation.normalizedName("  Office Mac  "), "Office Mac")
+        XCTAssertEqual(CurrentDevicePresentation.normalizedName("   "), "This Mac")
+        XCTAssertEqual(CurrentDevicePresentation.normalizedName(String(repeating: "x", count: 100)).count, 80)
     }
 
     func testAbsentEnvironmentFlagUsesItsConsumerDefault() {

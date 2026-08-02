@@ -57,6 +57,76 @@ struct SettingsGeneralSection: View {
     }
 }
 
+struct SettingsDeviceSection: View {
+    let presentation: CurrentDevicePresentation?
+
+    @AppStorage("device.displayName") private var deviceName = "This Mac"
+
+    @Environment(\.nTheme) private var theme
+
+    var body: some View {
+        SettingsGroup(title: SettingsSection.device.title) {
+            if let presentation {
+                SettingsValueRow(label: "Name") {
+                    TextField("Device name", text: $deviceName)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 150)
+                        .onSubmit {
+                            deviceName = CurrentDevicePresentation.normalizedName(deviceName)
+                        }
+                        .accessibilityIdentifier("settings.device.name")
+                }
+                SettingsRowDivider()
+                SettingsValueRow(label: "Status") {
+                    SettingsStatusPill(
+                        isHealthy: presentation.isServerReachable,
+                        label: presentation.status
+                    )
+                }
+                SettingsRowDivider()
+                SettingsValueRow(label: "Assistants") {
+                    Text(presentation.assistantCountText)
+                        .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
+                        .foregroundStyle(theme.tokens.mutedForeground)
+                }
+                SettingsRowDivider()
+                SettingsValueRow(label: "Last heard from") {
+                    if let lastHeardAt = presentation.lastHeardAt {
+                        Text(lastHeardAt, style: .relative)
+                            .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
+                            .foregroundStyle(theme.tokens.mutedForeground)
+                    } else {
+                        Text(presentation.lastHeardText)
+                            .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
+                            .foregroundStyle(theme.tokens.mutedForeground)
+                    }
+                }
+                DisclosureGroup("Technical details") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(presentation.serverVersionText)
+                        Text(presentation.protocolText)
+                        Text(presentation.machineID)
+                            .textSelection(.enabled)
+                    }
+                    .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize), design: .monospaced))
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .padding(.top, 6)
+                }
+                .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
+                .accessibilityIdentifier("settings.device.technicalDetails")
+            } else {
+                Text("Device details will appear when the local server responds.")
+                    .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            }
+        }
+        .accessibilityIdentifier("settings.device")
+        .onAppear {
+            deviceName = CurrentDevicePresentation.normalizedName(deviceName)
+        }
+    }
+}
+
 struct SettingsAppearanceSection: View {
     @ObservedObject private var themeManager = ThemeManager.shared
 
