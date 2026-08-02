@@ -537,6 +537,8 @@ function buildResult(params: {
 
 export const RECONNECT_DELAY_MS = 3000;
 export const MAX_RECONNECT_ATTEMPTS = 2;
+export const MCP_PROBE_SETTLE_INTERVAL_MS = 500;
+export const MCP_PROBE_SETTLE_ATTEMPTS = 10;
 
 function logMcpStatus(servers: McpServerInfo[]): void {
   const connected = servers.filter((s) => s.status === 'connected').map((s) => s.name);
@@ -587,12 +589,21 @@ export async function probeMcpServers(claudeExecutablePath?: string): Promise<Mc
 
   try {
     const stream = query({ prompt: 'probe', options });
-    const statuses = await stream.mcpServerStatus();
-    const servers = statuses.map((status) => ({
+    const initialStatuses = await stream.mcpServerStatus();
+    let servers: McpServerInfo[] = initialStatuses.map((status) => ({
       name: status.name,
       status: status.status,
       error: status.error,
     }));
+    for (
+      let attempt = 0;
+      attempt < MCP_PROBE_SETTLE_ATTEMPTS && servers.some(({ status }) => status === 'pending');
+      attempt += 1
+    ) {
+      await delay(MCP_PROBE_SETTLE_INTERVAL_MS);
+      const refreshed = await fetchMcpStatus(stream);
+      if (refreshed.length > 0) servers = refreshed;
+    }
     try { abortController.abort(); } catch { /* ignore */ }
     return servers;
   } catch (error) {

@@ -1054,6 +1054,40 @@ describe('Claude connection discovery', () => {
       }),
     }));
   });
+
+  it('waits briefly for pending MCP connections to settle', async () => {
+    vi.useFakeTimers();
+    const { probeMcpServers } = await import('./claude-code.js');
+    mockMcpServerStatus
+      .mockResolvedValueOnce([{ name: 'claude.ai Notion', status: 'pending' }])
+      .mockResolvedValueOnce([{ name: 'claude.ai Notion', status: 'connected' }]);
+    mockQuery.mockReturnValue(createAsyncGenerator([]));
+
+    const result = probeMcpServers('/Users/test/.local/bin/claude');
+    await vi.advanceTimersByTimeAsync(500);
+
+    await expect(result).resolves.toEqual([
+      { name: 'claude.ai Notion', status: 'connected' },
+    ]);
+    expect(mockMcpServerStatus).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it('keeps a truthful pending state after the bounded settling window', async () => {
+    vi.useFakeTimers();
+    const { probeMcpServers } = await import('./claude-code.js');
+    mockMcpServerStatus.mockResolvedValue([
+      { name: 'slow server', status: 'pending' },
+    ]);
+    mockQuery.mockReturnValue(createAsyncGenerator([]));
+
+    const result = probeMcpServers('/Users/test/.local/bin/claude');
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(result).resolves.toEqual([{ name: 'slow server', status: 'pending' }]);
+    expect(mockMcpServerStatus).toHaveBeenCalledTimes(11);
+    vi.useRealTimers();
+  });
 });
 
 describe('buildMcpServers eventkit auto-injection', () => {

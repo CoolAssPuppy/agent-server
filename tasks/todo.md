@@ -1,5 +1,23 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Claude MCP status settling
+
+- [x] Reproduce pending MCP statuses against the installed Claude runtime.
+- [x] Wait for connection states to settle without consuming a model turn.
+- [x] Bound the wait and preserve truthful pending states on timeout.
+- [x] Verify focused tests, full checks, app build, and the running app.
+
+Constraint:
+
+- Do not turn connection discovery into an agent run or incur model-token usage.
+
+Review:
+
+- The installed Claude runtime moved from 15 pending servers to zero pending servers after about four seconds, proving the original UI sampled startup state too early.
+- Connection discovery now checks every 500 milliseconds for up to five seconds and returns as soon as all servers settle.
+- The probe still aborts before a model turn, and a server that exceeds the bounded window remains truthfully labeled Connecting.
+- Verification passed: 61 focused tests, 1,555 full server tests with 4 expected skips, ESLint, strict TypeScript checks, server build, and unsigned macOS app build.
+
 ## CI cost audit
 
 - [x] Inventory GitHub Actions in Agent Server and Agent Panel.
