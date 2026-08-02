@@ -21,13 +21,20 @@ enum TodaySection: String, CaseIterable, Equatable, Sendable {
 struct TodayItem: Equatable, Identifiable, Sendable {
     let id: String
     let assistantID: String
+    let assistantInstallationID: String
+    let assistantMachineID: String
     let assistantName: String
     let section: TodaySection
-    let headline: String
-    let explanation: String
+    let headlineStatement: PresentationStatement
+    let explanationStatement: PresentationStatement
     let date: Date
     let expiresAt: Date?
-    let primaryAction: String
+    let primaryAction: PresentationAction
+    let secondaryDisclosure: PresentationAction?
+    let sourceReferences: [String]
+
+    var headline: String { headlineStatement.text }
+    var explanation: String { explanationStatement.text }
 }
 
 struct TodayPresentationSection: Equatable, Identifiable, Sendable {

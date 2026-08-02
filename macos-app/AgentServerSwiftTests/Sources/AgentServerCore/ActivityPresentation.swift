@@ -10,15 +10,22 @@ enum ActivityState: String, Equatable, Sendable {
 struct ActivityItem: Equatable, Identifiable, Sendable {
     let id: String
     let assistantID: String
+    let assistantInstallationID: String
+    let assistantMachineID: String
     let assistantName: String
     let conversationID: String?
     let state: ActivityState
-    let headline: String
-    let outcomeSummary: String?
+    let headlineStatement: PresentationStatement
+    let outcomeSummaryStatement: PresentationStatement?
     let startedAt: Date
     let endedAt: Date?
-    let primaryOutput: String?
+    let primaryOutputStatement: PresentationStatement?
     let reviewReference: String
+    let sourceReferences: [String]
+
+    var headline: String { headlineStatement.text }
+    var outcomeSummary: String? { outcomeSummaryStatement?.text }
+    var primaryOutput: String? { primaryOutputStatement?.text }
 }
 
 enum ActivityFilter: String, CaseIterable, Identifiable, Sendable {

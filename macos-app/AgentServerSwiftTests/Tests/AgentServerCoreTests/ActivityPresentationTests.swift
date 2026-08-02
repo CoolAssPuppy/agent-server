@@ -81,15 +81,21 @@ final class ActivityPresentationTests: XCTestCase {
         ActivityItem(
             id: id,
             assistantID: "assistant-1",
+            assistantInstallationID: "machine-1:assistant-1",
+            assistantMachineID: "machine-1",
             assistantName: "Weekly Report",
             conversationID: nil,
             state: state,
-            headline: "Weekly Report ran",
-            outcomeSummary: nil,
+            headlineStatement: PresentationStatement(
+                text: "Weekly Report ran",
+                evidenceReferences: ["test.headline"]
+            ),
+            outcomeSummaryStatement: nil,
             startedAt: startedAt,
             endedAt: nil,
-            primaryOutput: nil,
-            reviewReference: "/runs/\(id)/review"
+            primaryOutputStatement: nil,
+            reviewReference: "/runs/\(id)/review",
+            sourceReferences: ["test.source"]
         )
     }
 

@@ -103,13 +103,27 @@ final class TodayPresentationTests: XCTestCase {
         TodayItem(
             id: id,
             assistantID: "assistant-1",
+            assistantInstallationID: "machine-1:assistant-1",
+            assistantMachineID: "machine-1",
             assistantName: "Weekly Report",
             section: section,
-            headline: "Weekly Report has an update",
-            explanation: "Review the latest result.",
+            headlineStatement: PresentationStatement(
+                text: "Weekly Report has an update",
+                evidenceReferences: ["test.headline"]
+            ),
+            explanationStatement: PresentationStatement(
+                text: "Review the latest result.",
+                evidenceReferences: ["test.explanation"]
+            ),
             date: date,
             expiresAt: expiresAt,
-            primaryAction: "Review"
+            primaryAction: PresentationAction(
+                kind: .review,
+                label: "Review",
+                targetReference: "run:\(id)"
+            ),
+            secondaryDisclosure: nil,
+            sourceReferences: ["test.source"]
         )
     }
 
