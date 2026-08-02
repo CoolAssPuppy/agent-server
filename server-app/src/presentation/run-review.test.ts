@@ -57,7 +57,6 @@ describe('consumer run review', () => {
         code: 'output_contract_unmet',
         error: 'Required output missing',
       }),
-      requiredOutput: { label: 'Report' },
     });
     const locked = createRunReview({
       run: makeStoredRun({ status: 'skipped', code: 'lock_contention' }),
@@ -76,10 +75,12 @@ describe('consumer run review', () => {
       outcome: 'partial',
       operationalCompleteness: 'incomplete',
       problems: [{
-        text: 'The required Report was not produced.',
-        evidenceReferences: ['run.code', 'agent.output.primary'],
+        text: 'The required output was not produced.',
+        evidenceReferences: ['run.code'],
       }],
     });
+    expect(JSON.stringify(incomplete)).not.toContain('Report');
+    expect(JSON.stringify(incomplete)).not.toContain('agent.output.primary');
     expect(locked).toMatchObject({
       outcome: 'skipped',
       summary: {

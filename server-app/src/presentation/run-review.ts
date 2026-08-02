@@ -15,6 +15,7 @@ type RequiredOutput = {
 
 export type CreateRunReviewInput = {
   run: StoredRun;
+  /** Run-time contract evidence. A current assistant definition is not evidence for an older run. */
   requiredOutput?: RequiredOutput;
   observedAccomplishments?: PresentationStatement[];
   pendingInteraction?: PendingInteraction;

@@ -886,8 +886,6 @@ export function createApi(deps: ApiDependencies): Hono {
   app.get('/runs/:id/review', async (c) => {
     const run = deps.store.get(c.req.param('id'));
     if (!run) return c.json({ error: 'Run not found' }, 404);
-    const agent = (await deps.getAgents()).find((candidate) => candidate.id === run.agentId);
-    const primaryOutput = agent?.output?.primary;
     const now = deps.presentationClock?.() ?? new Date();
     const pendingInteraction = deps.getPendingInteractions?.().find(
       (interaction) => interaction.runId === run.runId && interaction.agentId === run.agentId,
@@ -896,9 +894,6 @@ export function createApi(deps: ApiDependencies): Hono {
       run,
       now,
       ...(pendingInteraction ? { pendingInteraction } : {}),
-      ...(primaryOutput?.required === true
-        ? { requiredOutput: { label: primaryOutput.description } }
-        : {}),
     }));
   });
 

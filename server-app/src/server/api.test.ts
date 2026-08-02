@@ -650,22 +650,23 @@ describe('API routes', () => {
   });
 
   describe('GET /runs/:id/review', () => {
-    it('returns an outcome-first review using the required output contract', async () => {
+    it('does not apply a newly edited assistant output contract to a historical run', async () => {
       store.add(makeStoredRun({
         runId: 'review-run',
         status: 'completed',
         summary: 'Published the weekly update.',
       }));
-      const app = createApi({
-        getAgents: async () => [makeAgent({
-          output: {
-            primary: {
-              description: 'Weekly update',
-              tool: 'mcp__notion__create_page',
-              required: true,
-            },
+      const getAgents = vi.fn().mockResolvedValue([makeAgent({
+        output: {
+          primary: {
+            description: 'Weekly update',
+            tool: 'mcp__notion__create_page',
+            required: true,
           },
-        })],
+        },
+      })]);
+      const app = createApi({
+        getAgents,
         store,
         triggerRun,
       });
@@ -676,15 +677,49 @@ describe('API routes', () => {
       expect(response.status).toBe(200);
       expect(body).toMatchObject({
         outcome: 'succeeded',
-        operationalCompleteness: 'complete',
-        outputs: [{
-          text: 'Weekly update is ready',
-          evidenceReferences: ['agent.output.primary', 'run.status'],
-        }],
+        operationalCompleteness: 'not_assessed',
+        outputs: [],
         technicalDetailsReference: '/runs/review-run',
       });
       expect(body).not.toHaveProperty('toolsUsed');
       expect(body).not.toHaveProperty('commandsRun');
+      expect(getAgents).not.toHaveBeenCalled();
+    });
+
+    it('uses only the generic contract failure proven by historical run evidence', async () => {
+      store.add(makeStoredRun({
+        runId: 'unmet-output-run',
+        status: 'failed',
+        code: 'output_contract_unmet',
+      }));
+      const app = createApi({
+        getAgents: async () => [makeAgent({
+          output: {
+            primary: {
+              description: 'Newly edited private report',
+              tool: 'mcp__notion__create_page',
+              required: true,
+            },
+          },
+        })],
+        store,
+        triggerRun,
+      });
+
+      const response = await authenticatedRequest(app, '/runs/unmet-output-run/review');
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body).toMatchObject({
+        outcome: 'partial',
+        operationalCompleteness: 'incomplete',
+        problems: [{
+          text: 'The required output was not produced.',
+          evidenceReferences: ['run.code'],
+        }],
+      });
+      expect(JSON.stringify(body)).not.toContain('Newly edited private report');
+      expect(JSON.stringify(body)).not.toContain('agent.output.primary');
     });
 
     it('returns a review for retained history when its agent definition is gone', async () => {
