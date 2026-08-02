@@ -76,6 +76,22 @@ export const AssistantAttentionSchema = z.object({
   expiresAt: z.iso.datetime().optional(),
 }).strict();
 
+export const AssistantAdvancedPermissionRulesSchema = z.object({
+  allow: z.array(z.string().trim().min(1).max(1_024)).max(128),
+  deny: z.array(z.string().trim().min(1).max(1_024)).max(128),
+}).strict();
+
+export const AssistantHomeAdvancedSchema = z.object({
+  scheduleExpression: z.string().trim().min(1).max(120).optional(),
+  executor: z.enum(['claude-code', 'codex', 'kimi-code']),
+  model: z.string().trim().min(1).max(120).optional(),
+  permissionMode: z.enum([
+    'default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk',
+  ]).optional(),
+  permissionRules: AssistantAdvancedPermissionRulesSchema,
+  connectionIds: z.array(AssistantConnectionSchema.shape.id).max(64),
+}).strict();
+
 export const AssistantHomePresentationSchema = z.object({
   assistant: AssistantPresentationIdentitySchema,
   purpose: PresentationStatementSchema,
@@ -87,6 +103,7 @@ export const AssistantHomePresentationSchema = z.object({
   destination: PresentationStatementSchema.optional(),
   recentOutcomes: z.array(RecentOutcomeSchema),
   attention: AssistantAttentionSchema.optional(),
+  advanced: AssistantHomeAdvancedSchema,
   primaryAction: AssistantHomeActionSchema,
   secondaryActions: z.array(AssistantHomeActionSchema),
   advancedReference: z.string().regex(/^\/agents\/[a-z0-9][a-z0-9_-]{0,63}$/),
@@ -99,6 +116,7 @@ export type ReadinessPresentation = z.infer<typeof ReadinessPresentationSchema>;
 export type PermissionStatement = z.infer<typeof PermissionStatementSchema>;
 export type AssistantSchedule = z.infer<typeof AssistantScheduleSchema>;
 export type AssistantAttention = z.infer<typeof AssistantAttentionSchema>;
+export type AssistantHomeAdvanced = z.infer<typeof AssistantHomeAdvancedSchema>;
 export type RecentOutcome = z.infer<typeof RecentOutcomeSchema>;
 export type AssistantHomePresentation = z.infer<typeof AssistantHomePresentationSchema>;
 

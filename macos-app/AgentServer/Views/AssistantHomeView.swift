@@ -10,6 +10,7 @@ struct AssistantHomeView: View {
     let onOpenRun: (AssistantRecentOutcome) -> Void
 
     @Environment(\.nTheme) private var theme
+    @State private var isAdvancedExpanded: Bool
 
     init(
         presentation: AssistantHomePresentation,
@@ -25,6 +26,7 @@ struct AssistantHomeView: View {
         self.onPrimaryAction = onPrimaryAction
         self.onSecondaryAction = onSecondaryAction
         self.onOpenRun = onOpenRun
+        _isAdvancedExpanded = State(initialValue: presentation.isAdvancedExpandedByDefault)
     }
 
     var body: some View {
@@ -38,7 +40,9 @@ struct AssistantHomeView: View {
                 connections
                 recentOutcomes
                 secondaryActions
-                advanced
+                if let advanced = presentation.contract.advanced {
+                    advancedDetails(advanced)
+                }
             }
             .padding(NSpacing.xl)
             .frame(maxWidth: 760, alignment: .leading)
@@ -168,19 +172,45 @@ struct AssistantHomeView: View {
         }
     }
 
-    private var advanced: some View {
-        DisclosureGroup("Advanced details") {
-            VStack(alignment: .leading, spacing: NSpacing.xs) {
-                Text("Assistant ID: \(presentation.contract.assistant.localAgentId)")
-                Text("Machine ID: \(presentation.contract.assistant.machineId)")
-                Text("Definition: \(presentation.contract.advancedReference)")
+    private func advancedDetails(_ details: AssistantHomeAdvanced) -> some View {
+        DisclosureGroup("Advanced details", isExpanded: $isAdvancedExpanded) {
+            VStack(alignment: .leading, spacing: NSpacing.sm) {
+                if let schedule = details.scheduleExpression {
+                    advancedRow(label: "Schedule expression", values: [schedule])
+                }
+                advancedRow(label: "AI engine", values: [details.executor])
+                if let model = details.model {
+                    advancedRow(label: "Model", values: [model])
+                }
+                if let permissionMode = details.permissionMode {
+                    advancedRow(label: "Permission mode", values: [permissionMode])
+                }
+                advancedRow(label: "Allow rules", values: details.permissionRules.allow)
+                advancedRow(label: "Deny rules", values: details.permissionRules.deny)
+                advancedRow(label: "Connection IDs", values: details.connectionIds)
             }
-            .font(NTypography.caption)
-            .foregroundStyle(theme.tokens.mutedForeground)
-            .textSelection(.enabled)
             .padding(.top, NSpacing.sm)
         }
         .font(NTypography.labelMedium)
         .foregroundStyle(theme.tokens.mutedForeground)
+        .accessibilityIdentifier("assistantHome.advanced")
+        .accessibilityValue(isAdvancedExpanded ? "Expanded" : "Collapsed")
+    }
+
+    @ViewBuilder
+    private func advancedRow(label: String, values: [String]) -> some View {
+        if !values.isEmpty {
+            VStack(alignment: .leading, spacing: NSpacing.xxs) {
+                Text(label)
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                ForEach(Array(values.enumerated()), id: \.offset) { _, value in
+                    Text(value)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(theme.tokens.foreground)
+                        .textSelection(.enabled)
+                }
+            }
+        }
     }
 }

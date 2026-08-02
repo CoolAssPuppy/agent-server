@@ -24,6 +24,7 @@ struct AssistantHomePresentation: Equatable, Sendable {
     let passedChecks: [AssistantReadinessCheck]
     let permissionLines: [AssistantPermissionLine]
     let recentOutcomes: [AssistantRecentOutcome]
+    let isAdvancedExpandedByDefault: Bool
 
     var readinessLabel: String {
         switch contract.readiness.state {
@@ -53,6 +54,7 @@ struct AssistantHomePresentation: Equatable, Sendable {
                 return left.element.occurredAt > right.element.occurredAt
             }
             .map(\.element)
+        isAdvancedExpandedByDefault = false
     }
 
     private static func healthPresentation(

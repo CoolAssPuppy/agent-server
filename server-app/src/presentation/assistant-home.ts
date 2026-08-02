@@ -1,6 +1,7 @@
 import { getNextRun } from '../agents/scheduler.js';
 import {
   AssistantHomePresentationSchema,
+  type AssistantHomeAdvanced,
   type AssistantAttention,
   type AssistantHealth,
   type AssistantHomeAction,
@@ -29,12 +30,27 @@ export type {
   AssistantHomeAction,
   AssistantHomeFacts,
   AssistantHomeInput,
+  AssistantHomeAdvanced,
   AssistantHomePresentation,
   AssistantPathFact,
   PermissionStatement,
   ReadinessCheck,
   ReadinessPresentation,
 } from './assistant-home-models.js';
+
+function createAdvancedDetails(input: AssistantHomeInput): AssistantHomeAdvanced {
+  return {
+    ...(input.agent.schedule ? { scheduleExpression: input.agent.schedule } : {}),
+    executor: input.agent.executor ?? 'claude-code',
+    ...(input.agent.model ? { model: input.agent.model } : {}),
+    ...(input.agent.permission_mode ? { permissionMode: input.agent.permission_mode } : {}),
+    permissionRules: {
+      allow: input.agent.permissions?.allow ?? [],
+      deny: input.agent.permissions?.deny ?? [],
+    },
+    connectionIds: input.facts.connections.map(({ id }) => id),
+  };
+}
 
 function createSchedule(input: AssistantHomeInput): AssistantSchedule {
   if (input.agent.schedule) {
@@ -222,6 +238,7 @@ export function createAssistantHomePresentation(input: AssistantHomeInput): Assi
     } : {}),
     recentOutcomes: recentOutcomes(input),
     ...(attention ? { attention } : {}),
+    advanced: createAdvancedDetails(input),
     primaryAction: primaryAction(input, readiness, attention),
     secondaryActions: secondaryActions(input),
     advancedReference: `/agents/${input.agent.id}`,

@@ -23,6 +23,13 @@ final class AssistantHomeContractTests: XCTestCase {
         XCTAssertEqual(home.recentOutcomes.first?.occurredAt, Self.date("2026-08-02T09:05:00.000Z"))
         XCTAssertEqual(home.primaryAction.kind, .run)
         XCTAssertEqual(home.secondaryActions.map(\.kind), [.safeTest, .pause, .edit])
+        XCTAssertEqual(home.advanced?.scheduleExpression, "0 9 * * 1")
+        XCTAssertEqual(home.advanced?.executor, "codex")
+        XCTAssertEqual(home.advanced?.model, "gpt-5.6-codex")
+        XCTAssertEqual(home.advanced?.permissionMode, "plan")
+        XCTAssertEqual(home.advanced?.permissionRules.allow, ["Read", "mcp__notion__search"])
+        XCTAssertEqual(home.advanced?.permissionRules.deny, ["Bash"])
+        XCTAssertEqual(home.advanced?.connectionIds, ["notion-personal"])
     }
 
     func testFutureStatesAndActionsRemainUnknownAndNeverDecodeAsReady() throws {
@@ -59,6 +66,7 @@ final class AssistantHomeContractTests: XCTestCase {
         XCTAssertEqual(home.assistant.localAgentId, "weekly-report")
         XCTAssertEqual(home.primaryAction.kind, .resolveAttention)
         XCTAssertEqual(home.readiness.state, .needsSetup)
+        XCTAssertEqual(home.advanced?.connectionIds, ["reports"])
     }
 
     private static func date(_ value: String) -> Date {
@@ -150,6 +158,17 @@ final class AssistantHomeContractTests: XCTestCase {
         {"kind": "pause", "label": "Pause", "targetReference": "assistant:weekly-report"},
         {"kind": "edit", "label": "Edit", "targetReference": "assistant:weekly-report"}
       ],
+      "advanced": {
+        "scheduleExpression": "0 9 * * 1",
+        "executor": "codex",
+        "model": "gpt-5.6-codex",
+        "permissionMode": "plan",
+        "permissionRules": {
+          "allow": ["Read", "mcp__notion__search"],
+          "deny": ["Bash"]
+        },
+        "connectionIds": ["notion-personal"]
+      },
       "advancedReference": "/agents/weekly-report"
     }
     """

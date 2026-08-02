@@ -18,6 +18,7 @@ final class AssistantHomePresentationTests: XCTestCase {
         XCTAssertEqual(presentation.scheduleText, "Runs every Monday at 9:00 AM.")
         XCTAssertEqual(presentation.destinationText, "Results go to Updated weekly report.")
         XCTAssertEqual(presentation.recentOutcomes.map(\.runId), ["run-7"])
+        XCTAssertFalse(presentation.isAdvancedExpandedByDefault)
     }
 
     func testUnknownContractValuesStayVisibleButCannotBecomeAnActionOrHealthyState() throws {

@@ -12,6 +12,7 @@ struct AssistantHomeContract: Decodable, Equatable, Sendable {
     let destination: PresentationStatement?
     let recentOutcomes: [AssistantRecentOutcome]
     let attention: AssistantAttention?
+    let advanced: AssistantHomeAdvanced?
     let primaryAction: PresentationAction
     let secondaryActions: [PresentationAction]
     let advancedReference: String
@@ -19,7 +20,7 @@ struct AssistantHomeContract: Decodable, Equatable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case generatedAt, assistant, purpose, health, readiness, schedule, permissions
         case connections, destination, recentOutcomes, attention, primaryAction
-        case secondaryActions, advancedReference
+        case secondaryActions, advanced, advancedReference
     }
 
     init(from decoder: Decoder) throws {
@@ -35,10 +36,25 @@ struct AssistantHomeContract: Decodable, Equatable, Sendable {
         destination = try container.decodeIfPresent(PresentationStatement.self, forKey: .destination)
         recentOutcomes = try container.decode([AssistantRecentOutcome].self, forKey: .recentOutcomes)
         attention = try container.decodeIfPresent(AssistantAttention.self, forKey: .attention)
+        advanced = try container.decodeIfPresent(AssistantHomeAdvanced.self, forKey: .advanced)
         primaryAction = try container.decode(PresentationAction.self, forKey: .primaryAction)
         secondaryActions = try container.decode([PresentationAction].self, forKey: .secondaryActions)
         advancedReference = try container.decode(String.self, forKey: .advancedReference)
     }
+}
+
+struct AssistantHomeAdvanced: Decodable, Equatable, Sendable {
+    let scheduleExpression: String?
+    let executor: String
+    let model: String?
+    let permissionMode: String?
+    let permissionRules: AssistantAdvancedPermissionRules
+    let connectionIds: [String]
+}
+
+struct AssistantAdvancedPermissionRules: Decodable, Equatable, Sendable {
+    let allow: [String]
+    let deny: [String]
 }
 
 struct AssistantHealth: Decodable, Equatable, Sendable {

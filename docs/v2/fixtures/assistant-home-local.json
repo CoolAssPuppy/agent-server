@@ -163,6 +163,14 @@
     },
     "expiresAt": "2026-08-02T10:30:00.000Z"
   },
+  "advanced": {
+    "executor": "claude-code",
+    "permissionRules": {
+      "allow": ["Read", "Write"],
+      "deny": ["Bash"]
+    },
+    "connectionIds": ["reports"]
+  },
   "primaryAction": {
     "kind": "resolve_attention",
     "label": "Choose",

@@ -1177,6 +1177,11 @@ describe('API routes', () => {
         readiness: { state: 'ready' },
         primaryAction: { kind: 'run', label: 'Run now' },
         recentOutcomes: [{ runId: 'run-7', outcome: 'succeeded' }],
+        advanced: {
+          executor: 'claude-code',
+          permissionRules: { allow: ['Read', 'Write'], deny: ['Bash'] },
+          connectionIds: ['inline:reports'],
+        },
       });
       expect(assistantHomeFacts).toHaveBeenCalledWith(agent, [agent]);
       const serialized = JSON.stringify(body);
