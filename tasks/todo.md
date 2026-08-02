@@ -1,5 +1,19 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Version 3.4.0 release
+
+- [ ] Confirm main is clean, current work is committed, and the live feed is version 3.3.4 build 37.
+- [ ] Run the canonical release pipeline with release text “Revamped UI, Bug fixes”.
+- [ ] Verify tests, type checking, linting, signing, app and DMG notarization, stapling, Sparkle signature, immutable download, latest alias, and both feed URLs.
+- [ ] Confirm version and build metadata changed only as expected.
+- [ ] Install and launch the released app, verify local API health and runtime discovery, then commit and push main.
+
+Constraints:
+
+- Perform comprehensive verification locally. Do not add or trigger GitHub Actions for the release.
+- Do not push until the uploaded release and installed app pass verification.
+- Preserve the canonical Sparkle publication order and immutable release history.
+
 ## Claude MCP status settling
 
 - [x] Reproduce pending MCP statuses against the installed Claude runtime.
