@@ -6,6 +6,24 @@
     <description>Agent Server updates</description>
     <language>en</language>
     <item>
+      <title>Version 3.4.4</title>
+      <pubDate>Wed, 05 Aug 2026 11:16:48 +0000</pubDate>
+      <sparkle:version>42</sparkle:version>
+      <sparkle:shortVersionString>3.4.4</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Fixed agents reporting setup problems that were not there. Connection discovery no longer drops a connector the runtime already reported, an agent's own configured server is read instead of a catalog entry sharing its name, and a file check the operating system refuses is reported as unchecked rather than missing.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.4.4.dmg"
+        sparkle:edSignature="L0Vh+12vlPNHQXlYgHxYjza5XHB0jsTzIIxKHFtm1SN6Wn+0ZB8JYE1I1wiSmTJg4P5O95eSNaDCoTGcAU2BDQ=="
+        length="19593459"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
       <title>Version 3.4.3</title>
       <pubDate>Wed, 05 Aug 2026 10:12:39 +0000</pubDate>
       <sparkle:version>41</sparkle:version>
