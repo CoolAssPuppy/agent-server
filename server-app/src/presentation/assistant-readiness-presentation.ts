@@ -89,7 +89,9 @@ function pathChecks(input: AssistantHomeInput): ReadinessCheck[] {
   const facts = new Map(input.facts.paths.map((fact) => [fact.path, fact]));
   return requestedPaths(input.agent).map(({ path, requiresWrite, source }) => {
     const fact = facts.get(path);
-    if (!fact) {
+    // A refused inspection is indistinguishable from an unasked one: both leave
+    // us without evidence, and neither justifies blocking the agent.
+    if (!fact || fact.inspectable === false) {
       return {
         kind: 'file', state: 'unknown',
         explanation: evidenceStatement(`${displayPath(path)} could not be checked.`, source),

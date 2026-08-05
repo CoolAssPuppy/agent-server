@@ -188,6 +188,34 @@ describe('Assistant readiness facts', () => {
     }]);
   });
 
+  it('does not call a path missing when the check was refused', () => {
+    // macOS refuses a protected volume without asking, and a background daemon
+    // can never be asked. Refusal proves nothing about the file, so it cannot
+    // report as missing and must not block the agent.
+    const presentation = createAssistantHomePresentation({
+      machineId: MACHINE_ID,
+      agent: makeAgent({
+        file_access: [{ path: '/Users/x/My Drive/Book.docx', kind: 'file', access: 'read_only' }],
+      }),
+      runs: [],
+      pendingInteractions: [],
+      now: new Date('2026-08-05T12:00:00Z'),
+      facts: collectAssistantHomeFacts({
+        agent: makeAgent({
+          file_access: [{ path: '/Users/x/My Drive/Book.docx', kind: 'file', access: 'read_only' }],
+        }),
+        runtimePaths: { claudeExecutablePath: '/usr/local/bin/claude' },
+        registry: registry(),
+        inspectPath: () => ({ exists: false, readable: false, writable: false, inspectable: false }),
+      }),
+    });
+
+    const file = presentation.readiness.checks.filter((check) => check.kind === 'file');
+    expect(file).toEqual([expect.objectContaining({ state: 'unknown' })]);
+    expect(presentation.readiness.state).toBe('ready');
+    expect(presentation.health.state).toBe('healthy');
+  });
+
   it('reads the agent\'s own inline server, not a catalog entry sharing its name', () => {
     // The catalog carries a placeholder for every known service, bound to the
     // same server name an agent may use. It is an OAuth service, so it can

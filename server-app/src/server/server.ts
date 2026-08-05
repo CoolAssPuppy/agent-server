@@ -804,18 +804,28 @@ export function startServer(
         registry,
         inspectPath: (configuredPath) => {
           const path = expandHome(configuredPath);
+          // A daemon has no way to answer a macOS privacy prompt, so a
+          // protected volume refuses the call outright. EACCES and EPERM mean
+          // the question went unanswered; only ENOENT means the path is gone.
+          let refused = false;
           const hasAccess = (mode: number): boolean => {
             try {
               accessSync(path, mode);
               return true;
-            } catch {
+            } catch (error) {
+              const code = (error as NodeJS.ErrnoException).code;
+              if (code === 'EACCES' || code === 'EPERM') refused = true;
               return false;
             }
           };
+          const exists = hasAccess(constants.F_OK);
+          const readable = hasAccess(constants.R_OK);
+          const writable = hasAccess(constants.W_OK);
           return {
-            exists: hasAccess(constants.F_OK),
-            readable: hasAccess(constants.R_OK),
-            writable: hasAccess(constants.W_OK),
+            exists,
+            readable,
+            writable,
+            ...(refused && !exists ? { inspectable: false } : {}),
           };
         },
       });

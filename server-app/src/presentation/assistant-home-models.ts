@@ -125,6 +125,12 @@ export type AssistantPathFact = {
   exists: boolean;
   readable: boolean;
   writable: boolean;
+  /**
+   * False when the operating system refused the check rather than answering
+   * it. A refusal says nothing about the path, so it cannot be reported as
+   * missing. Absent means the inspection was answered.
+   */
+  inspectable?: boolean;
 };
 
 export type AssistantConnectionFact = {

@@ -598,7 +598,7 @@ export async function probeMcpServers(claudeExecutablePath?: string): Promise<Mc
     for (let attempt = 0; attempt < MCP_PROBE_SETTLE_ATTEMPTS; attempt += 1) {
       await delay(MCP_PROBE_SETTLE_INTERVAL_MS);
       const refreshed = await fetchMcpStatus(stream);
-      const next = refreshed.length > 0 ? refreshed : servers;
+      const next = refreshed.length > 0 ? mergeServerReads(servers, refreshed) : servers;
       const settled = isSettled(servers, next);
       servers = next;
       if (settled) break;
@@ -609,6 +609,24 @@ export async function probeMcpServers(claudeExecutablePath?: string): Promise<Mc
     try { abortController.abort(); } catch { /* ignore */ }
     throw error;
   }
+}
+
+/**
+ * Fold a later status read into what the runtime has already reported. A read
+ * is a snapshot of a runtime still assembling its connectors, so a server the
+ * previous read listed and this one omits has not gone away, and dropping it
+ * loses a connector the runtime already proved. Later status wins; order of
+ * first appearance is kept.
+ */
+function mergeServerReads(
+  previous: McpServerInfo[],
+  refreshed: McpServerInfo[],
+): McpServerInfo[] {
+  const latest = new Map(refreshed.map((server) => [server.name, server]));
+  const merged = previous.map((server) => latest.get(server.name) ?? server);
+  const known = new Set(previous.map(({ name }) => name));
+  merged.push(...refreshed.filter(({ name }) => !known.has(name)));
+  return merged;
 }
 
 /**

@@ -1084,6 +1084,30 @@ describe('Claude connection discovery', () => {
     vi.useRealTimers();
   });
 
+  it('keeps a server the runtime reported once but omitted from a later read', async () => {
+    vi.useFakeTimers();
+    const { probeMcpServers } = await import('./claude-code.js');
+    // Status reads are snapshots of a runtime still assembling its connectors.
+    // A later read that omits a server is not evidence the server is gone, and
+    // treating it that way drops connectors the runtime already reported.
+    mockMcpServerStatus
+      .mockResolvedValueOnce([
+        { name: 'claude.ai Name: Parallel Search MCP', status: 'connected' },
+        { name: 'eventkit', status: 'connected' },
+      ])
+      .mockResolvedValue([{ name: 'eventkit', status: 'connected' }]);
+    mockQuery.mockReturnValue(createAsyncGenerator([]));
+
+    const result = probeMcpServers('/Users/test/.local/bin/claude');
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(result).resolves.toEqual([
+      { name: 'claude.ai Name: Parallel Search MCP', status: 'connected' },
+      { name: 'eventkit', status: 'connected' },
+    ]);
+    vi.useRealTimers();
+  });
+
   it('waits briefly for pending MCP connections to settle', async () => {
     vi.useFakeTimers();
     const { probeMcpServers } = await import('./claude-code.js');
