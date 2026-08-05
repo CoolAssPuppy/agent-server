@@ -7,6 +7,12 @@ import type { Channel, ChannelReply, ReplyCallback } from './channel.js';
 import { formatTelegramNotification } from './telegram-formatter.js';
 import { sanitizeText } from '../server/security-utils.js';
 import { toErrorMessage } from '../util/errors.js';
+import {
+  ChannelLifecycle,
+  type ChannelLifecycleStatus,
+  type ChannelStatusListener,
+  ChannelReconnectPolicy,
+} from './lifecycle.js';
 
 type TelegramApi = {
   sendMessage: (chatId: number, text: string, options?: Record<string, unknown>) => Promise<{ message_id: number }>;
@@ -96,11 +102,17 @@ export class TelegramChannel implements Channel {
   private lastPendingId: string | undefined;
   private bot: Pick<Bot, 'start' | 'stop'> | undefined;
   private onPollingError: (error: unknown) => void;
+  private lifecycle = new ChannelLifecycle('telegram');
+  private reconnectPolicy = new ChannelReconnectPolicy();
+  private reconnectAttempt = 0;
+  private reconnectTimer: NodeJS.Timeout | undefined;
+  private isStopped = false;
 
   constructor(options: TelegramChannelOptions) {
     this.api = options.api;
     this.chatId = options.chatId;
     this.bot = options.bot;
+    if (!options.bot) this.lifecycle.transition('connected');
     this.onPollingError = options.onPollingError ?? ((error) => {
       const message = toErrorMessage(error);
       console.error(`[telegram] Long polling stopped: ${message}`);
@@ -108,23 +120,62 @@ export class TelegramChannel implements Channel {
   }
 
   async start(): Promise<void> {
-    if (this.bot) {
-      const polling = this.bot.start({
+    this.isStopped = false;
+    this.startPolling();
+  }
+
+  private startPolling(): void {
+    if (!this.bot || this.isStopped) return;
+    this.lifecycle.transition(this.reconnectAttempt === 0 ? 'starting' : 'reconnecting');
+    const polling = this.bot.start({
         drop_pending_updates: true,
         onStart: (botInfo) => {
+          this.reconnectAttempt = 0;
+          this.lifecycle.transition('connected');
           console.log(`Telegram bot @${botInfo.username} connected (long-polling)`);
         },
       });
       void polling.catch((error: unknown) => {
+        if (this.isStopped) return;
+        const message = toErrorMessage(error);
+        if (/401|unauthorized|token/i.test(message)) {
+          this.lifecycle.transition('needs_auth', 'invalid_auth');
+        } else if (/409|conflict/i.test(message)) {
+          this.lifecycle.transition('disconnected', 'conflict');
+          this.scheduleConflictRetry();
+        } else {
+          this.lifecycle.transition('disconnected', 'network');
+        }
         this.onPollingError(error);
       });
-    }
+  }
+
+  private scheduleConflictRetry(): void {
+    if (this.isStopped || this.reconnectTimer) return;
+    this.reconnectAttempt += 1;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = undefined;
+      this.startPolling();
+    }, this.reconnectPolicy.delay(this.reconnectAttempt));
+    this.reconnectTimer.unref?.();
   }
 
   async stop(): Promise<void> {
+    this.isStopped = true;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = undefined;
+    this.lifecycle.stop();
     if (this.bot) {
       await this.bot.stop();
     }
+  }
+
+  getLifecycleStatus(): ChannelLifecycleStatus {
+    return this.lifecycle.status();
+  }
+
+  onStatusChange(listener: ChannelStatusListener): void {
+    this.lifecycle.onChange(listener);
   }
 
   onReply(callback: ReplyCallback): void {

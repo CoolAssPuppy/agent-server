@@ -146,6 +146,72 @@ describe('TelegramChannel', () => {
     });
   });
 
+  it('retries a terminal polling conflict with bounded backoff', async () => {
+    vi.useFakeTimers();
+    try {
+      const bot = {
+        start: vi.fn()
+          .mockRejectedValueOnce(new Error('409 Conflict'))
+          .mockReturnValueOnce(new Promise<void>(() => {})),
+        stop: vi.fn().mockResolvedValue(undefined),
+      };
+      const channel = new TelegramChannel({
+        api: {
+          sendMessage: vi.fn().mockResolvedValue({ message_id: 42 }),
+          answerCallbackQuery: vi.fn().mockResolvedValue(true),
+        },
+        bot,
+        onPollingError: vi.fn(),
+      });
+
+      await channel.start();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(channel.getLifecycleStatus()).toMatchObject({
+        state: 'disconnected',
+        error_code: 'conflict',
+      });
+      await vi.advanceTimersByTimeAsync(999);
+      expect(bot.start).toHaveBeenCalledOnce();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(bot.start).toHaveBeenCalledTimes(2);
+      await channel.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('reports invalid credentials without scheduling a retry', async () => {
+    vi.useFakeTimers();
+    try {
+      const bot = {
+        start: vi.fn().mockRejectedValue(new Error('401 Unauthorized')),
+        stop: vi.fn().mockResolvedValue(undefined),
+      };
+      const channel = new TelegramChannel({
+        api: {
+          sendMessage: vi.fn().mockResolvedValue({ message_id: 42 }),
+          answerCallbackQuery: vi.fn().mockResolvedValue(true),
+        },
+        bot,
+        onPollingError: vi.fn(),
+      });
+
+      await channel.start();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(channel.getLifecycleStatus()).toMatchObject({
+        state: 'needs_auth',
+        error_code: 'invalid_auth',
+      });
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(bot.start).toHaveBeenCalledOnce();
+      await channel.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('sends a message with inline keyboard for option requests', async () => {
     const { channel, mockApi } = makeChannel();
     await channel.send('int-1', optionsRequest);

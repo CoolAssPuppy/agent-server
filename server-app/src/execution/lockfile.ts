@@ -1,4 +1,14 @@
-import { existsSync, readFileSync, writeFileSync, unlinkSync, mkdirSync, openSync, closeSync } from 'fs';
+import {
+  closeSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readdirSync,
+  unlinkSync,
+  writeFileSync,
+} from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { toErrorMessage } from '../util/errors.js';
@@ -126,4 +136,24 @@ export function isLocked(lockDir: string, agentId: string): boolean {
   }
 
   return true;
+}
+
+/** Removes only stale regular lock files before external triggers are admitted. */
+export function reconcileStaleLocks(lockDir: string): string[] {
+  if (!existsSync(lockDir)) return [];
+  const removed: string[] = [];
+  for (const name of readdirSync(lockDir)) {
+    if (!name.endsWith('.lock')) continue;
+    const path = join(lockDir, name);
+    try {
+      if (!lstatSync(path).isFile()) continue;
+      const lockData = readLockData(path);
+      if (lockData && isProcessAlive(lockData.pid)) continue;
+      unlinkSync(path);
+      removed.push(name);
+    } catch {
+      // Another process may reconcile or replace the lock concurrently.
+    }
+  }
+  return removed;
 }

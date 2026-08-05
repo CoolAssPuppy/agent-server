@@ -602,6 +602,86 @@ describe('startServer production composition', { timeout: 20_000 }, () => {
     }
   });
 
+  it('keeps the API and Slack available when Telegram setup fails', async () => {
+    const context = await createTestServerContext('isolated-channel-failure-server', {
+      AGENT_SERVER_TELEGRAM_BOT_TOKEN: 'invalid-telegram-test-token',
+      AGENT_SERVER_SLACK_BOT_TOKEN: 'slack-bot-test-token',
+      AGENT_SERVER_SLACK_APP_TOKEN: 'slack-app-test-token',
+    });
+    const slack = createFakeChatChannel('slack', 'D123');
+    createTelegramChannel.mockRejectedValueOnce(new Error('invalid token'));
+    createSlackChannel.mockResolvedValueOnce(slack);
+    const server = startServer(context.config, { store: new RunStore() });
+
+    try {
+      await server.ready;
+      expect(slack.start).toHaveBeenCalledOnce();
+      const health = await fetch(`http://127.0.0.1:${context.port}/health`);
+      expect(health.status).toBe(200);
+    } finally {
+      await server.stop();
+      rmSync(context.home, { recursive: true, force: true });
+    }
+  });
+
+  it('removes stale locks before the server reports ready', async () => {
+    const context = await createTestServerContext('stale-lock-reconciliation-server');
+    mkdirSync(context.config.lockDir, { recursive: true });
+    const staleLock = join(context.config.lockDir, 'stale.lock');
+    const liveLock = join(context.config.lockDir, 'live.lock');
+    writeFileSync(staleLock, 'not-a-lock', 'utf8');
+    writeFileSync(liveLock, JSON.stringify({ pid: process.pid, token: 'live' }), 'utf8');
+    const server = startServer(context.config, { store: new RunStore() });
+
+    try {
+      await server.ready;
+      expect(() => readFileSync(staleLock, 'utf8')).toThrow();
+      expect(readFileSync(liveLock, 'utf8')).toContain(String(process.pid));
+    } finally {
+      await server.stop();
+      rmSync(context.home, { recursive: true, force: true });
+    }
+  });
+
+  it('uses the stable machine identity for cross-process panel cleanup', async () => {
+    const panelUrl = 'https://stable-worker.example.com';
+    const context = await createTestServerContext('stable-worker-server', {
+      AGENT_SERVER_PANEL_URL: panelUrl,
+      AGENT_SERVER_PANEL_API_KEY: 'panel-test-key',
+    });
+    const localFetch = globalThis.fetch.bind(globalThis);
+    const cleanupBodies: unknown[] = [];
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+      if (!url.startsWith(panelUrl)) return localFetch(input, init);
+      if (url === `${panelUrl}/api/runs/cleanup`) {
+        cleanupBodies.push(JSON.parse(String(init?.body)));
+        return new Response(JSON.stringify({ cleaned: 0 }), { status: 200 });
+      }
+      if (url === `${panelUrl}/api/agent-server/realtime-token`) {
+        return new Response('{}', { status: 503 });
+      }
+      return new Response('{}', { status: 200 });
+    });
+    const server = startServer(context.config, { store: new RunStore() });
+
+    try {
+      await server.ready;
+      const machineId = readFileSync(join(context.home, 'machine-id'), 'utf8').trim();
+      await waitForIntegration(() => {
+        expect(cleanupBodies).toContainEqual({ worker_id: machineId });
+      });
+    } finally {
+      await server.stop();
+      fetchSpy.mockRestore();
+      rmSync(context.home, { recursive: true, force: true });
+    }
+  });
+
   it('answers Telegram capability and unmatched-message queries', async () => {
     const context = await createTestServerContext('telegram-routing-server', {
       AGENT_SERVER_TELEGRAM_BOT_TOKEN: 'telegram-test-token',

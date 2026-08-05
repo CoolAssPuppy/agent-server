@@ -9,6 +9,12 @@ import type { Channel, ChannelReply, ReplyCallback } from './channel.js';
 import { formatSlackNotification } from './slack-formatter.js';
 import { sanitizeText } from '../server/security-utils.js';
 import { toErrorMessage } from '../util/errors.js';
+import {
+  ChannelLifecycle,
+  type ChannelLifecycleState,
+  type ChannelLifecycleStatus,
+  type ChannelStatusListener,
+} from './lifecycle.js';
 
 /**
  * Thin seam over the Slack Web API so the channel logic is testable without a
@@ -31,6 +37,7 @@ type SlackChannelOptions = {
   onSocketError?: (error: unknown) => void;
   persistChannelId?: (channelId: string) => Promise<void>;
   resolveOpenUrl?: () => Promise<string | undefined>;
+  validateCredentials?: () => Promise<void>;
 };
 
 export type SlackPairingStatus = {
@@ -120,7 +127,8 @@ export class SlackChannel implements Channel {
   private onSocketError: (error: unknown) => void;
   private persistChannelId: ((channelId: string) => Promise<void>) | undefined;
   private resolveOpenUrl: (() => Promise<string | undefined>) | undefined;
-  private transportState: 'starting' | 'connected' | 'error';
+  private lifecycle = new ChannelLifecycle('slack');
+  private validateCredentials: (() => Promise<void>) | undefined;
 
   constructor(options: SlackChannelOptions) {
     this.api = options.api;
@@ -128,7 +136,8 @@ export class SlackChannel implements Channel {
     this.socket = options.socket;
     this.persistChannelId = options.persistChannelId;
     this.resolveOpenUrl = options.resolveOpenUrl;
-    this.transportState = options.socket ? 'starting' : 'connected';
+    this.validateCredentials = options.validateCredentials;
+    if (!options.socket) this.lifecycle.transition('connected');
     this.onSocketError = options.onSocketError ?? ((error) => {
       const message = toErrorMessage(error);
       console.error(`[slack] Socket Mode error: ${message}`);
@@ -138,18 +147,33 @@ export class SlackChannel implements Channel {
   async start(): Promise<void> {
     if (this.socket) {
       try {
+        await this.validateCredentials?.();
         await this.socket.start();
-        this.transportState = 'connected';
+        this.lifecycle.transition('connected');
         console.log('Slack bot connected (Socket Mode)');
       } catch (error) {
-        this.transportState = 'error';
+        const isAuthError = /auth|token/i.test(toErrorMessage(error));
+        this.lifecycle.transition(isAuthError ? 'needs_auth' : 'disconnected', isAuthError ? 'invalid_auth' : 'network');
         this.onSocketError(error);
       }
     }
   }
 
   async stop(): Promise<void> {
+    this.lifecycle.stop();
     if (this.socket) await this.socket.disconnect();
+  }
+
+  getLifecycleStatus(): ChannelLifecycleStatus {
+    return this.lifecycle.status();
+  }
+
+  onStatusChange(listener: ChannelStatusListener): void {
+    this.lifecycle.onChange(listener);
+  }
+
+  handleTransportState(state: Extract<ChannelLifecycleState, 'starting' | 'connected' | 'reconnecting' | 'disconnected'>): void {
+    this.lifecycle.transition(state);
   }
 
   onReply(callback: ReplyCallback): void {
@@ -190,9 +214,12 @@ export class SlackChannel implements Channel {
     } catch {
       openUrl = undefined;
     }
-    if (this.transportState !== 'connected') {
+    const transportState = this.lifecycle.status().state;
+    if (transportState !== 'connected') {
       return {
-        state: this.transportState,
+        state: transportState === 'starting' || transportState === 'reconnecting'
+          ? 'starting'
+          : 'error',
         ...(openUrl ? { open_url: openUrl } : {}),
         can_open_slack: openUrl !== undefined,
         can_test: this.channelId !== undefined,
@@ -378,6 +405,7 @@ export async function createSlackChannel(
     channelId,
     persistChannelId: (nextChannelId) => saveChannelId(options.channelIdPath, nextChannelId),
     resolveOpenUrl,
+    validateCredentials: async () => { await resolveOpenUrl(); },
     socket: {
       start: async () => {
         await socket.start();
@@ -385,6 +413,11 @@ export async function createSlackChannel(
       disconnect: () => socket.disconnect(),
     },
   });
+
+  socket.on('connecting', () => channel.handleTransportState('starting'));
+  socket.on('connected', () => channel.handleTransportState('connected'));
+  socket.on('reconnecting', () => channel.handleTransportState('reconnecting'));
+  socket.on('disconnected', () => channel.handleTransportState('disconnected'));
 
   // Learn (and persist) the DM channel the first time the user writes to the bot.
   const pairChannel = async (ch: string): Promise<void> => {

@@ -2079,13 +2079,12 @@ Review:
 - [x] Coalesce restart requests and defer them while runs are active.
 - [x] Verify restart completion using a new `started_at` and the required API version.
 - [x] Present Running, Restart pending, Restarting, Failed, and Offline states in the macOS app.
-- [ ] Expose truthful Slack and Telegram lifecycle states without duplicating provider retry logic.
-- [ ] Isolate optional channel failures from API, scheduler, and other channel startup.
-- [ ] Reconcile stale locks before schedules and external triggers begin.
-- [ ] Use stable machine ownership for cross-process panel cleanup.
-- [ ] Persist pending interactions atomically and restore or expire them on startup.
-- [ ] Run focused deterministic tests, static checks, Swift tests, app build, and bounded composition tests.
-- [ ] Record final behavior, verification, and remaining operational limits.
+- [x] Expose truthful Slack and Telegram lifecycle states without duplicating provider retry logic.
+- [x] Isolate optional channel failures from API, scheduler, and other channel startup.
+- [x] Reconcile stale locks before schedules and external triggers begin.
+- [x] Use stable machine ownership for cross-process panel cleanup.
+- [x] Run focused deterministic tests, static checks, Swift tests, app build, and bounded composition tests.
+- [x] Record final behavior, verification, and remaining operational limits.
 
 Constraints:
 
@@ -2097,4 +2096,10 @@ Constraints:
 
 Review:
 
-- Pending implementation.
+- Restart requests now wait for active work, coalesce repeated requests, and prove that a compatible replacement process has a new `started_at` before reporting success.
+- Shutdown gives admitted runs time to finish, preserves channels through terminal reporting, applies one stable cancellation reason after grace expires, and gives the daemon enough time before forced termination.
+- Slack reports native Socket Mode transitions. Telegram reports polling state and retries only terminal 409 conflicts because grammY owns transient network recovery. One unavailable channel no longer blocks the API, scheduler, or another channel.
+- Startup removes malformed and dead regular lock files before trigger admission. Panel cleanup and run telemetry use the workspace machine identity so the next process can reconcile work owned by the prior process.
+- Status output contains only channel state, pairing presence, and stable error codes. It never includes tokens, destination IDs, or raw provider errors.
+- Pending interaction persistence remains separate from this bounded lifecycle milestone. Pending requests still live in memory and are lost on a process restart.
+- Verification passed with 171 focused channel, lock, and API tests; 27 run-lifecycle tests; three startup reconciliation and isolation composition tests; one active-run production composition test; strict TypeScript checking; ESLint; the server build; 549 Swift tests; and an unsigned Debug app build.

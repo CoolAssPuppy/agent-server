@@ -47,6 +47,7 @@ import {
 } from './security-utils.js';
 import { AGENT_SERVER_VERSION } from '../version.js';
 import type { SlackPairingStatus } from '../channels/slack.js';
+import type { ChannelLifecycleStatus } from '../channels/lifecycle.js';
 
 type EnvSource = Record<string, string | undefined>;
 const LOCAL_API_VERSION = 12;
@@ -135,6 +136,7 @@ type ApiDependencies = {
   >;
   /** Machine-local Slack notification destination and live transport state. */
   slackPairing?: SlackPairingSource;
+  channelStatuses?: () => ChannelLifecycleStatus[];
   /** Optional local security analysis and configuration patch routes. */
   analysisApi?: Hono;
   /** Optional local guided creation and debugger routes. */
@@ -951,6 +953,10 @@ export function createApi(deps: ApiDependencies): Hono {
       console.error(`[api] Connection refresh failed: ${sanitizeText(String(err), 300)}`);
       return c.json(deps.connections.get());
     }
+  });
+
+  app.get('/channels', (c) => {
+    return c.json({ channels: deps.channelStatuses?.() ?? [] });
   });
 
   // Back-compat alias for older clients that expect `{ servers }`.

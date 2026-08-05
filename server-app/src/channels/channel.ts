@@ -1,5 +1,6 @@
 import type { InteractionRequest } from '../interaction/schema.js';
 import type { NotificationData } from '../interaction/notification.js';
+import type { ChannelLifecycleStatus, ChannelStatusListener } from './lifecycle.js';
 
 export type ChannelReply = {
   interactionId: string;
@@ -17,4 +18,6 @@ export interface Channel {
   notify(data: NotificationData): Promise<number | undefined>;
   onReply(callback: ReplyCallback): void;
   expireInteraction?(interactionId: string): Promise<void>;
+  getLifecycleStatus?(): ChannelLifecycleStatus;
+  onStatusChange?(listener: ChannelStatusListener): void;
 }

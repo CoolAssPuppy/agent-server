@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { mkdirSync, rmSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { acquireLock, releaseLock, isLocked } from './lockfile.js';
+import { acquireLock, releaseLock, isLocked, reconcileStaleLocks } from './lockfile.js';
 
 function createTempDir(): string {
   const dir = join(tmpdir(), `lock-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -88,6 +88,20 @@ describe('lockfile', () => {
       const lockPath = join(lockDir, 'test-agent.lock');
       writeFileSync(lockPath, '999999999', 'utf-8');
       expect(isLocked(lockDir, 'test-agent')).toBe(false);
+    });
+  });
+
+  describe('startup reconciliation', () => {
+    it('removes dead and malformed locks while preserving live locks and unrelated files', () => {
+      lockDir = createTempDir();
+      writeFileSync(join(lockDir, 'dead.lock'), '999999999', 'utf-8');
+      writeFileSync(join(lockDir, 'malformed.lock'), 'not-json', 'utf-8');
+      writeFileSync(join(lockDir, 'live.lock'), JSON.stringify({ pid: process.pid }), 'utf-8');
+      writeFileSync(join(lockDir, 'notes.txt'), 'keep', 'utf-8');
+
+      expect(reconcileStaleLocks(lockDir).sort()).toEqual(['dead.lock', 'malformed.lock']);
+      expect(readFileSync(join(lockDir, 'live.lock'), 'utf-8')).toContain(String(process.pid));
+      expect(readFileSync(join(lockDir, 'notes.txt'), 'utf-8')).toBe('keep');
     });
   });
 });

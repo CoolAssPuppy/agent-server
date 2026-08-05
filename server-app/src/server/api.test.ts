@@ -1717,6 +1717,31 @@ describe('API routes', () => {
     });
   });
 
+  describe('channel lifecycle status', () => {
+    it('returns sanitized channel states without destinations or provider errors', async () => {
+      const app = createApi({
+        getAgents: async () => [],
+        store,
+        triggerRun,
+        channelStatuses: () => [
+          { channel: 'telegram', state: 'connected', destination: 'paired' },
+          { channel: 'slack', state: 'needs_auth', destination: 'unpaired', error_code: 'invalid_auth' },
+        ],
+      });
+
+      const response = await authenticatedRequest(app, '/channels');
+      const body = await response.json() as Record<string, unknown>;
+
+      expect(response.status).toBe(200);
+      expect(body).toEqual({ channels: [
+        { channel: 'telegram', state: 'connected', destination: 'paired' },
+        { channel: 'slack', state: 'needs_auth', destination: 'unpaired', error_code: 'invalid_auth' },
+      ] });
+      expect(JSON.stringify(body)).not.toContain('D0');
+      expect(JSON.stringify(body)).not.toContain('token');
+    });
+  });
+
   describe('agent write routes', () => {
     function createWriterApp(writer: Partial<import('../agents/writer.js').AgentWriter>) {
       return createApi({

@@ -1,6 +1,6 @@
 import { serve } from '@hono/node-server';
 import { createNodeWebSocket } from '@hono/node-ws';
-import { hostname, homedir } from 'os';
+import { homedir } from 'os';
 import { join } from 'path';
 import { accessSync, constants } from 'fs';
 import type { ServerConfig } from '../platform/config.js';
@@ -21,6 +21,7 @@ import type { RunStoreLike } from '../reporting/store.js';
 import { RunStore } from '../reporting/store.js';
 import { SqliteRunStore } from '../reporting/sqlite-store.js';
 import { failOrphanedLocalRuns } from '../reporting/local-reconcile.js';
+import { reconcileStaleLocks } from '../execution/lockfile.js';
 import { probeMcpServers } from '../plugins/claude-code.js';
 import { createDefaultExecutorRegistry } from '../execution/default-executors.js';
 import { discoverRuntimePaths } from '../execution/runtime-discovery.js';
@@ -38,7 +39,7 @@ import { InteractionStore } from '../interaction/store.js';
 import { ConversationStore } from '../conversation/store.js';
 import { formatConversationHistory } from '../conversation/history-formatter.js';
 import type { InteractionRequest } from '../interaction/schema.js';
-import { createTelegramChannel } from '../channels/telegram.js';
+import { createTelegramChannel, type TelegramChannel } from '../channels/telegram.js';
 import { createSlackChannel, type SlackChannel } from '../channels/slack.js';
 import { formatAgentListMessage, type NotificationData } from '../interaction/notification.js';
 import { routeMessage } from '../channels/router.js';
@@ -288,15 +289,20 @@ export function startServer(
 
   const startedAt = new Date().toISOString();
   const machineId = loadOrCreateMachineId(config.workspaceDir);
-  const serverId = `${hostname()}-${process.pid}`;
+  const workerId = machineId;
   const panelClient = createPanelClient(config);
 
   const analytics = options?.analytics ?? createNoopAnalytics();
   const store = options?.store ?? createRunStore(config.runDbPath);
+  const reconciledLocks = reconcileStaleLocks(config.lockDir);
+  if (reconciledLocks.length > 0) {
+    console.log(`[startup] Removed ${reconciledLocks.length} stale lock(s)`);
+  }
   const interactionStore = new InteractionStore();
   const conversationStore = new ConversationStore();
   const channelDispatcher = new ChannelDispatcher();
   let slackChannel: SlackChannel | undefined;
+  let telegramChannel: TelegramChannel | undefined;
   const port = config.port;
   const backgroundTasks = new Set<Promise<void>>();
   let isStopping = false;
@@ -491,7 +497,7 @@ export function startServer(
       ),
     ),
     createReporter: (runId, name, conversationId, agent) => createReporter(config, runId, name, {
-      serverId,
+      serverId: workerId,
       conversationId,
       agentTelemetry: agent.telemetry,
     }),
@@ -725,7 +731,7 @@ export function startServer(
     },
     cancelRun,
     cleanupFn: panelClient
-      ? () => panelClient.failOrphanedRuns(serverId)
+      ? () => panelClient.failOrphanedRuns(workerId)
       : undefined,
     getPendingDecisions: realtimeClient
       ? () => realtimeClient.getPendingDecisions()
@@ -760,6 +766,26 @@ export function startServer(
         await slackChannel.sendTestMessage();
       },
     },
+    channelStatuses: () => [
+      config.telegramBotToken
+        ? {
+            ...(telegramChannel?.getLifecycleStatus?.() ?? {
+              channel: 'telegram' as const,
+              state: 'starting' as const,
+            }),
+            destination: telegramChannel?.getChatId() ? 'paired' as const : 'unpaired' as const,
+          }
+        : { channel: 'telegram', state: 'not_configured' },
+      config.slackBotToken && config.slackAppToken
+        ? {
+            ...(slackChannel?.getLifecycleStatus?.() ?? {
+              channel: 'slack' as const,
+              state: 'starting' as const,
+            }),
+            destination: slackChannel?.getChannelId() ? 'paired' as const : 'unpaired' as const,
+          }
+        : { channel: 'slack', state: 'not_configured' },
+    ],
     apiKey,
     machineId,
     assistantHomeFacts: async (agent, allAgents) => {
@@ -851,7 +877,7 @@ export function startServer(
   }
 
   if (panelClient) {
-    void panelClient.failOrphanedRuns(serverId)
+    void panelClient.failOrphanedRuns(workerId)
       .then((cleaned) => {
         if (cleaned > 0) {
           console.log(`[startup] Cleaned up ${cleaned} orphaned run(s) from previous server instance`);
@@ -1073,7 +1099,7 @@ export function startServer(
         channel,
         reason: classifyErrorReason(error),
       });
-      throw error;
+      console.warn(`[${channel}] Channel unavailable: ${classifyErrorReason(error)}`);
     }
   }
 
@@ -1084,32 +1110,46 @@ export function startServer(
     }
 
     const chatIdPath = join(config.agentsDir, '..', 'telegram.json');
-    const telegramChannel = await createTelegramChannel({
+    const channel = await createTelegramChannel({
       botToken: config.telegramBotToken,
       chatIdPath,
       allowedChatId: config.telegramAllowedChatId,
     });
 
-    telegramChannel.onReply((reply) => handleInteractionReply('telegram', reply));
+    telegramChannel = channel;
+    channel.onReply((reply) => handleInteractionReply('telegram', reply));
 
-    telegramChannel.onMessage((text) => {
-      const chatId = telegramChannel.getChatId();
+    channel.onMessage((text) => {
+      const chatId = channel.getChatId();
       if (!chatId) return;
       startBackgroundTask(
         () => handleChannelMessage(text, {
           channelName: 'telegram',
           chatKey: chatId,
-          notifyText: (m) => telegramChannel.notifyText(m),
-          notify: (d) => telegramChannel.notify(d),
+          notifyText: (m) => channel.notifyText(m),
+          notify: (d) => channel.notify(d),
         }),
         (error) => console.error(`[telegram] Message routing failed: ${toErrorMessage(error)}`),
       );
     });
 
-    channelDispatcher.register(telegramChannel);
-    await telegramChannel.start();
-    analytics.capture(ANALYTICS_EVENTS.channelConnected, { channel: 'telegram' });
-    console.log('  Telegram: connected');
+    channelDispatcher.register(channel);
+    channel.onStatusChange?.((status) => {
+      if (status.state === 'connected') {
+        analytics.capture(ANALYTICS_EVENTS.channelConnected, { channel: 'telegram' });
+      } else if (status.state === 'needs_auth' || status.state === 'disconnected') {
+        analytics.capture(ANALYTICS_EVENTS.channelFailed, {
+          channel: 'telegram',
+          reason: status.error_code ?? status.state,
+        });
+      }
+    });
+    await channel.start();
+    const telegramState = channel.getLifecycleStatus?.().state ?? 'connected';
+    if (!channel.onStatusChange && telegramState === 'connected') {
+      analytics.capture(ANALYTICS_EVENTS.channelConnected, { channel: 'telegram' });
+    }
+    console.log(`  Telegram: ${telegramState}`);
   }
 
   async function setupSlack(): Promise<void> {
@@ -1143,9 +1183,22 @@ export function startServer(
     });
 
     channelDispatcher.register(channel);
+    channel.onStatusChange?.((status) => {
+      if (status.state === 'connected') {
+        analytics.capture(ANALYTICS_EVENTS.channelConnected, { channel: 'slack' });
+      } else if (status.state === 'needs_auth' || status.state === 'disconnected') {
+        analytics.capture(ANALYTICS_EVENTS.channelFailed, {
+          channel: 'slack',
+          reason: status.error_code ?? status.state,
+        });
+      }
+    });
     await channel.start();
-    analytics.capture(ANALYTICS_EVENTS.channelConnected, { channel: 'slack' });
-    console.log('  Slack: connected');
+    const slackState = channel.getLifecycleStatus?.().state ?? 'connected';
+    if (!channel.onStatusChange && slackState === 'connected') {
+      analytics.capture(ANALYTICS_EVENTS.channelConnected, { channel: 'slack' });
+    }
+    console.log(`  Slack: ${slackState}`);
   }
 
   const expireStaleState = (): void => {

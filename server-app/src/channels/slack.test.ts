@@ -238,4 +238,17 @@ describe('SlackChannel', () => {
       can_test: true,
     });
   });
+
+  it('tracks native reconnect events and ignores late events after stop', async () => {
+    const channel = new SlackChannel({ api: makeApi().api });
+
+    channel.handleTransportState('reconnecting');
+    expect(channel.getLifecycleStatus().state).toBe('reconnecting');
+    channel.handleTransportState('connected');
+    expect(channel.getLifecycleStatus().state).toBe('connected');
+    await channel.stop();
+    channel.handleTransportState('connected');
+
+    expect(channel.getLifecycleStatus().state).toBe('stopped');
+  });
 });
