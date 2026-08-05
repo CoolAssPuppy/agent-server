@@ -1,5 +1,37 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Version 3.4.5 release
+
+- [x] Stop asking for Claude account setup from an engine that cannot use it.
+- [x] Diagnose the manuscript file check, which turned out to be a true report.
+- [x] Point the manuscript agent at the real Drive path in the brain repo.
+- [x] Run the canonical release pipeline for version 3.4.5, then commit and push main.
+- [ ] Confirm on the affected machine that every agent reads healthy.
+
+Review:
+
+- Account connectors belong to the Claude runtime, and `buildServiceRegistry`
+  builds none when an agent selects another engine.`accountConnectionFacts` read
+  the agent's tool rules regardless, found no registry entry, fell back to the
+  bare server label, and reported needing setup. Switching one agent to Codex
+  therefore badged it for a connector that engine can never use, and no action
+  could have cleared it. The reader now matches the registry and reports no
+  account checks for a non-Claude engine.
+- The remaining file check was correct. `~/My Drive` is a convenience symlink
+  Google Drive for Desktop creates on some Macs and not others; one laptop had
+  it and the other did not, so the path resolved here and not there. The agent
+  now uses the real `Library/CloudStorage` path, which resolves on both. That
+  agent had never been able to hash the manuscript on the affected machine, so
+  its runs there were silent no-ops.
+- Four badge reports in this sequence, four different causes, one shape: a check
+  asserting more than its evidence supports. The exception was the last one,
+  which was true, and treating it as another false badge cost time. Confirm a
+  check is wrong before fixing the check.
+- Verified: `tsc --noEmit` on both configs, 122 test files, 1584 tests passed,
+  4 skipped. Released as 3.4.5 build 43, notarized, stapled, Sparkle-signed, and
+  live on the update feed, with the appcast, immutable download, and latest
+  alias all agreeing at 19,594,353 bytes.
+
 ## Version 3.4.4 release
 
 - [x] Read an agent's own inline MCP server instead of a catalog entry sharing its name.
