@@ -1,7 +1,7 @@
 import type { AgentConfig } from '../agents/config.js';
 import { mcpServerKey } from '../agents/capabilities.js';
 import type { RuntimePaths } from '../execution/runtime-discovery.js';
-import type { ServiceConnection, ServiceRegistry } from '../services/registry.js';
+import { inlineConnectionId, type ServiceConnection, type ServiceRegistry } from '../services/registry.js';
 import type {
   AssistantConnectionFact,
   AssistantHomeFacts,
@@ -61,11 +61,18 @@ function configuredInlineFacts(
   agent: AgentConfig,
   registry: ServiceRegistry,
 ): AssistantConnectionFact[] {
-  return Object.keys(agent.mcp_servers ?? {}).flatMap((runtimeName): AssistantConnectionFact[] => {
+  return Object.entries(agent.mcp_servers ?? {}).flatMap(([runtimeName, config]): AssistantConnectionFact[] => {
     if (agent.connection_bindings?.[runtimeName]) return [];
-    const connection = registry.connections
+    const bound = registry.connections
       .filter((candidate) => registry.bindings.get(candidate.id)?.serverName === runtimeName)
-      .sort((left, right) => left.id.localeCompare(right.id))[0];
+      .sort((left, right) => left.id.localeCompare(right.id));
+    // The catalog holds a placeholder for every known service, bound to the
+    // same server name an agent may choose. For an OAuth service that
+    // placeholder is permanently "needs setup", so preferring it over the
+    // connection built from this agent's own entry reports a working server as
+    // unconfigured. Ask the registry which connection is this agent's.
+    const ownId = inlineConnectionId(runtimeName, config);
+    const connection = bound.find((candidate) => candidate.id === ownId) ?? bound[0];
     return [{
       id: connection?.id ?? `inline:${runtimeName}`,
       label: connection?.name ?? runtimeName.replaceAll(/[-_]+/g, ' '),

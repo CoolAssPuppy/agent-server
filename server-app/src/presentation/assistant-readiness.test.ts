@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { makeAgent } from '../test-factories.js';
-import type { ServiceRegistry } from '../services/registry.js';
+import { inlineConnectionId, type ServiceRegistry } from '../services/registry.js';
 import { createAssistantHomePresentation } from './assistant-home.js';
 import { collectAssistantHomeFacts } from './assistant-readiness.js';
 
@@ -185,6 +185,54 @@ describe('Assistant readiness facts', () => {
       label: 'Reports connection',
       status: 'needs_setup',
       sourceReference: 'agent.mcp_servers.reports',
+    }]);
+  });
+
+  it('reads the agent\'s own inline server, not a catalog entry sharing its name', () => {
+    // The catalog carries a placeholder for every known service, bound to the
+    // same server name an agent may use. It is an OAuth service, so it can
+    // never read as ready from local evidence alone. Picking it over the
+    // connection built from this agent's own configuration reports a working
+    // server as unconfigured.
+    const config = { type: 'sse' as const, url: 'https://mcp.linear.app/sse' };
+    const ownId = inlineConnectionId('linear', config);
+    const connections: ServiceRegistry['connections'] = [{
+      id: 'catalog:linear',
+      service_id: 'linear',
+      name: 'Linear',
+      source: 'configured_api',
+      status: 'needs_setup',
+      actions: ['read', 'write'],
+      actions_known: true,
+      required_env: [],
+    }, {
+      id: ownId,
+      service_id: 'linear',
+      name: 'Linear connection',
+      source: 'mcp',
+      status: 'connected',
+      actions: ['read', 'write'],
+      actions_known: true,
+      required_env: [],
+    }];
+    const facts = collectAssistantHomeFacts({
+      agent: makeAgent({ mcp_servers: { linear: config } }),
+      runtimePaths: { claudeExecutablePath: '/usr/local/bin/claude' },
+      registry: registry({
+        connections,
+        bindings: new Map([
+          ['catalog:linear', { serverName: 'linear', config }],
+          [ownId, { serverName: 'linear', config }],
+        ]),
+      }),
+      inspectPath: () => ({ exists: true, readable: true, writable: true }),
+    });
+
+    expect(facts.connections).toEqual([{
+      id: ownId,
+      label: 'Linear connection',
+      status: 'unknown',
+      sourceReference: 'agent.mcp_servers.linear',
     }]);
   });
 

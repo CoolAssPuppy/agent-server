@@ -84,7 +84,13 @@ function stableDigest(value: unknown): string {
     .slice(0, 16);
 }
 
-function configurationId(serverName: string, config: McpServerConfig): string {
+/**
+ * The registry's id for the connection built from one agent's own
+ * `mcp_servers` entry. Exported so a reader can pick that connection out of the
+ * registry exactly, rather than guessing among every connection that happens to
+ * share the server name.
+ */
+export function inlineConnectionId(serverName: string, config: McpServerConfig): string {
   const digest = stableDigest({ serverName, config });
   return `mcp:${safeIdentifier(serverName) || 'connection'}:${digest}`;
 }
@@ -175,7 +181,7 @@ function configuredAgentConnections(
   for (const agent of agents) {
     for (const [serverName, config] of Object.entries(agent.mcp_servers ?? {})) {
       if (!isReusableConfiguration(serverName, config, environment)) continue;
-      const id = configurationId(serverName, config);
+      const id = inlineConnectionId(serverName, config);
       if (candidates.has(id)) continue;
       const definition = configuredDefinition(config);
       const actions = definition ? (CATALOG_ACTIONS[definition.id] ?? []) : [];
