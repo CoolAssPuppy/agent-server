@@ -1,5 +1,37 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Version 3.4.3 release
+
+- [x] Diagnose why agents still read "Needs attention" on the full-time server after 3.4.2.
+- [x] Fix the MCP discovery probe so it waits for account connectors to attach.
+- [x] Run the canonical release pipeline for version 3.4.3, then commit and push main.
+- [ ] Confirm on the affected machine that `/connections` reports the full connector list.
+
+Review:
+
+- 3.4.2 fixed the readiness rules, but one machine still badged every agent. The
+  cause was earlier in the chain: `probeMcpServers` stopped polling as soon as no
+  server was pending, and the Claude runtime attaches claude.ai connectors after
+  the first `mcpServerStatus()` read. A read that landed early saw only the
+  injected eventkit server, found nothing pending, and cached a one-server
+  answer, so `accountConnections` reported Notion, Slack, Linear, Gmail, and Hex
+  as needing setup while they were connected.
+- The probe now treats a result as settled only when nothing is pending and the
+  server set has stopped changing between reads. The attempt ceiling is
+  unchanged, so a slow connector still cannot hang the probe. The common case
+  costs one extra 500ms read, once, on the first connections read after start.
+- The machine that showed the bug loses this race; the machine that did not, wins
+  it. The fix was verified against the exact status sequence from the affected
+  machine's logs, not against that machine.
+- Known and unfixed: `runtimeStatus` maps a `pending` connector to `needs_setup`
+  (`services/registry.ts:257`). If the settling window ever closes while a
+  connector is still connecting, the false badge returns. "Still connecting" is
+  unprovable and should stay out of the badge, which needs a new state on
+  `ServiceConnectionStatus` and reaches the API and the Swift decoder.
+- Verified: `tsc --noEmit` on both configs, 122 test files, 1580 tests passed,
+  4 skipped. Released as 3.4.3 build 41, notarized, stapled, Sparkle-signed, and
+  live on the update feed.
+
 ## Version 3.4.2 release
 
 - [x] Fix the Assistant home badge reading "Needs attention" for every agent.
