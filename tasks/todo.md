@@ -1,5 +1,28 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Version 3.4.2 release
+
+- [x] Fix the Assistant home badge reading "Needs attention" for every agent.
+- [x] Run the canonical release pipeline for version 3.4.2 with release text "Bug fixes".
+- [x] Verify tests, type checking, signing, notarization, stapling, Sparkle metadata, immutable download, latest alias, and the live feed.
+- [x] Install and launch the released app, verify local API health and per-agent readiness, then commit and push main.
+
+Review:
+
+- Two defects made every agent read "Needs attention". Engine sign-in cannot be
+  proven before a run, so the engine readiness check could never pass and any
+  unknown check demoted the whole agent. Readiness now reports only what is
+  known to be wrong, and unknown checks list apart from blockers.
+- Account connectors are keyed by runtime display name ("claude.ai Notion")
+  while tool rules carry the sanitized spelling ("claude_ai_Notion"), so Notion,
+  Slack, Linear, and Gmail read as needing setup while connected. Both sides now
+  compare through `mcpServerKey`.
+- The suite stayed green because the test factory fabricated an engine
+  authentication value the real collector cannot produce. A test now drives the
+  actual collector end to end.
+- Verified on the installed 3.4.2 build: all seven local agents report healthy
+  (or paused, for the one that is disabled) with "Run now".
+
 ## Version 3.4.1 release
 
 - [ ] Confirm main is clean, the live feed is version 3.4.0 build 38, and release credentials and tools are available.
