@@ -1039,13 +1039,17 @@ describe('MCP server status handling', () => {
 
 describe('Claude connection discovery', () => {
   it('uses the installed Claude Code runtime that owns the local sign-in', async () => {
+    vi.useFakeTimers();
     const { probeMcpServers } = await import('./claude-code.js');
     mockMcpServerStatus.mockResolvedValue([
       { name: 'claude.ai Notion', status: 'connected' },
     ]);
     mockQuery.mockReturnValue(createAsyncGenerator([]));
 
-    const servers = await probeMcpServers('/Users/test/.local/bin/claude');
+    const pending = probeMcpServers('/Users/test/.local/bin/claude');
+    await vi.advanceTimersByTimeAsync(5000);
+    const servers = await pending;
+    vi.useRealTimers();
 
     expect(servers).toEqual([{ name: 'claude.ai Notion', status: 'connected' }]);
     expect(mockQuery).toHaveBeenCalledWith(expect.objectContaining({
@@ -1055,21 +1059,45 @@ describe('Claude connection discovery', () => {
     }));
   });
 
+  it('waits for account connectors that register after the first status read', async () => {
+    vi.useFakeTimers();
+    const { probeMcpServers } = await import('./claude-code.js');
+    // The first read can land before the runtime has attached the claude.ai
+    // connectors, so it shows only the locally injected server and nothing
+    // pending. Stopping there caches an empty account list and makes every
+    // agent read as needing setup.
+    mockMcpServerStatus
+      .mockResolvedValueOnce([{ name: 'eventkit', status: 'connected' }])
+      .mockResolvedValueOnce([
+        { name: 'eventkit', status: 'connected' },
+        { name: 'claude.ai Notion', status: 'connected' },
+      ]);
+    mockQuery.mockReturnValue(createAsyncGenerator([]));
+
+    const result = probeMcpServers('/Users/test/.local/bin/claude');
+    await vi.advanceTimersByTimeAsync(5000);
+
+    await expect(result).resolves.toEqual([
+      { name: 'eventkit', status: 'connected' },
+      { name: 'claude.ai Notion', status: 'connected' },
+    ]);
+    vi.useRealTimers();
+  });
+
   it('waits briefly for pending MCP connections to settle', async () => {
     vi.useFakeTimers();
     const { probeMcpServers } = await import('./claude-code.js');
     mockMcpServerStatus
       .mockResolvedValueOnce([{ name: 'claude.ai Notion', status: 'pending' }])
-      .mockResolvedValueOnce([{ name: 'claude.ai Notion', status: 'connected' }]);
+      .mockResolvedValue([{ name: 'claude.ai Notion', status: 'connected' }]);
     mockQuery.mockReturnValue(createAsyncGenerator([]));
 
     const result = probeMcpServers('/Users/test/.local/bin/claude');
-    await vi.advanceTimersByTimeAsync(500);
+    await vi.advanceTimersByTimeAsync(5000);
 
     await expect(result).resolves.toEqual([
       { name: 'claude.ai Notion', status: 'connected' },
     ]);
-    expect(mockMcpServerStatus).toHaveBeenCalledTimes(2);
     vi.useRealTimers();
   });
 

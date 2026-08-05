@@ -595,14 +595,13 @@ export async function probeMcpServers(claudeExecutablePath?: string): Promise<Mc
       status: status.status,
       error: status.error,
     }));
-    for (
-      let attempt = 0;
-      attempt < MCP_PROBE_SETTLE_ATTEMPTS && servers.some(({ status }) => status === 'pending');
-      attempt += 1
-    ) {
+    for (let attempt = 0; attempt < MCP_PROBE_SETTLE_ATTEMPTS; attempt += 1) {
       await delay(MCP_PROBE_SETTLE_INTERVAL_MS);
       const refreshed = await fetchMcpStatus(stream);
-      if (refreshed.length > 0) servers = refreshed;
+      const next = refreshed.length > 0 ? refreshed : servers;
+      const settled = isSettled(servers, next);
+      servers = next;
+      if (settled) break;
     }
     try { abortController.abort(); } catch { /* ignore */ }
     return servers;
@@ -610,6 +609,20 @@ export async function probeMcpServers(claudeExecutablePath?: string): Promise<Mc
     try { abortController.abort(); } catch { /* ignore */ }
     throw error;
   }
+}
+
+/**
+ * A probe result is settled once nothing is still connecting AND the set of
+ * servers has stopped changing between reads. Waiting only on `pending` is not
+ * enough: the runtime attaches account connectors after the first status read,
+ * so an early read can look complete while showing only locally injected
+ * servers, and the connectors it has not listed yet would read as absent.
+ */
+function isSettled(previous: McpServerInfo[], next: McpServerInfo[]): boolean {
+  if (next.some(({ status }) => status === 'pending')) return false;
+  if (previous.length !== next.length) return false;
+  const before = new Map(previous.map((server) => [server.name, server.status]));
+  return next.every((server) => before.get(server.name) === server.status);
 }
 
 async function fetchMcpStatus(stream: Query): Promise<McpServerInfo[]> {
