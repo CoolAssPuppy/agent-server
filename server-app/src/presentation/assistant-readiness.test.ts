@@ -188,6 +188,24 @@ describe('Assistant readiness facts', () => {
     }]);
   });
 
+  it('does not demand account connector setup from an engine that cannot use one', () => {
+    // Only Claude Code carries claude.ai account connectors, so the registry
+    // builds none for another engine. Left-over account tool rules are inert
+    // under Codex, and reporting them as unset up demands setup that no action
+    // could ever complete.
+    const facts = collectAssistantHomeFacts({
+      agent: makeAgent({
+        executor: 'codex',
+        tools: ['Read', 'mcp__claude_ai_Name_Parallel_Search_MCP'],
+      }),
+      runtimePaths: { codexExecutablePath: '/opt/homebrew/bin/codex' },
+      registry: registry(),
+      inspectPath: () => ({ exists: true, readable: true, writable: true }),
+    });
+
+    expect(facts.connections).toEqual([]);
+  });
+
   it('does not call a path missing when the check was refused', () => {
     // macOS refuses a protected volume without asking, and a background daemon
     // can never be asked. Refusal proves nothing about the file, so it cannot

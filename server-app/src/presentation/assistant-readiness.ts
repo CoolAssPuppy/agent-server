@@ -100,6 +100,11 @@ function accountConnectionFacts(
   agent: AgentConfig,
   registry: ServiceRegistry,
 ): AssistantConnectionFact[] {
+  // Account connectors belong to the Claude runtime, and the registry builds
+  // none for another engine. Under Codex or Kimi Code a left-over account tool
+  // rule is inert, so reporting it as unset up demands setup that no action
+  // could complete.
+  if ((agent.executor ?? 'claude-code') !== 'claude-code') return [];
   return accountRules(agent).map(({ serverName, sourceReference }) => {
     // A connector's runtime name is its display name ("claude.ai Notion"),
     // while a tool rule carries the sanitized spelling ("claude_ai_Notion").
