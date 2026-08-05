@@ -6,6 +6,24 @@
     <description>Agent Server updates</description>
     <language>en</language>
     <item>
+      <title>Version 3.4.5</title>
+      <pubDate>Wed, 05 Aug 2026 12:13:00 +0000</pubDate>
+      <sparkle:version>43</sparkle:version>
+      <sparkle:shortVersionString>3.4.5</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>An agent using Codex or Kimi Code no longer asks you to set up Claude account connections it cannot use.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.4.5.dmg"
+        sparkle:edSignature="Aeh3dOZWElYjKA8neSq5QZkepjTSMQFdPQtB1Qwojao97C3cfwXkX30K42IEPjFJ2uWsLd3/vFANFI/cw3eCCQ=="
+        length="19594353"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
       <title>Version 3.4.4</title>
       <pubDate>Wed, 05 Aug 2026 11:16:48 +0000</pubDate>
       <sparkle:version>42</sparkle:version>
