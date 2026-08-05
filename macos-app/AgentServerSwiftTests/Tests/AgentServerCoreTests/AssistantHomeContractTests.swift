@@ -87,6 +87,13 @@ final class AssistantHomeContractTests: XCTestCase {
         )
     }
 
+    static func makeDeferredHome() throws -> AssistantHomeContract {
+        try JSONDecoder().decode(
+            AssistantHomeContract.self,
+            from: Data(deferredFixture.utf8)
+        )
+    }
+
     private static let readyFixture = """
     {
       "generatedAt": "2026-08-02T10:00:00.000Z",
@@ -170,6 +177,43 @@ final class AssistantHomeContractTests: XCTestCase {
         "connectionIds": ["notion-personal"]
       },
       "advancedReference": "/agents/weekly-report"
+    }
+    """
+
+    private static let deferredFixture = """
+    {
+      "assistant": {"installationId":"m:a","machineId":"m","localAgentId":"a","displayName":"Daily Focus"},
+      "purpose": {"text":"Writes the daily focus note.","evidenceReferences":["agent.description"]},
+      "health": {
+        "state":"healthy",
+        "summary":{"text":"Ready and available.","evidenceReferences":["readiness.state"]},
+        "reasonReferences":["agent.enabled","readiness.state"]
+      },
+      "readiness": {
+        "state":"ready",
+        "summary":{"text":"Ready to run.","evidenceReferences":["readiness.checks"]},
+        "checks":[
+          {
+            "kind":"engine",
+            "state":"unknown",
+            "explanation":{"text":"AI engine sign-in will be checked when this agent runs.","evidenceReferences":["runtime.authentication"]},
+            "evidenceSource":"runtime.authentication"
+          },
+          {
+            "kind":"schedule",
+            "state":"pass",
+            "explanation":{"text":"The automatic schedule is valid.","evidenceReferences":["agent.schedule"]},
+            "evidenceSource":"agent.schedule"
+          }
+        ]
+      },
+      "schedule":{"kind":"scheduled","summary":{"text":"Runs every day at 7:00 AM.","evidenceReferences":["agent.schedule"]}},
+      "permissions":[],
+      "connections":[],
+      "recentOutcomes":[],
+      "primaryAction":{"kind":"run","label":"Run now","targetReference":"assistant:a"},
+      "secondaryActions":[],
+      "advancedReference":"/agents/a"
     }
     """
 

@@ -113,7 +113,9 @@ ReadinessCheck
 Rules:
 
 - Use deterministic checks already supported by Server.
-- Unknown must remain Unknown. It cannot become Ready.
+- Unknown must remain Unknown. A check reported as unknown is never rewritten as a pass.
+- The aggregate state answers one question: is anything known to be wrong? Only `fail` and `action_required` checks change it. A check that can be settled only while the agent runs, such as engine sign-in, a result destination, or a connection with no local probe, stays unknown in the check list and leaves the agent Ready. Demoting on unknown reported every agent as unready, because no local probe can prove engine sign-in before a run.
+- Clients list unknown checks apart from blockers so a Ready agent does not read as a broken one.
 - Panel may display the last reported readiness with its timestamp but cannot calculate local readiness independently.
 - A safe test is offered only when the selected executor and effect policy can enforce it.
 - Agent Server supplies safe-test availability during proposal review and on Assistant home. Clients never recreate the executor support matrix.

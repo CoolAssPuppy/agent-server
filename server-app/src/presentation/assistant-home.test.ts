@@ -11,7 +11,7 @@ const NOW = new Date('2026-08-02T10:00:00.000Z');
 
 function makeFacts(overrides: Partial<AssistantHomeFacts> = {}): AssistantHomeFacts {
   return {
-    engine: { runtimeAvailable: true, authentication: 'verified' },
+    engine: { runtimeAvailable: true, authentication: 'unknown' },
     paths: [],
     connections: [],
     canEnforceSafeTest: false,
@@ -106,7 +106,7 @@ describe('Assistant home presentation', () => {
     });
   });
 
-  it('keeps unknown engine sign-in and destination checks unavailable', () => {
+  it('keeps unknown engine sign-in and destination checks out of the way of a ready agent', () => {
     const agent = makeAgent({
       id: 'publisher',
       schedule: undefined,
@@ -124,14 +124,38 @@ describe('Assistant home presentation', () => {
       }),
     });
 
-    expect(presentation.readiness.state).toBe('unavailable');
+    expect(presentation.readiness.state).toBe('ready');
     expect(presentation.readiness.checks).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: 'engine', state: 'unknown' }),
       expect.objectContaining({ kind: 'destination', state: 'unknown' }),
     ]));
+    expect(presentation.health.state).toBe('healthy');
+    expect(presentation.primaryAction).toMatchObject({ kind: 'run', label: 'Run now' });
+    expect(presentation.secondaryActions.map(({ kind }) => kind)).not.toContain('safe_test');
+  });
+
+  it('still asks for setup when a check the Mac can prove is not satisfied', () => {
+    const agent = makeAgent({ id: 'publisher', schedule: undefined });
+    const presentation = createAssistantHomePresentation({
+      machineId: MACHINE_ID,
+      agent,
+      runs: [],
+      pendingInteractions: [],
+      now: NOW,
+      facts: makeFacts({
+        engine: { runtimeAvailable: true, authentication: 'unknown' },
+        connections: [{
+          id: 'mcp:reports',
+          label: 'Reports',
+          status: 'needs_setup',
+          sourceReference: 'agent.mcp_servers.reports',
+        }],
+      }),
+    });
+
+    expect(presentation.readiness.state).toBe('needs_setup');
     expect(presentation.health.state).toBe('needs_attention');
     expect(presentation.primaryAction).toMatchObject({ kind: 'edit', label: 'Finish setup' });
-    expect(presentation.secondaryActions.map(({ kind }) => kind)).not.toContain('safe_test');
   });
 
   it('reports deterministic blockers and makes the current request primary', () => {

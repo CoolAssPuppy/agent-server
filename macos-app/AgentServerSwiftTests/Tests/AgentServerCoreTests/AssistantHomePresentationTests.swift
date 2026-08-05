@@ -29,9 +29,25 @@ final class AssistantHomePresentationTests: XCTestCase {
         XCTAssertEqual(presentation.health.label, "Needs attention")
         XCTAssertEqual(presentation.readinessLabel, "Readiness could not be verified")
         XCTAssertNil(presentation.primaryAction)
-        XCTAssertEqual(presentation.blockingChecks.count, 1)
+        XCTAssertTrue(presentation.blockingChecks.isEmpty)
+        XCTAssertEqual(presentation.deferredChecks.count, 1)
         XCTAssertTrue(presentation.passedChecks.isEmpty)
         XCTAssertTrue(presentation.permissionLines.isEmpty)
+    }
+
+    func testChecksSettledDuringTheRunAreListedApartFromBlockers() throws {
+        let presentation = AssistantHomePresentation(
+            contract: try AssistantHomeContractTests.makeDeferredHome()
+        )
+
+        XCTAssertEqual(presentation.health.label, "Healthy")
+        XCTAssertEqual(presentation.readinessLabel, "Ready")
+        XCTAssertTrue(presentation.blockingChecks.isEmpty)
+        XCTAssertEqual(
+            presentation.deferredChecks.map(\.explanation.text),
+            ["AI engine sign-in will be checked when this agent runs."]
+        )
+        XCTAssertEqual(presentation.passedChecks.count, 1)
     }
 
     func testRecentOutcomesAreNewestFirstWithoutRewritingTheirEvidence() throws {

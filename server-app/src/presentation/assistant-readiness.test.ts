@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { makeAgent } from '../test-factories.js';
 import type { ServiceRegistry } from '../services/registry.js';
+import { createAssistantHomePresentation } from './assistant-home.js';
 import { collectAssistantHomeFacts } from './assistant-readiness.js';
 
 const PROFILE_ID = '11111111-1111-4111-8111-111111111111';
+const MACHINE_ID = '1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99';
 
 function registry(overrides: Partial<ServiceRegistry> = {}): ServiceRegistry {
   return {
@@ -184,5 +186,63 @@ describe('Assistant readiness facts', () => {
       status: 'needs_setup',
       sourceReference: 'agent.mcp_servers.reports',
     }]);
+  });
+
+  it('matches an account connector whose runtime name is not the tool rule spelling', () => {
+    const accountID = 'runtime:claude.ai%20Notion';
+    const connections: ServiceRegistry['connections'] = [{
+      id: accountID,
+      service_id: 'notion',
+      name: 'Notion (Claude account)',
+      source: 'account',
+      status: 'connected',
+      actions: ['read', 'write'],
+      actions_known: true,
+      required_env: [],
+    }];
+    const facts = collectAssistantHomeFacts({
+      agent: makeAgent({ tools: ['Read', 'mcp__claude_ai_Notion'] }),
+      runtimePaths: { claudeExecutablePath: '/usr/local/bin/claude' },
+      registry: registry({
+        connections,
+        bindings: new Map([[accountID, { serverName: 'claude.ai Notion' }]]),
+      }),
+      inspectPath: () => ({ exists: true, readable: true, writable: true }),
+    });
+
+    expect(facts.connections).toEqual([{
+      id: accountID,
+      label: 'Notion (Claude account)',
+      status: 'ready',
+      sourceReference: 'agent.tools',
+    }]);
+  });
+
+  it('presents a healthy agent from the facts this Mac can actually collect', () => {
+    const agent = makeAgent({
+      id: 'daily-focus',
+      schedule: '0 7 * * *',
+      working_directory: '/Users/person/Notes',
+      output: { primary: { description: 'Daily focus note', tool: 'Write' } },
+    });
+    const facts = collectAssistantHomeFacts({
+      agent,
+      runtimePaths: { claudeExecutablePath: '/usr/local/bin/claude' },
+      registry: registry(),
+      inspectPath: () => ({ exists: true, readable: true, writable: true }),
+    });
+
+    const presentation = createAssistantHomePresentation({
+      machineId: MACHINE_ID,
+      agent,
+      runs: [],
+      pendingInteractions: [],
+      now: new Date('2026-08-02T10:00:00.000Z'),
+      facts,
+    });
+
+    expect(presentation.readiness.state).toBe('ready');
+    expect(presentation.health.state).toBe('healthy');
+    expect(presentation.primaryAction).toMatchObject({ kind: 'run', label: 'Run now' });
   });
 });

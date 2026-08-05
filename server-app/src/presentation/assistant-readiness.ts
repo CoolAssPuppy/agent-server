@@ -1,4 +1,5 @@
 import type { AgentConfig } from '../agents/config.js';
+import { mcpServerKey } from '../agents/capabilities.js';
 import type { RuntimePaths } from '../execution/runtime-discovery.js';
 import type { ServiceConnection, ServiceRegistry } from '../services/registry.js';
 import type {
@@ -93,10 +94,16 @@ function accountConnectionFacts(
   registry: ServiceRegistry,
 ): AssistantConnectionFact[] {
   return accountRules(agent).map(({ serverName, sourceReference }) => {
-    const entry = registry.connections.find((connection) => (
-      connection.source === 'account'
-      && registry.bindings.get(connection.id)?.serverName === serverName
-    ));
+    // A connector's runtime name is its display name ("claude.ai Notion"),
+    // while a tool rule carries the sanitized spelling ("claude_ai_Notion").
+    // Compare on the same key the registry uses, or every connector with a
+    // space or dot in its name reads as unconnected.
+    const entry = registry.connections.find((connection) => {
+      const binding = registry.bindings.get(connection.id)?.serverName;
+      return connection.source === 'account'
+        && binding !== undefined
+        && mcpServerKey(binding) === mcpServerKey(serverName);
+    });
     return {
       id: entry?.id ?? `account:${serverName}`,
       label: entry?.name ?? serverName.replace(/^claude_ai_/, '').replaceAll('_', ' '),

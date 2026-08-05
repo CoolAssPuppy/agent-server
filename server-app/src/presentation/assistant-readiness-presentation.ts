@@ -157,10 +157,16 @@ function destinationChecks(input: AssistantHomeInput): ReadinessCheck[] {
   }];
 }
 
+/**
+ * Readiness answers one question: is anything known to be wrong? A check that
+ * can only be settled while the agent runs (engine sign-in, a result
+ * destination, a connection with no local probe) is reported as unknown and
+ * stays out of this answer. Demoting on unknown marked every agent as unready,
+ * because no local probe can prove engine sign-in before a run.
+ */
 function readinessState(checks: readonly ReadinessCheck[]): ReadinessPresentation['state'] {
   if (checks.some((check) => check.state === 'fail')) return 'blocked';
   if (checks.some((check) => check.state === 'action_required')) return 'needs_setup';
-  if (checks.some((check) => check.state === 'unknown')) return 'unavailable';
   return 'ready';
 }
 

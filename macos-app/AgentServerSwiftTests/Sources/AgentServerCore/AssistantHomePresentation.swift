@@ -21,6 +21,7 @@ struct AssistantHomePresentation: Equatable, Sendable {
     let health: AssistantHomeHealthPresentation
     let primaryAction: PresentationAction?
     let blockingChecks: [AssistantReadinessCheck]
+    let deferredChecks: [AssistantReadinessCheck]
     let passedChecks: [AssistantReadinessCheck]
     let permissionLines: [AssistantPermissionLine]
     let recentOutcomes: [AssistantRecentOutcome]
@@ -43,7 +44,15 @@ struct AssistantHomePresentation: Equatable, Sendable {
         self.contract = contract
         health = Self.healthPresentation(for: contract.health.state)
         primaryAction = contract.primaryAction.kind == .unknown ? nil : contract.primaryAction
-        blockingChecks = contract.readiness.checks.filter { $0.state != .pass }
+        blockingChecks = contract.readiness.checks.filter {
+            $0.state == .fail || $0.state == .actionRequired
+        }
+        deferredChecks = contract.readiness.checks.filter {
+            switch $0.state {
+            case .pass, .fail, .actionRequired: false
+            case .unknownValue, .unknown: true
+            }
+        }
         passedChecks = contract.readiness.checks.filter { $0.state == .pass }
         permissionLines = contract.permissions.compactMap(Self.permissionLine)
         recentOutcomes = contract.recentOutcomes.enumerated()

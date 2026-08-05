@@ -25,6 +25,13 @@ struct AssistantHomeReadinessSection: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
+            ForEach(Array(presentation.deferredChecks.enumerated()), id: \.offset) { _, check in
+                Label(check.explanation.text, systemImage: check.state.symbol)
+                    .font(NTypography.bodySmall)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             if !presentation.passedChecks.isEmpty {
                 DisclosureGroup("\(presentation.passedChecks.count) checks passed") {
                     VStack(alignment: .leading, spacing: NSpacing.xs) {
