@@ -2024,3 +2024,48 @@ Agent Server 3.3.1 build 34 passed 1,343 server tests with 4 expected skips, 473
 Agent Server 3.3.2 build 35 retains the Claude and Codex JavaScript SDK adapters but removes their optional platform executable packages. The notarized Release app is 95 MB and its DMG is 18 MB, down from 619 MB and 193 MB in 3.3.1. Missing Claude or Codex installations now fail before SDK execution with direct setup guidance, and obsolete Settings choices for bundled fallbacks are gone.
 
 Verification passed with 1,348 server tests and 4 expected skips, 473 Swift tests, 49 release-contract tests, strict TypeScript checking, ESLint, the server build, and fresh Debug and Release app builds. Apple accepted app submission `6a570139-ae2d-43ba-8012-99aa938a769d` and DMG submission `f5b8d71a-07d4-42fe-b8ad-da9f3db2c541`; both tickets were stapled and validated. The live appcast reports version 3.3.2 build 35 with “Bug fixes”. The notarized app is installed, healthy on API version 12, and resolves Claude, Codex, and Kimi from their installed paths. Temporary archives, exports, build products, and the recoverable installation backup were removed. Spotlight returns only `/Applications/Agent Server.app`.
+# Slack posting failure
+
+- [x] Inspect Slack configuration, active process, logs, and notification call path.
+- [x] Reproduce the failure from the live runtime state and completion logs.
+- [x] Confirm the intended recovery path does not require a code change.
+- [x] Record the root cause and verification results.
+
+Constraints:
+
+- Do not expose Slack tokens or other secret values in logs or output.
+- Preserve successful agent execution and unrelated channel behavior.
+
+Review:
+
+- The running bundled server loaded both Slack credentials and established its Socket Mode connection.
+- `~/.agent-server/slack.json` is absent, so the server has no DM destination for scheduled notifications.
+- Successful Daily Portuguese and French and Daily Focus runs were followed immediately by `Slack: no channel configured. DM the bot first to pair it.`
+- Sending the bot one direct message updates the channel in memory and persists `slack.json`; a restart is not required.
+- No production files changed, so code tests, lint, type-check, and build were not applicable.
+
+# Guided Slack pairing
+
+- [x] Define consumer pairing states and write failing server behavior tests.
+- [x] Add authenticated local APIs for pairing status and destination updates.
+- [x] Update the live Slack channel when a destination is saved, without a restart.
+- [x] Write failing macOS presentation and client tests.
+- [x] Add a guided “Open Slack” pairing sheet with automatic readiness polling.
+- [x] Add an advanced channel-ID fallback and explicit test-message action.
+- [x] Run focused tests, lint, type-check, server build, Swift tests, and the macOS app build.
+- [x] Record the design and verification results.
+
+Constraints:
+
+- Keep Slack tokens and destination IDs out of consumer status responses and logs.
+- Make the server the sole owner of `slack.json`.
+- Preserve Telegram and account-level Slack MCP behavior.
+- Do not require a server restart after pairing.
+
+Review:
+
+- Connections now shows Slack setup, pairing, error, and ready states from the running server instead of inferring readiness from token presence.
+- The guided sheet opens the bot conversation in Slack, waits for the first direct message, offers a DM-ID migration fallback, and sends an explicit test message.
+- The server writes `slack.json` atomically with owner-only permissions and updates the live destination without exposing it through the local API.
+- Socket Mode failures remain visible as connection errors, and users can return to credential editing from the pairing sheet.
+- Verification passed for the focused Slack server tests, server lint, strict TypeScript checks, server build, all 545 Swift tests, and an unsigned Debug app build.

@@ -23,6 +23,10 @@ struct ConnectionsView: View {
     @State private var isAddingConnection = false
     @State private var telegramConnected = false
     @State private var slackMessagingConnected = false
+    @State private var slackPairingStatus: SlackPairingStatus = .notConfigured
+    @State private var isShowingSlackPairing = false
+    @State private var shouldOpenSlackPairingAfterCredentials = false
+    @State private var shouldOpenSlackCredentialsAfterPairing = false
     @State private var navigation = ConnectionPanelNavigationState()
     @State private var showsConnectionTemplates = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -112,6 +116,7 @@ struct ConnectionsView: View {
             telegramConnected = Self.isConnected(Self.telegramTokenKey)
             slackMessagingConnected = Self.isConnected(Self.slackBotTokenKey)
                 && Self.isConnected(Self.slackAppTokenKey)
+            slackPairingStatus = await monitor.slackPairingStatus()
             // The boot probe may still be in flight the first time this opens,
             // so a fresh install shows "Checking…". Await it once — the server
             // cache coalesces, so this joins the in-flight probe rather than
@@ -122,15 +127,40 @@ struct ConnectionsView: View {
                 refreshing = false
             }
         }
-        .sheet(item: $connectTarget) { target in
+        .sheet(item: $connectTarget, onDismiss: {
+            guard shouldOpenSlackPairingAfterCredentials else { return }
+            shouldOpenSlackPairingAfterCredentials = false
+            isShowingSlackPairing = true
+        }) { target in
             ConnectServiceSheet(monitor: monitor, entry: target.entry) {
+                let didSaveSlackCredentials = target.entry.id == slackMessagingEntry.id
                 connectTarget = nil
                 telegramConnected = Self.isConnected(Self.telegramTokenKey)
                 slackMessagingConnected = Self.isConnected(Self.slackBotTokenKey)
                     && Self.isConnected(Self.slackAppTokenKey)
+                if didSaveSlackCredentials && slackMessagingConnected {
+                    slackPairingStatus = .starting
+                    shouldOpenSlackPairingAfterCredentials = true
+                }
                 Task { catalog = await monitor.capabilityCatalog() }
                 Task { registeredServices = await monitor.serviceConnections() }
             }
+        }
+        .sheet(isPresented: $isShowingSlackPairing, onDismiss: {
+            guard shouldOpenSlackCredentialsAfterPairing else { return }
+            shouldOpenSlackCredentialsAfterPairing = false
+            connectTarget = CatalogConnectTarget(entry: slackMessagingEntry)
+        }) {
+            SlackPairingSheet(
+                monitor: monitor,
+                initialStatus: slackPairingStatus,
+                onStatusChange: { slackPairingStatus = $0 },
+                onEditCredentials: {
+                    shouldOpenSlackCredentialsAfterPairing = true
+                    isShowingSlackPairing = false
+                },
+                onDone: { isShowingSlackPairing = false }
+            )
         }
         .sheet(isPresented: $isAddingConnection) {
             GenericConnectionSetupSheet(monitor: monitor) { profile in
@@ -450,13 +480,19 @@ struct ConnectionsView: View {
                     connectTarget = CatalogConnectTarget(entry: telegramEntry)
                 }
                 Divider().opacity(0.25)
-                ConnectionRow(entry: slackMessagingEntry) {
-                    connectTarget = CatalogConnectTarget(entry: slackMessagingEntry)
+                SlackConnectionRow(
+                    presentation: SlackPairingPresentation(status: slackPairingStatus)
+                ) {
+                    if slackPairingStatus.state == .notConfigured {
+                        connectTarget = CatalogConnectTarget(entry: slackMessagingEntry)
+                    } else {
+                        isShowingSlackPairing = true
+                    }
                 }
             }
 
-            if telegramConnected || slackMessagingConnected {
-                pairingHint
+            if telegramConnected {
+                telegramPairingHint
             }
         }
     }
@@ -464,13 +500,13 @@ struct ConnectionsView: View {
     /// Shown once a messaging bot token is saved: the bot only learns where to
     /// reach you from your first message, so an unpaired bot silently drops its
     /// first notification. This tells the user to close that loop.
-    private var pairingHint: some View {
+    private var telegramPairingHint: some View {
         HStack(alignment: .top, spacing: NSpacing.sm) {
             Image(systemName: "hand.wave")
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(theme.tokens.accent)
                 .frame(width: 18)
-            Text("One more step: send your bot a message (a quick \u{201C}hi\u{201D}) so it learns where to reach you. Until you do, its first notification has nowhere to go.")
+            Text("To finish Telegram setup, open the bot and send /start so it learns where to reach you.")
                 .font(NTypography.caption)
                 .foregroundStyle(theme.tokens.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)

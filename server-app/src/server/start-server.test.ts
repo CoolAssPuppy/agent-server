@@ -73,6 +73,7 @@ async function createTestServerContext(
 }
 
 function createFakeChatChannel(name: 'telegram' | 'slack', identity: number | string | undefined) {
+  let currentIdentity = identity;
   let messageCallback: ((text: string) => void) | undefined;
   let replyCallback: ((reply: {
     interactionId: string;
@@ -93,8 +94,15 @@ function createFakeChatChannel(name: 'telegram' | 'slack', identity: number | st
     onReply(callback: typeof replyCallback) {
       replyCallback = callback;
     },
-    getChatId: () => typeof identity === 'number' ? identity : undefined,
-    getChannelId: () => typeof identity === 'string' ? identity : undefined,
+    getChatId: () => typeof currentIdentity === 'number' ? currentIdentity : undefined,
+    getChannelId: () => typeof currentIdentity === 'string' ? currentIdentity : undefined,
+    getPairingStatus: vi.fn(async () => typeof currentIdentity === 'string'
+      ? { state: 'ready', can_open_slack: true, can_test: true }
+      : { state: 'needs_pairing', can_open_slack: false, can_test: false }),
+    pair: vi.fn(async (channelId: string) => {
+      currentIdentity = channelId;
+    }),
+    sendTestMessage: vi.fn().mockResolvedValue(undefined),
     emitMessage(text: string) {
       messageCallback?.(text);
     },
@@ -552,6 +560,40 @@ describe('startServer production composition', { timeout: 20_000 }, () => {
       await server.ready;
       expect(telegram.start).toHaveBeenCalledOnce();
       expect(slack.start).toHaveBeenCalledOnce();
+
+      const pairingResponse = await fetch(
+        `http://127.0.0.1:${context.port}/channels/slack/pairing`,
+        { headers: { Authorization: `Bearer ${API_KEY}` } },
+      );
+      expect(await pairingResponse.json()).toEqual({
+        state: 'ready',
+        can_open_slack: true,
+        can_test: true,
+      });
+
+      const saveResponse = await fetch(
+        `http://127.0.0.1:${context.port}/channels/slack/pairing`,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ channel_id: 'D0BK0NF46AU' }),
+        },
+      );
+      expect(saveResponse.status).toBe(200);
+      expect(slack.pair).toHaveBeenCalledWith('D0BK0NF46AU');
+
+      const testResponse = await fetch(
+        `http://127.0.0.1:${context.port}/channels/slack/pairing/test`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${API_KEY}` },
+        },
+      );
+      expect(testResponse.status).toBe(200);
+      expect(slack.sendTestMessage).toHaveBeenCalledOnce();
     } finally {
       await server.stop();
       expect(telegram.stop).toHaveBeenCalledOnce();

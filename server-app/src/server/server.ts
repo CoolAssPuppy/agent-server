@@ -39,7 +39,7 @@ import { ConversationStore } from '../conversation/store.js';
 import { formatConversationHistory } from '../conversation/history-formatter.js';
 import type { InteractionRequest } from '../interaction/schema.js';
 import { createTelegramChannel } from '../channels/telegram.js';
-import { createSlackChannel } from '../channels/slack.js';
+import { createSlackChannel, type SlackChannel } from '../channels/slack.js';
 import { formatAgentListMessage, type NotificationData } from '../interaction/notification.js';
 import { routeMessage } from '../channels/router.js';
 import { randomUUID } from 'crypto';
@@ -294,6 +294,7 @@ export function startServer(
   const interactionStore = new InteractionStore();
   const conversationStore = new ConversationStore();
   const channelDispatcher = new ChannelDispatcher();
+  let slackChannel: SlackChannel | undefined;
   const port = config.port;
   const backgroundTasks = new Set<Promise<void>>();
   let isStopping = false;
@@ -737,6 +738,26 @@ export function startServer(
       refresh: refreshConnections,
     },
     connectionProfiles: connectionProfileStore,
+    slackPairing: {
+      getStatus: async () => {
+        if (!config.slackBotToken || !config.slackAppToken) {
+          return { state: 'not_configured', can_open_slack: false, can_test: false };
+        }
+        if (!slackChannel) {
+          return { state: 'starting', can_open_slack: false, can_test: false };
+        }
+        return slackChannel.getPairingStatus();
+      },
+      pair: async (channelId) => {
+        if (!slackChannel) throw new Error('Slack is not ready');
+        await slackChannel.pair(channelId);
+        return slackChannel.getPairingStatus();
+      },
+      sendTestMessage: async () => {
+        if (!slackChannel) throw new Error('Slack is not ready');
+        await slackChannel.sendTestMessage();
+      },
+    },
     apiKey,
     machineId,
     assistantHomeFacts: async (agent, allAgents) => {
@@ -1096,30 +1117,31 @@ export function startServer(
     }
 
     const channelIdPath = join(config.agentsDir, '..', 'slack.json');
-    const slackChannel = await createSlackChannel({
+    const channel = await createSlackChannel({
       botToken: config.slackBotToken,
       appToken: config.slackAppToken,
       channelIdPath,
     });
+    slackChannel = channel;
 
-    slackChannel.onReply((reply) => handleInteractionReply('slack', reply));
+    channel.onReply((reply) => handleInteractionReply('slack', reply));
 
-    slackChannel.onMessage((text) => {
-      const channelId = slackChannel.getChannelId();
+    channel.onMessage((text) => {
+      const channelId = channel.getChannelId();
       if (!channelId) return;
       startBackgroundTask(
         () => handleChannelMessage(text, {
           channelName: 'slack',
           chatKey: chatKeyFromString(channelId),
-          notifyText: (m) => slackChannel.notifyText(m),
-          notify: (d) => slackChannel.notify(d),
+          notifyText: (m) => channel.notifyText(m),
+          notify: (d) => channel.notify(d),
         }),
         (error) => console.error(`[slack] Message routing failed: ${toErrorMessage(error)}`),
       );
     });
 
-    channelDispatcher.register(slackChannel);
-    await slackChannel.start();
+    channelDispatcher.register(channel);
+    await channel.start();
     analytics.capture(ANALYTICS_EVENTS.channelConnected, { channel: 'slack' });
     console.log('  Slack: connected');
   }

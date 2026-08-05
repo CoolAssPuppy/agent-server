@@ -159,11 +159,83 @@ describe('SlackChannel', () => {
     expect(channel.hasPendingInteraction('int-1')).toBe(false);
   });
 
-  it('pairs the channel id from the first incoming message', () => {
+  it('persists a manual destination before changing the live channel', async () => {
     const { api } = makeApi();
-    const channel = new SlackChannel({ api });
+    const persisted: string[] = [];
+    const channel = new SlackChannel({
+      api,
+      persistChannelId: async (channelId) => {
+        persisted.push(channelId);
+      },
+    });
     expect(channel.getChannelId()).toBeUndefined();
-    channel.setChannelId('D999');
-    expect(channel.getChannelId()).toBe('D999');
+
+    await channel.pair('D99999999');
+
+    expect(persisted).toEqual(['D99999999']);
+    expect(channel.getChannelId()).toBe('D99999999');
+  });
+
+  it('keeps the current destination when persistence fails', async () => {
+    const { api } = makeApi();
+    const channel = new SlackChannel({
+      api,
+      channelId: 'D11111111',
+      persistChannelId: vi.fn().mockRejectedValue(new Error('disk full')),
+    });
+
+    await expect(channel.pair('D22222222')).rejects.toThrow('disk full');
+    expect(channel.getChannelId()).toBe('D11111111');
+  });
+
+  it('returns an Open Slack URL while waiting for a destination', async () => {
+    const { api } = makeApi();
+    const channel = new SlackChannel({
+      api,
+      resolveOpenUrl: vi.fn().mockResolvedValue('slack://user?team=T123&id=U123'),
+    });
+
+    await expect(channel.getPairingStatus()).resolves.toEqual({
+      state: 'needs_pairing',
+      open_url: 'slack://user?team=T123&id=U123',
+      can_open_slack: true,
+      can_test: false,
+    });
+  });
+
+  it('sends an explicit test message only after pairing', async () => {
+    const unpairedApi = makeApi();
+    const unpaired = new SlackChannel({ api: unpairedApi.api });
+    await expect(unpaired.sendTestMessage()).rejects.toThrow('Slack destination is not configured');
+
+    const pairedApi = makeApi();
+    const paired = new SlackChannel({ api: pairedApi.api, channelId: 'D12345678' });
+    await paired.sendTestMessage();
+
+    expect(pairedApi.sent).toEqual([{
+      channel: 'D12345678',
+      text: 'Agent Server is connected to Slack.',
+      blocks: undefined,
+    }]);
+  });
+
+  it('reports a Socket Mode connection failure instead of claiming readiness', async () => {
+    const channel = new SlackChannel({
+      api: { postMessage: vi.fn() },
+      channelId: 'D0BK0NF46AU',
+      socket: {
+        start: vi.fn().mockRejectedValue(new Error('invalid app token')),
+        disconnect: vi.fn(),
+      },
+      onSocketError: vi.fn(),
+    });
+
+    await channel.start();
+
+    await expect(channel.getPairingStatus()).resolves.toEqual({
+      state: 'error',
+      can_open_slack: false,
+      can_test: true,
+    });
   });
 });

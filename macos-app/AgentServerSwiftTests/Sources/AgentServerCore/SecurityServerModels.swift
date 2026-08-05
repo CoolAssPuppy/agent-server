@@ -3,6 +3,7 @@ import Foundation
 public enum HTTPRequestMethod: String, Equatable, Sendable {
     case get = "GET"
     case post = "POST"
+    case put = "PUT"
 }
 
 public enum SecurityServerRoute: Equatable, Sendable {

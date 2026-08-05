@@ -1,5 +1,6 @@
-import { readFile, writeFile, mkdir } from 'fs/promises';
-import { dirname } from 'path';
+import { chmod, readFile, writeFile, mkdir, rename, unlink } from 'fs/promises';
+import { basename, dirname, join } from 'path';
+import { randomUUID } from 'crypto';
 import { WebClient } from '@slack/web-api';
 import { SocketModeClient } from '@slack/socket-mode';
 import type { InteractionRequest } from '../interaction/schema.js';
@@ -28,6 +29,15 @@ type SlackChannelOptions = {
   channelId?: string;
   socket?: { start: () => Promise<void>; disconnect: () => Promise<void> };
   onSocketError?: (error: unknown) => void;
+  persistChannelId?: (channelId: string) => Promise<void>;
+  resolveOpenUrl?: () => Promise<string | undefined>;
+};
+
+export type SlackPairingStatus = {
+  state: 'starting' | 'needs_pairing' | 'ready' | 'error';
+  open_url?: string;
+  can_open_slack: boolean;
+  can_test: boolean;
 };
 
 const ACTION_SEPARATOR = ':';
@@ -108,11 +118,17 @@ export class SlackChannel implements Channel {
   private lastPendingId: string | undefined;
   private socket: { start: () => Promise<void>; disconnect: () => Promise<void> } | undefined;
   private onSocketError: (error: unknown) => void;
+  private persistChannelId: ((channelId: string) => Promise<void>) | undefined;
+  private resolveOpenUrl: (() => Promise<string | undefined>) | undefined;
+  private transportState: 'starting' | 'connected' | 'error';
 
   constructor(options: SlackChannelOptions) {
     this.api = options.api;
     this.channelId = options.channelId;
     this.socket = options.socket;
+    this.persistChannelId = options.persistChannelId;
+    this.resolveOpenUrl = options.resolveOpenUrl;
+    this.transportState = options.socket ? 'starting' : 'connected';
     this.onSocketError = options.onSocketError ?? ((error) => {
       const message = toErrorMessage(error);
       console.error(`[slack] Socket Mode error: ${message}`);
@@ -123,8 +139,10 @@ export class SlackChannel implements Channel {
     if (this.socket) {
       try {
         await this.socket.start();
+        this.transportState = 'connected';
         console.log('Slack bot connected (Socket Mode)');
       } catch (error) {
+        this.transportState = 'error';
         this.onSocketError(error);
       }
     }
@@ -154,12 +172,52 @@ export class SlackChannel implements Channel {
     for (const cb of this.messageCallbacks) cb(safeText);
   }
 
-  setChannelId(channelId: string): void {
+  getChannelId(): string | undefined {
+    return this.channelId;
+  }
+
+  /** Persists a Slack destination before making it active for live notifications. */
+  async pair(channelId: string): Promise<void> {
+    await this.persistChannelId?.(channelId);
     this.channelId = channelId;
   }
 
-  getChannelId(): string | undefined {
-    return this.channelId;
+  /** Returns consumer pairing state without exposing the saved destination. */
+  async getPairingStatus(): Promise<SlackPairingStatus> {
+    let openUrl: string | undefined;
+    try {
+      openUrl = await this.resolveOpenUrl?.();
+    } catch {
+      openUrl = undefined;
+    }
+    if (this.transportState !== 'connected') {
+      return {
+        state: this.transportState,
+        ...(openUrl ? { open_url: openUrl } : {}),
+        can_open_slack: openUrl !== undefined,
+        can_test: this.channelId !== undefined,
+      };
+    }
+    if (this.channelId) {
+      return {
+        state: 'ready',
+        ...(openUrl ? { open_url: openUrl } : {}),
+        can_open_slack: openUrl !== undefined,
+        can_test: true,
+      };
+    }
+    return {
+      state: 'needs_pairing',
+      ...(openUrl ? { open_url: openUrl } : {}),
+      can_open_slack: openUrl !== undefined,
+      can_test: false,
+    };
+  }
+
+  /** Sends the fixed, user-requested confirmation message to the paired destination. */
+  async sendTestMessage(): Promise<void> {
+    if (!this.channelId) throw new Error('Slack destination is not configured');
+    await this.api.postMessage(this.channelId, 'Agent Server is connected to Slack.');
   }
 
   private hasChannel(): boolean {
@@ -256,7 +314,20 @@ async function loadChannelId(path: string): Promise<string | undefined> {
 
 async function saveChannelId(path: string, channelId: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, JSON.stringify({ channelId }), { encoding: 'utf-8', mode: 0o600 });
+  const temporaryPath = join(
+    dirname(path),
+    `.${basename(path)}.${process.pid}.${randomUUID()}.tmp`,
+  );
+  try {
+    await writeFile(temporaryPath, JSON.stringify({ channelId }), {
+      encoding: 'utf-8',
+      mode: 0o600,
+    });
+    await chmod(temporaryPath, 0o600);
+    await rename(temporaryPath, path);
+  } finally {
+    await unlink(temporaryPath).catch(() => {});
+  }
 }
 
 type CreateSlackChannelOptions = {
@@ -278,6 +349,18 @@ export async function createSlackChannel(
   const web = new WebClient(options.botToken);
   const socket = new SocketModeClient({ appToken: options.appToken });
   const channelId = await loadChannelId(options.channelIdPath);
+  let openUrlPromise: Promise<string | undefined> | undefined;
+  const resolveOpenUrl = (): Promise<string | undefined> => {
+    openUrlPromise ??= web.auth.test().then((identity) => {
+      if (!identity.team_id || !identity.user_id) return undefined;
+      const parameters = new URLSearchParams({
+        team: identity.team_id,
+        id: identity.user_id,
+      });
+      return `slack://user?${parameters.toString()}`;
+    });
+    return openUrlPromise;
+  };
 
   const channel = new SlackChannel({
     api: {
@@ -293,6 +376,8 @@ export async function createSlackChannel(
         web.chat.update({ channel: ch, ts, text, blocks: (blocks ?? []) as never }),
     },
     channelId,
+    persistChannelId: (nextChannelId) => saveChannelId(options.channelIdPath, nextChannelId),
+    resolveOpenUrl,
     socket: {
       start: async () => {
         await socket.start();
@@ -304,8 +389,7 @@ export async function createSlackChannel(
   // Learn (and persist) the DM channel the first time the user writes to the bot.
   const pairChannel = async (ch: string): Promise<void> => {
     if (channel.getChannelId()) return;
-    channel.setChannelId(ch);
-    await saveChannelId(options.channelIdPath, ch);
+    await channel.pair(ch);
   };
 
   socket.on('message', async ({ event, ack }: { event: SlackMessageEvent; ack: () => Promise<void> }) => {

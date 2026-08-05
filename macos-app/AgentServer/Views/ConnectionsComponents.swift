@@ -157,6 +157,47 @@ struct ConnectionRow: View {
     }
 }
 
+struct SlackConnectionRow: View {
+    let presentation: SlackPairingPresentation
+    let onAction: () -> Void
+
+    @Environment(\.nTheme) private var theme
+
+    var body: some View {
+        HStack(spacing: NSpacing.md) {
+            Image("BrandSlack")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 18, height: 18)
+                .frame(width: 24)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: NSpacing.xs) {
+                    Text("Slack")
+                        .font(NTypography.bodyMedium)
+                        .foregroundStyle(theme.tokens.foreground)
+                    ConnectionCategoryPill(category: .messaging)
+                }
+                Text("Messaging · \(presentation.readinessTitle)")
+                    .font(NTypography.caption)
+                    .foregroundStyle(theme.tokens.mutedForeground)
+            }
+
+            Spacer()
+
+            Button(presentation.actionTitle, action: onAction)
+                .buttonStyle(.borderless)
+                .font(NTypography.caption)
+                .disabled(!presentation.isActionEnabled)
+        }
+        .padding(.horizontal, NSpacing.md)
+        .padding(.vertical, NSpacing.md)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Slack, \(presentation.readinessTitle)")
+        .accessibilityIdentifier("connections.slack")
+    }
+}
+
 struct DiscoveredConnectionRow: View {
     let connector: DiscoveredConnection
 

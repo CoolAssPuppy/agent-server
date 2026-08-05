@@ -46,6 +46,7 @@ import {
   sanitizeText,
 } from './security-utils.js';
 import { AGENT_SERVER_VERSION } from '../version.js';
+import type { SlackPairingStatus } from '../channels/slack.js';
 
 type EnvSource = Record<string, string | undefined>;
 const LOCAL_API_VERSION = 12;
@@ -74,6 +75,18 @@ type ConnectionSource = {
   get: () => ConnectionSnapshot;
   ensure?: () => Promise<ConnectionSnapshot>;
   refresh: () => Promise<ConnectionSnapshot>;
+};
+
+export type SlackPairingSource = {
+  getStatus: () => Promise<SlackPairingStatus | SlackUnavailableStatus>;
+  pair: (channelId: string) => Promise<SlackPairingStatus>;
+  sendTestMessage: () => Promise<void>;
+};
+
+type SlackUnavailableStatus = {
+  state: 'not_configured' | 'starting';
+  can_open_slack: false;
+  can_test: false;
 };
 
 type ApiDependencies = {
@@ -120,6 +133,8 @@ type ApiDependencies = {
     ConnectionProfileStore,
     'list' | 'create' | 'rename' | 'duplicate' | 'remove'
   >;
+  /** Machine-local Slack notification destination and live transport state. */
+  slackPairing?: SlackPairingSource;
   /** Optional local security analysis and configuration patch routes. */
   analysisApi?: Hono;
   /** Optional local guided creation and debugger routes. */
@@ -163,6 +178,9 @@ const InteractionReplyBodySchema = z.object({
       text: z.string(),
     }).strict(),
   ]),
+}).strict();
+const SlackDestinationBodySchema = z.object({
+  channel_id: z.string().trim().regex(/^D[A-Z0-9]{8,31}$/),
 }).strict();
 
 function projectInteraction(interaction: PendingInteraction, now = new Date()): Record<string, unknown> {
@@ -938,6 +956,42 @@ export function createApi(deps: ApiDependencies): Hono {
   // Back-compat alias for older clients that expect `{ servers }`.
   app.get('/connections/discover', (c) => {
     return c.json({ servers: deps.connections?.get().servers ?? [] });
+  });
+
+  app.get('/channels/slack/pairing', async (c) => {
+    if (!deps.slackPairing) {
+      return c.json({
+        state: 'not_configured',
+        can_open_slack: false,
+        can_test: false,
+      } satisfies SlackUnavailableStatus);
+    }
+    return c.json(await deps.slackPairing.getStatus());
+  });
+
+  app.put('/channels/slack/pairing', async (c) => {
+    if (!deps.slackPairing) return c.json({ error: 'Slack is not configured' }, 503);
+    const parsed = SlackDestinationBodySchema.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) return c.json({ error: 'Enter a valid Slack channel ID' }, 400);
+    try {
+      return c.json(await deps.slackPairing.pair(parsed.data.channel_id));
+    } catch {
+      return c.json({ error: 'Could not save the Slack destination' }, 502);
+    }
+  });
+
+  app.post('/channels/slack/pairing/test', async (c) => {
+    if (!deps.slackPairing) return c.json({ error: 'Slack is not configured' }, 503);
+    const status = await deps.slackPairing.getStatus();
+    if (status.state !== 'ready') {
+      return c.json({ error: 'Finish Slack setup before sending a test message' }, 409);
+    }
+    try {
+      await deps.slackPairing.sendTestMessage();
+      return c.json({ sent: true });
+    } catch {
+      return c.json({ error: 'Slack could not deliver the test message' }, 502);
+    }
   });
 
   // Per-agent run metrics (success rate, avg duration, cost, last run) computed

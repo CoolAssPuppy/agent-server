@@ -154,6 +154,20 @@ extension StatusMonitor {
         (try? await client.refreshConnections()) ?? .empty
     }
 
+    func slackPairingStatus() async -> SlackPairingStatus {
+        (try? await client.slackPairingStatus()) ?? .error
+    }
+
+    func pairSlack(channelID: String) async throws -> SlackPairingStatus {
+        guard !isDemoMode else { throw DemoModeWriteError() }
+        return try await client.pairSlack(channelID: channelID)
+    }
+
+    func testSlack() async throws {
+        guard !isDemoMode else { throw DemoModeWriteError() }
+        _ = try await client.testSlack()
+    }
+
     func saveConnectionKeys(_ values: [String: String]) throws {
         guard !isDemoMode else { throw DemoModeWriteError() }
         let url = AgentServerWorkspaceStore.current().environmentFile

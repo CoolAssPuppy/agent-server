@@ -213,6 +213,25 @@ actor AgentServerClient {
         return response.capabilities
     }
 
+    func slackPairingStatus() async throws -> SlackPairingStatus {
+        try await get(LocalServerEndpoint.slackPairingPath)
+    }
+
+    func pairSlack(channelID: String) async throws -> SlackPairingStatus {
+        try await routeRequest(
+            path: LocalServerEndpoint.slackPairingPath,
+            method: .put,
+            bodyData: try JSONEncoder().encode(SlackDestinationRequest(channelID: channelID))
+        )
+    }
+
+    func testSlack() async throws -> SlackTestMessageResponse {
+        try await routeRequest(
+            path: LocalServerEndpoint.slackPairingTestPath,
+            method: .post
+        )
+    }
+
     /// The cached set of connectors the Claude runtime can reach. Read-only;
     /// call `refreshConnections()` to force a fresh probe.
     func connections() async throws -> ConnectionSnapshot {

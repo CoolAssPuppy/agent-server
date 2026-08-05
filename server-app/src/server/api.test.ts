@@ -10,6 +10,7 @@ import { createTempDir, makeAgent, makeStoredRun } from '../test-factories.js';
 import { RunPreflightDeniedError } from '../analysis/run-preflight-gate.js';
 import type { ConnectionProfile } from '../connections/profile.js';
 import { InteractionStore, type PendingInteraction } from '../interaction/store.js';
+import { AGENT_SERVER_VERSION } from '../version.js';
 
 const API_TEST_KEY = 'local-api-test-key-1234567890';
 
@@ -936,7 +937,7 @@ describe('API routes', () => {
       await expect(response.json()).resolves.toEqual({
         machine_id: machineId,
         protocol_version: 2,
-        server_version: '3.3.4',
+        server_version: AGENT_SERVER_VERSION,
       });
       await expect(health.json()).resolves.not.toHaveProperty('machine_id');
     });
@@ -1616,6 +1617,103 @@ describe('API routes', () => {
       const body = await res.json() as { capabilities: Array<{ id: string; env_ready: boolean }> };
       expect(body.capabilities.find((cap) => cap.id === 'notion')?.env_ready).toBe(true);
       expect(body.capabilities.find((cap) => cap.id === 'slack')?.env_ready).toBe(false);
+    });
+  });
+
+  describe('Slack pairing routes', () => {
+    const needsPairing = {
+      state: 'needs_pairing' as const,
+      open_url: 'slack://user?team=T123&id=U123',
+      can_open_slack: true,
+      can_test: false,
+    };
+
+    it('returns server-owned pairing state without exposing the destination', async () => {
+      const app = createApi({
+        getAgents: async () => [],
+        store,
+        triggerRun,
+        slackPairing: {
+          getStatus: vi.fn().mockResolvedValue(needsPairing),
+          pair: vi.fn(),
+          sendTestMessage: vi.fn(),
+        },
+      });
+
+      const response = await authenticatedRequest(app, '/channels/slack/pairing');
+      const body = await response.json() as Record<string, unknown>;
+
+      expect(response.status).toBe(200);
+      expect(body).toEqual(needsPairing);
+      expect(body).not.toHaveProperty('channel_id');
+    });
+
+    it('validates and saves a manual Slack destination through the live channel', async () => {
+      const ready = {
+        state: 'ready' as const,
+        can_open_slack: true,
+        can_test: true,
+      };
+      const pair = vi.fn().mockResolvedValue(ready);
+      const app = createApi({
+        getAgents: async () => [],
+        store,
+        triggerRun,
+        slackPairing: {
+          getStatus: vi.fn().mockResolvedValue(needsPairing),
+          pair,
+          sendTestMessage: vi.fn(),
+        },
+      });
+
+      const invalid = await authenticatedRequest(app, '/channels/slack/pairing', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ channel_id: 'not-a-channel' }),
+      });
+
+      const publicChannel = await authenticatedRequest(app, '/channels/slack/pairing', {
+        method: 'PUT',
+        body: JSON.stringify({ channel_id: 'C0123456789' }),
+      });
+      const response = await authenticatedRequest(app, '/channels/slack/pairing', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ channel_id: 'D0BK0NF46AU' }),
+      });
+
+      expect(invalid.status).toBe(400);
+      expect(publicChannel.status).toBe(400);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual(ready);
+      expect(pair).toHaveBeenCalledOnce();
+      expect(pair).toHaveBeenCalledWith('D0BK0NF46AU');
+    });
+
+    it('sends a test message only through the explicit test route', async () => {
+      const sendTestMessage = vi.fn().mockResolvedValue(undefined);
+      const app = createApi({
+        getAgents: async () => [],
+        store,
+        triggerRun,
+        slackPairing: {
+          getStatus: vi.fn().mockResolvedValue({
+            state: 'ready',
+            can_open_slack: true,
+            can_test: true,
+          }),
+          pair: vi.fn(),
+          sendTestMessage,
+        },
+      });
+
+      const response = await authenticatedRequest(app, '/channels/slack/pairing/test', {
+        method: 'POST',
+      });
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ sent: true });
+      expect(sendTestMessage).toHaveBeenCalledOnce();
     });
   });
 
