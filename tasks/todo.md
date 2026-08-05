@@ -1,5 +1,42 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Version 3.4.4 release
+
+- [x] Read an agent's own inline MCP server instead of a catalog entry sharing its name.
+- [x] Stop the discovery probe dropping a connector the runtime already reported.
+- [x] Report a refused path check as unchecked rather than missing.
+- [x] Run the canonical release pipeline for version 3.4.4, then commit and push main.
+- [ ] Confirm on the affected machine that every agent reads healthy.
+
+Review:
+
+- 3.4.3 fixed the probe's stopping rule but left three checks still claiming
+  more than their evidence supports, and all three were badging one machine.
+- The capability catalog holds a placeholder connection for every known service,
+  bound to the same runtime server name an agent may choose. An OAuth service
+  can never satisfy `isReady`, so its placeholder sits at `needs_setup`
+  permanently. `configuredInlineFacts` chose between that placeholder and the
+  connection built from the agent's own `mcp_servers` entry by sorting ids, and
+  `catalog:linear` sorts ahead of `mcp:linear:<digest>`. A working inline Linear
+  server lost to a placeholder. The reader now asks the registry which
+  connection is the agent's, through the exported `inlineConnectionId`.
+- The settling loop introduced in 3.4.3 replaced its result with each new read.
+  A status read is a snapshot of a runtime still assembling connectors, so a
+  later read listing fewer servers discarded connectors already reported. This
+  is a regression 3.4.3 introduced, and it is how one machine reported 20
+  servers where it should have seen 24. Reads now fold together: later status
+  wins, and a server reported once is never dropped.
+- `accessSync` refusing with EACCES or EPERM was read as a missing file. A
+  daemon cannot answer a macOS privacy prompt, so a protected volume such as
+  Google Drive refuses outright. Only ENOENT means the path is gone. A refused
+  inspection now reports as could not be checked and lists as deferred.
+- Each fix was proved by reverting it and watching its test fail, because 3.4.2
+  shipped green against a test factory that fabricated a value the collector
+  could not produce.
+- Verified: `tsc --noEmit` on both configs, 122 test files, 1583 tests passed,
+  4 skipped. Released as 3.4.4 build 42, notarized, stapled, Sparkle-signed, and
+  live on the update feed.
+
 ## Version 3.4.3 release
 
 - [x] Diagnose why agents still read "Needs attention" on the full-time server after 3.4.2.
