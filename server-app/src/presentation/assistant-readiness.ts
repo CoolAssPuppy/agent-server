@@ -37,6 +37,7 @@ function pathsToCheck(agent: AgentConfig): string[] {
 }
 
 function statusForConnection(connection: ServiceConnection): AssistantConnectionFact['status'] {
+  if (connection.status === 'checking') return 'unknown';
   if (connection.status === 'needs_setup') return 'needs_setup';
   if (connection.status === 'unavailable' || connection.status === 'conflict') return 'unavailable';
   return connection.source === 'account' || connection.source === 'macos' ? 'ready' : 'unknown';

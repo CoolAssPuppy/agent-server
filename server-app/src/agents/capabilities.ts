@@ -59,7 +59,7 @@ export type AvailableConnection = {
   serviceId: string;
   name: string;
   source: Extract<CapabilitySource, 'account' | 'configured_api' | 'mcp' | 'macos'>;
-  status: 'connected' | 'needs_setup' | 'unavailable' | 'conflict';
+  status: 'connected' | 'checking' | 'needs_setup' | 'unavailable' | 'conflict';
   requiredEnv: string[];
   serverName: string;
   config?: McpServerConfig;

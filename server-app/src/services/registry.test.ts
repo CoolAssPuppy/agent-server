@@ -148,6 +148,23 @@ describe('consumer service registry', () => {
     expect(JSON.stringify(after)).not.toContain('Unexpected Plugin');
   });
 
+  it('keeps a pending account probe distinct from missing setup', () => {
+    const connections = buildServiceRegistry({
+      agents: [makeAgent({ tools: ['mcp__claude_ai_Slack', 'mcp__claude_ai_Notion'] })],
+      environment: {},
+      executor: 'claude-code',
+      discovered: [
+        { name: 'claude.ai Slack', status: 'pending' },
+        { name: 'claude.ai Notion', status: 'needs-auth' },
+      ],
+    }).connections.filter(({ source }) => source === 'account');
+
+    expect(connections).toEqual(expect.arrayContaining([
+      expect.objectContaining({ service_id: 'slack', status: 'checking' }),
+      expect.objectContaining({ service_id: 'notion', status: 'needs_setup' }),
+    ]));
+  });
+
   it('offers configured catalog APIs without requiring a discovered MCP account', () => {
     const services = buildServiceRegistry({
       agents: [],

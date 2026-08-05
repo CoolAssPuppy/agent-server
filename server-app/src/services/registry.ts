@@ -21,7 +21,7 @@ export type ServiceRuntimeBinding = {
   connectionId?: string;
 };
 
-export type ServiceConnectionStatus = 'connected' | 'needs_setup' | 'unavailable' | 'conflict';
+export type ServiceConnectionStatus = 'connected' | 'checking' | 'needs_setup' | 'unavailable' | 'conflict';
 export type ServiceConnectionSource = 'account' | 'configured_api' | 'mcp' | 'macos';
 export type ServiceAction = 'read' | 'write' | 'send' | 'delete';
 
@@ -262,8 +262,10 @@ function configuredCatalogConnections(
 
 function runtimeStatus(status: string): ServiceConnectionStatus {
   if (status === 'connected') return 'connected';
+  if (status === 'pending') return 'checking';
+  if (status === 'needs-auth') return 'needs_setup';
   if (status === 'failed' || status === 'disabled') return 'unavailable';
-  return 'needs_setup';
+  return 'checking';
 }
 
 const CLAUDE_ACCOUNT_SERVERS = [

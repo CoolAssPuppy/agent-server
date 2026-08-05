@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { makeAgent } from '../test-factories.js';
-import { inlineConnectionId, type ServiceRegistry } from '../services/registry.js';
+import {
+  buildServiceRegistry,
+  inlineConnectionId,
+  type ServiceRegistry,
+} from '../services/registry.js';
 import { createAssistantHomePresentation } from './assistant-home.js';
 import { collectAssistantHomeFacts } from './assistant-readiness.js';
 
@@ -310,6 +314,42 @@ describe('Assistant readiness facts', () => {
       status: 'ready',
       sourceReference: 'agent.tools',
     }]);
+  });
+
+  it('keeps an agent healthy while its required account connections are still checking', () => {
+    const agent = makeAgent({
+      tools: ['Read', 'mcp__claude_ai_Slack', 'mcp__claude_ai_Notion'],
+    });
+    const serviceRegistry = buildServiceRegistry({
+      agents: [agent],
+      environment: {},
+      executor: 'claude-code',
+      discovered: [
+        { name: 'claude.ai Slack', status: 'pending' },
+        { name: 'claude.ai Notion', status: 'pending' },
+      ],
+    });
+    const facts = collectAssistantHomeFacts({
+      agent,
+      runtimePaths: { claudeExecutablePath: '/usr/local/bin/claude' },
+      registry: serviceRegistry,
+      inspectPath: () => ({ exists: true, readable: true, writable: true }),
+    });
+    const presentation = createAssistantHomePresentation({
+      machineId: MACHINE_ID,
+      agent,
+      runs: [],
+      pendingInteractions: [],
+      now: new Date('2026-08-05T12:00:00Z'),
+      facts,
+    });
+
+    expect(facts.connections).toEqual([
+      expect.objectContaining({ label: 'Slack (Claude account)', status: 'unknown' }),
+      expect.objectContaining({ label: 'Notion (Claude account)', status: 'unknown' }),
+    ]);
+    expect(presentation.readiness.state).toBe('ready');
+    expect(presentation.health.state).toBe('healthy');
   });
 
   it('presents a healthy agent from the facts this Mac can actually collect', () => {

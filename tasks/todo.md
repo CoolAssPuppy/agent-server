@@ -2244,3 +2244,49 @@ Review:
 - Status output contains only channel state, pairing presence, and stable error codes. It never includes tokens, destination IDs, or raw provider errors.
 - Pending interaction persistence remains separate from this bounded lifecycle milestone. Pending requests still live in memory and are lost on a process restart.
 - Verification passed with 171 focused channel, lock, and API tests; 27 run-lifecycle tests; three startup reconciliation and isolation composition tests; one active-run production composition test; strict TypeScript checking; ESLint; the server build; 549 Swift tests; and an unsigned Debug app build.
+
+# Investigate false agent attention status
+
+- [x] Trace the macOS agent-detail badge to its server readiness inputs.
+- [x] Reproduce the status through the installed app's local API.
+- [x] Compare reported MCP readiness with each runtime's actual configuration and access.
+- [x] Identify the root cause and affected code without changing production behavior.
+- [x] Record evidence and the smallest justified correction, if a code change is needed.
+
+Constraints:
+
+- Do not print or persist secret values.
+- Treat runtime installation, runtime authentication, MCP configuration, and MCP readiness as separate facts.
+- Diagnose before implementing a fix.
+
+Review:
+
+- Five of seven installed agents returned `health.state: needs_attention` because their Claude account Slack, Notion, or Hex checks returned `action_required`.
+- The app's cached MCP snapshot still marked those servers `pending`, while Claude's own `mcp list` reported all three as connected.
+- The app probe samples for ten 500 ms intervals, so it stops after about five seconds. The machine's authoritative Claude health command took about eleven seconds.
+- The registry maps every status except connected, failed, and disabled to `needs_setup`. This turns the temporary `pending` state into a setup failure.
+- The cache records that snapshot as discovered. Opening an agent calls `ensure()`, which never checks again while `discovered_at` is set, so the false setup failure lasts until a manual refresh or server restart.
+- Inline MCP definitions are separately reported as unknown because local credential presence is not proof of provider health. Unknown checks do not cause the attention badge.
+- No production code changed during this investigation.
+
+# Fix false agent attention status
+
+- [x] Add failing behavior coverage for pending and authentication-required account connections.
+- [x] Preserve pending as a checking state through the service registry.
+- [x] Keep checking connections non-blocking in agent readiness.
+- [x] Run focused tests, the full server suite, type-checking, lint, and the build.
+- [x] Commit and push the verified fix.
+
+Constraints:
+
+- Keep explicit authentication failures actionable.
+- Do not claim a pending connection is ready.
+- Do not weaken missing-connection checks.
+
+Review:
+
+- Pending Claude account connections now remain `checking` in the service registry and become non-blocking unknown checks in agent readiness.
+- Explicit `needs-auth`, missing required connections, failed connections, and disabled connections remain actionable.
+- The new behavior tests failed against the prior implementation and pass with the correction.
+- Verification passed with 1,586 server tests and 4 expected skips, strict TypeScript checking, ESLint, and the server build.
+- Swift tests could not compile because this machine's active Command Line Tools installation does not include XCTest. The same machine also lacks the Developer ID identity, notarization profile, and Sparkle signing tool required for a release.
