@@ -2,6 +2,13 @@ import XCTest
 @testable import AgentServerCore
 
 final class ServerProcessReliabilityTests: XCTestCase {
+    func testMacOSTerminationBudgetOutlastsDaemonGraceAndCancellation() {
+        XCTAssertGreaterThanOrEqual(
+            ServerShutdownTiming.terminationGraceSeconds,
+            ServerShutdownTiming.daemonDrainSeconds
+        )
+    }
+
     func testCurrentServerAPIVersionCanBeAdopted() {
         XCTAssertFalse(LocalServerCompatibility.shouldReplace(apiVersion: 12))
         XCTAssertTrue(LocalServerCompatibility.shouldReplace(apiVersion: 11))

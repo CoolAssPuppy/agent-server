@@ -464,6 +464,83 @@ describe('run lifecycle', () => {
     expect(store.list()).toEqual([]);
   });
 
+  it('lets active runs finish during the shutdown grace period without aborting them', async () => {
+    let finishRun: ((result: RunResult) => void) | undefined;
+    let abortCount = 0;
+    const run = vi.fn((options: Parameters<typeof runAgent>[0]) => new Promise<RunResult>((resolve) => {
+      finishRun = resolve;
+      options.abortController?.signal.addEventListener('abort', () => { abortCount += 1; });
+    }));
+    const store = new RunStore();
+    const lifecycle = createRunLifecycle({
+      maxConcurrentRuns: 1,
+      lockDir: '/tmp/agent-server-lifecycle-test-locks',
+      runTimeoutMs: 30_000,
+      store,
+      broadcaster: new ProgressBroadcaster(),
+      execute: vi.fn(),
+      createReporter: () => reporter,
+      run,
+      notify: vi.fn(),
+      onInteraction: vi.fn(),
+      onTerminal: vi.fn(),
+    });
+
+    const runId = lifecycle.trigger(makeAgent());
+    lifecycle.stopAccepting();
+    const draining = lifecycle.drain({
+      graceTimeoutMs: 100,
+      overallTimeoutMs: 100,
+      perRunTimeoutMs: 100,
+    });
+    finishRun?.({ runId, status: 'failed', error: 'Finished naturally' });
+
+    await expect(draining).resolves.toBe(true);
+    expect(abortCount).toBe(0);
+  });
+
+  it('cancels only runs left after the shutdown grace period with a stable reason', async () => {
+    vi.useFakeTimers();
+    try {
+      let shutdownCode: string | undefined;
+      const run = vi.fn((options: Parameters<typeof runAgent>[0]) => new Promise<RunResult>((resolve) => {
+        options.abortController?.signal.addEventListener('abort', () => {
+          const reason = options.abortController?.signal.reason;
+          shutdownCode = reason && typeof reason === 'object' && 'code' in reason
+            ? String(reason.code)
+            : undefined;
+          resolve({ runId: options.runId, status: 'failed', error: 'Stopped', code: shutdownCode });
+        });
+      }));
+      const lifecycle = createRunLifecycle({
+        maxConcurrentRuns: 1,
+        lockDir: '/tmp/agent-server-lifecycle-test-locks',
+        runTimeoutMs: 30_000,
+        store: new RunStore(),
+        broadcaster: new ProgressBroadcaster(),
+        execute: vi.fn(),
+        createReporter: () => reporter,
+        run,
+        notify: vi.fn(),
+        onInteraction: vi.fn(),
+        onTerminal: vi.fn(),
+      });
+
+      lifecycle.trigger(makeAgent());
+      const draining = lifecycle.drain({
+        graceTimeoutMs: 50,
+        overallTimeoutMs: 100,
+        perRunTimeoutMs: 100,
+      });
+      await vi.advanceTimersByTimeAsync(50);
+
+      await expect(draining).resolves.toBe(true);
+      expect(shutdownCode).toBe('server_shutdown');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('reports when terminal work remains after the bounded drain', async () => {
     let finishRun: ((result: RunResult) => void) | undefined;
     const run = vi.fn(() => new Promise<RunResult>((resolve) => {

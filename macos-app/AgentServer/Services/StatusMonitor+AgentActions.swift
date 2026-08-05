@@ -183,7 +183,7 @@ extension StatusMonitor {
         // Count only. The keys name third-party services and the values are
         // credentials, so neither belongs in an event.
         Telemetry.capture(.connectionKeysSaved, properties: ["key_count": values.count])
-        if activeRuns.isEmpty { requestServerRestart() }
+        requestServerRestart()
     }
 
     func cleanupStaleRuns() {

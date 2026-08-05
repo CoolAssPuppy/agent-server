@@ -46,7 +46,11 @@ export type RunLifecycle = {
   stopAccepting: () => void;
   cancel: (runId: string) => boolean;
   waitForTerminal: (runId: string) => Promise<void>;
-  drain: (timeouts: { overallTimeoutMs: number; perRunTimeoutMs: number }) => Promise<boolean>;
+  drain: (timeouts: {
+    graceTimeoutMs?: number;
+    overallTimeoutMs: number;
+    perRunTimeoutMs: number;
+  }) => Promise<boolean>;
 };
 
 type RunLifecycleDependencies = {
@@ -443,13 +447,37 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
   }
 
   async function drain(
-    timeouts: { overallTimeoutMs: number; perRunTimeoutMs: number },
+    timeouts: {
+      graceTimeoutMs?: number;
+      overallTimeoutMs: number;
+      perRunTimeoutMs: number;
+    },
   ): Promise<boolean> {
     const runIds = [...activeControllers.keys()];
     if (runIds.length === 0) return true;
-    console.log(`[shutdown] Aborting ${runIds.length} active run(s); draining terminals`);
-    for (const controller of activeControllers.values()) controller.abort();
-    const waits = runIds.map((runId) => withTimeoutFallback(
+
+    const graceTimeoutMs = timeouts.graceTimeoutMs ?? 0;
+    if (graceTimeoutMs > 0) {
+      console.log(`[shutdown] Waiting for ${runIds.length} active run(s) to finish`);
+      const didFinishNaturally = await withTimeoutFallback(
+        Promise.all(runIds.map(waitForTerminal)).then(() => true),
+        graceTimeoutMs,
+        false,
+      );
+      if (didFinishNaturally) return true;
+    }
+
+    const remainingRunIds = runIds.filter((runId) => activeControllers.has(runId));
+    if (remainingRunIds.length === 0) return true;
+    console.log(`[shutdown] Canceling ${remainingRunIds.length} run(s); draining terminals`);
+    const shutdownReason = Object.assign(new Error('Server is shutting down'), {
+      name: 'AbortError',
+      code: 'server_shutdown',
+    });
+    for (const runId of remainingRunIds) {
+      activeControllers.get(runId)?.abort(shutdownReason);
+    }
+    const waits = remainingRunIds.map((runId) => withTimeoutFallback(
       waitForTerminal(runId).then(() => true),
       timeouts.perRunTimeoutMs,
       false,

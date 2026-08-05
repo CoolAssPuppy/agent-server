@@ -1,5 +1,10 @@
 import Foundation
 
+public enum ServerShutdownTiming {
+    public static let daemonDrainSeconds = 28
+    public static let terminationGraceSeconds = 45
+}
+
 public enum LocalServerAction: Equatable, Sendable {
     case adoptExisting
     case keepExisting

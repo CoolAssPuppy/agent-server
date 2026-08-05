@@ -16,8 +16,11 @@ final class ServerProcessManager {
     private static let nodePathKey = "AGENT_SERVER_NODE_PATH"
     private static let processIdentityKey = "AGENT_SERVER_OWNED_PROCESS_IDENTITY"
     private static let launchTokenKey = "AGENT_SERVER_LAUNCH_TOKEN"
-    private static let terminationGracePeriod = Duration.seconds(2)
+    private static let terminationGracePeriod = Duration.seconds(
+        ServerShutdownTiming.terminationGraceSeconds
+    )
     private static let killGracePeriod = Duration.seconds(1)
+    private static let restartVerificationPeriod = Duration.seconds(15)
 
     private var serverDirectory: String? {
         // Precedence: 1) UserDefaults, 2) .env, 3) bundled, 4) bundle-adjacent.
@@ -112,12 +115,12 @@ final class ServerProcessManager {
                 lifecycle.observedExistingServer()
                 return
             }
-            await restart(using: configuration)
+            _ = await restart(using: configuration, previousStartedAt: health.startedAt)
             return
         }
 
         guard let configuration = prepareLaunch() else { return }
-        launchServer(using: configuration)
+        _ = launchServer(using: configuration)
     }
 
     func stopIfWeStarted() async -> ServerProcessManagerError? {
@@ -128,20 +131,26 @@ final class ServerProcessManager {
         return didStop ? nil : lastError
     }
 
-    func restart() async {
-        guard let configuration = prepareLaunch() else { return }
-        await restart(using: configuration)
+    func restart() async -> HealthResponse? {
+        lastError = nil
+        let previousStartedAt = await serverHealth()?.startedAt
+        guard let configuration = prepareLaunch() else { return nil }
+        return await restart(using: configuration, previousStartedAt: previousStartedAt)
     }
 
-    private func restart(using configuration: ServerLaunchConfiguration) async {
+    private func restart(
+        using configuration: ServerLaunchConfiguration,
+        previousStartedAt: String?
+    ) async -> HealthResponse? {
         let didStop: Bool
         if let identity = ownedIdentity {
             didStop = await shutdownOnce(identity: identity)
         } else {
             didStop = await killExternalServer()
         }
-        guard didStop, !Task.isCancelled, lifecycle.canLaunchProcess else { return }
-        launchServer(using: configuration)
+        guard didStop, !Task.isCancelled, lifecycle.canLaunchProcess else { return nil }
+        guard launchServer(using: configuration) else { return nil }
+        return await waitForHealthyReplacement(previousStartedAt: previousStartedAt)
     }
 
     private func killExternalServer() async -> Bool {
@@ -308,8 +317,8 @@ final class ServerProcessManager {
         )
     }
 
-    private func launchServer(using configuration: ServerLaunchConfiguration) {
-        guard lifecycle.canLaunchProcess else { return }
+    private func launchServer(using configuration: ServerLaunchConfiguration) -> Bool {
+        guard lifecycle.canLaunchProcess else { return false }
         let process = Process()
         let launchToken = UUID().uuidString
         var environment = configuration.environment
@@ -334,9 +343,29 @@ final class ServerProcessManager {
             Self.storeProcessIdentity(identity)
             lifecycle.didLaunchServer()
             lastError = nil
+            return true
         } catch {
             record(.launchFailed)
+            return false
         }
+    }
+
+    private func waitForHealthyReplacement(previousStartedAt: String?) async -> HealthResponse? {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: Self.restartVerificationPeriod)
+        while clock.now < deadline, !Task.isCancelled {
+            if let health = await serverHealth(),
+               health.status == "ok",
+               health.apiVersion == LocalServerCompatibility.requiredAPIVersion,
+               let startedAt = health.startedAt,
+               startedAt != previousStartedAt {
+                return health
+            }
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        guard !Task.isCancelled else { return nil }
+        record(.restartVerificationTimedOut)
+        return nil
     }
 
     private func clearOwnedProcess() {
@@ -483,6 +512,7 @@ enum ServerProcessManagerError: LocalizedError, Equatable {
     case processIdentityMismatch
     case shutdownFailed
     case shutdownTimedOut
+    case restartVerificationTimedOut
 
     /// Snake-case slug for analytics. Spelled out rather than derived from the
     /// case name so renaming a case does not silently rename a property that
@@ -499,6 +529,7 @@ enum ServerProcessManagerError: LocalizedError, Equatable {
         case .processIdentityMismatch: return "process_identity_mismatch"
         case .shutdownFailed: return "shutdown_failed"
         case .shutdownTimedOut: return "shutdown_timed_out"
+        case .restartVerificationTimedOut: return "restart_verification_timed_out"
         }
     }
 
@@ -524,6 +555,8 @@ enum ServerProcessManagerError: LocalizedError, Equatable {
             return "The local server process could not be stopped."
         case .shutdownTimedOut:
             return "The local server process did not stop before the shutdown deadline."
+        case .restartVerificationTimedOut:
+            return "The local server restarted but did not become ready before the verification deadline."
         }
     }
 }

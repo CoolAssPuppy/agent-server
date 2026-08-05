@@ -2069,3 +2069,32 @@ Review:
 - The server writes `slack.json` atomically with owner-only permissions and updates the live destination without exposing it through the local API.
 - Socket Mode failures remain visible as connection errors, and users can return to credential editing from the pairing sheet.
 - Verification passed for the focused Slack server tests, server lint, strict TypeScript checks, server build, all 545 Swift tests, and an unsigned Debug app build.
+
+# Lifecycle reliability hardening
+
+- [x] Audit current shutdown, restart, channel, and startup reconciliation behavior.
+- [x] Give active runs a natural-completion grace period before shutdown cancellation.
+- [x] Keep channels and reporters alive until terminal run bookkeeping completes.
+- [x] Align the macOS termination deadline with the daemon drain budget.
+- [x] Coalesce restart requests and defer them while runs are active.
+- [x] Verify restart completion using a new `started_at` and the required API version.
+- [x] Present Running, Restart pending, Restarting, Failed, and Offline states in the macOS app.
+- [ ] Expose truthful Slack and Telegram lifecycle states without duplicating provider retry logic.
+- [ ] Isolate optional channel failures from API, scheduler, and other channel startup.
+- [ ] Reconcile stale locks before schedules and external triggers begin.
+- [ ] Use stable machine ownership for cross-process panel cleanup.
+- [ ] Persist pending interactions atomically and restore or expire them on startup.
+- [ ] Run focused deterministic tests, static checks, Swift tests, app build, and bounded composition tests.
+- [ ] Record final behavior, verification, and remaining operational limits.
+
+Constraints:
+
+- Never expose credentials, destination IDs, or raw provider errors through status APIs or telemetry.
+- Preserve terminal run records and lock release before process exit.
+- Do not add retry loops where Slack or Telegram already provide provider-aware recovery.
+- Keep optional messaging failures from preventing local agent execution.
+- Use injected clocks and pure state transitions for lifecycle tests.
+
+Review:
+
+- Pending implementation.

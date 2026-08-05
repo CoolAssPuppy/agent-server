@@ -15,6 +15,7 @@ final class StatusMonitor: ObservableObject {
     /// "failed last run" red indicator.
     @Published private(set) var lastRunByAgent: [String: Run] = [:]
     @Published private(set) var isServerReachable = false
+    @Published private(set) var serverLifecycleState: LocalServerLifecycleState = .unavailable
     @Published private(set) var machineIdentity: MachineResponse?
     @Published private(set) var machineLastHeardAt: Date?
     @Published var localAPISetupError: String?
@@ -55,6 +56,7 @@ final class StatusMonitor: ObservableObject {
     private static let restartThreshold = 3
     private var previousServerStartedAt: String?
     private var previousActiveRunIds: Set<String> = []
+    private var restartCoordinator = ServerRestartCoordinator()
     /// Last-seen terminal status per runId, used to emit run_completed /
     /// run_failed exactly once as runs transition from active to terminal.
     private var reportedTerminalRuns = BoundedIdentifierHistory(limit: 2_000)
@@ -337,6 +339,8 @@ final class StatusMonitor: ObservableObject {
             machineIdentity = machine
             machineLastHeardAt = Date()
             consecutiveFailures = 0
+            restartCoordinator.observeRunning(startedAt: health.startedAt)
+            serverLifecycleState = restartCoordinator.state
 
             let fetchedAgents = try await client.agents()
             localAPISetupError = nil
@@ -372,6 +376,12 @@ final class StatusMonitor: ObservableObject {
                 if !self.isDemoMode {
                     self.activeRuns = currentActiveRuns
                     self.recentRuns = self.liveRecentRuns
+                }
+                if self.restartCoordinator.activeRunCountChanged(to: currentActiveRuns.count) {
+                    self.serverLifecycleState = self.restartCoordinator.state
+                    self.performCoordinatedRestart()
+                } else {
+                    self.serverLifecycleState = self.restartCoordinator.state
                 }
 
                 for run in fetchedRuns where !run.isActive {
@@ -502,15 +512,38 @@ final class StatusMonitor: ObservableObject {
     }
 
     func requestServerRestart() {
-        guard let serverProcess else { return }
         Telemetry.capture(.daemonRestartRequested)
+        guard restartCoordinator.requestRestart(activeRunCount: liveActiveRuns.count) else {
+            serverLifecycleState = restartCoordinator.state
+            return
+        }
+        serverLifecycleState = restartCoordinator.state
+        performCoordinatedRestart()
+    }
+
+    private func performCoordinatedRestart() {
+        guard let serverProcess else { return }
         disconnectWebSocket()
         Task {
-            await serverProcess.restart()
-            surfaceServerProcessError(from: serverProcess)
-            resetWebSocketConnection()
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-            poll()
+            if let health = await serverProcess.restart(),
+               restartCoordinator.observeRestartHealth(
+                   startedAt: health.startedAt,
+                   apiVersion: health.apiVersion ?? 0
+               ) {
+                serverLifecycleState = restartCoordinator.state
+                resetWebSocketConnection()
+                poll()
+            } else if case .restarting = restartCoordinator.state,
+                      serverProcess.lastError == nil {
+                serverLifecycleState = restartCoordinator.state
+                performCoordinatedRestart()
+            } else {
+                let message = serverProcess.lastError?.localizedDescription
+                    ?? "The local server could not be restarted."
+                restartCoordinator.restartFailed(message: message)
+                serverLifecycleState = restartCoordinator.state
+                surfaceServerProcessError(from: serverProcess)
+            }
         }
     }
 

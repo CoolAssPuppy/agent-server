@@ -15,6 +15,7 @@
 		09F56CA1A2EA7A5D37A82130 /* EnvFileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F352A0CB69BD6E6AEF7E49F /* EnvFileStore.swift */; };
 		0AAC871185073BB41D7800CC /* ConsumerFlowDemoFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 026219A0FADDF868D39086CA /* ConsumerFlowDemoFixtures.swift */; };
 		0CD2303AD7649FE312E7BDFD /* AgentServerClient+Security.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCE3C4B67936078814AFEBF3 /* AgentServerClient+Security.swift */; };
+		0D2D09CCFE73310F6B1D4193 /* ServerRestartCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FA6D5DF17F1DE531F6B6500 /* ServerRestartCoordinator.swift */; };
 		1195734A1AF3A169CE3AC328 /* MainFooterUtilityDestination.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A0DD5054F6E523F22536A74 /* MainFooterUtilityDestination.swift */; };
 		134D0A988B4274AF600D12CF /* SavedConnectionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE4F878AF0A0CA8113E65883 /* SavedConnectionViews.swift */; };
 		13700BB6F905CF723685A4A4 /* GuidanceDiagnosticServerModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58A8FB8AFBC635F63133224F /* GuidanceDiagnosticServerModels.swift */; };
@@ -296,6 +297,7 @@
 		5C80B8DFDFC46D7C1A5157D4 /* InfoTooltip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoTooltip.swift; sourceTree = "<group>"; };
 		5DD1B573C744ECE7C9C6EBF6 /* SlackPairing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SlackPairing.swift; sourceTree = "<group>"; };
 		5F7AAB2ACB619ED2EDDA4946 /* CreationResourceSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreationResourceSelection.swift; sourceTree = "<group>"; };
+		5FA6D5DF17F1DE531F6B6500 /* ServerRestartCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerRestartCoordinator.swift; sourceTree = "<group>"; };
 		5FB65A68A7D65247566F5429 /* AgentPromptDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentPromptDocument.swift; sourceTree = "<group>"; };
 		5FDC36BB13528F7FD3BE8F2C /* MCPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServer.swift; sourceTree = "<group>"; };
 		60FF47B3068DE16B2285FC43 /* CapabilityIconView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapabilityIconView.swift; sourceTree = "<group>"; };
@@ -722,6 +724,7 @@
 				D9B5EC84594BC59394B136EE /* SecurityPanelNavigation.swift */,
 				B00F566E57973BAC7955CF89 /* SecurityServerModels.swift */,
 				BEB4ABEDF791380EFF9F2DA7 /* ServerProcessReliability.swift */,
+				5FA6D5DF17F1DE531F6B6500 /* ServerRestartCoordinator.swift */,
 				56C58B0E041DC8B993A2922F /* SettingsDraft.swift */,
 				36E7C28685605B900B56E4DA /* SettingsPresentation.swift */,
 				325C74DAF7BB5F1C25B3A733 /* SidebarViewModel.swift */,
@@ -1133,6 +1136,7 @@
 				B21F725CDF123FDED4325916 /* SecurityServerModels.swift in Sources */,
 				D2837235002AFAAA229A8257 /* ServerProcessManager.swift in Sources */,
 				C471604134686030A7DE8D71 /* ServerProcessReliability.swift in Sources */,
+				0D2D09CCFE73310F6B1D4193 /* ServerRestartCoordinator.swift in Sources */,
 				4AAD1D4940512D7B27D874EA /* SettingsAgentPanelSection.swift in Sources */,
 				90A0FF6A7652F14A2849A650 /* SettingsButtons.swift in Sources */,
 				3104C952CBEADE8DD5D18B3A /* SettingsComponents.swift in Sources */,

@@ -82,6 +82,8 @@ const PENDING_REPLAY_INTERVAL_MS = 10 * 60 * 1000;
 
 /** Max time to wait for active runs to emit terminals on shutdown. */
 const SHUTDOWN_DRAIN_TIMEOUT_MS = 10_000;
+/** Time for admitted runs to finish naturally before cancellation. */
+const SHUTDOWN_RUN_GRACE_TIMEOUT_MS = 8_000;
 /** Per-run wait inside the overall drain budget. */
 const SHUTDOWN_PER_RUN_TIMEOUT_MS = 3_000;
 const MANAGED_SERVICE_START_TIMEOUT_MS = 10_000;
@@ -1267,7 +1269,6 @@ export function startServer(
       };
 
       await attempt(() => closeHttpServer(httpServer));
-      await attempt(stopManagedServices);
       await attempt(() => triggerHandler?.drain());
       let didDrainBackgroundTasks = false;
       await attempt(async () => {
@@ -1279,10 +1280,12 @@ export function startServer(
       let didDrainRuns = false;
       await attempt(async () => {
         didDrainRuns = await runLifecycle.drain({
+          graceTimeoutMs: SHUTDOWN_RUN_GRACE_TIMEOUT_MS,
           overallTimeoutMs: SHUTDOWN_DRAIN_TIMEOUT_MS,
           perRunTimeoutMs: SHUTDOWN_PER_RUN_TIMEOUT_MS,
         });
       });
+      await attempt(stopManagedServices);
       if (didDrainBackgroundTasks && didDrainRuns) {
         await attempt(() => store.close());
         await attempt(() => analysisRuntime.close());

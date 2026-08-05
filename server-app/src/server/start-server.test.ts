@@ -1158,11 +1158,11 @@ describe('startServer production composition', { timeout: 20_000 }, () => {
       await waitForIntegration(() => expect(finishSource).toBeTypeOf('function'));
 
       const stopping = server.stop();
-      await waitForIntegration(() => expect(sourceWasAborted).toBe(true));
       expect(closeSpy).not.toHaveBeenCalled();
       finishSource?.();
       await stopping;
 
+      expect(sourceWasAborted).toBe(false);
       expect(executeAgent).toHaveBeenCalledTimes(executeCallsBefore + 1);
       expect(closeSpy).toHaveBeenCalledOnce();
     } finally {

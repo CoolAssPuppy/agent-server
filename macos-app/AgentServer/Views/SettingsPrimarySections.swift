@@ -45,9 +45,12 @@ struct SettingsGeneralSection: View {
             }
             SettingsRowDivider()
             SettingsValueRow(label: "Server status") {
+                let lifecycle = LocalServerLifecyclePresentation(
+                    state: monitor.serverLifecycleState
+                )
                 SettingsStatusPill(
-                    isHealthy: monitor.isServerReachable,
-                    label: monitor.isServerReachable ? "Running" : "Offline"
+                    isHealthy: lifecycle.isHealthy,
+                    label: lifecycle.label
                 )
                 .contextMenu {
                     Button("Restart Agent Server", action: monitor.requestServerRestart)
