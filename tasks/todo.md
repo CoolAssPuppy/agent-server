@@ -1,5 +1,22 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Version 3.4.1 release
+
+- [ ] Confirm main is clean, the live feed is version 3.4.0 build 38, and release credentials and tools are available.
+- [ ] Run the canonical release pipeline for version 3.4.1 with release text “Bug Fixes”.
+- [ ] Verify tests, type checking, linting, signing, notarization, stapling, Sparkle metadata, immutable download, latest alias, and both feed URLs.
+- [ ] Install and launch the released app, verify local API health and runtime discovery, then commit and push main.
+
+Constraints:
+
+- Do not push until the uploaded release and installed app pass verification.
+- Preserve the canonical Sparkle publication order and immutable release history.
+- Use the full Xcode toolchain for Swift tests, signing, and notarization.
+
+Review:
+
+- Pending release.
+
 ## Version 3.4.0 release
 
 - [x] Confirm main is clean, current work is committed, and the live feed is version 3.3.4 build 37.
