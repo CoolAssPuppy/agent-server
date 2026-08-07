@@ -2953,8 +2953,8 @@ The runtime picker shows these states before saving. It never changes an assignm
 - [x] Commit the verified source changes.
 - [x] Run the complete signed and notarized 3.5.1 release process.
 - [x] Verify the published DMG, appcast, and Sparkle update metadata.
-- [ ] Commit generated release metadata and push `main`.
-- [ ] Validate, commit, and push the seven agents and three fiction skills in the brain repository.
+- [x] Commit generated release metadata and push `main`.
+- [x] Validate, commit, and push the seven agents and three fiction skills in the brain repository.
 
 ### Review
 
