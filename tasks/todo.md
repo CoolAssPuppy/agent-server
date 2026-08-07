@@ -2950,8 +2950,16 @@ The runtime picker shows these states before saving. It never changes an assignm
 
 - [x] Confirm the requested patch version and exact release-note text.
 - [x] Validate the runtime-neutral agent and local-skill implementation.
-- [ ] Commit the verified source changes.
-- [ ] Run the complete signed and notarized 3.5.1 release process.
-- [ ] Verify the published DMG, appcast, and Sparkle update metadata.
+- [x] Commit the verified source changes.
+- [x] Run the complete signed and notarized 3.5.1 release process.
+- [x] Verify the published DMG, appcast, and Sparkle update metadata.
 - [ ] Commit generated release metadata and push `main`.
 - [ ] Validate, commit, and push the seven agents and three fiction skills in the brain repository.
+
+### Review
+
+- Agent Server 3.5.1 build 46 passed 1,703 server tests and 574 Swift tests.
+- Apple accepted and notarized both the application and the DMG. Stapling, Developer ID verification, and Gatekeeper verification passed.
+- Sparkle signing read the private key from Doppler through standard input and required no Keychain interaction.
+- The published appcast reports version 3.5.1, build 46, with `Support for local skills and plugins` and `Bug fixes`.
+- The published DMG returns HTTP 200 with the expected 19,910,548-byte length.
