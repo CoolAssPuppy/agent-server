@@ -4,33 +4,27 @@ name: Friday GitHub Summary
 description: Reviews selected GitHub activity each Friday and sends a short summary to a chosen Slack destination.
 schedule: "0 17 * * 5"
 timezone: Europe/Lisbon
-tools:
-  - "mcp__github__list_activity"
-  - "mcp__github__read_activity"
-  - "mcp__slack__send_message"
-disallowed_tools:
-  - Bash
-  - Write
-  - Edit
+connections:
+  source_control:
+    type: github
+    name: GitHub Work
+    purpose: Read this week's commits, pull requests, and reviews.
+    operations:
+      - github.activity.list
+      - github.activity.read
+  team_messages:
+    type: slack
+    name: Slack Work
+    purpose: Send the completed weekly summary to the selected team destination.
+    operations:
+      - slack.message.send
+    resources:
+      summary_destination:
+        type: slack.conversation
+        purpose: Destination for the Friday summary.
+        access: write
 max_turns: 10
-permission_mode: plan
 enabled: false
-permissions:
-  allow:
-    - "mcp__github__list_activity"
-    - "mcp__github__read_activity"
-    - "mcp__slack__send_message"
-  deny:
-    - Bash
-    - Write
-    - Edit
-mcp_servers:
-  github-demo:
-    type: http
-    url: "https://github.demo.invalid/mcp"
-  slack-demo:
-    type: http
-    url: "https://slack.demo.invalid/mcp"
 notification:
   channel: slack
   on_complete: false
@@ -39,7 +33,7 @@ notification:
 
 # Friday GitHub summary
 
-Review GitHub activity from the current work week and send one short summary to the Slack destination selected in Agent Server.
+Use `source_control` to review GitHub activity from the current work week. Send one short summary through `team_messages` to `team_messages.summary_destination`.
 
 ## Success criteria
 

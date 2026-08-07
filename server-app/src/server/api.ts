@@ -4,6 +4,19 @@ import { toErrorMessage } from '../util/errors.js';
 import { timingSafeEqual } from 'crypto';
 import { z } from 'zod';
 import type { AgentConfig } from '../agents/config.js';
+import {
+  RuntimeAssignmentInputSchema,
+  type RuntimeAssignment,
+} from '../agents/runtime-assignment.js';
+import { RuntimeAssignmentConflictError } from '../agents/runtime-assignment-store.js';
+import { applyRuntimeAssignment } from '../agents/runtime-assignment-resolution.js';
+import { evaluateRuntimeCompatibility } from '../agents/runtime-compatibility.js';
+import {
+  AgentBindingConflictError,
+  AgentConnectionBindingsInputSchema,
+  AgentSkillBindingsInputSchema,
+  type AgentBindingSet,
+} from '../agents/agent-binding-store.js';
 import { EXECUTOR_NAMES, type AgentExecutor } from '../agents/executor.js';
 import {
   catalogSummary,
@@ -12,8 +25,17 @@ import {
   type DiscoveredConnection,
 } from '../agents/capabilities.js';
 import { availableConnections, buildServiceRegistry } from '../services/registry.js';
-import { ConnectionProfileDraftSchema } from '../connections/profile.js';
+import { ConnectionProfileDraftSchema, type ConnectionProfile } from '../connections/profile.js';
 import type { ConnectionProfileStore } from '../connections/profile-store.js';
+import type { ConnectionCapabilitySnapshot } from '../connections/capability-snapshot.js';
+import { curatedOperationBindingInputs } from '../connections/operation-catalog.js';
+import {
+  ConnectionOperationBindingConflictError,
+  ConnectionOperationBindingsInputSchema,
+  type ConnectionOperationBindingInput,
+  type ConnectionOperationBindings,
+  type EmptyConnectionOperationBindings,
+} from '../connections/operation-binding-store.js';
 import {
   AgentPatchSchema,
   AgentWriteError,
@@ -50,7 +72,7 @@ import type { SlackPairingStatus } from '../channels/slack.js';
 import type { ChannelLifecycleStatus } from '../channels/lifecycle.js';
 
 type EnvSource = Record<string, string | undefined>;
-const LOCAL_API_VERSION = 12;
+const LOCAL_API_VERSION = 13;
 const MACHINE_PROTOCOL_VERSION = 2;
 
 type ConnectionSnapshot = {
@@ -134,6 +156,53 @@ type ApiDependencies = {
     ConnectionProfileStore,
     'list' | 'create' | 'rename' | 'duplicate' | 'remove'
   >;
+  /** Verified concrete MCP inventories, stored separately from user-authored agents. */
+  connectionCapabilities?: {
+    get: (connectionId: string) => Promise<ConnectionCapabilitySnapshot | undefined>;
+    check: (
+      profile: ConnectionProfile,
+      environment: EnvSource,
+    ) => Promise<ConnectionCapabilitySnapshot>;
+    remove: (connectionId: string) => Promise<void>;
+  };
+  /** Reviewed local translations from portable operation names to checked MCP tools. */
+  connectionOperationBindings?: {
+    get: (
+      connectionId: string,
+    ) => Promise<ConnectionOperationBindings | EmptyConnectionOperationBindings>;
+    replace: (
+      connectionId: string,
+      snapshot: ConnectionCapabilitySnapshot,
+      operations: Record<string, ConnectionOperationBindingInput>,
+      options: { expectedRevision: number; expectedCapabilityVersion: string },
+    ) => Promise<ConnectionOperationBindings>;
+    remove: (connectionId: string) => Promise<void>;
+  };
+  /** Machine-local runtime choices. These never modify shareable agent files. */
+  runtimeAssignments?: {
+    get: (agentId: string) => Promise<RuntimeAssignment | undefined>;
+    set: (
+      agentId: string,
+      input: unknown,
+      options?: { expectedRevision?: number },
+    ) => Promise<RuntimeAssignment>;
+    remove: (
+      agentId: string,
+      options?: { expectedRevision?: number },
+    ) => Promise<boolean>;
+  };
+  /** Reports whether one coding runtime can start on this machine. */
+  runtimeAvailable?: (executor: AgentExecutor) => boolean;
+  /** Machine-local choices that fill an agent's portable connection slots. */
+  agentBindings?: {
+    get: (agentId: string) => Promise<AgentBindingSet>;
+    replace: (
+      agentId: string,
+      connections: AgentBindingSet['connections'],
+      expectedRevision: number,
+      skills?: AgentBindingSet['skills'],
+    ) => Promise<AgentBindingSet>;
+  };
   /** Machine-local Slack notification destination and live transport state. */
   slackPairing?: SlackPairingSource;
   channelStatuses?: () => ChannelLifecycleStatus[];
@@ -183,6 +252,19 @@ const InteractionReplyBodySchema = z.object({
 }).strict();
 const SlackDestinationBodySchema = z.object({
   channel_id: z.string().trim().regex(/^D[A-Z0-9]{8,31}$/),
+}).strict();
+const RuntimeAssignmentWriteSchema = RuntimeAssignmentInputSchema.extend({
+  expected_revision: z.number().int().nonnegative().optional(),
+}).strict();
+const AgentBindingsWriteSchema = z.object({
+  expected_revision: z.number().int().nonnegative(),
+  connections: AgentConnectionBindingsInputSchema,
+  skills: AgentSkillBindingsInputSchema.optional(),
+}).strict();
+const ConnectionOperationBindingsWriteSchema = z.object({
+  expected_revision: z.number().int().nonnegative(),
+  capability_version: z.string().regex(/^sha256:[a-f0-9]{64}$/),
+  operations: ConnectionOperationBindingsInputSchema,
 }).strict();
 
 function projectInteraction(interaction: PendingInteraction, now = new Date()): Record<string, unknown> {
@@ -563,8 +645,10 @@ export function createApi(deps: ApiDependencies): Hono {
     allAgents: AgentConfig[],
   ): Promise<Record<string, unknown>> {
     await deps.connections?.ensure?.();
+    const assignment = await deps.runtimeAssignments?.get(agent.id);
+    const effectiveAgent = applyRuntimeAssignment(agent, assignment);
     const environment = getEnv();
-    const executor = selectedExecutor(agent);
+    const executor = selectedExecutor(effectiveAgent);
     const discovered = runtimeConnections(executor);
     const registry = buildServiceRegistry({
       agents: allAgents,
@@ -573,14 +657,45 @@ export function createApi(deps: ApiDependencies): Hono {
       executor,
     });
     return {
-      ...redactAgentSecrets(agent),
+      ...redactAgentSecrets(effectiveAgent),
+      runtime_source: assignment
+        ? 'saved_assignment'
+        : agent.executor || agent.model || agent.provider
+          ? 'legacy_frontmatter'
+          : 'default',
+      runtime_revision: assignment?.revision ?? 0,
       capabilities: deriveCapabilities(
-        agent,
+        effectiveAgent,
         environment,
         discovered,
         availableConnections(registry),
       ),
     };
+  }
+
+  async function checkedCapabilitySnapshots(
+    profiles: readonly ConnectionProfile[],
+  ): Promise<ReadonlyMap<string, ConnectionCapabilitySnapshot> | undefined> {
+    if (!deps.connectionCapabilities) return undefined;
+    const entries = await Promise.all(profiles.map(async (profile) => {
+      const snapshot = await deps.connectionCapabilities?.get(profile.id);
+      return snapshot ? { id: profile.id, snapshot } : undefined;
+    }));
+    return new Map(entries.flatMap((entry) => entry ? [[entry.id, entry.snapshot]] : []));
+  }
+
+  async function checkedOperationBindings(
+    profiles: readonly ConnectionProfile[],
+  ): Promise<ReadonlyMap<
+    string,
+    ConnectionOperationBindings | EmptyConnectionOperationBindings
+  > | undefined> {
+    if (!deps.connectionOperationBindings) return undefined;
+    const entries = await Promise.all(profiles.map(async (profile) => ({
+      id: profile.id,
+      bindings: await deps.connectionOperationBindings!.get(profile.id),
+    })));
+    return new Map(entries.map(({ id, bindings }) => [id, bindings]));
   }
 
   function agentWriteErrorResponse(c: Context, err: unknown): Response {
@@ -625,6 +740,173 @@ export function createApi(deps: ApiDependencies): Hono {
     const agent = agents.find((a) => a.id === c.req.param('id'));
     if (!agent) return c.json({ error: 'Agent not found' }, 404);
     return c.json(await enrichAgent(agent, agents));
+  });
+
+  app.get('/agents/:id/runtime', async (c) => {
+    const agents = await deps.getAgents();
+    const agent = agents.find((candidate) => candidate.id === c.req.param('id'));
+    if (!agent) return c.json({ error: 'Agent not found' }, 404);
+    const assignment = await deps.runtimeAssignments?.get(agent.id);
+    if (assignment) return c.json({ source: 'saved_assignment', ...assignment });
+    const hasLegacyRuntime = agent.executor !== undefined
+      || agent.model !== undefined
+      || agent.provider !== undefined;
+    return c.json({
+      source: hasLegacyRuntime ? 'legacy_frontmatter' : 'default',
+      executor: agent.executor ?? 'claude-code',
+      ...(agent.model ? { model: agent.model } : {}),
+      ...(agent.provider ? { provider: agent.provider } : {}),
+      revision: 0,
+    });
+  });
+
+  app.get('/agents/:id/runtime-compatibility', async (c) => {
+    const executor = EXECUTOR_NAMES.includes(c.req.query('executor') as AgentExecutor)
+      ? c.req.query('executor') as AgentExecutor
+      : undefined;
+    if (!executor) return c.json({ error: 'Unknown executor' }, 400);
+    const agents = await deps.getAgents();
+    const agent = agents.find((candidate) => candidate.id === c.req.param('id'));
+    if (!agent) return c.json({ error: 'Agent not found' }, 404);
+    const bindings = await deps.agentBindings?.get(agent.id)
+      ?? { revision: 0, connections: {} };
+    const profiles = await deps.connectionProfiles?.list() ?? [];
+    return c.json(evaluateRuntimeCompatibility(
+      agent,
+      executor,
+      bindings,
+      profiles,
+      await checkedCapabilitySnapshots(profiles),
+      await checkedOperationBindings(profiles),
+      {
+        runtimeAvailable: deps.runtimeAvailable?.(executor),
+        environment: deps.getEnv?.(),
+      },
+    ));
+  });
+
+  app.put('/agents/:id/runtime', async (c) => {
+    if (!deps.runtimeAssignments) {
+      return c.json({ error: 'Runtime assignment editing is not available on this server' }, 501);
+    }
+    const agents = await deps.getAgents();
+    const agent = agents.find((candidate) => candidate.id === c.req.param('id'));
+    if (!agent) return c.json({ error: 'Agent not found' }, 404);
+    const read = await readJsonBody(c);
+    if (!read.ok) return read.response;
+    const parsed = RuntimeAssignmentWriteSchema.safeParse(read.body);
+    if (!parsed.success) return c.json({ error: 'Invalid runtime assignment' }, 400);
+    const { expected_revision: expectedRevision, ...input } = parsed.data;
+    const bindings = await deps.agentBindings?.get(agent.id)
+      ?? { revision: 0, connections: {} };
+    const profiles = await deps.connectionProfiles?.list() ?? [];
+    const compatibility = evaluateRuntimeCompatibility(
+      agent,
+      input.executor,
+      bindings,
+      profiles,
+      await checkedCapabilitySnapshots(profiles),
+      await checkedOperationBindings(profiles),
+      {
+        runtimeAvailable: deps.runtimeAvailable?.(input.executor),
+        provider: input.provider,
+        environment: deps.getEnv?.(),
+      },
+    );
+    if (compatibility.state !== 'compatible') {
+      return c.json({
+        error: 'This runtime cannot enforce the agent contract with the current local settings.',
+        ...compatibility,
+      }, 409);
+    }
+    try {
+      const assignment = await deps.runtimeAssignments.set(
+        agent.id,
+        input,
+        { expectedRevision },
+      );
+      return c.json({ source: 'saved_assignment', ...assignment });
+    } catch (error) {
+      if (error instanceof RuntimeAssignmentConflictError
+        || (error instanceof Error && error.name === 'RuntimeAssignmentConflictError')) {
+        return c.json({ error: 'Runtime assignment changed. Refresh and try again.' }, 409);
+      }
+      console.error(`[api] Runtime assignment write failed: ${sanitizeText(toErrorMessage(error), 300)}`);
+      return c.json({ error: 'Runtime assignment could not be saved' }, 500);
+    }
+  });
+
+  app.get('/agents/:id/bindings', async (c) => {
+    const agents = await deps.getAgents();
+    const agent = agents.find((candidate) => candidate.id === c.req.param('id'));
+    if (!agent) return c.json({ error: 'Agent not found' }, 404);
+    return c.json(await deps.agentBindings?.get(agent.id) ?? { revision: 0, connections: {} });
+  });
+
+  app.put('/agents/:id/bindings', async (c) => {
+    if (!deps.agentBindings) {
+      return c.json({ error: 'Connection binding editing is not available on this server' }, 501);
+    }
+    const agents = await deps.getAgents();
+    const agent = agents.find((candidate) => candidate.id === c.req.param('id'));
+    if (!agent) return c.json({ error: 'Agent not found' }, 404);
+    const read = await readJsonBody(c);
+    if (!read.ok) return read.response;
+    const parsed = AgentBindingsWriteSchema.safeParse(read.body);
+    if (!parsed.success) return c.json({ error: 'Invalid connection bindings' }, 400);
+    for (const [useKey, binding] of Object.entries(parsed.data.connections)) {
+      const use = agent.connections?.[useKey];
+      if (!use) return c.json({ error: `Unknown agent connection use: ${useKey}` }, 400);
+      const unknownResource = Object.keys(binding.resources)
+        .find((resourceKey) => !use.resources[resourceKey]);
+      if (unknownResource) {
+        return c.json({ error: `Unknown resource for ${useKey}: ${unknownResource}` }, 400);
+      }
+    }
+    for (const skillKey of Object.keys(parsed.data.skills ?? {})) {
+      if (!agent.skills?.[skillKey]) {
+        return c.json({ error: `Unknown agent skill requirement: ${skillKey}` }, 400);
+      }
+    }
+    const profiles = await deps.connectionProfiles?.list() ?? [];
+    const currentBindings = await deps.agentBindings.get(agent.id)
+      ?? { revision: 0, connections: {}, skills: {} };
+    const runtimeAgent = applyRuntimeAssignment(
+      agent,
+      await deps.runtimeAssignments?.get(agent.id),
+    );
+    const compatibility = evaluateRuntimeCompatibility(
+      agent,
+      selectedExecutor(runtimeAgent),
+      {
+        revision: parsed.data.expected_revision,
+        connections: parsed.data.connections,
+        skills: parsed.data.skills ?? currentBindings.skills,
+      },
+      profiles,
+      await checkedCapabilitySnapshots(profiles),
+      await checkedOperationBindings(profiles),
+    );
+    if (compatibility.state !== 'compatible') {
+      return c.json({
+        error: 'These connection choices cannot enforce the agent contract.',
+        ...compatibility,
+      }, 409);
+    }
+    try {
+      return c.json(await deps.agentBindings.replace(
+        agent.id,
+        parsed.data.connections,
+        parsed.data.expected_revision,
+        parsed.data.skills,
+      ));
+    } catch (error) {
+      if (error instanceof AgentBindingConflictError) {
+        return c.json({ error: 'Connection bindings changed. Refresh and try again.' }, 409);
+      }
+      console.error(`[api] Connection binding write failed: ${sanitizeText(toErrorMessage(error), 300)}`);
+      return c.json({ error: 'Connection bindings could not be saved' }, 500);
+    }
   });
 
   app.get('/capabilities', (c) => {
@@ -703,6 +985,66 @@ export function createApi(deps: ApiDependencies): Hono {
     }
   });
 
+  app.get('/connection-profiles/:id/operations', async (c) => {
+    const profile = (await deps.connectionProfiles?.list() ?? [])
+      .find(({ id }) => id === c.req.param('id'));
+    if (!profile) return c.json({ error: 'Connection not found' }, 404);
+    const snapshot = await deps.connectionCapabilities?.get(profile.id);
+    const mappings = await deps.connectionOperationBindings?.get(profile.id)
+      ?? { revision: 0 as const, operations: {} };
+    const mappingCapabilityVersion = 'capability_version' in mappings
+      ? mappings.capability_version
+      : undefined;
+    const status = !snapshot
+      ? 'unchecked'
+      : mappings.revision === 0
+        ? 'unmapped'
+        : mappingCapabilityVersion === snapshot.capability_version
+          ? 'current'
+          : 'stale';
+    return c.json({
+      status,
+      capability_version: snapshot?.capability_version,
+      captured_at: snapshot?.captured_at,
+      mapping_revision: mappings.revision,
+      mapping_capability_version: mappingCapabilityVersion,
+      operations: mappings.operations,
+      inventory: snapshot?.operations ?? [],
+    });
+  });
+
+  app.put('/connection-profiles/:id/operations', async (c) => {
+    if (!deps.connectionOperationBindings) {
+      return c.json({ error: 'Connection operation editing is not available on this server' }, 501);
+    }
+    const profile = (await deps.connectionProfiles?.list() ?? [])
+      .find(({ id }) => id === c.req.param('id'));
+    if (!profile) return c.json({ error: 'Connection not found' }, 404);
+    const snapshot = await deps.connectionCapabilities?.get(profile.id);
+    if (!snapshot) return c.json({ error: 'Check this connection before reviewing operations' }, 409);
+    const read = await readJsonBody(c);
+    if (!read.ok) return read.response;
+    const parsed = ConnectionOperationBindingsWriteSchema.safeParse(read.body);
+    if (!parsed.success) return c.json({ error: 'Invalid connection operation review' }, 400);
+    try {
+      return c.json(await deps.connectionOperationBindings.replace(
+        profile.id,
+        snapshot,
+        parsed.data.operations,
+        {
+          expectedRevision: parsed.data.expected_revision,
+          expectedCapabilityVersion: parsed.data.capability_version,
+        },
+      ));
+    } catch (error) {
+      if (error instanceof ConnectionOperationBindingConflictError) {
+        return c.json({ error: error.message, code: 'operation_review_conflict' }, 409);
+      }
+      console.error(`[api] Connection operation review failed: ${sanitizeText(toErrorMessage(error), 300)}`);
+      return c.json({ error: sanitizeText(toErrorMessage(error), 300) }, 400);
+    }
+  });
+
   app.post('/connection-profiles/:id/check', async (c) => {
     if (!deps.connectionProfiles) {
       return c.json({ error: 'Connection checking is not available on this server' }, 501);
@@ -715,10 +1057,53 @@ export function createApi(deps: ApiDependencies): Hono {
     const missingCredentials = profile.credentials
       .map(({ environment_variable }) => environment_variable)
       .filter((name) => !environment[name]?.trim());
-    return c.json({
-      status: missingCredentials.length === 0 ? 'ready' : 'needs_credentials',
-      missing_credentials: missingCredentials,
-    });
+    if (missingCredentials.length > 0) {
+      return c.json({ status: 'needs_credentials', missing_credentials: missingCredentials });
+    }
+    try {
+      const snapshot = await deps.connectionCapabilities?.check(profile, environment);
+      let mappings = await deps.connectionOperationBindings?.get(profile.id);
+      if (snapshot && mappings?.revision === 0) {
+        const curated = curatedOperationBindingInputs(
+          profile.adapter.id,
+          new Map(snapshot.operations.map((operation) => [operation.runtime_name, operation])),
+        );
+        if (Object.keys(curated).length > 0) {
+          mappings = await deps.connectionOperationBindings?.replace(
+            profile.id,
+            snapshot,
+            curated,
+            {
+              expectedRevision: 0,
+              expectedCapabilityVersion: snapshot.capability_version,
+            },
+          );
+        }
+      }
+      const mappingCapabilityVersion = mappings && 'capability_version' in mappings
+        ? mappings.capability_version
+        : undefined;
+      return c.json({
+        status: 'ready',
+        missing_credentials: [],
+        ...(snapshot ? {
+          capability_version: snapshot.capability_version,
+          captured_at: snapshot.captured_at,
+          operations: snapshot.operations,
+        } : {}),
+        mapping_status: !snapshot
+          ? 'unchecked'
+          : !mappings || mappings.revision === 0
+            ? 'unmapped'
+            : mappingCapabilityVersion === snapshot.capability_version
+              ? 'current'
+              : 'stale',
+        mapping_revision: mappings?.revision ?? 0,
+      });
+    } catch (error) {
+      console.error(`[api] Connection check failed: ${sanitizeText(toErrorMessage(error), 300)}`);
+      return c.json({ error: 'The connection could not be checked.' }, 502);
+    }
   });
 
   app.delete('/connection-profiles/:id', async (c) => {
@@ -726,9 +1111,14 @@ export function createApi(deps: ApiDependencies): Hono {
       return c.json({ error: 'Connection editing is not available on this server' }, 501);
     }
     const connectionID = c.req.param('id');
-    const referencingAgents = (await deps.getAgents())
-      .filter((agent) => Object.values(agent.connection_bindings ?? {}).includes(connectionID))
-      .map(({ id, name }) => ({ id, name }));
+    const agents = await deps.getAgents();
+    const referencingAgents = (await Promise.all(agents.map(async (agent) => {
+      const hasLegacyBinding = Object.values(agent.connection_bindings ?? {}).includes(connectionID);
+      const localBindings = await deps.agentBindings?.get(agent.id);
+      const hasLocalBinding = Object.values(localBindings?.connections ?? {})
+        .some(({ connection_id: id }) => id === connectionID);
+      return hasLegacyBinding || hasLocalBinding ? { id: agent.id, name: agent.name } : undefined;
+    }))).filter((agent): agent is { id: string; name: string } => agent !== undefined);
     if (referencingAgents.length > 0) {
       const noun = referencingAgents.length === 1 ? 'agent' : 'agents';
       return c.json({
@@ -739,6 +1129,8 @@ export function createApi(deps: ApiDependencies): Hono {
     }
     try {
       await deps.connectionProfiles.remove(connectionID);
+      await deps.connectionCapabilities?.remove(connectionID);
+      await deps.connectionOperationBindings?.remove(connectionID);
       return c.json({ success: true, connection_id: connectionID });
     } catch (error) {
       console.error(`[api] Connection profile removal failed: ${sanitizeText(toErrorMessage(error), 300)}`);
@@ -760,7 +1152,98 @@ export function createApi(deps: ApiDependencies): Hono {
     }
 
     try {
-      const updated = await deps.agentWriter.update(c.req.param('id'), parsed.data);
+      const agentId = c.req.param('id');
+      const agentsBeforeUpdate = await deps.getAgents();
+      const currentAgent = agentsBeforeUpdate.find((candidate) => candidate.id === agentId);
+      if (!currentAgent) return c.json({ error: 'Agent not found' }, 404);
+      const {
+        executor,
+        model,
+        provider,
+        ...definitionPatch
+      } = parsed.data;
+      const hasRuntimeChange = Object.hasOwn(parsed.data, 'executor')
+        || Object.hasOwn(parsed.data, 'model')
+        || Object.hasOwn(parsed.data, 'provider');
+      let rollbackRuntime: (() => Promise<unknown>) | undefined;
+      if (hasRuntimeChange) {
+        if (!deps.runtimeAssignments) {
+          return c.json({ error: 'Runtime assignment editing is not available on this server' }, 501);
+        }
+        const currentAssignment = await deps.runtimeAssignments.get(agentId);
+        const effective = applyRuntimeAssignment(currentAgent, currentAssignment);
+        const nextRuntime = {
+          executor: executor ?? effective.executor ?? 'claude-code',
+          ...((Object.hasOwn(parsed.data, 'model') ? model : effective.model)
+            ? { model: Object.hasOwn(parsed.data, 'model') ? model! : effective.model }
+            : {}),
+          ...((Object.hasOwn(parsed.data, 'provider') ? provider : effective.provider)
+            ? { provider: Object.hasOwn(parsed.data, 'provider') ? provider! : effective.provider }
+            : {}),
+        };
+        const bindings = await deps.agentBindings?.get(agentId)
+          ?? { revision: 0, connections: {} };
+        const profiles = await deps.connectionProfiles?.list() ?? [];
+        const compatibility = evaluateRuntimeCompatibility(
+          currentAgent,
+          nextRuntime.executor,
+          bindings,
+          profiles,
+          await checkedCapabilitySnapshots(profiles),
+          await checkedOperationBindings(profiles),
+          {
+            runtimeAvailable: deps.runtimeAvailable?.(nextRuntime.executor),
+            provider: nextRuntime.provider,
+            environment: deps.getEnv?.(),
+          },
+        );
+        if (compatibility.state !== 'compatible') {
+          return c.json({
+            error: 'This runtime cannot enforce the agent contract with the current local settings.',
+            ...compatibility,
+          }, 409);
+        }
+        const savedAssignment = await deps.runtimeAssignments.set(
+          agentId,
+          nextRuntime,
+          { expectedRevision: currentAssignment?.revision ?? 0 },
+        );
+        rollbackRuntime = currentAssignment
+          ? async () => {
+            const {
+              agent_id: _agentId,
+              revision: _revision,
+              updated_at: _updatedAt,
+              ...previousInput
+            } = currentAssignment;
+            await deps.runtimeAssignments!.set(
+              agentId,
+              previousInput,
+              { expectedRevision: savedAssignment.revision },
+            );
+          }
+          : async () => deps.runtimeAssignments!.remove(
+            agentId,
+            { expectedRevision: savedAssignment.revision },
+          );
+      }
+      let updated: AgentConfig;
+      try {
+        updated = Object.keys(definitionPatch).length > 0
+          ? await deps.agentWriter.update(agentId, definitionPatch)
+          : currentAgent;
+      } catch (error) {
+        if (rollbackRuntime) {
+          try {
+            await rollbackRuntime();
+          } catch (rollbackError) {
+            console.error(
+              `[api] Runtime rollback failed: ${sanitizeText(toErrorMessage(rollbackError), 300)}`,
+            );
+          }
+        }
+        throw error;
+      }
       const agents = await deps.getAgents();
       return c.json(await enrichAgent(updated, agents));
     } catch (err) {

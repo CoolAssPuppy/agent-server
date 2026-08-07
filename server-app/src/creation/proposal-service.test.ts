@@ -1234,7 +1234,9 @@ describe('guided agent proposal creation', () => {
 
     expect(agent.permissions).toEqual({ allow: [], deny: [] });
     expect(agent.enabled).toBe(false);
-    expect(agent.codex_sandbox).toBe('read-only');
+    expect(agent.executor).toBeUndefined();
+    expect(agent.model).toBeUndefined();
+    expect(agent.codex_sandbox).toBeUndefined();
     expect(isToolPermitted(agent, 'Read')).toBe(false);
     expect(isToolPermitted(agent, 'Bash')).toBe(false);
     expect(isToolPermitted(agent, 'UnknownFutureTool')).toBe(false);
@@ -1255,7 +1257,14 @@ describe('guided agent proposal creation', () => {
     expect(agent.working_directory).toBe('~/Documents/Research');
     expect(agent.watch).toEqual([{ path: '~/Documents/Research' }]);
     expect(agent.notification).toEqual({ channel: 'slack', on_complete: true, on_failure: true });
-    expect(agent.permissions?.allow).toContain('mcp__slack__*');
+    expect(agent.connections).toMatchObject({
+      slack: {
+        type: 'slack',
+        name: 'Slack',
+        purpose: 'The summary needs a destination.',
+      },
+    });
+    expect(agent.permissions?.allow.some((tool) => tool.startsWith('mcp__'))).toBe(false);
     expect(agent.permissions?.allow).toContain('Read');
   });
 
@@ -1279,6 +1288,8 @@ describe('guided agent proposal creation', () => {
     const binding = {
       id: 'mcp:notion-personal:abc123',
       serverName: 'notion-personal',
+      serviceType: 'notion',
+      actions: ['read', 'write'],
       config: {
         command: 'npx',
         args: ['-y', '@notionhq/notion-mcp-server'],
@@ -1292,17 +1303,32 @@ describe('guided agent proposal creation', () => {
       { serviceBindings: [binding] },
     );
 
-    expect(agent.mcp_servers).toEqual({ 'notion-personal': binding.config });
-    expect(agent.permissions?.allow).toEqual(expect.arrayContaining([
-      'mcp__notion-personal__API-query-data-source',
-      'mcp__notion-personal__API-post-page',
-    ]));
-    expect(agent.permissions?.allow).not.toContain('mcp__notion-personal__API-delete-a-block');
-    expect(agent.permissions?.allow).not.toContain('mcp__notion_personal__*');
-    expect(agent.permissions?.allow).not.toContain('mcp__mcp_notion_personal_abc123__*');
+    expect(agent.connections).toEqual({
+      personal_notion: {
+        type: 'notion',
+        name: 'Personal Notion',
+        purpose: 'Stores the review in Personal Notion.',
+        operations: [
+          'notion.search',
+          'notion.data_source.query',
+          'notion.page.read',
+          'notion.page.create',
+        ],
+        resources: {
+          output_destination: {
+            type: 'notion.data_source',
+            purpose: 'Approved destination used by Personal Notion.',
+            access: 'write',
+          },
+        },
+      },
+    });
+    expect(agent.mcp_servers).toBeUndefined();
+    expect(agent.connection_bindings).toBeUndefined();
+    expect(agent.permissions?.allow.some((tool) => tool.startsWith('mcp__'))).toBe(false);
   });
 
-  it('keeps an opaque saved connection binding alongside its reviewed transport', () => {
+  it('keeps local connection IDs out of the created shareable definition', () => {
     const proposal = completeProposal();
     const connectionId = '11111111-1111-4111-8111-111111111111';
     proposal.connections = [{
@@ -1322,15 +1348,23 @@ describe('guided agent proposal creation', () => {
         id: connectionId,
         connectionId,
         serverName: 'notion-personal',
+        serviceType: 'notion',
+        actions: ['read', 'write'],
         config,
       }] },
     );
 
-    expect(agent.connection_bindings).toEqual({ 'notion-personal': connectionId });
-    expect(agent.mcp_servers).toEqual({ 'notion-personal': config });
+    expect(agent.connections?.personal_notion).toMatchObject({
+      type: 'notion',
+      name: 'Personal Notion',
+      purpose: 'Stores the review.',
+    });
+    expect(agent.connection_bindings).toBeUndefined();
+    expect(agent.mcp_servers).toBeUndefined();
+    expect(JSON.stringify(agent)).not.toContain(connectionId);
   });
 
-  it('fails closed when reviewed services are missing or collide at runtime', () => {
+  it('fails closed when reviewed services are missing and permits separate logical uses', () => {
     const proposal = completeProposal();
     proposal.connections = [
       { id: 'personal', name: 'Personal Notion', required: true, status: 'connected', reason: 'Reads notes.' },
@@ -1340,12 +1374,13 @@ describe('guided agent proposal creation', () => {
 
     expect(() => proposalToAgentConfig(reviewed, 'notes', { serviceBindings: [] }))
       .toThrow(/reviewed service binding/i);
-    expect(() => proposalToAgentConfig(reviewed, 'notes', {
+    const agent = proposalToAgentConfig(reviewed, 'notes', {
       serviceBindings: [
-        { id: 'personal', serverName: 'notion', config: { command: 'personal-notion' } },
-        { id: 'work', serverName: 'notion', config: { command: 'work-notion' } },
+        { id: 'personal', serverName: 'notion', serviceType: 'notion', actions: ['read'], config: { command: 'personal-notion' } },
+        { id: 'work', serverName: 'notion', serviceType: 'notion', actions: ['read'], config: { command: 'work-notion' } },
       ],
-    })).toThrow(/same runtime name/i);
+    });
+    expect(Object.keys(agent.connections ?? {})).toEqual(['personal_notion', 'work_notion']);
   });
 
   it('accepts multiple confirmed file grants as one structured answer', () => {

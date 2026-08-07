@@ -5,6 +5,11 @@ import { ConversationConfigSchema } from '../conversation/schema.js';
 import { areApprovedMcpReferences, isApprovedProviderReference, mcpCredentialOwner } from './environment-policy.js';
 import { NativeServicesSchema } from './native-services.js';
 import { EXECUTOR_NAMES } from './executor.js';
+import {
+  AgentConnectionSlotKeySchema,
+  AgentConnectionUsesSchema,
+} from './connection-uses.js';
+import { AgentSkillRequirementsSchema } from './skill-requirements.js';
 export { NativeServicesSchema } from './native-services.js';
 
 const TriggerRefSchema = z.object({
@@ -66,7 +71,7 @@ const OutputTargetMatchSchema = z.object({
   equals: z.union([z.string().trim().min(1).max(2_048), z.number().finite(), z.boolean()]),
 }).strict();
 
-const OutputPrimarySchema = z.object({
+const LegacyOutputPrimarySchema = z.object({
   description: z.string().trim().min(1).max(500),
   tool: z.string().trim().min(1).max(240),
   target: z.string().trim().min(1).max(1_024).optional(),
@@ -76,8 +81,18 @@ const OutputPrimarySchema = z.object({
   update_tool: z.string().trim().min(1).max(240).optional(),
 }).strict();
 
+const PortableOutputPrimarySchema = z.object({
+  description: z.string().trim().min(1).max(500),
+  use: AgentConnectionSlotKeySchema,
+  operation: z.string().min(3).max(160)
+    .regex(/^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)+$/),
+  target: AgentConnectionSlotKeySchema.optional(),
+  required: z.boolean().optional(),
+  successful_calls: OutputCallRangeSchema.optional(),
+}).strict();
+
 export const AgentOutputSchema = z.object({
-  primary: OutputPrimarySchema,
+  primary: z.union([LegacyOutputPrimarySchema, PortableOutputPrimarySchema]),
   notification: z.object({
     description: z.string().trim().min(1).max(500).optional(),
     tool: z.string().trim().min(1).max(240).optional(),
@@ -262,6 +277,8 @@ export const AgentConfigSchema = z
     permissions: PermissionsSchema.optional(),
     mcp_servers: z.record(z.string().min(1), McpServerConfigSchema).optional(),
     connection_bindings: ConnectionBindingsSchema.optional(),
+    connections: AgentConnectionUsesSchema.optional(),
+    skills: AgentSkillRequirementsSchema.optional(),
     interaction: InteractionConfigSchema.optional(),
     notification: NotificationConfigSchema.optional(),
     conversation: ConversationConfigSchema.optional(),
@@ -298,6 +315,32 @@ export const AgentConfigSchema = z
           path: ['mcp_servers', serverName],
           message: 'Connection credential is not approved for this service',
         });
+      }
+    }
+    const primary = agent.output?.primary;
+    if (primary && 'use' in primary) {
+      const use = agent.connections?.[primary.use];
+      if (!use) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['output', 'primary', 'use'],
+          message: 'Portable output use must name a declared connection',
+        });
+      } else {
+        if (!use.operations.includes(primary.operation)) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['output', 'primary', 'operation'],
+            message: 'Portable output operation must be declared by its connection use',
+          });
+        }
+        if (primary.target && !use.resources[primary.target]) {
+          ctx.addIssue({
+            code: 'custom',
+            path: ['output', 'primary', 'target'],
+            message: 'Portable output target must name a declared connection resource',
+          });
+        }
       }
     }
   });

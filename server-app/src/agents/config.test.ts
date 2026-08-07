@@ -34,6 +34,123 @@ prompt: Do something.
 `;
 
 describe('AgentConfigSchema', () => {
+  it('accepts semantic skill requirements without runtime implementation details', () => {
+    const result = AgentConfigSchema.parse({
+      id: 'manuscript-review',
+      name: 'Manuscript review',
+      prompt: 'Review the manuscript.',
+      skills: {
+        editorial_diagnostic: {
+          name: 'Fiction manuscript diagnostic',
+          purpose: 'Find structural, continuity, character, and prose problems.',
+        },
+      },
+    });
+
+    expect(result.skills).toEqual({
+      editorial_diagnostic: {
+        name: 'Fiction manuscript diagnostic',
+        purpose: 'Find structural, continuity, character, and prose problems.',
+      },
+    });
+  });
+
+  it('accepts shareable named connection uses without local or runtime identities', () => {
+    const result = AgentConfigSchema.parse({
+      id: 'daily-focus',
+      name: 'Daily Focus',
+      prompt: 'Create the daily focus page.',
+      connections: {
+        work_notes: {
+          type: 'notion',
+          name: 'Notion Work',
+          purpose: 'Read work notes and publish the daily focus page',
+          operations: ['notion.search', 'notion.page.create'],
+          resources: {
+            report_database: {
+              type: 'notion.data_source',
+              purpose: 'Destination for the daily focus page',
+              access: 'write',
+            },
+          },
+        },
+      },
+    });
+
+    expect(result.connections?.work_notes).toEqual({
+      type: 'notion',
+      name: 'Notion Work',
+      purpose: 'Read work notes and publish the daily focus page',
+      operations: ['notion.search', 'notion.page.create'],
+      resources: {
+        report_database: {
+          type: 'notion.data_source',
+          purpose: 'Destination for the daily focus page',
+          access: 'write',
+        },
+      },
+    });
+    expect(JSON.stringify(result.connections)).not.toContain('connection_id');
+    expect(JSON.stringify(result.connections)).not.toContain('executor');
+  });
+
+  it('rejects duplicate semantic operations in one connection use', () => {
+    expect(() => AgentConfigSchema.parse({
+      id: 'daily-focus',
+      name: 'Daily Focus',
+      prompt: 'Create the daily focus page.',
+      connections: {
+        work_notes: {
+          type: 'notion',
+          name: 'Notion Work',
+          purpose: 'Read work notes',
+          operations: ['notion.search', 'notion.search'],
+          resources: {},
+        },
+      },
+    })).toThrow('Connection operations must be unique');
+  });
+
+  it('rejects portable output references absent from the declared connection contract', () => {
+    const base = {
+      id: 'daily-focus',
+      name: 'Daily Focus',
+      prompt: 'Create the daily focus page.',
+      connections: {
+        work_notes: {
+          type: 'notion',
+          name: 'Notion Work',
+          purpose: 'Publish the daily focus page',
+          operations: ['notion.page.create'],
+          resources: {
+            report_database: {
+              type: 'notion.data_source', purpose: 'Destination', access: 'write' as const,
+            },
+          },
+        },
+      },
+    };
+
+    expect(() => AgentConfigSchema.parse({
+      ...base,
+      output: { primary: {
+        description: 'Report', use: 'missing', operation: 'notion.page.create',
+      } },
+    })).toThrow('Portable output use must name a declared connection');
+    expect(() => AgentConfigSchema.parse({
+      ...base,
+      output: { primary: {
+        description: 'Report', use: 'work_notes', operation: 'notion.page.update',
+      } },
+    })).toThrow('Portable output operation must be declared by its connection use');
+    expect(() => AgentConfigSchema.parse({
+      ...base,
+      output: { primary: {
+        description: 'Report', use: 'work_notes', operation: 'notion.page.create', target: 'missing',
+      } },
+    })).toThrow('Portable output target must name a declared connection resource');
+  });
+
   it('accepts an explicit policy for skipping a completed local calendar day', () => {
     const result = AgentConfigSchema.parse({
       id: 'daily-focus',

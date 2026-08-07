@@ -44,6 +44,75 @@ async function seededWriter(files: Record<string, string>, env: Record<string, s
 }
 
 describe('AgentWriter.update', () => {
+  it('rejects switching an agent with unbound credential MCP configuration to Codex', async () => {
+    const credentialAgent = `---
+id: reporter
+name: Weekly Reporter
+mcp_servers:
+  notion-personal:
+    command: npx
+    args: ["-y", "@notionhq/notion-mcp-server"]
+    env:
+      NOTION_TOKEN: \${NOTION_PERSONAL_API_KEY}
+---
+
+# Weekly report
+`;
+    const { writer } = await seededWriter(
+      { 'reporter.md': credentialAgent },
+      { NOTION_PERSONAL_API_KEY: 'configured' },
+    );
+
+    await expect(writer.update('reporter', { executor: 'codex' })).rejects.toThrow(
+      'Codex requires saved connections for MCP servers with credentials',
+    );
+  });
+
+  it('rejects switching an agent that depends on Claude account tools to Codex', async () => {
+    const claudeAccountAgent = `---
+id: reporter
+name: Weekly Reporter
+tools:
+  - mcp__claude_ai_Notion
+---
+
+# Weekly report
+`;
+    const { writer } = await seededWriter({ 'reporter.md': claudeAccountAgent });
+
+    await expect(writer.update('reporter', { executor: 'codex' })).rejects.toThrow(
+      'This agent uses Claude account connections that Codex cannot access',
+    );
+  });
+
+  it('allows switching an agent with a saved credential connection to Codex', async () => {
+    const connectionId = '11111111-1111-4111-8111-111111111111';
+    const savedConnectionAgent = `---
+id: reporter
+name: Weekly Reporter
+mcp_servers:
+  notion-personal:
+    command: npx
+    args: ["-y", "@notionhq/notion-mcp-server"]
+    env:
+      NOTION_TOKEN: \${NOTION_PERSONAL_API_KEY}
+connection_bindings:
+  notion-personal: ${connectionId}
+---
+
+# Weekly report
+`;
+    const { writer } = await seededWriter(
+      { 'reporter.md': savedConnectionAgent },
+      { NOTION_PERSONAL_API_KEY: 'configured' },
+    );
+
+    const updated = await writer.update('reporter', { executor: 'codex' });
+
+    expect(updated.executor).toBe('codex');
+    expect(updated.connection_bindings).toEqual({ 'notion-personal': connectionId });
+  });
+
   it('serializes writes to the same Markdown agent so concurrent patches cannot revert each other', async () => {
     const dir = createTempDir('writer-concurrent-update');
     await writeFile(join(dir, 'reporter.md'), MD_AGENT, 'utf-8');
@@ -464,6 +533,64 @@ describe('AgentWriter.create', () => {
     expect(content.startsWith('---\n')).toBe(true);
     expect(content).toContain('Plan my trips.');
     expect(parseAgentFile(content).id).toBe('my-trip-planner');
+  });
+
+  it('creates a shareable agent with portable connection and output contracts', async () => {
+    const { dir, writer } = await seededWriter({});
+
+    await writer.create({
+      name: 'Daily Focus',
+      prompt: 'Create the daily focus page.',
+      connections: {
+        work_notes: {
+          type: 'notion',
+          name: 'Notion Work',
+          purpose: 'Publish the daily focus page',
+          operations: ['notion.page.create'],
+          resources: {
+            report_database: {
+              type: 'notion.data_source',
+              purpose: 'Daily focus destination',
+              access: 'write',
+            },
+          },
+        },
+      },
+      output: {
+        primary: {
+          description: 'One daily focus page',
+          use: 'work_notes',
+          operation: 'notion.page.create',
+          target: 'report_database',
+        },
+      },
+    });
+
+    const content = await readFile(join(dir, 'daily-focus.md'), 'utf-8');
+    expect(content).toContain('name: Notion Work');
+    expect(content).toContain('operation: notion.page.create');
+    expect(content).not.toContain('executor:');
+    expect(content).not.toContain('mcp__');
+  });
+
+  it('creates a shareable agent with a semantic skill requirement', async () => {
+    const { dir, writer } = await seededWriter({});
+
+    await writer.create({
+      name: 'Manuscript Review',
+      prompt: 'Review the manuscript.',
+      skills: {
+        editorial_diagnostic: {
+          name: 'Fiction manuscript diagnostic',
+          purpose: 'Find structural, continuity, character, and prose problems.',
+        },
+      },
+    });
+
+    const content = await readFile(join(dir, 'manuscript-review.md'), 'utf8');
+    expect(content).toContain('name: Fiction manuscript diagnostic');
+    expect(content).not.toContain('fiction-diagnostic');
+    expect(parseAgentFile(content).skills).toBeDefined();
   });
 
   it('builds an explicit allowlist from enabled capabilities', async () => {

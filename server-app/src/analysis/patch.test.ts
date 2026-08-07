@@ -79,6 +79,75 @@ enabled: true
     expect(preview.result_content).toBe(formatted.replace('enabled: true', 'enabled: false'));
   });
 
+  it('previews a lossless migration from concrete MCP fields to portable connection intent', async () => {
+    const legacy = `---
+# Keep the schedule note
+id: reports
+name: Reports
+schedule: "0 17 * * 5"
+custom_setting: keep-me
+tools:
+  - Read
+  - mcp__notion_personal__API-post-page
+mcp_servers:
+  notion_personal:
+    command: npx
+    args: [-y, "@notionhq/notion-mcp-server@2.5.1"]
+---
+
+# Review reports
+
+Create the report with mcp__notion_personal__API-post-page.
+`;
+    const repository = new InMemoryAgentContentRepository({ reports: legacy });
+    const service = new StructuredPatchService(repository);
+    const patch = ConfigurationPatchSchema.parse({
+      schema_version: 1,
+      agent_id: 'reports',
+      expected_content_hash: computeAgentContentHash(legacy),
+      source: 'user',
+      reason: 'Replace concrete Notion configuration with portable intent',
+      changes: {
+        tools: ['Read'],
+        mcp_servers: null,
+        connections: {
+          personal_notes: {
+            type: 'notion', name: 'Notion Personal', purpose: 'Publish the report',
+            operations: ['notion.page.create'],
+            resources: {
+              reports: {
+                type: 'notion.data_source', purpose: 'Report destination', access: 'write',
+              },
+            },
+          },
+        },
+        output: { primary: {
+          description: 'One report', use: 'personal_notes', operation: 'notion.page.create',
+          target: 'reports', required: true,
+        } },
+        prompt: '# Review reports\n\nCreate the report in `personal_notes.reports`.',
+      },
+    });
+
+    const preview = await service.preview(patch);
+
+    expect(preview.risk).toBe('high');
+    expect(preview.requires_confirmation).toBe(true);
+    expect(preview.changes).toEqual(expect.arrayContaining([
+      { field: 'connections', summary: 'Change required connections' },
+      { field: 'output', summary: 'Change required output' },
+    ]));
+    expect(preview.result_content).toContain('# Keep the schedule note');
+    expect(preview.result_content).toContain('custom_setting: keep-me');
+    expect(preview.result_content).not.toContain('mcp_servers:');
+    expect(parseAgentFile(preview.result_content)).toMatchObject({
+      connections: patch.changes.connections,
+      output: patch.changes.output,
+      tools: ['Read'],
+    });
+    await expect(service.apply(patch)).rejects.toBeInstanceOf(PatchPolicyError);
+  });
+
   it('recognizes relocated macOS home folders as broad access', () => {
     expect(isUnsafeAutomatedFilePath('/Volumes/Homes/example', '/Volumes/Homes/example')).toBe(true);
     expect(isUnsafeAutomatedFilePath('/Volumes/Homes/example/Documents', '/Volumes/Homes/example')).toBe(false);
@@ -138,6 +207,23 @@ enabled: true
 
     await expect(service.preview(patch)).rejects.toBeInstanceOf(PatchPolicyError);
     expect(await repository.read('reports')).toBe(original);
+  });
+
+  it('allows a patch to retain an existing command permission while removing connected tools', async () => {
+    const current = original.replace(
+      'tools:\n  - Read',
+      'tools:\n  - Read\n  - Bash\n  - mcp__legacy__read',
+    );
+    const repository = new InMemoryAgentContentRepository({ reports: current });
+    const patch = ConfigurationPatchSchema.parse({
+      ...safePatch(current),
+      changes: { tools: ['Read', 'Bash'] },
+    });
+
+    const preview = await new StructuredPatchService(repository).preview(patch);
+
+    expect(preview.result_content).toContain('  - Bash');
+    expect(preview.result_content).not.toContain('mcp__legacy__read');
   });
 
   it.each([

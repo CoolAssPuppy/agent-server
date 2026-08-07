@@ -36,6 +36,25 @@ class ReleaseShellContractTests(unittest.TestCase):
         self.assertIn('notarize_app_archive "$APP_PATH" "$APP_ZIP"', release)
         self.assertNotIn("ditto -c -k --sequesterRsrc --keepParent", release)
 
+    def test_sparkle_signing_reads_the_private_key_from_doppler_over_stdin(self) -> None:
+        dmg = (ROOT / "scripts/build-dmg.sh").read_text()
+
+        self.assertIn("doppler secrets get SPARKLE_PRIVATE_KEY", dmg)
+        self.assertIn('--project "$DOPPLER_PROJECT"', dmg)
+        self.assertIn('--config "$DOPPLER_CONFIG"', dmg)
+        self.assertIn('"$SIGN_UPDATE" --ed-key-file - "$DMG_OUT"', dmg)
+        self.assertNotIn('"$SIGN_UPDATE" --account', dmg)
+
+    def test_archive_explicitly_uses_the_developer_id_identity(self) -> None:
+        release = (ROOT / "scripts/release.sh").read_text()
+
+        self.assertIn(
+            'SIGN_IDENTITY="${SIGN_IDENTITY:-Developer ID Application: Prashant Sridharan (955GSY56UT)}"',
+            release,
+        )
+        self.assertIn('CODE_SIGN_STYLE=Manual', release)
+        self.assertIn('CODE_SIGN_IDENTITY="$SIGN_IDENTITY"', release)
+
     def test_app_archive_is_cleaned_after_success_failure_and_interruption(self) -> None:
         helper = ROOT / "scripts/release-helpers.sh"
         shell = r'''

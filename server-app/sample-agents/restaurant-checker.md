@@ -1,18 +1,19 @@
 ---
 id: restaurant-checker
 name: Restaurant Availability Checker
-tools:
-  - mcp__plugin_playwright_playwright__browser_navigate
-  - mcp__plugin_playwright_playwright__browser_snapshot
-  - mcp__plugin_playwright_playwright__browser_click
-  - mcp__plugin_playwright_playwright__browser_fill_form
-  - mcp__plugin_playwright_playwright__browser_select_option
-  - mcp__plugin_playwright_playwright__browser_wait_for
-  - mcp__plugin_playwright_playwright__browser_take_screenshot
-  - mcp__plugin_playwright_playwright__browser_close
-  - Bash
+connections:
+  web_browser:
+    type: browser
+    name: Web Browser
+    purpose: Search restaurant sites and reservation services for available tables.
+    operations:
+      - browser.page.open
+      - browser.page.read
+      - browser.element.click
+      - browser.form.fill
+      - browser.option.select
+      - browser.page.wait
 max_turns: 40
-working_directory: "~"
 ---
 
 Find reservation availability for a restaurant. Follow these steps exactly.

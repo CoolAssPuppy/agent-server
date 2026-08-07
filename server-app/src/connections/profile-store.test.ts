@@ -6,6 +6,7 @@ import { ConnectionProfileStore, type ConnectionProfileDraft } from './profile-s
 
 const draft = (label: string, environmentVariable: string): ConnectionProfileDraft => ({
   label,
+  service_type: 'documents',
   adapter: { id: 'mcp.custom', version: 1 },
   credentials: [{ label: 'Token', environment_variable: environmentVariable, secret: true }],
   transport: {
@@ -29,6 +30,20 @@ describe('ConnectionProfileStore', () => {
     expect(source).toContain('EXISTING_PERSONAL_TOKEN');
     expect(source).not.toContain('must-never-be-stored');
     expect(mode).toBe(0o600);
+    expect(saved.service_type).toBe('documents');
+  });
+
+  it('keeps portable service identity separate from the technical adapter', async () => {
+    const store = new ConnectionProfileStore(join(createTempDir('connections'), 'connections.json'));
+
+    const saved = await store.create({
+      ...draft('Work notes', 'WORK_NOTES_TOKEN'),
+      service_type: 'notion',
+      adapter: { id: 'company.private-notion-relay', version: 3 },
+    });
+
+    expect(saved.service_type).toBe('notion');
+    expect(saved.adapter.id).toBe('company.private-notion-relay');
   });
 
   it('allows duplicate labels while preserving distinct opaque identities', async () => {

@@ -25,6 +25,11 @@ export type McpServerInfo = {
 export type ToolCallTrace = {
   name: string;
   status: 'succeeded' | 'failed';
+  portable?: {
+    use: string;
+    operation: string;
+    target?: string;
+  };
   input?: unknown;
   output?: unknown;
   duration_ms?: number;

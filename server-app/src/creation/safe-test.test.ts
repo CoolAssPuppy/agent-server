@@ -15,6 +15,12 @@ describe('safe agent tests', () => {
       watch: [{ path: '~/Documents' }],
       on_complete: [{ agent: 'next' }],
       connection_bindings: { notes: '11111111-1111-4111-8111-111111111111' },
+      connections: {
+        notes: {
+          type: 'notion', name: 'Notion Work', purpose: 'Publish a report',
+          operations: ['notion.page.create'], resources: {},
+        },
+      },
       calendar_access: [{ id: 'calendar-1', name: 'Work', access: 'read_write' }],
       native_services: {
         reminders: { resources: [{ id: 'list-1', name: 'Tasks', actions: ['read', 'create'] }] },
@@ -41,6 +47,7 @@ describe('safe agent tests', () => {
       on_complete: undefined,
       mcp_servers: {},
       connection_bindings: undefined,
+      connections: undefined,
       calendar_access: undefined,
       native_services: undefined,
       file_access: [

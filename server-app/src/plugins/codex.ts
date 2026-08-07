@@ -1,14 +1,20 @@
-import { Codex, type ThreadEvent, type ThreadItem, type ThreadOptions } from '@openai/codex-sdk';
+import type { ThreadEvent, ThreadItem } from '@openai/codex-sdk';
 import type { AgentConfig, McpServerConfig } from '../agents/config.js';
 import { buildCodexChildEnvironment, resolveApprovedProviderKey } from '../agents/environment-policy.js';
-import { deriveCodexSandbox, deriveCodexNetworkAccess } from '../execution/codex-safety.js';
-import { expandHome } from '../agents/file-watcher.js';
 import type { ExecutionResult, ToolCallTrace } from '../execution/executor.js';
 import { truncate } from '../execution/executor.js';
 import type { Reporter } from '../execution/runner.js';
 import { parseInteractionBlock } from '../interaction/parser.js';
 import { nativeServiceGrantEnvironment } from '../agents/native-services.js';
 import { resolveSavedConnectionValues } from '../connections/runtime-resolution.js';
+import { runtimeCodexAppPolicies } from '../connections/runtime-policy.js';
+import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
+import {
+  credentialBrokerSocketPath,
+  type CredentialBrokerPlan,
+} from './credential-broker.js';
+import { buildMcpPolicyRelayCommand } from './mcp-relay-runtime.js';
 import {
   buildScopedCodexInvocation,
   streamScopedCodex,
@@ -56,64 +62,24 @@ export async function executeCodexAgent(
   const startedAt = performance.now();
   const state = createState();
   const environment = buildCodexChildEnvironment();
-  const config = extra?.disableMcpServers ? { mcp_servers: {} } : getCodexConfig(agent);
+  const codexMcp = extra?.disableMcpServers
+    ? { config: { mcp_servers: {} }, credentialBroker: undefined }
+    : getCodexMcpRuntime(agent);
   const provider = getProviderOptions(agent);
-  if ((agent.file_access?.length ?? 0) > 0) {
-    const invocation = buildScopedCodexInvocation({
-      agent,
-      environment,
-      config,
-      codexExecutablePath: extra?.codexExecutablePath,
-      ...provider,
-    });
-    const eventStream = extra?.scopedEventStream ?? streamScopedCodex;
-    for await (const event of eventStream(invocation, agent.prompt, extra?.abortController?.signal)) {
-      handleEvent(event, state, reporter);
-    }
-    return buildResult(state, performance.now() - startedAt, getStringField(agent, 'model'));
-  }
-  const codex = new Codex({
-    env: environment,
-    config,
-    // Use the user's installed Codex binary and its ChatGPT login.
-    codexPathOverride: extra?.codexExecutablePath,
-    // A custom provider points Codex at an OpenAI-compatible endpoint (e.g.
-    // Moonshot for Kimi K3) instead of the ChatGPT subscription. Without a
-    // provider these stay undefined and the ChatGPT login is used.
+  const invocation = buildScopedCodexInvocation({
+    agent,
+    config: codexMcp.config,
+    environment,
+    credentialBroker: codexMcp.credentialBroker,
+    codexExecutablePath: extra?.codexExecutablePath,
     ...provider,
   });
-  const thread = codex.startThread(getThreadOptions(agent));
-  const { events } = await thread.runStreamed(agent.prompt, {
-    signal: extra?.abortController?.signal,
-  });
-
-  for await (const event of events) {
+  const eventStream = extra?.scopedEventStream ?? streamScopedCodex;
+  for await (const event of eventStream(invocation, agent.prompt, extra?.abortController?.signal)) {
     handleEvent(event, state, reporter);
   }
 
   return buildResult(state, performance.now() - startedAt, getStringField(agent, 'model'));
-}
-
-function getThreadOptions(agent: AgentConfig): ThreadOptions {
-  // Codex ignores the Claude tool allowlist, so the UI capability toggles are
-  // translated into Codex's own safety knobs here: read-only vs workspace-write
-  // sandbox from whether the agent may write/run, and network access from an
-  // explicit web-tool grant. This keeps the toggles meaningful on Codex.
-  const sandboxMode = deriveCodexSandbox(agent);
-  const networkAccessEnabled = deriveCodexNetworkAccess(agent);
-  const workingDirectory = agent.working_directory
-    ? expandHome(agent.working_directory)
-    : process.env.HOME ?? process.cwd();
-
-  return {
-    workingDirectory,
-    skipGitRepoCheck: true,
-    model: getStringField(agent, 'model'),
-    sandboxMode,
-    approvalPolicy: 'never',
-    networkAccessEnabled,
-    webSearchMode: 'disabled',
-  };
 }
 
 /**
@@ -133,12 +99,19 @@ function getProviderOptions(agent: AgentConfig): { baseUrl?: string; apiKey?: st
   };
 }
 
-function getCodexConfig(agent: AgentConfig): Record<string, Record<string, CodexMcpServer>> | undefined {
+function getCodexMcpRuntime(agent: AgentConfig): {
+  config: Record<string, unknown> | undefined;
+  credentialBroker: CredentialBrokerPlan | undefined;
+} {
+  const credentialBroker: CredentialBrokerPlan = {
+    socketPath: credentialBrokerSocketPath(),
+    grants: {},
+  };
   const servers = Object.fromEntries(
-    Object.entries(agent.mcp_servers ?? {}).map(([name, config]) => [
-      name,
-      normalizeMcpServer(agent, name, config),
-    ]),
+    Object.entries(agent.mcp_servers ?? {}).map(([name, config]) => {
+      const normalized = normalizeMcpServer(agent, name, config, credentialBroker);
+      return [name, normalized.server];
+    }),
   );
   const eventKitBin = process.env.AGENT_SERVER_EVENTKIT_BIN;
   if (eventKitBin && !servers.eventkit) {
@@ -150,11 +123,44 @@ function getCodexConfig(agent: AgentConfig): Record<string, Record<string, Codex
         : {}),
       enabled: true,
       required: true,
+      default_tools_approval_mode: 'approve',
+      ...mcpToolFilters(agent, 'eventkit'),
     };
   }
-  if (Object.keys(servers).length === 0) return undefined;
+  const apps = codexAppConfig(agent);
+  const config = {
+    ...(Object.keys(servers).length > 0 ? { mcp_servers: servers } : {}),
+    ...(apps ? { features: { apps: true }, apps } : {}),
+  };
   return {
-    mcp_servers: servers,
+    config: Object.keys(config).length === 0 ? undefined : config,
+    credentialBroker: Object.keys(credentialBroker.grants).length > 0
+      ? credentialBroker
+      : undefined,
+  };
+}
+
+function codexAppConfig(agent: AgentConfig): Record<string, unknown> | undefined {
+  const policies = runtimeCodexAppPolicies(agent);
+  if (Object.keys(policies).length === 0) return undefined;
+  return {
+    _default: {
+      enabled: false,
+      default_tools_enabled: false,
+      destructive_enabled: false,
+      open_world_enabled: false,
+    },
+    ...Object.fromEntries(Object.entries(policies).map(([appId, policy]) => [appId, {
+      enabled: true,
+      default_tools_enabled: true,
+      destructive_enabled: Object.values(policy.tools).some(({ effect }) => effect === 'write'),
+      open_world_enabled: true,
+      tools: Object.fromEntries(policy.availableTools.map((tool) => [tool,
+        policy.tools[tool]
+          ? { enabled: true, approval_mode: 'approve' }
+          : { enabled: false },
+      ])),
+    }])),
   };
 }
 
@@ -166,9 +172,17 @@ type CodexMcpServer = {
   http_headers?: Record<string, string>;
   enabled: boolean;
   required: boolean;
+  default_tools_approval_mode: 'approve';
+  enabled_tools?: string[];
+  disabled_tools?: string[];
 };
 
-function normalizeMcpServer(agent: AgentConfig, name: string, config: McpServerConfig): CodexMcpServer {
+function normalizeMcpServer(
+  agent: AgentConfig,
+  name: string,
+  config: McpServerConfig,
+  credentialBroker: CredentialBrokerPlan,
+): { server: CodexMcpServer } {
   if ('command' in config) {
     const savedEnvironment = config.env
       ? resolveSavedConnectionValues(agent, name, config.env)
@@ -176,13 +190,48 @@ function normalizeMcpServer(agent: AgentConfig, name: string, config: McpServerC
     if (config.env && !savedEnvironment && Object.keys(config.env).length > 0) {
       throw new Error(`Codex MCP server "${name}" contains credentials; use a token-backed adapter`);
     }
-    return {
+    const relay = buildMcpPolicyRelayCommand(
+      agent,
+      name,
+      config,
+      savedEnvironment ?? {},
+      credentialBroker,
+    );
+    if (relay) {
+      return { server: {
+        ...relay,
+        enabled: true,
+        required: true,
+        default_tools_approval_mode: 'approve',
+        ...mcpToolFilters(agent, name),
+      } };
+    }
+    if (!savedEnvironment || Object.keys(savedEnvironment).length === 0) {
+      return { server: {
+        command: config.command,
+        ...(config.args ? { args: config.args } : {}),
+        enabled: true,
+        required: true,
+        default_tools_approval_mode: 'approve',
+        ...mcpToolFilters(agent, name),
+      } };
+    }
+    const grant = randomUUID();
+    credentialBroker.grants[grant] = savedEnvironment;
+    const launcherPayload = JSON.stringify({
       command: config.command,
-      ...(config.args ? { args: config.args } : {}),
-      ...(savedEnvironment ? { env: savedEnvironment } : {}),
+      args: config.args ?? [],
+      credential_broker: credentialBroker.socketPath,
+      credential_grant: grant,
+    });
+    return { server: {
+      command: process.execPath,
+      args: [fileURLToPath(new URL('./mcp-credential-launcher.js', import.meta.url)), launcherPayload],
       enabled: true,
       required: true,
-    };
+      default_tools_approval_mode: 'approve',
+      ...mcpToolFilters(agent, name),
+    } };
   }
   const savedHeaders = config.headers
     ? resolveSavedConnectionValues(agent, name, config.headers)
@@ -190,12 +239,55 @@ function normalizeMcpServer(agent: AgentConfig, name: string, config: McpServerC
   if (config.headers && !savedHeaders && Object.keys(config.headers).length > 0) {
     throw new Error(`Codex MCP server "${name}" contains credentials; use a token-backed adapter`);
   }
-  return {
+  const relay = buildMcpPolicyRelayCommand(
+    agent,
+    name,
+    config,
+    savedHeaders ?? {},
+    credentialBroker,
+  );
+  if (relay) {
+    return { server: {
+      ...relay,
+      enabled: true,
+      required: true,
+      default_tools_approval_mode: 'approve',
+      ...mcpToolFilters(agent, name),
+    } };
+  }
+  if (savedHeaders && Object.keys(savedHeaders).length > 0) {
+    throw new Error(
+      `Codex MCP server "${name}" uses HTTP credentials that require the local credential relay`,
+    );
+  }
+  return { server: {
     url: config.url,
-    ...(savedHeaders ? { http_headers: savedHeaders } : {}),
     enabled: true,
     required: true,
+    default_tools_approval_mode: 'approve',
+    ...mcpToolFilters(agent, name),
+  } };
+}
+
+function mcpToolFilters(
+  agent: AgentConfig,
+  serverName: string,
+): Pick<CodexMcpServer, 'enabled_tools' | 'disabled_tools'> {
+  const prefix = `mcp__${serverName}__`;
+  const enabledTools = exactServerTools(agent.permissions?.allow, prefix);
+  const disabledTools = exactServerTools(agent.permissions?.deny, prefix);
+  return {
+    ...(enabledTools.length > 0 ? { enabled_tools: enabledTools } : {}),
+    ...(disabledTools.length > 0 ? { disabled_tools: disabledTools } : {}),
   };
+}
+
+function exactServerTools(patterns: readonly string[] | undefined, prefix: string): string[] {
+  return [...new Set((patterns ?? []).flatMap((pattern) => {
+    if (!pattern.startsWith(prefix)) return [];
+    const tool = pattern.slice(prefix.length);
+    return tool.length > 0 && !tool.includes('*') ? [tool] : [];
+  }))];
 }
 
 function getStringField(agent: AgentConfig, field: string): string | undefined {

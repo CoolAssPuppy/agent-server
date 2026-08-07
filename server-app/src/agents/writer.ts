@@ -6,10 +6,13 @@ import { Document } from 'yaml';
 import { CronExpressionParser } from 'cron-parser';
 import {
   type AgentConfig,
+  AgentOutputSchema,
   ConnectionBindingsSchema,
   ProviderConfigSchema,
   parseAgentFile,
 } from './config.js';
+import { AgentConnectionUsesSchema } from './connection-uses.js';
+import { AgentSkillRequirementsSchema } from './skill-requirements.js';
 import { isAgentFile } from './discovery.js';
 import { NotificationConfigSchema } from '../interaction/schema.js';
 import { loadEnvFile } from '../platform/config.js';
@@ -66,6 +69,9 @@ export const AgentPatchSchema = z
     disallowed_tools: z.array(z.string().trim().min(1).max(120)).max(128).optional(),
     notification: NotificationConfigSchema.nullable().optional(),
     connection_bindings: ConnectionBindingsSchema.nullable().optional(),
+    connections: AgentConnectionUsesSchema.nullable().optional(),
+    skills: AgentSkillRequirementsSchema.nullable().optional(),
+    output: AgentOutputSchema.nullable().optional(),
     capabilities: z.array(CapabilityChangeSchema).max(64).optional(),
   })
   .strict();
@@ -84,6 +90,9 @@ export const NewAgentSchema = z
     timezone: z.string().trim().min(1).max(120).optional(),
     capabilities: z.array(CapabilityChangeSchema).max(64).optional(),
     notification: NotificationConfigSchema.optional(),
+    connections: AgentConnectionUsesSchema.optional(),
+    skills: AgentSkillRequirementsSchema.optional(),
+    output: AgentOutputSchema.optional(),
   })
   .strict();
 
@@ -142,6 +151,39 @@ function assertValidSchedule(schedule: string): void {
   }
 }
 
+function assertCodexRuntimeCompatible(agent: AgentConfig, patch: AgentPatch): void {
+  if (patch.executor !== 'codex') return;
+
+  const configuredTools = [
+    ...agent.tools,
+    ...(agent.permissions?.allow ?? []),
+    agent.output?.primary && 'tool' in agent.output.primary
+      ? agent.output.primary.tool
+      : undefined,
+    agent.output?.notification?.tool,
+  ].filter((tool): tool is string => typeof tool === 'string');
+  if (configuredTools.some((tool) => tool.startsWith('mcp__claude_ai_'))) {
+    throw new AgentWriteError(
+      'This agent uses Claude account connections that Codex cannot access. Replace them with Codex connections before choosing Codex.',
+      'invalid',
+    );
+  }
+
+  const unboundCredentialServers = Object.entries(agent.mcp_servers ?? {})
+    .filter(([name, server]) => {
+      if (agent.connection_bindings?.[name]) return false;
+      const values = 'command' in server ? server.env : server.headers;
+      return values !== undefined && Object.keys(values).length > 0;
+    })
+    .map(([name]) => name);
+  if (unboundCredentialServers.length > 0) {
+    throw new AgentWriteError(
+      `Codex requires saved connections for MCP servers with credentials. Connect ${unboundCredentialServers.join(', ')} and attach the saved connection before choosing Codex.`,
+      'invalid',
+    );
+  }
+}
+
 /**
  * Collects the concrete field writes for a patch: explicit field edits
  * first, then capability toggles layered on top (a toggle recomputes
@@ -175,6 +217,9 @@ function collectFieldWrites(
     'disallowed_tools',
     'notification',
     'connection_bindings',
+    'connections',
+    'skills',
+    'output',
   ];
   for (const key of direct) {
     if (patch[key] !== undefined) fields.set(key, patch[key]);
@@ -275,6 +320,9 @@ export function renderNewAgentFile(
   if (input.description) frontmatter.description = input.description;
   if (input.schedule) frontmatter.schedule = input.schedule;
   if (input.timezone) frontmatter.timezone = input.timezone;
+  if (input.connections) frontmatter.connections = input.connections;
+  if (input.skills) frontmatter.skills = input.skills;
+  if (input.output) frontmatter.output = input.output;
 
   if (input.capabilities && input.capabilities.length > 0) {
     const allow: string[] = [];
@@ -396,6 +444,7 @@ export function createAgentWriter(
         if (updated.id !== id) {
           throw new AgentWriteError('Patch must not change the agent id', 'invalid');
         }
+        assertCodexRuntimeCompatible(updated, patch);
 
         await writeAtomically(located.path, newContent);
         return updated;

@@ -33,6 +33,9 @@ export function resolveConnectionProfile(profile: ConnectionProfile): ResolvedCo
       },
     };
   }
+  if (transport.kind === 'runtime_account') {
+    throw new Error(`${profile.label} is supplied by ${transport.executor}, not an injected MCP transport.`);
+  }
   return {
     serverName: profile.runtime_name,
     config: {

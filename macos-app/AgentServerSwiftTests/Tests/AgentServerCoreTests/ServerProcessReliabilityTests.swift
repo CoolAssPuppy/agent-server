@@ -10,8 +10,8 @@ final class ServerProcessReliabilityTests: XCTestCase {
     }
 
     func testCurrentServerAPIVersionCanBeAdopted() {
-        XCTAssertFalse(LocalServerCompatibility.shouldReplace(apiVersion: 12))
-        XCTAssertTrue(LocalServerCompatibility.shouldReplace(apiVersion: 11))
+        XCTAssertFalse(LocalServerCompatibility.shouldReplace(apiVersion: 13))
+        XCTAssertTrue(LocalServerCompatibility.shouldReplace(apiVersion: 12))
     }
 
     func testMissingOrOlderServerAPIVersionMustBeReplaced() {
@@ -26,15 +26,15 @@ final class ServerProcessReliabilityTests: XCTestCase {
 
     func testHealthyOlderServerStaysRunningWhenReplacementPreflightFails() {
         XCTAssertEqual(
-            LocalServerCompatibility.action(apiVersion: 11, replacementIsReady: false),
+            LocalServerCompatibility.action(apiVersion: 12, replacementIsReady: false),
             .keepExisting
         )
         XCTAssertEqual(
-            LocalServerCompatibility.action(apiVersion: 11, replacementIsReady: true),
+            LocalServerCompatibility.action(apiVersion: 12, replacementIsReady: true),
             .replaceExisting
         )
         XCTAssertEqual(
-            LocalServerCompatibility.action(apiVersion: 12, replacementIsReady: true),
+            LocalServerCompatibility.action(apiVersion: 13, replacementIsReady: true),
             .adoptExisting
         )
     }

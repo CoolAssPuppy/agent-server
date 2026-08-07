@@ -258,6 +258,12 @@ struct ConnectionsView: View {
                 return duplicate
             },
             onCheck: { try await monitor.checkConnectionProfile(id: profile.id) },
+            onLoadOperations: {
+                try await monitor.connectionOperationReview(id: profile.id)
+            },
+            onSaveOperations: { request in
+                try await monitor.updateConnectionOperationMappings(id: profile.id, request: request)
+            },
             onRemove: {
                 try await monitor.removeConnectionProfile(id: profile.id)
                 savedProfiles.removeAll { $0.id == profile.id }

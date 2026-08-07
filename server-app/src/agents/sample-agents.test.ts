@@ -21,10 +21,45 @@ describe('sample agents', () => {
       expect(agent.id).toBeTruthy();
       expect(agent.name).toBeTruthy();
       expect(agent.prompt).toBeTruthy();
-      expect(agent.tools.length).toBeGreaterThan(0);
+      expect(agent.tools.length + Object.keys(agent.connections ?? {}).length).toBeGreaterThan(0);
       expect(agent.max_turns).toBeGreaterThan(0);
     });
   }
+
+  it('keeps shareable definitions free of local runtime and adapter details', () => {
+    for (const file of agentFiles) {
+      const content = readFileSync(join(sampleDir, file), 'utf-8');
+      const agent = parseAgentFile(content);
+      const concreteTools = [
+        ...agent.tools,
+        ...agent.disallowed_tools,
+        ...(agent.permissions?.allow ?? []),
+        ...(agent.permissions?.deny ?? []),
+      ].filter((tool) => tool.startsWith('mcp__'));
+
+      expect({
+        file,
+        executor: agent.executor,
+        model: agent.model,
+        provider: agent.provider,
+        codexSandbox: agent.codex_sandbox,
+        permissionMode: agent.permission_mode,
+        mcpServers: agent.mcp_servers,
+        connectionBindings: agent.connection_bindings,
+        concreteTools,
+      }).toEqual({
+        file,
+        executor: undefined,
+        model: undefined,
+        provider: undefined,
+        codexSandbox: undefined,
+        permissionMode: undefined,
+        mcpServers: undefined,
+        connectionBindings: undefined,
+        concreteTools: [],
+      });
+    }
+  });
 
   it('markdown-processor has file watch config', () => {
     const content = readFileSync(join(sampleDir, 'markdown-processor.yaml'), 'utf-8');

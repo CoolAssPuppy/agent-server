@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { ConnectionProfileSchema, type ConnectionProfile } from './profile.js';
+import {
+  ConnectionProfileDraftSchema,
+  ConnectionProfileRegistrySchema,
+  ConnectionProfileSchema,
+  type ConnectionProfile,
+} from './profile.js';
 
 const profile = (): ConnectionProfile => ({
   schema_version: 1,
@@ -26,6 +31,27 @@ const profile = (): ConnectionProfile => ({
 });
 
 describe('ConnectionProfileSchema', () => {
+  it('accepts a machine-local account connection owned by one runtime', () => {
+    const parsed = ConnectionProfileDraftSchema.parse({
+      label: 'Slack Work',
+      service_type: 'slack',
+      adapter: { id: 'claude.slack-account', version: 1 },
+      runtime_name: 'claude_ai_Slack',
+      credentials: [],
+      transport: {
+        kind: 'runtime_account',
+        executor: 'claude-code',
+        server_name: 'claude.ai Slack',
+      },
+    });
+
+    expect(parsed.transport).toEqual({
+      kind: 'runtime_account',
+      executor: 'claude-code',
+      server_name: 'claude.ai Slack',
+    });
+  });
+
   it('rejects references to Agent Server and runtime credentials', () => {
     expect(() => ConnectionProfileSchema.parse({
       ...profile(),
@@ -89,5 +115,57 @@ describe('ConnectionProfileSchema', () => {
         environment: { API_TOKEN: '018f47a2-0000-7000-8000-000000000000' },
       },
     })).toThrow(/credential/i);
+  });
+
+  it('allows HTTPS and loopback HTTP while rejecting remote plaintext MCP endpoints', () => {
+    expect(() => ConnectionProfileSchema.parse({
+      ...profile(),
+      transport: { kind: 'mcp_http', url: 'http://service.example/mcp', headers: [] },
+    })).toThrow(/HTTPS or loopback/);
+    expect(ConnectionProfileSchema.parse({
+      ...profile(),
+      transport: { kind: 'mcp_http', url: 'http://127.0.0.1:7412/mcp', headers: [] },
+    }).transport).toMatchObject({ url: 'http://127.0.0.1:7412/mcp' });
+  });
+
+  it('rejects credential values in remote URLs and stdio arguments', () => {
+    expect(() => ConnectionProfileSchema.parse({
+      ...profile(),
+      transport: {
+        kind: 'mcp_http', url: 'https://user:password@service.example/mcp', headers: [],
+      },
+    })).toThrow(/credentials/i);
+    expect(() => ConnectionProfileSchema.parse({
+      ...profile(),
+      transport: {
+        kind: 'mcp_http', url: 'https://service.example/mcp?access_token=secret', headers: [],
+      },
+    })).toThrow(/credentials/i);
+    expect(() => ConnectionProfileSchema.parse({
+      ...profile(),
+      transport: {
+        kind: 'mcp_stdio', command: 'helper', args: ['--token=secret'], environment: {},
+      },
+    })).toThrow(/credential references/i);
+    expect(() => ConnectionProfileSchema.parse({
+      ...profile(),
+      transport: {
+        kind: 'mcp_stdio', command: 'helper', args: ['${SERVICE_TOKEN}'], environment: {},
+      },
+    })).toThrow(/credential references/i);
+  });
+
+  it('requires unique runtime names across saved profiles', () => {
+    expect(() => ConnectionProfileRegistrySchema.parse({
+      schema_version: 1,
+      connections: [
+        profile(),
+        {
+          ...profile(),
+          id: '11111111-1111-4111-8111-111111111111',
+          label: 'Second account',
+        },
+      ],
+    })).toThrow(/runtime names/i);
   });
 });

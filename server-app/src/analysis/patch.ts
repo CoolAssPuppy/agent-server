@@ -6,12 +6,14 @@ import { CronExpressionParser } from 'cron-parser';
 import { z } from 'zod';
 import {
   AgentTelemetrySchema,
+  AgentOutputSchema,
   CalendarAccessSchema,
   ConnectionBindingsSchema,
   FileAccessSchema,
   NativeServicesSchema,
   parseAgentFile,
 } from '../agents/config.js';
+import { AgentConnectionUsesSchema } from '../agents/connection-uses.js';
 import { renderLosslessAgentPatch } from '../agents/lossless-yaml-editor.js';
 import { ConversationConfigSchema } from '../conversation/schema.js';
 import { NETWORK_TOOLS } from '../execution/permission-policy.js';
@@ -41,6 +43,8 @@ export const ConfigurationChangesSchema = z.object({
   permissions: z.object({ allow: ToolListSchema, deny: ToolListSchema }).strict().nullable().optional(),
   mcp_servers: z.record(z.string().trim().min(1).max(160), z.unknown()).nullable().optional(),
   connection_bindings: ConnectionBindingsSchema.nullable().optional(),
+  connections: AgentConnectionUsesSchema.nullable().optional(),
+  output: AgentOutputSchema.nullable().optional(),
   model: z.string().trim().min(1).max(120).nullable().optional(),
   executor: z.enum(EXECUTOR_NAMES).nullable().optional(),
   provider: z.object({
@@ -108,7 +112,8 @@ const FIELD_SUMMARIES: Record<string, string> = {
   schedule: 'Change when the agent runs', timezone: 'Change the schedule time zone', enabled: 'Change whether the agent is enabled',
   working_directory: 'Change the working folder', tools: 'Change allowed actions', disallowed_tools: 'Change blocked actions',
   permissions: 'Change detailed action permissions', mcp_servers: 'Change connected apps and services',
-  connection_bindings: 'Use saved connections', model: 'Change the model',
+  connection_bindings: 'Use saved connections', connections: 'Change required connections',
+  output: 'Change required output', model: 'Change the model',
   executor: 'Change the local runtime', provider: 'Change the model service', codex_sandbox: 'Change file access limits',
   permission_mode: 'Change approval behavior', notification: 'Change notifications', interaction: 'Change reply handling',
   watch: 'Change watched folders', on_complete: 'Change follow-up agents', on_failure: 'Change failure handling',
@@ -185,14 +190,19 @@ function classifyPatchRisk(
     throw new PatchPolicyError('Automated patches cannot grant every available action');
   }
   const granted = [...(changes.tools ?? []), ...(changes.permissions?.allow ?? [])];
-  if (granted.some((tool) => COMMAND_PATTERN.test(tool))) {
+  const currentGrants = new Set([
+    ...current.tools,
+    ...(current.permissions?.allow ?? []),
+  ]);
+  const addedGrants = granted.filter((tool) => !currentGrants.has(tool));
+  if (addedGrants.some((tool) => COMMAND_PATTERN.test(tool))) {
     throw new PatchPolicyError('Automated patches cannot grant arbitrary command execution');
   }
-  if (granted.some((tool) => tool === '*' || /^mcp__\*$/.test(tool))) {
+  if (addedGrants.some((tool) => tool === '*' || /^mcp__\*$/.test(tool))) {
     throw new PatchPolicyError('Automated patches cannot grant every available action');
   }
-  if (granted.some((tool) => WRITE_PATTERN.test(tool))) reasons.push('Allows file changes');
-  if (granted.some((tool) => tool.startsWith('mcp__'))) reasons.push('Allows a connected app or service');
+  if (addedGrants.some((tool) => WRITE_PATTERN.test(tool))) reasons.push('Allows file changes');
+  if (addedGrants.some((tool) => tool.startsWith('mcp__'))) reasons.push('Allows a connected app or service');
   if (changes.permissions === null && current.permissions) reasons.push('Removes an existing action allowlist');
   if (changes.disallowed_tools
     && current.disallowed_tools.some((tool) => !changes.disallowed_tools?.includes(tool))) {
@@ -214,6 +224,8 @@ function classifyPatchRisk(
   if (startsShell) throw new PatchPolicyError('Automated patches cannot add a shell-based connected service');
   if (changedServices.length > 0) reasons.push('Adds or changes a connected service');
   if (changes.connection_bindings !== undefined) reasons.push('Changes saved connections');
+  if (changes.connections !== undefined) reasons.push('Changes required connections');
+  if (changes.output !== undefined) reasons.push('Changes required output');
   if (changes.notification) reasons.push('Changes external notifications');
   if (changes.schedule || (changes.watch && changes.watch.length > 0)) reasons.push('Changes automatic execution');
   if ((changes.on_complete?.length ?? 0) > 0 || (changes.on_failure?.length ?? 0) > 0) {

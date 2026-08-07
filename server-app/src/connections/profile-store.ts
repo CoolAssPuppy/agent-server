@@ -42,6 +42,7 @@ export class ConnectionProfileStore {
         schema_version: 1,
         id,
         label: draft.label,
+        service_type: draft.service_type ?? draft.adapter.id.split('.')[0],
         adapter: draft.adapter,
         runtime_name: draft.runtime_name ?? `connection_${id.replaceAll('-', '')}`,
         credentials,
@@ -116,6 +117,7 @@ export class ConnectionProfileStore {
         ))),
       };
     }
+    if (transport.kind === 'runtime_account') return transport;
     return {
       ...transport,
       headers: transport.headers.map((header) => ({
@@ -137,6 +139,7 @@ export class ConnectionProfileStore {
         ))),
       };
     }
+    if (transport.kind === 'runtime_account') return transport;
     return {
       kind: transport.kind,
       url: transport.url,

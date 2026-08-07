@@ -91,6 +91,7 @@ public struct ConnectionProfile: Codable, Equatable, Identifiable, Sendable {
     public let schemaVersion: Int
     public let id: String
     public let label: String
+    public let serviceType: String?
     public let adapter: ConnectionAdapterRequest
     public let runtimeName: String
     public let credentials: [ConnectionCredentialReference]
@@ -100,6 +101,7 @@ public struct ConnectionProfile: Codable, Equatable, Identifiable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case id, label, adapter, credentials, transport
+        case serviceType = "service_type"
         case schemaVersion = "schema_version"
         case runtimeName = "runtime_name"
         case createdAt = "created_at"
@@ -140,15 +142,18 @@ public enum ConnectionTransport: Codable, Equatable, Sendable {
     case stdio(command: String, arguments: [String], environment: [String: String])
     case http(url: String, headers: [ConnectionCredentialHeader])
     case serverSentEvents(url: String, headers: [ConnectionCredentialHeader])
+    case runtimeAccount(executor: String, serverName: String)
 
     private enum Kind: String, Codable {
         case stdio = "mcp_stdio"
         case http = "mcp_http"
         case serverSentEvents = "mcp_sse"
+        case runtimeAccount = "runtime_account"
     }
 
     private enum CodingKeys: String, CodingKey {
-        case kind, command, args, environment, url, headers
+        case kind, command, args, environment, url, headers, executor
+        case serverName = "server_name"
     }
 
     public init(from decoder: Decoder) throws {
@@ -170,6 +175,11 @@ public enum ConnectionTransport: Codable, Equatable, Sendable {
                 url: try container.decode(String.self, forKey: .url),
                 headers: try container.decode([ConnectionCredentialHeader].self, forKey: .headers)
             )
+        case .runtimeAccount:
+            self = .runtimeAccount(
+                executor: try container.decode(String.self, forKey: .executor),
+                serverName: try container.decode(String.self, forKey: .serverName)
+            )
         }
     }
 
@@ -189,6 +199,10 @@ public enum ConnectionTransport: Codable, Equatable, Sendable {
             try container.encode(Kind.serverSentEvents, forKey: .kind)
             try container.encode(url, forKey: .url)
             try container.encode(headers, forKey: .headers)
+        case .runtimeAccount(let executor, let serverName):
+            try container.encode(Kind.runtimeAccount, forKey: .kind)
+            try container.encode(executor, forKey: .executor)
+            try container.encode(serverName, forKey: .serverName)
         }
     }
 }

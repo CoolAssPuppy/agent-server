@@ -1,0 +1,9 @@
+id: document-summarizer
+name: Document Summarizer
+description: Summarize a local document using the runtime selected on this machine.
+tools:
+  - Read
+prompt: |
+  Read ~/Documents/notes.md and summarize it in three concise bullet points.
+max_turns: 3
+enabled: false

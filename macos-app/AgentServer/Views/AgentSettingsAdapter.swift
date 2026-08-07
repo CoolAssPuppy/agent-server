@@ -36,16 +36,6 @@ private extension AgentSettingsPatch {
         if let prompt { object["prompt"] = prompt }
         if let enabled { object["enabled"] = enabled }
         add(schedule, key: "schedule", to: &object)
-        add(executor, key: "executor", to: &object)
-        add(model, key: "model", to: &object)
-        switch provider {
-        case .unchanged: break
-        case .clear: object["provider"] = NSNull()
-        case .set(let provider):
-            var value: [String: Any] = ["base_url": provider.endpoint]
-            if let keyReference = provider.keyReference { value["api_key"] = keyReference }
-            object["provider"] = value
-        }
         if !capabilities.isEmpty {
             object["capabilities"] = capabilities.map { ["id": $0.id, "enabled": $0.enabled] }
         }

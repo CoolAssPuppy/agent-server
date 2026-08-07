@@ -2,14 +2,16 @@ import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import type { ThreadEvent } from '@openai/codex-sdk';
 import type { AgentConfig } from '../agents/config.js';
-import { deriveCodexNetworkAccess } from '../execution/codex-safety.js';
+import { deriveCodexNetworkAccess, deriveCodexSandbox } from '../execution/codex-safety.js';
 import { expandHome } from '../agents/file-watcher.js';
 import { buildCodexPermissionOverrides, resolveCodexCommand } from './codex-file-policy.js';
+import { startCredentialBroker, type CredentialBrokerPlan } from './credential-broker.js';
 
 export type ScopedCodexInvocation = {
   executable: string;
   arguments: string[];
   environment: Record<string, string>;
+  credentialBroker?: CredentialBrokerPlan;
 };
 
 export type ScopedCodexOptions = {
@@ -19,6 +21,7 @@ export type ScopedCodexOptions = {
   config?: unknown;
   baseUrl?: string;
   apiKey?: string;
+  credentialBroker?: CredentialBrokerPlan;
 };
 
 /** Build a direct CLI invocation because the SDK cannot encode permission profiles. */
@@ -27,11 +30,15 @@ export function buildScopedCodexInvocation(options: ScopedCodexOptions): ScopedC
   const workingDirectory = options.agent.working_directory
     ? expandHome(options.agent.working_directory)
     : options.environment.HOME ?? process.cwd();
+  const hasFileAccess = hasScopedFileAccess(options.agent);
   const config = [
-    ...buildCodexPermissionOverrides(options.agent),
-    `permissions.agent-server.network.enabled=${deriveCodexNetworkAccess(options.agent)}`,
+    ...(hasFileAccess ? buildCodexPermissionOverrides(options.agent) : []),
+    hasFileAccess
+      ? `permissions.agent-server.network.enabled=${deriveCodexNetworkAccess(options.agent)}`
+      : `sandbox_workspace_write.network_access=${deriveCodexNetworkAccess(options.agent)}`,
     'approval_policy="never"',
     'web_search="disabled"',
+    'shell_environment_policy.inherit="core"',
     ...(options.baseUrl ? [`openai_base_url=${JSON.stringify(options.baseUrl)}`] : []),
     ...configOverrides(options.config),
   ];
@@ -44,6 +51,9 @@ export function buildScopedCodexInvocation(options: ScopedCodexOptions): ScopedC
       '--experimental-json',
       '--ignore-user-config',
       ...(model ? ['--model', model] : []),
+      ...(!hasFileAccess
+        ? ['--sandbox', deriveCodexSandbox(options.agent)]
+        : []),
       '--cd', workingDirectory,
       '--skip-git-repo-check',
       ...config.flatMap((override) => ['--config', override]),
@@ -53,7 +63,12 @@ export function buildScopedCodexInvocation(options: ScopedCodexOptions): ScopedC
       CODEX_INTERNAL_ORIGINATOR_OVERRIDE: 'codex_sdk_ts',
       ...(options.apiKey ? { CODEX_API_KEY: options.apiKey } : {}),
     },
+    ...(options.credentialBroker ? { credentialBroker: options.credentialBroker } : {}),
   };
+}
+
+function hasScopedFileAccess(agent: AgentConfig): boolean {
+  return (agent.file_access?.length ?? 0) > 0;
 }
 
 /** Stream the CLI's SDK-compatible JSONL events with cancellation and stderr context. */
@@ -62,6 +77,7 @@ export async function* streamScopedCodex(
   prompt: string,
   signal?: AbortSignal,
 ): AsyncGenerator<ThreadEvent> {
+  const closeCredentialBroker = await startCredentialBroker(invocation.credentialBroker);
   const child = spawn(invocation.executable, invocation.arguments, {
     env: invocation.environment,
     signal,
@@ -85,6 +101,7 @@ export async function* streamScopedCodex(
   } finally {
     lines.close();
     if (!child.killed) child.kill();
+    await closeCredentialBroker();
   }
 }
 

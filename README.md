@@ -1,3 +1,6 @@
+<!-- sparkle-sign-warning:
+IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires updating signatures in appcasts that reference this file! This will involve re-running generate_appcast or sign_update.
+-->
 # Agent Server
 
 A lightweight orchestration server that runs local AI agents in the background using Claude Code, Codex, or Kimi Code. It includes a native macOS app for creating, monitoring, debugging, and reviewing agents.
@@ -118,6 +121,8 @@ See [Server location](#server-location) for details on how the app finds the ser
 
 Agents live in `~/.agent-server/agents/`. Two formats are supported: Markdown with YAML frontmatter and pure YAML. You can create and edit agents from the macOS app or with any text editor.
 
+Keep shareable agent files independent of the local coding runtime and MCP adapter. The file names each connection, says what it is for, lists semantic operations, and declares logical resources. Agent Server stores the selected Claude Code, Codex, or Kimi Code runtime and all concrete connection details under `~/.agent-server/`.
+
 ### Markdown with YAML frontmatter (recommended)
 
 YAML frontmatter for configuration, Markdown body for the prompt. This format gives you full Markdown formatting in the prompt with syntax highlighting in any editor.
@@ -128,12 +133,36 @@ id: weekly-report
 name: Weekly Priority Report
 schedule: "0 5 * * 1"
 timezone: Europe/Lisbon
-tools:
-  - Read
-  - Write
-  - Bash
+connections:
+  work_projects:
+    type: linear
+    name: Linear Work
+    purpose: Read projects and issues updated during the reporting period.
+    operations:
+      - linear.project.read
+      - linear.issue.search
+      - linear.issue.read
+  work_messages:
+    type: slack
+    name: Slack Work
+    purpose: Find conversations and decisions related to the selected work.
+    operations:
+      - slack.message.search
+      - slack.message.read
+  work_notes:
+    type: notion
+    name: Notion Work
+    purpose: Read supporting documents and create the weekly report.
+    operations:
+      - notion.search
+      - notion.page.read
+      - notion.page.create
+    resources:
+      report_database:
+        type: notion.data_source
+        purpose: Destination for the weekly report.
+        access: write
 max_turns: 30
-working_directory: "~"
 ---
 
 Review my work activity from the last 7 days and create a report.
@@ -146,8 +175,22 @@ Review my work activity from the last 7 days and create a report.
 
 ## Output
 
-Create a new page in my Notion workspace with a structured summary.
+Create a new page in `work_notes.report_database` with a structured summary.
 ```
+
+The connection names are instructions for a person configuring the agent. They are not MCP server names. `linear.issue.search` and the other operation names describe intent. After importing the agent, use the macOS app to:
+
+1. Create or select each saved connection.
+2. Check its concrete MCP tool inventory.
+3. Map the declared operations to reviewed tools and classify each tool as read or write.
+4. Bind logical resources such as `work_notes.report_database` to local service IDs.
+5. Select the local runtime after its compatibility check passes.
+
+The local choices are saved in `connections.json`, `connection-capabilities.json`, `connection-operation-bindings.json`, `agent-bindings.json`, and `runtime-assignments.json`. Keep those machine files private. Share only the agent file.
+
+A saved connection can use an MCP process, an MCP URL, or an account already connected to one coding runtime. Runtime-account connections record the owning runtime and its server name. Agent Server accepts them only when that same runtime is selected. Switching an agent to another runtime therefore requires equivalent local connections for that runtime; the shared agent file does not change.
+
+Legacy migrations use the configuration-patch preview API. A preview includes the complete proposed file and a content hash. Applying a high-risk migration requires confirmation of that exact hash. If the source changes after preview, the server refuses the patch. Successful changes include a rollback token.
 
 ### Pure YAML
 
@@ -178,21 +221,22 @@ max_turns: 10
 | `schedule` | no | | Cron expression (e.g., `0 9 * * 1-5`). Omit for on-demand agents. |
 | `timezone` | no | | IANA timezone for schedule evaluation (e.g., `America/Los_Angeles`) |
 | `prompt` | yes* | | The prompt sent to the selected executor. *In frontmatter format, the Markdown body is the prompt. |
+| `connections` | no | | Named service uses with portable type, purpose, semantic operations, and logical resources. |
 | `max_turns` | no | `AGENT_SERVER_DEFAULT_MAX_TURNS` (default `20`) | Maximum Claude Code or Codex agentic turns. Kimi Code manages its own ACP session. |
 | `working_directory` | no | `$HOME` | Working directory for the executor session. Supports `~`. |
 | `tools` | no | `[]` | Allowed tools list. Claude Code receives the list directly; Kimi Code enforces it when ACP asks for tool permission. |
 | `disallowed_tools` | no | `[]` | Tools to explicitly deny. Deny rules take precedence. |
 | `permissions` | no | | Fine-grained tool permissions with glob patterns. See [tool permissions](#example-tool-permissions). |
-| `permission_mode` | no | `bypassPermissions` | Claude Code SDK permission mode. For Codex, `plan` maps to a read-only sandbox and all other modes map to `workspace-write`. Kimi Code uses explicit permission rules. |
+| `permission_mode` | no | `bypassPermissions` | Legacy runtime-specific permission setting. Omit from shareable agents. |
 | `enabled` | no | `true` | Whether the scheduler runs this agent |
-| `executor` | no | `claude-code` | Which executor plugin to use: `claude-code`, `codex`, or `kimi-code` |
-| `codex_sandbox` | no | `workspace-write` | Codex-only sandbox override: `read-only`, `workspace-write`, or `danger-full-access` |
-| `model` | no | | Optional model override passed to Codex or selected in a Kimi Code ACP session |
+| `executor` | no | local assignment | Legacy runtime selection. New agents store this outside the agent file. |
+| `codex_sandbox` | no | `workspace-write` | Legacy Codex-only setting. Omit from shareable agents. |
+| `model` | no | local assignment | Legacy model selection. New agents store this outside the agent file. |
 | `on_complete` | no | | Agents to trigger on successful completion |
 | `on_failure` | no | | Agents to trigger on failure |
 | `watch` | no | | File paths to watch for changes (triggers runs outside the cron schedule) |
 | `interaction` | no | | Interactive agent config (channel, on_reply, timeout) |
-| `mcp_servers` | no | | Additional MCP servers for this agent (see [MCP servers](#mcp-servers)) |
+| `mcp_servers` | no | | Legacy inline MCP configuration. New agents use `connections` and saved local profiles. |
 | `notification` | no | | Notification config (channel, on_complete, on_failure) |
 | `output` | no | | Optional reviewed output contract. See [required output contracts](#required-output-contracts). |
 
@@ -204,20 +248,18 @@ An output contract prevents an agent from reporting success when a required serv
 output:
   primary:
     description: Create one report in the approved destination
-    tool: mcp__reports__create_item
-    update_tool: mcp__reports__update_item
+    use: work_notes
+    operation: notion.page.create
+    target: report_database
     required: true
     successful_calls:
       min: 1
       max: 1
-    target_match:
-      field: destination
-      equals: approved_reports
 ```
 
-`tool` is the exact creation tool that satisfies the contract. `update_tool` is an optional exact alternative for workflows that may update an existing result. `successful_calls` sets the accepted number of successful matching calls and defaults to a minimum of one. Failed calls never count.
+`use` identifies one declared connection, `operation` identifies one operation from that use, and `target` identifies one logical resource. Agent Server compiles them into a concrete tool and destination after resolving the local bindings. `successful_calls` sets the accepted number of successful matching calls and defaults to a minimum of one. Failed calls never count.
 
-`target_match` checks the structured tool input recursively, including nested objects and arrays, for the named field and exact value. Use it to confirm that the reviewed destination was used. Tool inputs, outputs, and matched target values are inspected in memory and are not added to run history or error messages.
+Legacy contracts may still use `tool`, `update_tool`, and `target_match`. Tool inputs, outputs, and matched target values are inspected in memory and are not added to run history or error messages.
 
 Safe test runs bypass required-output enforcement because external services are disabled. For a normal run, an unmet contract fails with the stable code `output_contract_unmet`; the debugger uses that code to explain the missing result without exposing technical payloads.
 
@@ -394,74 +436,37 @@ Interaction requests support:
 
 ### Example: tool permissions
 
-There are three ways to control what tools an agent can use, from simple to fine-grained:
-
-**1. `tools`** -- SDK-level allowlist. When set, only these tools are available to the model. Empty means all tools.
-
-```yaml
-tools:
-  - Read
-  - Write
-  - Bash
-```
-
-**2. `disallowed_tools`** -- SDK-level denylist. These tools are removed from the model's context entirely.
-
-```yaml
-disallowed_tools:
-  - Bash
-  - Edit
-```
-
-**3. `permissions`** -- Fine-grained control with glob patterns. When defined, every tool call is checked against allow/deny rules before execution. This is the recommended approach for agents that use MCP servers, because it lets you control exactly which MCP operations are permitted.
-
-The `permissions` block works as an allowlist: only tools matching an `allow` pattern can run. Deny rules take precedence over allow rules. Any tool not explicitly allowed is blocked.
+Use `connections[].operations` for remote-service permissions in shareable agents. Each operation states the action the agent needs without naming an MCP server or runtime tool.
 
 ```yaml
 id: research-agent
 name: Research Agent
 schedule: "0 9 * * 1-5"
+connections:
+  work_projects:
+    type: linear
+    name: Linear Work
+    purpose: Read recent projects and issues for the report.
+    operations:
+      - linear.project.read
+      - linear.issue.search
+      - linear.issue.read
+  work_messages:
+    type: slack
+    name: Slack Work
+    purpose: Find related messages and decisions.
+    operations:
+      - slack.message.search
+      - slack.message.read
 prompt: |
   Research recent activity across Linear and Slack.
-  Write a summary to ~/reports/research-{date}.md
-permissions:
-  allow:
-    - Read
-    - Write
-    - Glob
-    - Grep
-    - "mcp__claude_ai_Linear__list_*"
-    - "mcp__claude_ai_Linear__get_*"
-    - "mcp__claude_ai_Slack__search_*"
-    - "mcp__claude_ai_Slack__read_*"
-  deny:
-    - "mcp__*__create_*"
-    - "mcp__*__update_*"
-    - "mcp__*__delete_*"
+  Return a concise summary.
 max_turns: 20
-working_directory: "~"
 ```
 
-This agent can read from Linear and Slack via MCP and write markdown files to the filesystem, but cannot create, update, or delete anything through MCP servers. It also cannot use Bash or Edit since those are not in the allow list.
+After the local connection is checked, map each semantic operation to one concrete tool. Review whether unknown tools read or write. If an operation targets a resource, map its target argument and resource type too. Agent Server then gives the selected runtime only those mapped tools and rejects calls outside the mapping.
 
-#### Pattern matching
-
-Patterns support `*` as a wildcard that matches any sequence of characters:
-
-| Pattern | Matches | Use case |
-|---|---|---|
-| `Read` | Exact match | Allow a specific built-in tool |
-| `mcp__claude_ai_Linear__list_*` | Any Linear tool starting with `list_` | Read-only access to a specific MCP server |
-| `mcp__*__create_*` | Any MCP tool with `create_` in the action | Deny writes across all MCP servers |
-| `*` | Everything | Use with caution |
-
-MCP tools follow the naming convention `mcp__<org>_<server>__<tool_name>`. To find the exact tool names available to your agents, check your Claude Code MCP server configuration or run an agent with verbose logging.
-
-#### When to use which
-
-- **No permissions needed**: Leave all three fields empty. The agent runs in `bypassPermissions` mode with access to everything.
-- **Simple restriction**: Use `tools` to whitelist a few built-in tools, or `disallowed_tools` to block specific ones.
-- **MCP access control**: Use `permissions` with glob patterns. This is the only way to control which MCP server operations an agent can call.
+`tools`, `disallowed_tools`, and `permissions` remain available for older definitions and local runtime tools. Concrete `mcp__...` names in those fields make a definition adapter-specific, so omit them from files intended for sharing.
 
 ### Example: notifications
 
@@ -483,90 +488,25 @@ On completion, the agent sends a message like `Agent "Weekly Report Generator" c
 
 ### MCP servers
 
-Agents can bring their own MCP servers beyond what's configured in your claude.ai account or Claude Code settings. This is useful when you need multiple instances of the same MCP server (e.g., personal and work Notion) or servers that aren't available through claude.ai.
+MCP servers are saved as local connection profiles. A profile contains:
 
-Agent-level MCP servers coexist with account-level servers. Your claude.ai MCP servers (Slack, Linear, work Notion, etc.) remain available as `mcp__claude_ai_*` tools. Agent-level servers appear under the name you give them (e.g., `mcp__notion-personal__*`).
+- A human-readable label such as `Notion Work`.
+- A portable service type such as `notion`.
+- A technical adapter ID and version.
+- A stdio, HTTP, or SSE transport.
+- References to credentials stored in `~/.agent-server/.env`.
 
-Three transport types are supported: stdio (local process), SSE, and HTTP.
+The adapter ID describes one local implementation. The service type is what a shareable agent requests. This separation lets two people bind the same `type: notion` use to different Notion MCP implementations.
 
-#### Example: personal Notion alongside work Notion
+Create a connection in the macOS Connections view, then run its check. The check records the concrete MCP inventory without authorizing new tools. Review the inventory and assign semantic operation names. Unknown tools require an explicit read or write classification. A changed inventory makes the prior review stale and blocks affected runs until it is reviewed again.
 
-Your work Notion is already connected via claude.ai. To also access a personal Notion workspace, add an `mcp_servers` block with a separate integration token:
+The capability identity includes the full transport, adapter version, runtime name, and credential references. Changing any of them makes the prior review stale. Credential values are excluded from that identity. The built-in Notion mapping applies only to the exact reviewed command `npx -y @notionhq/notion-mcp-server@2.5.1`; other versions require an explicit operation review.
 
-```yaml
-id: daily-focus
-name: Daily Focus List
-schedule: "0 5 * * 2-6"
-mcp_servers:
-  notion-personal:
-    command: npx
-    args: ["-y", "@notionhq/notion-mcp-server"]
-    env:
-      NOTION_TOKEN: "${NOTION_PERSONAL_API_KEY}"
-permissions:
-  allow:
-    - "mcp__claude_ai_Notion__notion-search"      # work Notion (from claude.ai)
-    - "mcp__notion-personal__notion-search"        # personal Notion (from mcp_servers)
-    - "mcp__notion-personal__notion-create-pages"
-```
+Credential values stay out of agent files, generated runtime configuration, command arguments, logs, and prompts. The policy relay resolves them only for the connection process. Remote profiles require HTTPS, except loopback HTTP.
 
-The agent now has read access to work Notion and read/write access to personal Notion, each authenticated separately.
+Older `mcp_servers` blocks still parse for migration. Move their transports and credential references into saved connection profiles before sharing the agent.
 
-#### Built-in: Calendar and Reminders via EventKit
-
-When the server is launched by the macOS app, it automatically gets an `eventkit` MCP server injected into every agent run. No YAML configuration needed. This is backed by a bundled Swift helper binary (`agent-server-eventkit`) that speaks MCP over stdio and calls Apple's EventKit framework directly.
-
-Tools exposed by the helper:
-
-| Tool | Description |
-|---|---|
-| `list_calendars` | List available calendars |
-| `list_events` | List events in a date range, optionally filtered by calendar |
-| `create_event` | Create a new event (title, start, end, location, notes, calendar, isAllDay) |
-| `update_event` | Update fields on an existing event by id |
-| `delete_event` | Delete an event by id |
-| `list_reminder_lists` | List reminder lists |
-| `list_reminders` | List reminders, optionally filtered by list and completion state |
-| `create_reminder` | Create a new reminder (title, due date, list, notes) |
-| `complete_reminder` | Mark a reminder completed by id |
-
-On first launch, the macOS app requests Calendar and Reminders access from the system. Agents call the tools as `mcp__eventkit__list_events`, `mcp__eventkit__create_reminder`, etc. If an agent explicitly declares its own `eventkit` MCP server under `mcp_servers`, the agent's configuration wins and the bundled helper is not injected.
-
-This integration only works when the server is spawned by the macOS app (the app sets `AGENT_SERVER_EVENTKIT_BIN` at spawn time). Running `agent-server start` directly from the CLI does not enable it.
-
-#### Environment variable substitution
-
-Values in `env` and `headers` fields support `${VAR}` substitution, resolved from `process.env` at runtime. This includes variables from `~/.agent-server/.env` and from secret managers like Doppler (`doppler run -- agent-server start`).
-
-```yaml
-mcp_servers:
-  my-server:
-    command: node
-    args: ["./my-server.js"]
-    env:
-      API_KEY: "${MY_API_KEY}"           # resolved from process.env
-      DB_URL: "${DATABASE_URL}"          # from .env or Doppler
-```
-
-Undefined variables resolve to an empty string.
-
-#### SSE and HTTP transports
-
-For remote MCP servers:
-
-```yaml
-mcp_servers:
-  remote-tools:
-    type: sse
-    url: https://mcp.example.com/sse
-    headers:
-      Authorization: "Bearer ${REMOTE_TOKEN}"
-  another-service:
-    type: http
-    url: https://api.example.com/mcp
-```
-
-Headers also support `${VAR}` substitution.
+Calendar and Reminders access supplied by the macOS EventKit helper follows the same rule: an agent declares portable calendar or reminder operations, while the local app selects and reviews the implementation.
 
 ## Running agents
 
@@ -989,11 +929,11 @@ Events are POSTed to `{AGENT_SERVER_PANEL_URL}/api/runs/{runId}/status` with an 
 
 ## Executor plugins
 
-The default executor uses the Claude Agent SDK, but the system is pluggable. Agents can specify an `executor` field in their config to use a different backend:
+Agent Server can run one shareable definition through Claude Code, Codex, or Kimi Code. Select the runtime in the macOS agent settings. The choice is saved in `~/.agent-server/runtime-assignments.json`, outside the agent file.
 
-```yaml
-executor: codex  # defaults to 'claude-code' if omitted
-```
+Before saving a runtime change, Agent Server checks that every declared connection is bound, every required operation has a current reviewed mapping, every resource is selected, and the runtime can enforce the resulting contract. An incompatible choice is rejected with the missing requirements.
+
+Older files with `executor`, `model`, or `provider` still parse. Their values are migration input. Saving a runtime in the current app creates a local assignment and does not add those fields to the shareable file.
 
 ### Codex executor
 
@@ -1008,64 +948,21 @@ codex login status
 
 Choose **Sign in with ChatGPT** in the browser flow. This uses Codex access included with your ChatGPT subscription. Agent Server gives the Codex child a small process environment containing only runtime variables such as `HOME`, `PATH`, and `TMPDIR`. Application secrets, including `OPENAI_API_KEY`, are excluded.
 
-Use it per agent:
+Codex receives only the concrete MCP tools compiled from the agent's declared operations. A local policy relay checks every tool call, rejects tools outside the reviewed mapping, enforces bound resource arguments, and supplies connection credentials without adding them to Codex arguments or configuration. Codex runs still use its sandbox for local file and shell access.
 
-```yaml
-id: repo-maintainer
-name: Repo Maintainer
-executor: codex
-working_directory: ~/Developer/my-project
-codex_sandbox: workspace-write
-model: gpt-5.4
-prompt: |
-  Review the repository and fix the smallest issue you find.
-```
+Codex and ChatGPT account setup are separate from Agent Server connection setup:
 
-Codex support is intentionally implemented as a separate executor. Existing agents keep using `claude-code` until you set `executor: codex`.
+1. Run `codex login` on every machine that will execute scheduled Codex agents.
+2. In the Codex app, use `/apps` to connect services you want during interactive Codex sessions.
+3. In ChatGPT, add or connect apps from Settings when you want to use them in ChatGPT conversations.
+4. In Agent Server, create checked local connection profiles and bind them to the agent's named uses. Codex and ChatGPT apps are not copied into Agent Server.
+5. Select Codex for an agent only after the compatibility check says it is compatible.
 
-Some Claude SDK fields do not have a one-to-one Codex SDK setting. Codex does not enforce `tools`, `disallowed_tools`, `permissions`, or `max_turns`. Kimi Code enforces tool permissions through ACP but does not use `max_turns`. Codex runs disable network access and web search by default. The configured Codex sandbox controls filesystem writes, but Agent Server cannot yet enforce a command allowlist or narrow filesystem read roots for Codex shell commands.
-
-Credential-free agent-level MCP declarations are passed as SDK configuration overrides. Codex agents reject MCP declarations containing `env` or `headers` because SDK overrides can appear in child-process arguments. Keep agents that need private tokens disabled until a token-backed adapter is available:
-
-```yaml
-executor: codex
-enabled: false
-mcp_servers:
-  private-service:
-    command: private-service-mcp
-    env:
-      SERVICE_TOKEN: "${SERVICE_TOKEN}"
-```
-
-Do not enable a Codex agent that handles sensitive files or requires private service credentials unless its effective Codex sandbox and MCP authentication path meet your security requirements.
-
-Account-level Claude tools such as `mcp__claude_ai_Notion__*` are not available to Codex automatically. To keep existing prompts working, configure equivalent Codex MCP servers using matching server names where possible. For example, a Work Notion server named `claude_ai_Notion` exposes tool calls with the same `mcp__claude_ai_Notion__...` prefix in Agent Server telemetry.
-
-Example Codex config for Work Notion:
-
-```toml
-[mcp_servers."claude_ai_Notion"]
-command = "npx"
-args = ["-y", "@notionhq/notion-mcp-server"]
-env = { NOTION_TOKEN = "..." }
-enabled = true
-required = true
-```
-
-Example agent-level Personal Notion config:
-
-```yaml
-mcp_servers:
-  notion-personal:
-    command: npx
-    args: ["-y", "@notionhq/notion-mcp-server"]
-    env:
-      NOTION_TOKEN: "${NOTION_PERSONAL_API_KEY}"
-```
+Scheduled Calendar access on macOS uses the bundled EventKit helper. Give Agent Server Calendar permission in System Settings on each Mac. Connecting Google Calendar in Codex or ChatGPT does not grant Calendar access to the background Agent Server process.
 
 ### Kimi Code executor
 
-Kimi Code is an installed coding-agent runtime. The executable and orchestration run on this Mac, while prompts and approved context may be processed by Kimi's service under the user's signed-in account. It is separate from the Kimi K3 model preset, which runs through Codex and Moonshot's API. Choosing one never rewrites an agent configured for the other.
+Kimi Code is an installed coding-agent runtime. The executable and orchestration run on this Mac, while prompts and approved context may be processed by Kimi's service under the user's signed-in account. Custom Kimi-compatible providers can also be selected as local runtime settings. Neither choice changes the shareable agent file.
 
 Install Kimi Code using its [official instructions](https://moonshotai.github.io/kimi-code/en/guides/getting-started.html), then sign in:
 
@@ -1076,39 +973,9 @@ kimi --version
 
 Agent Server finds `kimi` in `~/.kimi-code/bin`, then on `PATH`. Set `AGENT_SERVER_KIMI_PATH` for an explicit executable or turn discovery off in Settings. Missing and signed-out installations produce an actionable error and do not fall through to another runtime. Agent Server also disables Kimi's independent scheduler inside managed runs so the Agent Server schedule remains authoritative.
 
-Use the installed runtime per agent:
-
-```yaml
-id: manuscript-review
-name: Manuscript Review
-executor: kimi-code
-working_directory: ~/Documents/Novel
-permissions:
-  allow: [Read, Write, Edit]
-  deny: [Bash, WebFetch, WebSearch]
-file_access:
-  - path: ~/Documents/Novel/manuscript.docx
-    kind: file
-    access: read_only
-  - path: ~/Documents/Novel/review.md
-    kind: file
-    access: read_write
-prompt: Review the manuscript and save the findings in review.md.
-```
-
 The executor communicates through Agent Client Protocol instead of parsing terminal decoration. Permission requests are checked against the agent's allow and deny rules. File callbacks normalize paths, resolve symlinks, enforce each reviewed file or folder grant, and cap reads and writes at 2 MB. Agent Server rejects a Kimi Code configuration that combines exact file grants with shell command access because shell commands could bypass those path checks.
 
-Kimi receives a small child-process environment. General application secrets and proxy variables are not inherited. Reviewed MCP servers are forwarded through the ACP session, including only their configured environment or header values. Cancellation sends an ACP session cancel request and then stops the child process. A `provider` block is rejected for `kimi-code` because the installed runtime uses its own login and ACP model selection.
-
-Kimi K3 remains available as a distinct model choice:
-
-```yaml
-executor: codex
-model: kimi-k3
-provider:
-  base_url: https://api.moonshot.ai/v1
-  api_key: "${MOONSHOT_API_KEY}"
-```
+Kimi receives a small child-process environment. General application secrets and proxy variables are not inherited. Portable MCP connections use the same local policy relay as Claude Code and Codex. Cancellation sends an ACP session cancel request and then stops the child process. Custom model providers are local runtime settings and remain outside shareable definitions.
 
 Register custom executors programmatically:
 

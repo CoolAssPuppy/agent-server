@@ -2,6 +2,34 @@ import XCTest
 @testable import AgentServerCore
 
 final class ConnectionProfileServerModelsTests: XCTestCase {
+    func testDecodesARuntimeOwnedAccountConnection() throws {
+        let payload = Data(#"""
+        {
+          "schema_version": 1,
+          "id": "018f47a2-9a13-7d61-bf4f-f9a5d8f67c21",
+          "label": "Slack Work",
+          "service_type": "slack",
+          "adapter": { "id": "claude.slack-account", "version": 1 },
+          "runtime_name": "claude_ai_Slack",
+          "credentials": [],
+          "transport": {
+            "kind": "runtime_account",
+            "executor": "claude-code",
+            "server_name": "claude.ai Slack"
+          },
+          "created_at": "2026-08-06T18:00:00.000Z",
+          "updated_at": "2026-08-06T18:00:00.000Z"
+        }
+        """#.utf8)
+
+        let profile = try JSONDecoder().decode(ConnectionProfile.self, from: payload)
+
+        XCTAssertEqual(profile.transport, .runtimeAccount(
+            executor: "claude-code",
+            serverName: "claude.ai Slack"
+        ))
+    }
+
     func testDecodesAListOfRemoteConnectionProfilesWithoutCredentialValues() throws {
         let payload = Data(#"""
         {

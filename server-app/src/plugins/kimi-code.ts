@@ -8,7 +8,7 @@ import {
   type McpServer,
   type Stream,
 } from '@agentclientprotocol/sdk';
-import type { AgentConfig, McpServerConfig } from '../agents/config.js';
+import type { AgentConfig } from '../agents/config.js';
 import { buildKimiChildEnvironment } from '../agents/environment-policy.js';
 import type { ExecutionResult } from '../execution/executor.js';
 import type { Reporter } from '../execution/runner.js';
@@ -29,6 +29,15 @@ import {
   kimiToolTraces,
   kimiToolsUsed,
 } from './kimi-code-events.js';
+import { resolveSavedConnectionValues } from '../connections/runtime-resolution.js';
+import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
+import {
+  credentialBrokerSocketPath,
+  startCredentialBroker,
+  type CredentialBrokerPlan,
+} from './credential-broker.js';
+import { buildMcpPolicyRelayCommand } from './mcp-relay-runtime.js';
 
 const MAX_STDERR_LENGTH = 4_000;
 
@@ -52,6 +61,10 @@ export async function runKimiAcpSession(
   const startedAt = performance.now();
   const state = createKimiExecutionState();
   const filePolicy = await createKimiFilePolicy(agent);
+  const mcpRuntime = options.disableMcpServers
+    ? { servers: [], credentialBroker: undefined }
+    : kimiMcpRuntime(agent);
+  const closeCredentialBroker = await startCredentialBroker(mcpRuntime.credentialBroker);
   let negotiatedVersion: string | undefined;
 
   const app = client({ name: 'Agent Server' })
@@ -96,7 +109,7 @@ export async function runKimiAcpSession(
     const builder = context.buildSession({
       cwd: kimiWorkingDirectory(agent),
       additionalDirectories: kimiAdditionalDirectories(agent),
-      mcpServers: options.disableMcpServers ? [] : kimiMcpServers(agent.mcp_servers ?? {}),
+      mcpServers: mcpRuntime.servers,
     });
     return builder.withSession(async (session) => {
       if (agent.model) {
@@ -122,7 +135,7 @@ export async function runKimiAcpSession(
         options.abortController?.signal.removeEventListener('abort', cancel);
       }
     });
-  });
+  }).finally(closeCredentialBroker);
 
   const durationMs = Math.round(performance.now() - startedAt);
   const toolCalls = kimiToolTraces(state);
@@ -188,9 +201,50 @@ export async function executeKimiCodeAgent(
   }
 }
 
-function kimiMcpServers(servers: Record<string, McpServerConfig>): McpServer[] {
-  return Object.entries(servers).map(([name, config]) => {
+function kimiMcpRuntime(agent: AgentConfig): {
+  servers: McpServer[];
+  credentialBroker: CredentialBrokerPlan | undefined;
+} {
+  const credentialBroker: CredentialBrokerPlan = {
+    socketPath: credentialBrokerSocketPath(),
+    grants: {},
+  };
+  const servers = Object.entries(agent.mcp_servers ?? {}).map(([name, config]) => {
     if ('command' in config) {
+      const savedEnvironment = config.env
+        ? resolveSavedConnectionValues(agent, name, config.env)
+        : undefined;
+      if (config.env && !savedEnvironment && Object.keys(config.env).length > 0) {
+        throw new Error(`Kimi MCP server "${name}" contains credentials; use a saved connection`);
+      }
+      const relay = buildMcpPolicyRelayCommand(
+        agent,
+        name,
+        config,
+        savedEnvironment ?? {},
+        credentialBroker,
+      );
+      if (relay) {
+        return { name, command: relay.command, args: relay.args, env: [] };
+      }
+      if (savedEnvironment && Object.keys(savedEnvironment).length > 0) {
+        const grant = randomUUID();
+        credentialBroker.grants[grant] = savedEnvironment;
+        return {
+          name,
+          command: process.execPath,
+          args: [
+            fileURLToPath(new URL('./mcp-credential-launcher.js', import.meta.url)),
+            JSON.stringify({
+              command: config.command,
+              args: config.args ?? [],
+              credential_broker: credentialBroker.socketPath,
+              credential_grant: grant,
+            }),
+          ],
+          env: [],
+        };
+      }
       return {
         name,
         command: config.command,
@@ -198,13 +252,40 @@ function kimiMcpServers(servers: Record<string, McpServerConfig>): McpServer[] {
         env: Object.entries(config.env ?? {}).map(([variable, value]) => ({ name: variable, value })),
       };
     }
+    const savedHeaders = config.headers
+      ? resolveSavedConnectionValues(agent, name, config.headers)
+      : undefined;
+    if (config.headers && !savedHeaders && Object.keys(config.headers).length > 0) {
+      throw new Error(`Kimi MCP server "${name}" contains credentials; use a saved connection`);
+    }
+    const relay = buildMcpPolicyRelayCommand(
+      agent,
+      name,
+      config,
+      savedHeaders ?? {},
+      credentialBroker,
+    );
+    if (relay) {
+      return { name, command: relay.command, args: relay.args, env: [] };
+    }
+    if (savedHeaders && Object.keys(savedHeaders).length > 0) {
+      throw new Error(
+        `Kimi MCP server "${name}" uses HTTP credentials that require the local credential relay`,
+      );
+    }
     return {
       type: config.type,
       name,
       url: config.url,
-      headers: Object.entries(config.headers ?? {}).map(([header, value]) => ({ name: header, value })),
+      headers: [],
     };
   });
+  return {
+    servers,
+    credentialBroker: Object.keys(credentialBroker.grants).length > 0
+      ? credentialBroker
+      : undefined,
+  };
 }
 
 function stopChild(child: ChildProcessWithoutNullStreams): void {

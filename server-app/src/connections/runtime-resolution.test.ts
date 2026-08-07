@@ -6,6 +6,7 @@ import {
   resolveAgentConnectionBindings,
   resolveSavedConnectionValues,
 } from './runtime-resolution.js';
+import { attachRuntimeConnectionPolicies, runtimeConnectionPolicy } from './runtime-policy.js';
 
 const PROFILE_ID = '11111111-1111-4111-8111-111111111111';
 const CREDENTIAL_ID = '22222222-2222-4222-8222-222222222222';
@@ -49,6 +50,25 @@ function profile(overrides: Partial<ConnectionProfile> = {}): ConnectionProfile 
 }
 
 describe('saved connection runtime resolution', () => {
+  it('preserves prepared tool policies while materializing saved transports', () => {
+    const source = agent({
+      connection_bindings: { 'notion-personal': PROFILE_ID },
+    });
+    attachRuntimeConnectionPolicies(source, {
+      'notion-personal': {
+        allowedTools: ['API-post-page'],
+        argumentConstraints: { 'API-post-page': { data_source_id: ['database-1'] } },
+      },
+    });
+
+    const resolved = resolveAgentConnectionBindings(source, [profile()]);
+
+    expect(runtimeConnectionPolicy(resolved, 'notion-personal')).toEqual({
+      allowedTools: ['API-post-page'],
+      argumentConstraints: { 'API-post-page': { data_source_id: ['database-1'] } },
+    });
+  });
+
   it('fills a missing MCP transport from an opaque saved profile binding', () => {
     const resolved = resolveAgentConnectionBindings(agent({
       connection_bindings: { 'notion-personal': PROFILE_ID },

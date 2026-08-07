@@ -1,5 +1,7 @@
 # Lessons
 
+- A shareable agent definition must exclude both runtime choices and machine-local connection identities. Define logical named connection slots, then let each orchestration tool store local slot bindings and runtime assignments outside the agent file.
+
 - A runtime MCP status call can return initialization state rather than readiness. Sample pending connections for a short bounded window before presenting them, while preserving pending when the runtime does not settle.
 - Keep comprehensive verification local by default. Do not add, broaden, or schedule GitHub Actions without reviewing runner minutes, trigger frequency, matrices, artifacts, and the user's explicit cost tolerance.
 - A coding-agent connection inventory must query each runtime's own MCP source. An executable check proves installation only; it does not prove which MCP servers that runtime can use.
@@ -152,6 +154,7 @@
 - When a user refers to an Advanced area, resolve the exact parent surface before proposing layout work. Settings > Advanced and an agent detail Advanced tab are separate products even when their labels match.
 - Two different run codes must not share a failure-sounding headline when their consumer states and colors differ. Name benign no-ops and blocked skips distinctly so All and filtered Activity views tell the same story.
 - For a bounded setup-flow request, stop after the focused behavior, focused tests, lint, type check, and build pass. Do not expand into adjacent lifecycle improvements or chase unrelated slow integration tests unless the requested flow depends on them.
+- A passing suite does not prove a portable permission contract. Test two logical uses of one saved connection, mixed read and write resources, nested fields from the real provider schema, saved transport changes, unavailable runtimes, missing provider credentials, and rollback after a failed combined save.
 - A readiness check may only report what a local probe can prove. Auditing one check at a time shipped three releases against one complaint: an unproven engine sign-in, an unproven account connector, an inline server shadowed by a catalog namesake, and a path check refused by macOS. When one check is caught claiming more than its evidence supports, audit every sibling check in the same pass.
 - Prove a fix by reverting it and watching its own test fail before committing. 3.4.2 shipped green because a test factory fabricated a value the real collector cannot produce, so the suite verified a fiction.
 - A settling or polling loop must fold each observation into what is already known, never replace it. A status read is a snapshot of a system still assembling itself, and a later read listing less is not evidence that anything went away.
@@ -159,3 +162,16 @@
 - Confirm a check is wrong before fixing the check. Four badge reports in one sequence had four causes; three were checks overclaiming and the fourth was a true report about a path that did not exist on that machine. Treating the true one as another false badge sent the user into privacy settings for nothing.
 - A readiness reader must model the same world its registry builds. Account connectors exist only for Claude Code, so an agent on another engine has none, and asking it to set one up demands an action no user can complete.
 - An agent definition shared between machines cannot depend on a per-machine convenience path. "~/My Drive" is a symlink Google Drive for Desktop creates on some Macs and not others; the Library/CloudStorage path is the real location.
+- A portable service name may need a different local implementation for each runtime. Keep that choice in local orchestration state, and permit a runtime switch only after the selected implementation proves the same semantic operations and resource limits.
+- An interactive Codex app connection is not enough for an unattended run. Do not inherit a user's full plugin configuration unless the CLI can enforce the reviewed app and exact tools for that agent.
+- Recheck current Codex configuration before declaring app connections unsuitable for unattended runs. Codex supports per-app and per-tool settings, and `--ignore-user-config` can combine the user's ChatGPT login with a run-specific app policy.
+- Codex app policy identifiers and emitted tool names must come from the local checked inventory. Provider display names and SDK-facing underscore names can differ from runtime names such as `notion.notion-create-pages`.
+- A false default in Codex app tool settings can remain restrictive when settings merge. Enable the selected app inventory, then explicitly disable every unapproved checked tool instead of assuming a per-tool true value overrides the false default.
+- For machine setup, use existing secret backups and local tooling before asking the user to move files manually. Reduce the handoff to the one action that requires access to another machine.
+- An iCloud account on a Mac does not prove which Apple ID owns a Developer Program team. Confirm the developer Apple ID before creating a notarization profile.
+- A release machine described as remote or unattended must prove private-key access from the background release process before archiving. Interactive Keychain approval is a failed preflight, even when signing succeeds after a click.
+- Registry code must branch on the saved connection transport before resolving it. Runtime-owned account connections have a server name but no injectable MCP configuration, and an aggregate presentation endpoint must be tested with those saved profiles.
+- A model final response that describes an early tool failure cannot count as daily completion. Conditional-output agents need a server-visible success condition for their preflight check, and retry suppression must use that condition before skipping later schedule attempts.
+- One logical provider resource can require different local IDs for different operations. Keep those IDs in machine-local bindings and select them by semantic operation during preparation.
+- Provider request limits belong in the connection implementation. Split oversized Notion page bodies inside the relay so shared agents do not encode the current API block limit.
+- A portable agent should declare the domain method and its purpose. Each machine should bind that requirement to a validated skill implementation before Agent Server selects the coding agent.

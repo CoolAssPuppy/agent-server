@@ -9,6 +9,7 @@ final class AgentSettingsDraftTests: XCTestCase {
         XCTAssertTrue(draft.patch.isEmpty)
         XCTAssertFalse(draft.isDirty)
         XCTAssertTrue(draft.isValid)
+        XCTAssertFalse(draft.hasRuntimeChanges)
         XCTAssertEqual(draft.sourceAgentId, "agent-id")
     }
 
@@ -66,6 +67,7 @@ final class AgentSettingsDraftTests: XCTestCase {
         XCTAssertEqual(draft.runtime.choice, .custom)
 
         draft.runtime.choice = .claudeCode
+        XCTAssertTrue(draft.hasRuntimeChanges)
         XCTAssertEqual(draft.patch.executor, .clear)
         XCTAssertEqual(draft.patch.model, .clear)
         XCTAssertEqual(draft.patch.provider, .clear)
@@ -156,6 +158,14 @@ final class AgentSettingsDraftTests: XCTestCase {
         draft.runtime.choice = .custom
         draft.runtime.customEndpoint = "   "
         XCTAssertEqual(draft.validation, .invalid(.providerEndpointRequired))
+    }
+
+    func testRuntimeChangesAreExcludedFromTheShareableAgentFilePatch() {
+        var draft = AgentSettingsDraft(snapshot: snapshot(executor: "claude-code"))
+        draft.runtime.choice = .codex
+
+        XCTAssertTrue(draft.hasRuntimeChanges)
+        XCTAssertFalse(draft.patch.hasAgentFileChanges)
     }
 }
 

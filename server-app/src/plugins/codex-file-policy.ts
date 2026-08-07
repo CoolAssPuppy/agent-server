@@ -11,7 +11,10 @@ export type CodexCommand = {
 /** Build the permission-profile overrides used by file-scoped Codex runs. */
 export function buildCodexPermissionOverrides(agent: AgentConfig): string[] {
   const cwd = agent.working_directory ?? process.env.HOME ?? process.cwd();
-  const entries = new Map<string, 'read' | 'write'>([[':minimal', 'read']]);
+  const entries = new Map<string, 'read' | 'write'>([
+    [':minimal', 'read'],
+    ['/System/Library', 'read'],
+  ]);
   for (const grant of agent.file_access ?? []) {
     const path = canonicalFileAccessPath(grant.path, cwd);
     const access = grant.access === 'read_write' ? 'write' : 'read';

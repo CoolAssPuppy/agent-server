@@ -1,6 +1,7 @@
 import type { AgentConfig } from '../agents/config.js';
 import type { ConnectionProfile } from './profile.js';
 import { resolveConnectionProfile } from './profile-resolver.js';
+import { copyRuntimeConnectionPolicies } from './runtime-policy.js';
 
 const ENV_REFERENCE = /\$\{([A-Z][A-Z0-9_]*)}/g;
 const RESOLVED_CONNECTION_CREDENTIALS = Symbol('resolved-connection-credentials');
@@ -53,6 +54,7 @@ export function resolveAgentConnectionBindings(
   }
 
   const resolvedAgent: ResolvedAgentConfig = { ...agent, mcp_servers: servers };
+  copyRuntimeConnectionPolicies(agent, resolvedAgent);
   Object.defineProperty(resolvedAgent, RESOLVED_CONNECTION_CREDENTIALS, {
     value: credentialsByRuntime,
     enumerable: false,

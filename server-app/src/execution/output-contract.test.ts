@@ -46,6 +46,36 @@ describe('required agent output', () => {
     expect(() => assertRequiredOutput(agent, execution)).not.toThrow();
   });
 
+  it('accepts normalized portable operation evidence for a logical resource', () => {
+    const agent = makeAgent({
+      output: {
+        primary: {
+          description: 'Create the report',
+          use: 'work_notes',
+          operation: 'notion.page.create',
+          target: 'report_database',
+          required: true,
+          successful_calls: { min: 1, max: 1 },
+        },
+      },
+    });
+    const trace = Object.assign(
+      { name: 'mcp__local_notion__API-post-page', status: 'succeeded' as const },
+      {
+        portable: {
+          use: 'work_notes',
+          operation: 'notion.page.create',
+          target: 'report_database',
+        },
+      },
+    );
+
+    expect(() => assertRequiredOutput(
+      agent,
+      makeExecutionResult({ toolCalls: [trace] }),
+    )).not.toThrow();
+  });
+
   it('does not enforce advisory output or safe tests', () => {
     const advisory = makeAgent({ output: requiredOutput({ required: false }) });
     const required = makeAgent({ output: requiredOutput() });
@@ -53,6 +83,21 @@ describe('required agent output', () => {
 
     expect(() => assertRequiredOutput(advisory, execution)).not.toThrow();
     expect(() => assertRequiredOutput(required, execution, { mode: 'safe_test' })).not.toThrow();
+  });
+
+  it('fails when an advisory output was attempted but the service rejected it', () => {
+    const advisory = makeAgent({ output: requiredOutput({ required: false }) });
+    const execution = makeExecutionResult({
+      toolCalls: [{
+        name: 'mcp__notion__create_page',
+        status: 'failed',
+        input: { data_source_id: 'private-destination-id' },
+      }],
+    });
+
+    expect(() => assertRequiredOutput(advisory, execution)).toThrow(
+      'service reported a failure',
+    );
   });
 
   it.each([

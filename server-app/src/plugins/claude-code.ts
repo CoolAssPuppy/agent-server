@@ -21,6 +21,12 @@ import { runDecisionCycle, type DecisionContext } from '../execution/decision-ha
 import { nativeServiceGrantEnvironment } from '../agents/native-services.js';
 import { resolveSavedConnectionValues } from '../connections/runtime-resolution.js';
 import { startClaudeQueryWithMcp } from './claude-query-setup.js';
+import {
+  credentialBrokerSocketPath,
+  startCredentialBroker,
+  type CredentialBrokerPlan,
+} from './credential-broker.js';
+import { buildMcpPolicyRelayCommand } from './mcp-relay-runtime.js';
 
 type ExecuteAgentExtra = {
   abortController?: AbortController;
@@ -55,8 +61,6 @@ export async function executeAgent(
     deny: agent.disallowed_tools ?? [],
   } : undefined);
   const abortController = extra?.abortController ?? new AbortController();
-  const configuredMcpServers = extra?.disableMcpServers ? {} : buildMcpServers(agent) ?? {};
-
   const options: Options = {
     maxTurns: agent.max_turns,
     cwd,
@@ -117,15 +121,6 @@ export async function executeAgent(
   // resumption text appended to the prompt. Without a decisionContext this
   // loop runs exactly once (backward compatible).
   while (true) {
-    const stream = await startClaudeQueryWithMcp(
-      currentPrompt,
-      options,
-      configuredMcpServers,
-      abortController,
-    );
-
-    mcpServers = await handleMcpServerStatus(stream, reporter);
-
     let decisionHandled = false;
     let resultPayload: ExecutionResult | undefined;
     // Track cumulative usage reported within this segment by assistant
@@ -139,8 +134,21 @@ export async function executeAgent(
     let segmentAssistantCacheCreation = 0;
     let segmentHadResult = false;
     let segmentTurnsFromAssistants = 0;
+    const mcpRuntime = extra?.disableMcpServers
+      ? { servers: {}, credentialBroker: undefined }
+      : buildClaudeMcpRuntime(agent);
+    const closeCredentialBroker = await startCredentialBroker(mcpRuntime.credentialBroker);
+    try {
+      const stream = await startClaudeQueryWithMcp(
+        currentPrompt,
+        options,
+        mcpRuntime.servers,
+        abortController,
+      );
 
-    for await (const message of stream) {
+      mcpServers = await handleMcpServerStatus(stream, reporter);
+
+      for await (const message of stream) {
       if (message.type === 'user') {
         // Pair tool_use with tool_result to compute per-call duration (Fix 3).
         const userContent = message.message?.content;
@@ -355,6 +363,9 @@ export async function executeAgent(
         });
         break;
       }
+      }
+    } finally {
+      await closeCredentialBroker();
     }
 
     if (!segmentHadResult) {
@@ -741,7 +752,22 @@ export function buildMcpServers(
   agent: AgentConfig,
   environment: Record<string, string | undefined> = process.env,
 ): Options['mcpServers'] {
+  const servers = buildClaudeMcpRuntime(agent, environment).servers;
+  return Object.keys(servers).length > 0 ? servers : undefined;
+}
+
+function buildClaudeMcpRuntime(
+  agent: AgentConfig,
+  environment: Record<string, string | undefined> = process.env,
+): {
+  servers: NonNullable<Options['mcpServers']>;
+  credentialBroker: CredentialBrokerPlan | undefined;
+} {
   const servers: NonNullable<Options['mcpServers']> = {};
+  const credentialBroker: CredentialBrokerPlan = {
+    socketPath: credentialBrokerSocketPath(),
+    grants: {},
+  };
 
   if (agent.mcp_servers) {
     for (const [name, config] of Object.entries(agent.mcp_servers)) {
@@ -749,21 +775,41 @@ export function buildMcpServers(
         const savedEnvironment = config.env
           ? resolveSavedConnectionValues(agent, name, config.env, environment)
           : undefined;
-        servers[name] = {
-          ...config,
-          env: savedEnvironment
-            ?? (config.env ? resolveApprovedMcpValues(mcpCredentialOwner(name, config), config.env, environment) : undefined),
-        };
+        const relay = buildMcpPolicyRelayCommand(
+          agent,
+          name,
+          config,
+          savedEnvironment ?? {},
+          credentialBroker,
+        );
+        servers[name] = relay
+          ? { type: 'stdio', ...relay }
+          : {
+            ...config,
+            env: savedEnvironment
+              ?? (config.env
+                ? resolveApprovedMcpValues(mcpCredentialOwner(name, config), config.env, environment)
+                : undefined),
+          };
       } else if ('url' in config) {
         const savedHeaders = config.headers
           ? resolveSavedConnectionValues(agent, name, config.headers, environment)
           : undefined;
-        servers[name] = {
-          ...config,
-          headers: savedHeaders ?? (config.headers
-            ? resolveApprovedMcpValues(mcpCredentialOwner(name, config), config.headers, environment)
-            : undefined),
-        };
+        const relay = buildMcpPolicyRelayCommand(
+          agent,
+          name,
+          config,
+          savedHeaders ?? {},
+          credentialBroker,
+        );
+        servers[name] = relay
+          ? { type: 'stdio', ...relay }
+          : {
+            ...config,
+            headers: savedHeaders ?? (config.headers
+              ? resolveApprovedMcpValues(mcpCredentialOwner(name, config), config.headers, environment)
+              : undefined),
+          };
       }
     }
   }
@@ -781,5 +827,10 @@ export function buildMcpServers(
     };
   }
 
-  return Object.keys(servers).length > 0 ? servers : undefined;
+  return {
+    servers,
+    credentialBroker: Object.keys(credentialBroker.grants).length > 0
+      ? credentialBroker
+      : undefined,
+  };
 }

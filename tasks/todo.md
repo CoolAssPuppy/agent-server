@@ -1,5 +1,30 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Runtime-neutral installed-agent migration
+
+- [x] Add semantic connection declarations and machine-local runtime assignments.
+- [x] Add checked local connection profiles, reviewed operation mappings, resource bindings, and runtime compatibility checks.
+- [x] Enforce portable output contracts and exact resource targets across Claude Code, Codex, and Kimi Code.
+- [x] Add the Notion Personal and Calendar Work profiles on this machine and check their current tool inventories.
+- [x] Prove that the personal Notion token cannot access the work Notion data source.
+- [x] Add checked local Claude implementations for searchable Slack, Linear, Notion Work, Gmail Work, and Calendar Work.
+- [ ] Add Customer.io when `proactive-work` is enabled.
+- [x] Generate and apply exact reviewed patches for all seven installed agents.
+- [x] Run harmless live Claude Code and Codex checks. Kimi Code is not installed on this machine.
+- [x] Run the full server and macOS verification gates.
+- [x] Present the exact per-agent changes before any commit.
+
+Review:
+
+- Agent definitions can now name human-readable services, purposes, semantic operations, and logical resources without naming an LLM or concrete MCP tool.
+- Runtime and account choices live in local files next to the agents directory. Synced agent Markdown stays shareable.
+- Targeted reads now require an approved readable resource when the adapter can enforce one. Dynamic page reads remain valid after a scoped search or query returns a page ID.
+- The saved EventKit adapter provides checked Calendar operations for a future non-Claude binding. The enabled `daily-focus` agent currently uses the existing Claude Calendar account.
+- Codex account apps work interactively, but the unattended CLI does not expose a narrow per-app tool restriction. Scheduled runs therefore use checked local MCP profiles instead of inheriting every enabled Codex app.
+- The seven shared files are migrated. All six enabled agents pass the live server's Claude Code compatibility check. Disabled `proactive-work` reports only its intentionally unbound Customer.io use.
+- The running app now uses this repository's verified server build and exposes API version 13. The restart was announced before it happened.
+- Verification passes: 133 server test files, 1,686 tests passed, 4 skipped; 572 Swift tests; ESLint; both strict TypeScript checks; server build; unsigned macOS app build; and harmless one-turn Claude Code and Codex executions.
+
 ## Version 3.4.5 release
 
 - [x] Stop asking for Claude account setup from an engine that cannot use it.
@@ -2290,3 +2315,643 @@ Review:
 - The new behavior tests failed against the prior implementation and pass with the correction.
 - Verification passed with 1,586 server tests and 4 expected skips, strict TypeScript checking, ESLint, and the server build.
 - Swift tests could not compile because this machine's active Command Line Tools installation does not include XCTest. The same machine also lacks the Developer ID identity, notarization profile, and Sparkle signing tool required for a release.
+
+# Prevent incompatible Codex runtime switches
+
+- [x] Add a failing behavior test for switching an agent with unbound credential-based MCP servers to Codex.
+- [x] Reject the incompatible settings save with a direct connection-migration message.
+- [x] Keep compatible Codex runtime changes and existing Claude Code agents unchanged.
+- [x] Run focused tests, the full server suite, type-checking, lint, and the server build.
+- [x] Record the overnight diagnosis and verification results.
+
+Constraints:
+
+- Do not expose credential values in errors, logs, or tests.
+- Do not weaken the Codex executor's credential boundary.
+- Do not rewrite agent MCP configuration or claim that Claude account connectors exist in Codex.
+
+Review:
+
+- Nine scheduled runs failed before model execution. Personal Notion and Slack MCP entries contained inline credential references that the Codex executor requires to come from saved connection bindings.
+- Daily Focus and the weekly agents also depend on Claude account Slack, Notion, Linear, Hex, Gmail, Calendar, or search tools. The installed Codex runtime has none of those connections.
+- The shared agent writer now rejects both incompatible runtime switches before it changes the Markdown file. Agents with saved credential bindings and agents without runtime-specific connection requirements can still switch to Codex.
+- All seven installed agents currently use the default Claude Code executor. A manual Daily Focus retry completed after the overnight failures.
+- Verification passed with 32 focused writer tests, 1,589 full server tests and 4 expected skips, strict TypeScript checking, ESLint, the server build, and `git diff --check`.
+
+# Runtime-portable agent implementation plan
+
+Status: superseded by “Runtime-neutral agent framework implementation” below.
+
+## Objective
+
+Let one agent declare the external operations it needs, bind those operations to reviewed connections, and run through Claude Code, Codex, or Kimi Code without concrete runtime tool names in its task instructions. A runtime change must show compatibility before saving and must preserve the agent's access limits and required-output checks.
+
+## Contract decisions
+
+- Agent Markdown owns task intent, selected connection identities, approved operations, destination limits, and the selected executor.
+- Saved connection profiles own transport and credential references.
+- Derived capability snapshots own the operations reported by each saved connection. They contain no credential values.
+- Concrete names such as `mcp__notion__API-post-page` exist only in the prepared in-memory agent passed to an executor and in executor-neutral tool-call evidence.
+- Curated operation IDs such as `notion.search` and `notion.create_page` are stable product contracts. Unknown MCP tools remain runtime-specific until a reviewed mapping exists.
+- Existing `tools`, `permissions`, `mcp_servers`, and `output.primary.tool` fields remain supported during migration.
+
+Proposed portable definition:
+
+```yaml
+executor: codex
+connection_bindings:
+  notes: 018f47a2-9a13-7d61-bf4f-f9a5d8f67c21
+requirements:
+  operations:
+    - connection: notes
+      operation: notion.search
+    - connection: notes
+      operation: notion.create_page
+output:
+  primary:
+    description: One daily report in the approved database
+    operation: notion.create_page
+    connection: notes
+    required: true
+    target_match:
+      field: data_source_id
+      equals: 8dd5004b-775f-8339-b38f-87b1e08ebe79
+```
+
+## Milestone 1: Portable operation schema
+
+- [ ] Add `AgentRequirementsSchema` with unique `{ connection, operation }` entries.
+- [ ] Add curated semantic operation IDs to connection capability classification while retaining each MCP runtime operation name.
+- [ ] Allow required outputs to reference either the legacy concrete `tool` or a portable `{ connection, operation }` pair.
+- [ ] Reject missing bindings, duplicate requirements, unknown fields, and portable outputs absent from the approved requirements.
+- [ ] Keep parsing and execution behavior unchanged for legacy agents.
+
+Primary files:
+
+- `server-app/src/agents/config.ts`
+- `server-app/src/connections/capability-snapshot.ts`
+- New `server-app/src/connections/operation-catalog.ts`
+- `server-app/src/execution/output-contract.ts`
+
+Tests first:
+
+- Schema acceptance and rejection tests.
+- Curated Notion operation mapping tests.
+- Legacy agent compatibility tests.
+- Portable output range and destination tests.
+
+## Milestone 2: Connection operation inventory
+
+- [ ] Extend saved-connection checks to start the MCP transport and request `tools/list` within a bounded timeout.
+- [ ] Classify reported tools through the curated operation catalog.
+- [ ] Store derived snapshots atomically in an owner-only cache keyed by connection ID and capability version.
+- [ ] Refresh the snapshot after connection creation, credential changes, explicit checks, and transport changes.
+- [ ] Mark missing, stale, failed, and unknown operation inventories separately.
+- [ ] Keep credential names and values out of snapshots, API responses, logs, and telemetry.
+
+Primary files:
+
+- `server-app/src/connections/connection-executor.ts`
+- `server-app/src/connections/capability-snapshot.ts`
+- New `server-app/src/connections/capability-store.ts`
+- `server-app/src/server/api.ts`
+- `macos-app/AgentServer/Views/SavedConnectionViews.swift`
+
+Tests first:
+
+- Stdio, HTTP, and SSE `tools/list` behavior.
+- Timeout, malformed response, missing credential, and transport failure behavior.
+- Atomic cache writes and stale snapshot invalidation.
+- Secret-redaction tests for every returned error shape.
+
+## Milestone 3: Execution preparation
+
+- [ ] Add one shared preparation function used by scheduled, manual, chained, conversational, retry, and CLI runs.
+- [ ] Resolve every connection binding from the current saved profile registry.
+- [ ] Resolve every portable operation against the current capability snapshot.
+- [ ] Produce concrete MCP tool names and executor configuration in memory.
+- [ ] Route credential-bearing stdio connections through a bundled connection launcher that receives a profile ID, reads only that profile's reviewed credential references, and adds values only to the final MCP child environment.
+- [ ] Keep credential values out of Claude, Codex, and Kimi command arguments and top-level runtime environments.
+- [ ] Generate the exact allow rules required by the approved operations and retain explicit denials.
+- [ ] Convert a portable required-output operation into the concrete tool names accepted by output validation.
+- [ ] Return a stable compatibility error before model execution when a binding or operation is unavailable.
+- [ ] Record the resolved operation ID beside each tool-call trace without exposing arguments or credentials.
+
+Primary files:
+
+- New `server-app/src/execution/prepare-agent.ts`
+- `server-app/src/connections/connection-executor.ts`
+- `server-app/src/execution/executor.ts`
+- `server-app/src/execution/output-contract.ts`
+- `server-app/src/plugins/claude-code.ts`
+- `server-app/src/plugins/codex.ts`
+- `server-app/src/plugins/kimi-code.ts`
+
+Tests first:
+
+- The same portable agent prepares correctly for all three executors.
+- The same output contract passes from all three executor event formats.
+- Missing, stale, unknown, and denied operations fail before the model starts.
+- A runtime receives no unapproved MCP server or operation.
+- The connection launcher refuses unknown profile IDs, undeclared credential references, and changed transport identities.
+- Process argument and environment capture proves that only the final MCP child receives its declared credential values.
+- File, command, network, credential, and approval policies remain independently enforced.
+
+## Milestone 4: Runtime compatibility API and macOS flow
+
+- [ ] Add `GET /agents/:id/runtime-compatibility?executor=<name>`.
+- [ ] Return `compatible`, `needs_replacement`, or `blocked` with each required operation and its current connection evidence.
+- [ ] Return eligible saved connection replacements for each missing operation.
+- [ ] Require a user choice when several accounts or connections qualify.
+- [ ] Save executor, replacement bindings, and portable requirements in one atomic agent patch.
+- [ ] Check compatibility in guided creation before showing connection choices.
+- [ ] Replace the current save-time error with an inline compatibility review beside the runtime picker.
+- [ ] Keep the current agent file unchanged when the review is canceled or a replacement fails.
+
+Primary files:
+
+- `server-app/src/server/api.ts`
+- New `server-app/src/agents/runtime-compatibility.ts`
+- `server-app/src/agents/writer.ts`
+- `macos-app/AgentServerSwiftTests/Sources/AgentServerCore/AgentSettingsDraft.swift`
+- `macos-app/AgentServer/Views/AgentSettingsForm.swift`
+- New macOS compatibility presentation and review views.
+
+Tests first:
+
+- Compatibility response tests for portable, Claude-account-only, missing, ambiguous, and stale connections.
+- Atomic save and stale-write rejection tests.
+- macOS draft, presentation, cancellation, keyboard, and accessibility tests.
+- Creation and editing must use the same compatibility rules.
+
+## Milestone 5: Existing-agent migration
+
+- [ ] Add a read-only migration analyzer for legacy tools, permission rules, output contracts, bindings, and prompt references.
+- [ ] Map only exact curated tool identities to portable operations.
+- [ ] Produce a lossless patch preview protected by the current file hash.
+- [ ] Require saved shared connections before replacing Claude account connections.
+- [ ] Present every account choice and every changed permission or output rule.
+- [ ] Keep unsupported tools as named blockers and leave the source file unchanged.
+- [ ] Rewrite runtime-specific prompt instructions only through an explicit reviewed text diff.
+- [ ] Migrate Personal Notion agents first, then Slack and Linear agents, then Calendar, search, Hex, and other services with verified shared connections.
+
+Primary files:
+
+- New `server-app/src/agents/portable-migration.ts`
+- `server-app/src/analysis/patch.ts`
+- `server-app/src/agents/lossless-yaml-editor.ts`
+- `server-app/src/connections/adoption.ts`
+- New macOS migration review views.
+
+Tests first:
+
+- Byte preservation outside changed nodes.
+- Exact mapping, ambiguity refusal, unsupported-operation refusal, and stale-hash behavior.
+- Prompt text remains unchanged until its diff is approved.
+- Existing schedules, destinations, denials, and notification rules survive migration.
+
+## Milestone 6: Verification and rollout
+
+- [ ] Run focused tests after every failing behavior test and implementation increment.
+- [ ] Run `pnpm test`, `pnpm run type-check`, `pnpm run lint`, and `pnpm run build` from `server-app/`.
+- [ ] Run all Swift behavior tests and build the macOS app without launching UI tests during active user work.
+- [ ] Run bounded live checks with one read-only connection and one write connection on Claude Code and Codex.
+- [ ] Prove that both runtimes create the required output at the approved destination.
+- [ ] Prove that switching back preserves the same requirements and bindings.
+- [ ] Ship the schema and preparation path before enabling migration actions.
+- [ ] Keep legacy execution available for one release cycle and report legacy status in agent readiness.
+- [ ] Remove the temporary Codex switch guard only after the compatibility review covers every agent-editing path.
+
+## Acceptance criteria
+
+- A newly created portable agent can run through Claude Code and Codex with one executor-field change and no prompt edit.
+- The runtime picker reports missing operations before it writes the agent file.
+- Shared saved connections retain the same identity, credential references, and access limits across runtimes.
+- Required-output validation succeeds from each executor's tool-call events.
+- Runtime-specific account connections are identified clearly and require a reviewed replacement.
+- Unknown MCP operations never receive a portable classification automatically.
+- Existing legacy agents continue to run unchanged until migrated.
+- No credential value appears in agent Markdown, child-process arguments, snapshots, API responses, logs, telemetry, or run history.
+
+## Explicit exclusions
+
+- Claude account OAuth connectors remain Claude-only.
+- Arbitrary unknown tools retain runtime-specific identities.
+- Personal, Work, and other accounts always require a user choice.
+- Task instruction changes always require a reviewed diff.
+
+# Runtime-neutral agent framework implementation
+
+Status: active goal. This section replaces the earlier proposal where the two differ.
+
+## Product contract
+
+The framework separates five records:
+
+1. **Agent definition in Markdown**: identity, schedule, task instructions, named connection uses, purpose, approved operations, resource limits, output, notifications, and generic file or network access.
+2. **Local connection bindings**: a server-owned file maps each logical agent connection slot to a saved connection profile on this machine.
+3. **Saved connection profile**: stable UUID, local account name, portable service type, adapter identity, transport, and credential references. Observed capabilities and reviewed operation mappings are separate records.
+4. **Runtime assignment**: executor, model, custom provider, and other runtime selection details. This lives in a server-owned file beside `connections.json`.
+5. **Prepared run**: a temporary in-memory agent containing concrete MCP server names, tool names, and executor options. This record is discarded after the run.
+
+Changing Claude Code to Codex or Kimi changes only the runtime assignment. The Markdown agent definition remains byte-for-byte unchanged.
+
+## Agent YAML
+
+Target frontmatter:
+
+```yaml
+id: daily-focus
+name: Daily Focus List
+schedule: "0 7 * * 2-5"
+timezone: Europe/Lisbon
+
+connections:
+  work_notes:
+    type: notion
+    name: Notion Work
+    purpose: Read work notes and publish the daily focus page
+    operations:
+      - notion.search
+      - notion.page.read
+      - notion.page.create
+    resources:
+      report_database:
+        type: notion.data_source
+        purpose: Destination for the daily focus page
+        access: write
+
+  work_messages:
+    type: slack
+    name: Slack Work
+    purpose: Find messages that directly involve Prashant
+    operations:
+      - slack.messages.search
+      - slack.thread.read
+    resources:
+      company_workspace:
+        type: slack.workspace
+        purpose: Workspace to search for relevant activity
+        access: read
+
+output:
+  primary:
+    description: One daily focus page in Notion Work
+    use: work_notes
+    operation: notion.page.create
+    required: true
+    successful_calls:
+      min: 1
+      max: 1
+    target: report_database
+```
+
+Rules:
+
+- `name` is the human connection name shown in prompts and the app.
+- Each mapping key, such as `work_notes`, is a stable logical slot inside this shareable agent package.
+- `type` identifies the portable service contract and the semantic operation namespace.
+- `purpose` is added to the run context so the model knows why the connection is present.
+- `operations` contains semantic operations. The local tool maps them to concrete capabilities.
+- Each resource mapping key is another portable slot. Actual workspace, database, folder, calendar, and account IDs stay in local bindings.
+- New agent files contain no local profile UUID, executor, model, provider, `codex_sandbox`, `permission_mode`, concrete `mcp__...` tools, inline credential transport, or executor-specific account connection.
+
+The shareable file says what `Notion Work` means for this task. Each orchestration tool decides how that slot is fulfilled locally.
+
+## Local connection bindings
+
+New server-owned file: `~/.agent-server/agent-bindings.json`.
+
+```json
+{
+  "schema_version": 1,
+  "agents": {
+    "daily-focus": {
+      "revision": 1,
+      "connections": {
+        "work_notes": {
+          "connection_id": "018f47a2-9a13-7d61-bf4f-f9a5d8f67c21",
+          "resources": {
+            "report_database": {
+              "id": "8dd5004b-775f-8339-b38f-87b1e08ebe79"
+            }
+          }
+        },
+        "work_messages": {
+          "connection_id": "028f47a2-9a13-7d61-bf4f-f9a5d8f67c22",
+          "resources": {
+            "company_workspace": {
+              "id": "T_WORKSPACE"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Rules:
+
+- Slot keys come from the shareable agent definition.
+- Connection UUIDs remain local to one Agent Server workspace.
+- Provider resource IDs remain local to one Agent Server workspace.
+- Importing an agent creates unresolved slots and starts local connection selection.
+- Copying or publishing an agent excludes `agent-bindings.json` and `runtime-assignments.json`.
+- Another orchestration tool may fulfill the slots through MCP, native APIs, hosted connectors, or another enforceable mechanism.
+
+## Runtime assignment
+
+New server-owned file: `~/.agent-server/runtime-assignments.json`.
+
+```json
+{
+  "schema_version": 1,
+  "assignments": {
+    "daily-focus": {
+      "executor": "codex",
+      "revision": 1,
+      "updated_at": "2026-08-06T08:00:00.000Z"
+    }
+  }
+}
+```
+
+Rules:
+
+- Agent Server writes this file atomically with owner-only permissions.
+- Runtime assignment precedence is saved assignment, then legacy frontmatter during migration, then `claude-code` as the compatibility default.
+- Runtime changes use a dedicated API and never patch agent Markdown.
+- The app shows the effective assignment and its source.
+- After migration, legacy runtime fields are removed through a reviewed lossless patch.
+
+## Connection operation contract
+
+Each connection adapter provides a versioned map:
+
+```text
+semantic operation    concrete MCP tool               effect
+search                API-post-search                 read
+read_page             API-retrieve-page-markdown      read
+create_page           API-post-page                   create
+```
+
+Rules:
+
+- `tools/list` confirms which concrete tools the current connection provides.
+- Curated maps assign stable semantic operations only for reviewed adapter and transport identities.
+- A user may give an unknown concrete tool a semantic name only through an explicit version-pinned review.
+- A connection is portable when its transport can be prepared for the selected runtime and every approved semantic operation is present.
+- Human labels never determine provider identity, tool mapping, credentials, or access.
+
+## Prepared run compiler
+
+For every run:
+
+1. Load the agent definition.
+2. Load its runtime assignment.
+3. Resolve each logical slot key through the local agent binding store.
+4. Resolve the resulting local connection ID to the current saved profile.
+5. Load or refresh the connection's operation inventory.
+6. Resolve each semantic operation to one concrete MCP tool.
+7. Compile exact server and tool allow lists for the selected executor.
+8. Resolve local resource slots and compile argument checks for each allowed operation.
+9. Compile the portable output contract into concrete tool evidence checks.
+10. Add a short connection-purpose block to the prompt.
+11. Start the selected executor only after preparation succeeds.
+
+The compiler output is immutable and exists only for that run.
+
+## Credential handling
+
+- Agent Markdown stores no credential names or values.
+- Connection profiles store credential references and transport configuration.
+- The server resolves credential values immediately before starting the final MCP process.
+- Codex receives `enabled_tools` and `disabled_tools` for each MCP server.
+- Credential-bearing stdio connections use an Agent Server launcher so credential values appear only in the final MCP child environment.
+- HTTP bearer and header credentials use a local Agent Server MCP relay until every selected runtime has a verified secret-reference mechanism that keeps values out of model-visible commands and inherited shell environments.
+- The relay accepts only a run-scoped connection grant and the approved operation set.
+
+## Runtime compatibility states
+
+- `compatible`: every connection, operation, resource rule, and output contract can be enforced.
+- `needs_connection`: an equivalent saved connection must be selected.
+- `needs_review`: the connection label, transport, operation inventory, or capability version changed.
+- `blocked`: the runtime cannot enforce one or more required operations or resource rules.
+
+The runtime picker shows these states before saving. It never changes an assignment while the result is `needs_connection`, `needs_review`, or `blocked`.
+
+## Implementation sequence
+
+### Phase 1: Separate runtime assignment
+
+- [x] Add runtime assignment schemas and an atomic owner-only store.
+- [x] Add effective runtime resolution with legacy fallback.
+- [x] Add dedicated read and update APIs.
+- [x] Make every server run path use effective runtime resolution.
+- [x] Update macOS decoding, editing, runtime compatibility, and local persistence calls.
+- [x] Prove that changing runtime leaves agent Markdown unchanged.
+
+### Phase 2: Add named connection uses
+
+- [x] Add the `connections` schema with stable logical key, human name, purpose, operations, and resource grants.
+- [x] Add lossless writer support and redacted API presentation.
+- [x] Add an atomic owner-only local agent-binding store.
+- [x] Add unresolved, missing, stale, and compatible slot-binding checks.
+- [x] Keep legacy `connection_bindings`, `mcp_servers`, tools, and permissions operational.
+- [x] Update editing UI to select a saved connection and choose resources for each declared use.
+- [x] Update guided creation to author named connection uses directly and save its runtime separately.
+
+### Phase 3: Build operation inventories
+
+- [x] Capture concrete operation names and input fields in capability snapshots.
+- [x] Implement bounded MCP initialize, paginated `tools/list`, duplicate rejection, and inventory limits.
+- [x] Store observed snapshots in an owner-only cache.
+- [x] Add a trusted Notion REST map with exact adapter and transport identity checks.
+- [ ] Add curated maps or complete explicit reviews for Slack, Linear, EventKit, and other connections needed by the installed agents.
+- [x] Store reviewed semantic mappings separately and make changed inventories stale.
+
+### Phase 4: Compile prepared runs
+
+- [x] Add the shared prepared-run compiler.
+- [x] Compile connection transports and exact tool allow lists for Claude Code, Codex, and Kimi Code.
+- [x] Compile connection purpose into runtime context.
+- [x] Compile resource argument enforcement for mapped target arguments.
+- [x] Route all three runtimes through a policy-enforcing local MCP relay for portable connections.
+- [x] Normalize concrete tool calls back to logical use, semantic operation, and resource evidence.
+
+### Phase 5: Make output portable
+
+- [x] Add portable output `{ use, operation, target }` schema where `use` is the logical slot key.
+- [x] Compile it into concrete tool evidence checks for each run.
+- [x] Preserve successful-call ranges and exact resource targets.
+- [x] Keep legacy concrete output contracts operational.
+
+### Phase 6: Add compatibility review
+
+- [x] Add runtime compatibility and replacement APIs.
+- [x] Add the macOS runtime review with exact missing operations and eligible connections.
+- [x] Save runtime assignments independently from agent edits.
+- [x] Enforce compatibility during runtime changes, binding changes, and every prepared run.
+- [x] Use named connection uses directly during guided creation.
+- [ ] Use named connection uses during the reviewed installed-agent migration.
+
+### Phase 7: Migrate installed agents
+
+- [x] Stop before changing live agent files or committing and present a per-agent migration report for user review.
+- [x] For each agent, list removed runtime and MCP fields, added connection uses and operations, required local bindings, resource IDs, and runtime-specific prompt text that must change.
+- [x] Allow hash-protected reviewed patches to add portable connections and output contracts while preserving untouched file bytes and rollback support.
+
+- [ ] Import existing executor, model, and provider choices into runtime assignments.
+- [ ] Create or select shared saved connections for every required service.
+- [ ] Convert concrete tools and permissions into named connection uses.
+- [ ] Convert output contracts into portable connection operations.
+- [ ] Show reviewed lossless patches before removing legacy fields.
+- [ ] Keep unsupported Claude account connections on Claude until a shared replacement exists.
+- [ ] Run each migrated agent through its current runtime before testing another runtime.
+
+### Phase 8: Verify and release
+
+- [x] Run all focused behavior tests after each TDD increment.
+- [x] Run the complete server suite, type-check, lint, and build.
+- [x] Run focused Swift behavior tests and build the macOS app during implementation.
+- [x] Re-run the complete Swift suite and macOS app build after final documentation and contract changes.
+- [ ] Run live read and write checks through Claude Code and Codex.
+- [ ] Prove exact output creation, resource enforcement, credential isolation, cancellation, timeout, and run-history behavior.
+- [ ] Install the verified local build and run the migrated scheduled agents.
+- [ ] Keep legacy compatibility for one release cycle before removing deprecated fields.
+
+## Completion criteria
+
+- Changing an agent from Claude Code to Codex changes only `runtime-assignments.json`.
+- The agent Markdown names logical connection slots and their purpose without local profile IDs, executor fields, or concrete MCP vocabulary.
+- Copying one agent Markdown file to another machine creates unresolved local slots and never copies accounts or credentials.
+- Both runtimes receive the same approved semantic operations and resource limits.
+- Both runtimes produce normalized evidence that satisfies the same output contract.
+- A runtime switch is refused before execution when any rule cannot be enforced.
+- Existing agent definitions and run history survive migration.
+- Credential values remain absent from agent files, runtime arguments, runtime-wide environments, logs, telemetry, and run history.
+
+## Current implementation review
+
+### Codex cutover on Prashant's Mac
+
+- [x] Confirm Gmail, Google Calendar, Linear, Notion, and Slack are accessible through the local Codex login.
+- [x] Compile named connection uses into selected Codex apps and exact runtime tool names.
+- [x] Disable every unapproved tool found in each checked Codex app inventory.
+- [x] Create machine-local Codex connection profiles, capability snapshots, operation mappings, bindings, and runtime assignments.
+- [x] Remove unused Claude account profiles after proving no agent binding references them.
+- [x] Verify all six enabled agents are compatible with Codex.
+- [x] Add the newly authorized CustomerIO Codex app, review its complete tool inventory, and bind its five read operations to Proactive Work.
+- [x] Prove Codex can read Slack, Linear, and Notion through Agent Server.
+- [x] Prove Codex can create a page in the approved Notion data source and satisfy Agent Server's required-output check.
+- [x] Keep the shared agent Markdown free of executor names, app IDs, account IDs, and concrete tool names.
+- [ ] Show the user the exact per-agent impact before committing.
+- [ ] Commit only after user approval.
+
+- The server suite passes: 1,675 tests passed and 4 expected tests skipped across
+  132 files.
+- Strict TypeScript checking, ESLint, and the production server build pass.
+- The Swift package passes 571 tests with zero failures.
+- Xcode project generation and the unsigned macOS Debug app build pass with
+  Xcode 26.6.0. The build reports only the existing AppIntents metadata warning.
+- The installed-agent audit found seven definitions. No installed definition,
+  local connection profile, runtime assignment, or portable binding has been
+  changed.
+- The exact proposed changes and current local setup gaps are documented in
+  `tasks/runtime-neutral-agent-migration-report.md` for user approval before
+  migration or commit.
+- Capability identity now changes with the complete saved transport, adapter,
+  runtime name, or credential references. The reviewed Notion map requires the
+  exact `@notionhq/notion-mcp-server@2.5.1` package.
+- Preparation enforces nested provider target fields, resource access by
+  operation effect, provider availability, provider credential presence, and
+  unambiguous portable output evidence before execution.
+- This Mac now assigns every installed agent to Codex. All seven agents are
+  compatible. Proactive Work still has `enabled: false` in its shared definition.
+- Codex runs use only the selected app IDs. Each checked app inventory is
+  compiled into explicit enabled and disabled tool settings for the run.
+- A live Agent Server verification created one page through
+  `notion.notion-create-pages`; its exact destination and successful tool call
+  satisfied the required output contract.
+- A restricted live Codex run called only
+  `customerio.cio_auth_status`, confirming that the new CustomerIO account is
+  available to unattended Agent Server runs.
+- Guided creation writes local runtime and connection selections outside the
+  agent file. Resource IDs remain unresolved until the user selects them.
+
+## Agent Server 3.5.0 release
+
+- [x] Verify the current implementation diff, release contract, signing identity, Sparkle key, notarization profile, Doppler access, and live 3.4.6 appcast.
+- [x] Reproduce and fix the agent-detail HTTP 500 caused by saved Codex account profiles.
+- [x] Restart the local server and verify the affected presentation and services endpoints return HTTP 200.
+- [x] Run the complete release script for version 3.5.0 with the note `Better support for Codex`.
+- [x] Verify the signed and notarized DMG, published appcast, latest-download alias, and update-feed redirect.
+- [x] Record the published build number and local artifacts.
+- [ ] Leave source changes uncommitted until the required per-agent review and explicit commit approval.
+
+### Release-blocking fix review
+
+- A saved `runtime_account` profile now stays an account connection in the service registry.
+- The registry binds that profile to its runtime server name without resolving it as an injected MCP transport.
+- The regression test fails with the original exception before the fix and passes after it.
+- The focused server test, strict type check, lint, build, and live authenticated endpoint checks pass.
+- Version 3.5.0 is build 45. Apple accepted app submission `3ca84d9e-2545-4943-9293-f3b5691889fe` and DMG submission `8b8797ec-cb45-4a40-bcc6-f84c323ef390`.
+- The published immutable DMG and latest-download alias match the local SHA-256 `0949473292035ed2d37728ffedbf225a3a68188bbc5dae01a3b2879ab460ba0b`.
+- The live appcast contains version 3.5.0, build 45, the requested release note, byte length 19887612, and a Sparkle signature.
+- Gatekeeper accepts the DMG as Notarized Developer ID, and the stapled ticket validates.
+
+## 2026-08-07 overnight agent recovery
+
+- [x] Inspect the scheduled manuscript, language lesson, and focus runs.
+- [x] Reproduce unattended Codex MCP approval refusal and scoped macOS command failures.
+- [x] Add failing behavior tests for false completion, failed tool calls, and failure artifacts.
+- [x] Pre-approve reviewed MCP tools for unattended Codex runs.
+- [x] Give scoped Codex commands read access to required macOS system resources.
+- [x] Replace the manuscript conversion and hash commands with built-in macOS tools.
+- [x] Support separate local read and create IDs for one logical connection resource.
+- [x] Split Notion page bodies larger than 100 blocks inside the connection relay.
+- [x] Recover the completed manuscript analysis into Notion and update the stored hash.
+- [x] Update all three Personal Notion write bindings on this Mac.
+- [x] Run focused tests, type checking, lint, server build, and the unsigned macOS app build.
+- [x] Restart the installed server and verify all seven agent definitions load through the authenticated API.
+- [x] Run an unchanged-manuscript check and confirm that it creates no duplicate page.
+
+### Review
+
+- The recovered manuscript review is page `3b5a555c-5905-81fe-b1ff-c444e2c58813` with all 130 blocks present.
+- The live server started at `2026-08-07T06:32:04.216Z` and returns HTTP 200 for the agent list and manuscript detail.
+- The complete server suite passes: 1,694 tests passed and 4 expected tests skipped across 133 files. Strict TypeScript checking, ESLint, the production server build, and the unsigned macOS Debug app build pass.
+- Swift Package Manager used the active Command Line Tools path and could not find XCTest. The same Swift sources compile in the Xcode project with `DEVELOPER_DIR` set to Xcode 26.6.0.
+- Slack still reports `account_inactive`. This did not stop the Daily Focus List itself, but its Slack notification cannot succeed until that Slack account or token is replaced.
+- Source changes remain uncommitted pending the required per-agent review and user approval.
+
+## Portable reusable skills
+
+- [x] Add semantic skill requirements to shareable agent definitions.
+- [x] Store the selected skill implementation in machine-local agent bindings.
+- [x] Validate and prepare skill instructions before choosing Codex, Claude Code, or Kimi.
+- [x] Bind Daily Manuscript Review to the maintained fiction diagnostic skill.
+- [x] Prove the same prepared skill instructions reach Codex and Claude Code.
+- [x] Run focused tests, the complete server suite, type checking, lint, and builds.
+- [x] Document the exact per-agent change before committing.
+
+### Review
+
+- Shareable agent files now name a skill and its purpose. Each machine stores the selected `SKILL.md` path in its local agent bindings.
+- Agent Server validates and adds the selected skill instructions before it selects Codex, Claude Code, or Kimi. Missing or invalid skill files stop the run with a setup error.
+- Daily Manuscript Review now requires `Fiction manuscript diagnostic` through the logical `editorial_diagnostic` slot. This Mac binds it to `/Users/prashant/Developer/brain/skills/fiction-diagnostic`.
+- The executor tests prove Codex and Claude Code receive the same prepared skill instructions. Claude Code 2.1.224 is installed and authenticated on this Mac.
+- The complete server suite passes: 1,703 tests passed and 4 expected tests skipped across 134 files. All 574 Swift tests pass. Strict TypeScript checking, ESLint, the server build, and the unsigned macOS Debug app build pass.
+- Only Daily Manuscript Review changed its shareable definition. The other agents require no edits until they choose to declare a reusable skill.
+- Source changes remain uncommitted pending user approval.
+
+## Agent Server 3.5.1 release
+
+- [x] Confirm the requested patch version and exact release-note text.
+- [x] Validate the runtime-neutral agent and local-skill implementation.
+- [ ] Commit the verified source changes.
+- [ ] Run the complete signed and notarized 3.5.1 release process.
+- [ ] Verify the published DMG, appcast, and Sparkle update metadata.
+- [ ] Commit generated release metadata and push `main`.
+- [ ] Validate, commit, and push the seven agents and three fiction skills in the brain repository.

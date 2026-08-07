@@ -61,4 +61,23 @@ final class AgentRuntimeDraftTests: XCTestCase {
         draft.customEndpoint = "   "
         XCTAssertFalse(draft.isValid)
     }
+
+    func testBuildsAMachineLocalAssignmentRequest() {
+        let draft = AgentRuntimeDraft(
+            executor: "codex",
+            model: "private-model",
+            providerEndpoint: "https://models.example.com/v1",
+            providerKeyReference: "${PRIVATE_MODEL_KEY}"
+        )
+
+        XCTAssertEqual(draft.assignmentRequest(expectedRevision: 4), AgentRuntimeAssignmentRequest(
+            executor: "codex",
+            model: "private-model",
+            provider: AgentRuntimeProvider(
+                baseURL: "https://models.example.com/v1",
+                apiKey: "${PRIVATE_MODEL_KEY}"
+            ),
+            expectedRevision: 4
+        ))
+    }
 }

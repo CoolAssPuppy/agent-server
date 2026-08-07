@@ -34,6 +34,8 @@ import { buildSimilarAgentRequest } from './similar-agent.js';
 import type { ServiceConnection, ServiceRegistry } from '../services/registry.js';
 import { EXECUTOR_NAMES, type AgentExecutor } from '../agents/executor.js';
 import { safeTestSupportForExecutor } from './safe-test-support.js';
+import type { RuntimeAssignmentStore } from '../agents/runtime-assignment-store.js';
+import type { AgentBindingSet, AgentBindingStore } from '../agents/agent-binding-store.js';
 
 const ProposalApiRequestSchema = z.object({
   request: z.string().trim().min(1).max(8_000),
@@ -97,6 +99,8 @@ export type GuidanceApiDependencies = {
   triggerRun?: (agentId: string, metadata: GuidanceRetryMetadata) => Promise<string>;
   diagnosticReadiness?: (agent: AgentConfig) => DiagnosticReadiness;
   getServiceRegistry: (executor?: AgentExecutor) => Promise<ServiceRegistry>;
+  runtimeAssignments?: Pick<RuntimeAssignmentStore, 'set'> & Partial<Pick<RuntimeAssignmentStore, 'remove'>>;
+  agentBindings?: Pick<AgentBindingStore, 'replace'> & Partial<Pick<AgentBindingStore, 'remove'>>;
   now?: () => number;
 };
 
@@ -201,14 +205,14 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
     return receipt;
   }
 
-  function rememberCompletedSave(id: string, agent: AgentConfig): void {
+  function rememberCompletedSave(id: string, agent: AgentConfig, safeTest: SafeTestReceipt): void {
     for (const [completedId, entry] of completedSaves) {
       if (entry.expiresAt <= now()) completedSaves.delete(completedId);
     }
     completedSaves.set(id, {
       saved: true,
       agent: { id: agent.id, name: agent.name },
-      safe_test: safeTestReceipt(agent),
+      safe_test: safeTest,
       expiresAt: now() + COMPLETED_SAVE_TTL_MS,
     });
     while (completedSaves.size > MAX_COMPLETED_SAVES) {
@@ -221,15 +225,6 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
   function safeTestAvailability(executor: AgentExecutor | undefined): SafeTestAvailability {
     const support = safeTestSupportForExecutor(executor ?? 'claude-code');
     return support.available ? { available: true } : { available: false, reason: support.reason };
-  }
-
-  function safeTestReceipt(agent: AgentConfig): SafeTestReceipt {
-    const availability = safeTestAvailability(agent.executor);
-    return availability.available ? {
-      available: true,
-      mode: 'safe_test',
-      run_endpoint: `/agents/${agent.id}/safe-test`,
-    } : availability;
   }
 
   async function currentServiceRegistry(executor?: AgentExecutor): Promise<ServiceRegistry> {
@@ -267,10 +262,36 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
     const bindings: ProposalServiceBinding[] = [];
     for (const id of requiredIds) {
       const binding = registry.bindings.get(id);
-      if (!binding) return undefined;
-      bindings.push({ id, ...binding });
+      const connection = registry.connections.find((candidate) => candidate.id === id);
+      if (!binding || !connection) return undefined;
+      bindings.push({
+        id,
+        ...binding,
+        serviceType: connection.service_id,
+        actions: connection.actions,
+      });
     }
     return bindings;
+  }
+
+  function savedProfileAgentBindings(
+    agent: AgentConfig,
+    proposal: CreationProposal,
+    serviceBindings: readonly ProposalServiceBinding[],
+  ): AgentBindingSet['connections'] {
+    const bindingByConnectionId = new Map(serviceBindings.map((binding) => [binding.id, binding]));
+    const proposalConnectionByName = new Map(proposal.connections
+      .filter(({ required }) => required)
+      .map((connection) => [connection.name, connection]));
+    return Object.fromEntries(Object.entries(agent.connections ?? {}).flatMap(([useKey, use]) => {
+      const proposalConnection = proposalConnectionByName.get(use.name);
+      const binding = proposalConnection
+        ? bindingByConnectionId.get(proposalConnection.id)
+        : undefined;
+      return binding?.connectionId
+        ? [[useKey, { connection_id: binding.connectionId, resources: {} }]]
+        : [];
+    }));
   }
 
   async function savePendingProposal(
@@ -311,7 +332,49 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
     }
 
     const created = await dependencies.writer.createReviewed(agent);
-    const safeTest = safeTestReceipt(created.agent);
+    let savedBindingRevision: number | undefined;
+    let savedRuntimeRevision: number | undefined;
+    try {
+      const localBindings = savedProfileAgentBindings(agent, reviewed, serviceBindings);
+      if (dependencies.agentBindings && Object.keys(localBindings).length > 0) {
+        const saved = await dependencies.agentBindings.replace(
+          created.agent.id,
+          localBindings,
+          0,
+        );
+        savedBindingRevision = saved.revision;
+      }
+      if (reviewed.runtime && dependencies.runtimeAssignments) {
+        const saved = await dependencies.runtimeAssignments.set(
+          created.agent.id,
+          {
+            executor: reviewed.runtime.executor,
+            ...(reviewed.runtime.model ? { model: reviewed.runtime.model } : {}),
+          },
+          { expectedRevision: 0 },
+        );
+        savedRuntimeRevision = saved.revision;
+      }
+    } catch (error) {
+      if (savedRuntimeRevision !== undefined && dependencies.runtimeAssignments?.remove) {
+        await dependencies.runtimeAssignments.remove(
+          created.agent.id,
+          { expectedRevision: savedRuntimeRevision },
+        ).catch(() => undefined);
+      }
+      if (savedBindingRevision !== undefined && dependencies.agentBindings?.remove) {
+        await dependencies.agentBindings.remove(created.agent.id, savedBindingRevision)
+          .catch(() => undefined);
+      }
+      await dependencies.writer.remove(created.agent.id);
+      throw error;
+    }
+    const availability = safeTestAvailability(reviewed.runtime?.executor);
+    const safeTest: SafeTestReceipt = availability.available ? {
+      available: true,
+      mode: 'safe_test',
+      run_endpoint: `/agents/${created.agent.id}/safe-test`,
+    } : availability;
     const body: ProposalSaveSuccess = {
       saved: true,
       agent: redactAgentSecrets(created.agent),
@@ -319,7 +382,7 @@ export function createGuidanceApi(dependencies: GuidanceApiDependencies): Hono {
       ...(analysis ? { security_analysis: analysis, preflight: check } : {}),
     };
     pending.delete(proposalId);
-    rememberCompletedSave(proposalId, created.agent);
+    rememberCompletedSave(proposalId, created.agent, safeTest);
     return { status: 201, body };
   }
 

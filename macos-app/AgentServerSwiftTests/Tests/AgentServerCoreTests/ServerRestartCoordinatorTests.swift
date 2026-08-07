@@ -32,9 +32,9 @@ final class ServerRestartCoordinatorTests: XCTestCase {
         XCTAssertTrue(coordinator.requestRestart(activeRunCount: 0))
         XCTAssertFalse(coordinator.requestRestart(activeRunCount: 0))
 
-        XCTAssertFalse(coordinator.observeRestartHealth(startedAt: "second", apiVersion: 12))
+        XCTAssertFalse(coordinator.observeRestartHealth(startedAt: "second", apiVersion: 13))
         XCTAssertEqual(coordinator.state, .restarting(previousStartedAt: "second"))
-        XCTAssertTrue(coordinator.observeRestartHealth(startedAt: "third", apiVersion: 12))
+        XCTAssertTrue(coordinator.observeRestartHealth(startedAt: "third", apiVersion: 13))
         XCTAssertEqual(coordinator.state, .running(startedAt: "third"))
     }
 

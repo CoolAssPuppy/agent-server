@@ -2,9 +2,12 @@ import AgentServerDesignSystem
 import SwiftUI
 
 struct AgentSettingsForm: View {
+    @ObservedObject var monitor: StatusMonitor
     let agent: Agent?
     let agentId: String
     @Binding var draft: AgentSettingsDraft
+    let runtimeCompatibility: AgentRuntimeCompatibility?
+    let isCheckingRuntime: Bool
     let onToggleCapability: (AgentCapability, Bool) -> Void
     let onDelete: () -> Void
     @Environment(\.nTheme) private var theme
@@ -15,6 +18,17 @@ struct AgentSettingsForm: View {
                 basicsCard
                 AgentSettingsCard(title: "AI model") {
                     ModelField(draft: $draft.runtime)
+                    runtimeCompatibilityMessage
+                }
+                let connections = agent?.connections ?? [:]
+                let skills = agent?.skills ?? [:]
+                if !connections.isEmpty || !skills.isEmpty {
+                    AgentConnectionBindingsCard(
+                        monitor: monitor,
+                        agentID: agentId,
+                        uses: connections,
+                        skillRequirements: skills
+                    )
                 }
                 instructionsCard
                 capabilitiesCard
@@ -26,6 +40,27 @@ struct AgentSettingsForm: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .scrollBounceBehavior(.basedOnSize)
+    }
+
+    @ViewBuilder
+    private var runtimeCompatibilityMessage: some View {
+        if isCheckingRuntime {
+            Text("Checking this runtime against the agent requirements...")
+                .font(.system(size: 11))
+                .foregroundStyle(theme.tokens.mutedForeground)
+        } else if let runtimeCompatibility, runtimeCompatibility.state != .compatible {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(runtimeCompatibility.issues) { issue in
+                    Text(issue.message)
+                        .font(.system(size: 11))
+                        .foregroundStyle(theme.tokens.error)
+                }
+            }
+        } else if runtimeCompatibility?.state == .compatible {
+            Text("This runtime can meet the agent requirements.")
+                .font(.system(size: 11))
+                .foregroundStyle(theme.tokens.success)
+        }
     }
 
     private var basicsCard: some View {
@@ -117,7 +152,7 @@ struct AgentSettingsForm: View {
     }
 }
 
-private struct AgentSettingsCard<Content: View>: View {
+struct AgentSettingsCard<Content: View>: View {
     let title: String
     var actionLabel: String?
     var action: (() -> Void)?

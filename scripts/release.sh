@@ -41,6 +41,7 @@ SCRIPTS="$REPO_ROOT/scripts"
 
 NOTARY_PROFILE="agent-server"
 SPARKLE_SIGN_UPDATE="${SPARKLE_SIGN_UPDATE:-$HOME/bin/sparkle/sign_update}"
+SIGN_IDENTITY="${SIGN_IDENTITY:-Developer ID Application: Prashant Sridharan (955GSY56UT)}"
 APP_FOLDER="agent-server"
 DUB_SHORTLINK="https://coolasspuppy.com/agent-server-updates"
 
@@ -127,12 +128,18 @@ xcodebuild -project "$MACOS_APP/AgentServer.xcodeproj" \
   -configuration Release \
   -archivePath "$ARCHIVE" \
   POSTHOG_API_KEY="$POSTHOG_PUBLIC_KEY" \
+  CODE_SIGN_STYLE=Manual \
+  CODE_SIGN_IDENTITY="$SIGN_IDENTITY" \
+  DEVELOPMENT_TEAM=955GSY56UT \
   archive | xcpretty 2>/dev/null || \
 xcodebuild -project "$MACOS_APP/AgentServer.xcodeproj" \
   -scheme AgentServer \
   -configuration Release \
   -archivePath "$ARCHIVE" \
   POSTHOG_API_KEY="$POSTHOG_PUBLIC_KEY" \
+  CODE_SIGN_STYLE=Manual \
+  CODE_SIGN_IDENTITY="$SIGN_IDENTITY" \
+  DEVELOPMENT_TEAM=955GSY56UT \
   archive >/dev/null
 
 #----------------------------------------------------------------------

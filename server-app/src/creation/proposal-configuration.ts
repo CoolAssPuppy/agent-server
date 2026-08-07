@@ -1,7 +1,5 @@
 import type { AgentConfig } from '../agents/config.js';
-import { mcpServerKey } from '../agents/capabilities.js';
 import type { McpServerConfig } from '../agents/config.js';
-import { mcpServicePermissionTools } from '../agents/mcp-service-profile.js';
 import type { CreationProposal } from './proposal-schema.js';
 import { dirname } from 'node:path';
 
@@ -19,15 +17,79 @@ export type ProposalServiceBinding = {
   serverName: string;
   config?: McpServerConfig;
   connectionId?: string;
+  serviceType?: string;
+  actions?: readonly ('read' | 'write' | 'send' | 'delete')[];
 };
 
 export type ProposalConfigurationOptions = {
   serviceBindings?: readonly ProposalServiceBinding[];
 };
 
+type ServiceAction = NonNullable<ProposalServiceBinding['actions']>[number];
+
+const PORTABLE_OPERATIONS: Readonly<Record<
+  string,
+  Partial<Record<ServiceAction, readonly string[]>>
+>> = {
+  notion: {
+    read: ['notion.search', 'notion.data_source.query', 'notion.page.read'],
+    write: ['notion.page.create'],
+    delete: ['notion.page.delete'],
+  },
+  slack: {
+    read: ['slack.message.search', 'slack.message.read', 'slack.thread.read'],
+    write: ['slack.message.update'],
+    send: ['slack.message.send'],
+    delete: ['slack.message.delete'],
+  },
+  linear: {
+    read: ['linear.issue.search', 'linear.issue.read', 'linear.comment.read'],
+    write: ['linear.issue.create', 'linear.issue.update'],
+    delete: ['linear.issue.delete'],
+  },
+  gmail: {
+    read: ['gmail.message.search', 'gmail.message.read'],
+    write: ['gmail.draft.create'],
+    send: ['gmail.message.send'],
+    delete: ['gmail.message.delete'],
+  },
+  calendar: {
+    read: ['calendar.calendar.list', 'calendar.event.list'],
+    write: ['calendar.event.create'],
+    delete: ['calendar.event.delete'],
+  },
+  github: {
+    read: ['github.repository.read', 'github.issue.search', 'github.issue.read'],
+    write: ['github.issue.create', 'github.issue.update'],
+    delete: ['github.issue.delete'],
+  },
+};
+
+function operationsFor(type: string, actions: readonly ServiceAction[]): string[] {
+  return [...new Set(actions.flatMap((action) => (
+    PORTABLE_OPERATIONS[type]?.[action] ?? [`${type}.${action}`]
+  )))];
+}
+
+function resourcesFor(
+  type: string,
+  name: string,
+  actions: readonly ServiceAction[],
+): NonNullable<AgentConfig['connections']>[string]['resources'] {
+  if (type === 'notion' && actions.includes('write')) {
+    return {
+      output_destination: {
+        type: 'notion.data_source',
+        purpose: `Approved destination used by ${name}.`,
+        access: 'write',
+      },
+    };
+  }
+  return {};
+}
+
 function explicitToolAllowlist(
   proposal: CreationProposal,
-  bindings: ReadonlyMap<string, ProposalServiceBinding>,
 ): string[] {
   const allow = new Set<string>();
   if (proposal.file_access.length > 0) FILE_READ_TOOLS.forEach((tool) => allow.add(tool));
@@ -53,16 +115,54 @@ function explicitToolAllowlist(
   if (proposal.permissions.requires_network && hasWebCapability) {
     WEB_TOOLS.forEach((tool) => allow.add(tool));
   }
-  if (proposal.permissions.can_use_connected_apps) {
-    proposal.connections.filter((connection) => connection.required).forEach((connection) => {
-      const binding = bindings.get(connection.id);
-      const serverKey = binding?.config
-        ? binding.serverName
-        : mcpServerKey(binding?.serverName ?? connection.id);
-      mcpServicePermissionTools(serverKey, binding?.config).forEach((tool) => allow.add(tool));
-    });
-  }
   return [...allow];
+}
+
+function portableIdentifier(value: string, fallback: string): string {
+  const normalized = value.toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 64)
+    .replace(/_+$/g, '');
+  if (/^[a-z]/.test(normalized)) return normalized;
+  return fallback;
+}
+
+function serviceType(
+  connection: CreationProposal['connections'][number],
+  binding: ProposalServiceBinding | undefined,
+): string {
+  return portableIdentifier(
+    binding?.serviceType ?? connection.id.split(':')[0] ?? connection.name,
+    'service',
+  );
+}
+
+function portableConnections(
+  connections: readonly CreationProposal['connections'][number][],
+  bindings: ReadonlyMap<string, ProposalServiceBinding>,
+): NonNullable<AgentConfig['connections']> {
+  const usedKeys = new Set<string>();
+  return Object.fromEntries(connections.map((connection) => {
+    const binding = bindings.get(connection.id);
+    const type = serviceType(connection, binding);
+    const baseKey = portableIdentifier(connection.name, type);
+    let key = baseKey;
+    for (let suffix = 2; usedKeys.has(key); suffix += 1) {
+      key = `${baseKey.slice(0, 61)}_${suffix}`;
+    }
+    usedKeys.add(key);
+    const actions = binding?.actions && binding.actions.length > 0
+      ? [...new Set(binding.actions)]
+      : ['read'] as const;
+    return [key, {
+      type,
+      name: connection.name,
+      purpose: connection.reason,
+      operations: operationsFor(type, actions),
+      resources: resourcesFor(type, connection.name, actions),
+    }];
+  }));
 }
 
 /** Convert a reviewed proposal into a default-deny runtime configuration. */
@@ -78,33 +178,8 @@ export function proposalToAgentConfig(
   if (options.serviceBindings) {
     const missing = requiredConnections.find((connection) => !bindings.has(connection.id));
     if (missing) throw new Error(`Reviewed service binding is unavailable: ${missing.name}`);
-    const runtimeNames = new Set<string>();
-    for (const connection of requiredConnections) {
-      const binding = bindings.get(connection.id);
-      if (!binding) continue;
-      const runtimeName = mcpServerKey(binding.serverName);
-      if (runtimeNames.has(runtimeName)) {
-        throw new Error(`Two reviewed services use the same runtime name: ${binding.serverName}`);
-      }
-      runtimeNames.add(runtimeName);
-    }
   }
-  const allow = explicitToolAllowlist(proposal, bindings);
-  const mcpServers = Object.fromEntries(
-    requiredConnections
-      .flatMap((connection) => {
-        const binding = bindings.get(connection.id);
-        return binding?.config ? [[binding.serverName, binding.config] as const] : [];
-      }),
-  );
-  const connectionBindings = Object.fromEntries(
-    requiredConnections.flatMap((connection) => {
-      const binding = bindings.get(connection.id);
-      return binding?.connectionId
-        ? [[binding.serverName, binding.connectionId] as const]
-        : [];
-    }),
-  );
+  const allow = explicitToolAllowlist(proposal);
   const primaryPath = proposal.file_access[0]?.path;
   const workingDirectory = proposal.file_access[0]?.kind === 'file' && primaryPath
     ? dirname(primaryPath)
@@ -136,15 +211,11 @@ export function proposalToAgentConfig(
     tools: allow,
     disallowed_tools: [],
     permissions: { allow, deny: [] },
-    mcp_servers: Object.keys(mcpServers).length > 0 ? mcpServers : undefined,
-    connection_bindings: Object.keys(connectionBindings).length > 0 ? connectionBindings : undefined,
+    connections: requiredConnections.length > 0
+      ? portableConnections(requiredConnections, bindings)
+      : undefined,
     max_turns: 20,
     enabled: false,
-    executor: proposal.runtime?.executor,
-    model: proposal.runtime?.model ?? undefined,
-    codex_sandbox: proposal.permissions.can_modify_files || proposal.permissions.can_run_commands
-      ? 'workspace-write'
-      : 'read-only',
     notification,
   };
 }

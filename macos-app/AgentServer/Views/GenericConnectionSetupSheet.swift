@@ -8,10 +8,12 @@ struct GenericConnectionSetupSheet: View {
 
     @Environment(\.nTheme) private var theme
     @State private var label = ""
+    @State private var serviceType = ""
     @State private var method: ConnectionSetupDraft.Method = .web
     @State private var webURL = ""
     @State private var command = ""
     @State private var arguments = ""
+    @State private var adapterID = "mcp.custom"
     @State private var credentials = [ConnectionCredentialDraft.suggested(targetName: "Authorization")]
     @State private var isSaving = false
     @State private var errorMessage: String?
@@ -66,6 +68,9 @@ struct GenericConnectionSetupSheet: View {
             TextField("For example, Personal Notion", text: $label)
                 .textFieldStyle(.roundedBorder)
                 .accessibilityIdentifier("connectionSetup.name")
+            TextField("Service type, such as notion", text: $serviceType)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityLabel("Portable service type")
         }
     }
 
@@ -164,7 +169,10 @@ struct GenericConnectionSetupSheet: View {
     private var technicalDetails: some View {
         DisclosureGroup(ConnectionSetupSection.technical.title) {
             VStack(alignment: .leading, spacing: NSpacing.sm) {
-                detailRow("Adapter", "Custom connection")
+                TextField("Adapter ID, such as notion.rest-mcp", text: $adapterID)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .monospaced))
+                    .accessibilityLabel("Adapter ID")
                 detailRow("Transport", method == .web ? "HTTP" : "Standard input and output")
                 Text("The saved connection stores only references to the environment variables above. Secret values are never placed in the connection profile or an agent file.")
                     .font(NTypography.caption)
@@ -237,14 +245,21 @@ struct GenericConnectionSetupSheet: View {
         errorMessage = nil
         Task {
             do {
-                let draft = method == .web
-                    ? ConnectionSetupDraft.web(label: label, url: webURL, credentials: credentials)
+                var draft = method == .web
+                    ? ConnectionSetupDraft.web(
+                        label: label,
+                        serviceType: serviceType,
+                        url: webURL,
+                        credentials: credentials
+                    )
                     : ConnectionSetupDraft.local(
                         label: label,
+                        serviceType: serviceType,
                         command: command,
                         arguments: arguments.split(whereSeparator: \.isWhitespace).map(String.init),
                         credentials: credentials
                     )
+                draft.adapterID = adapterID.trimmingCharacters(in: .whitespacesAndNewlines)
                 let request = try draft.makeRequest()
                 let environmentFile = AgentServerWorkspaceStore.current().environmentFile
                 let previousEnvironment = try EnvFileStore.load(from: environmentFile)
@@ -273,6 +288,10 @@ struct GenericConnectionSetupSheet: View {
         }
         switch setupError {
         case .missingLabel: return "Enter a connection name."
+        case .invalidServiceType(let type):
+            return "\(type.isEmpty ? "The service type" : type) must use lowercase words separated by dots, underscores, or hyphens."
+        case .invalidAdapterID(let id):
+            return "\(id.isEmpty ? "The adapter ID" : id) must start with a lowercase letter and use lowercase letters, numbers, dots, underscores, or hyphens."
         case .invalidURL: return "Enter a secure HTTPS endpoint."
         case .missingCommand: return "Enter the command used to start this connection."
         case .invalidEnvironmentVariable(let name): return "\(name.isEmpty ? "The environment variable" : name) must use capital letters, numbers, and underscores."

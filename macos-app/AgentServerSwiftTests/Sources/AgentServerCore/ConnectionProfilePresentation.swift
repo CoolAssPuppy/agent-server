@@ -270,6 +270,9 @@ public struct ConnectionProfilePresentation: Equatable, Identifiable, Sendable {
         case .stdio(let command, let arguments, _):
             connectionMethod = "Local command"
             location = ([command] + arguments).joined(separator: " ")
+        case .runtimeAccount(let executor, let serverName):
+            connectionMethod = "Coding agent account"
+            location = "\(serverName) through \(executor)"
         }
     }
 

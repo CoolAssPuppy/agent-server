@@ -111,6 +111,52 @@ extension StatusMonitor {
         (try? await client.connectionProfiles()) ?? []
     }
 
+    func agentRuntime(id: String) async throws -> AgentRuntimeAssignmentResponse {
+        try await client.agentRuntime(id: id)
+    }
+
+    func runtimeCompatibility(
+        id: String,
+        executor: String
+    ) async throws -> AgentRuntimeCompatibility {
+        try await client.runtimeCompatibility(id: id, executor: executor)
+    }
+
+    func updateAgentRuntime(
+        id: String,
+        request: AgentRuntimeAssignmentRequest
+    ) async throws -> AgentRuntimeAssignmentResponse {
+        guard !isDemoMode else { throw DemoModeWriteError() }
+        let runtime = try await client.updateAgentRuntime(id: id, request: request)
+        agentSnapshotRevision.recordMutation()
+        poll()
+        Telemetry.capture(.agentUpdated, properties: [
+            "agent_id": id,
+            "fields": ["runtime_assignment"],
+        ])
+        return runtime
+    }
+
+    func refreshAgent(id: String) async throws -> Agent {
+        guard let refreshed = try await client.agents().first(where: { $0.id == id }) else {
+            throw ClientError.notFound
+        }
+        replaceAgent(refreshed)
+        return refreshed
+    }
+
+    func agentBindings(id: String) async throws -> AgentBindingSetResponse {
+        try await client.agentBindings(id: id)
+    }
+
+    func updateAgentBindings(
+        id: String,
+        request: AgentBindingSetRequest
+    ) async throws -> AgentBindingSetResponse {
+        guard !isDemoMode else { throw DemoModeWriteError() }
+        return try await client.updateAgentBindings(id: id, request: request)
+    }
+
     func createConnectionProfile(
         _ request: ConnectionProfileCreateRequest
     ) async -> Result<ConnectionProfile, Error> {
@@ -138,6 +184,18 @@ extension StatusMonitor {
 
     func checkConnectionProfile(id: String) async throws -> ConnectionReadinessResponse {
         try await client.checkConnectionProfile(id: id)
+    }
+
+    func connectionOperationReview(id: String) async throws -> ConnectionOperationReviewResponse {
+        try await client.connectionOperationReview(id: id)
+    }
+
+    func updateConnectionOperationMappings(
+        id: String,
+        request: ConnectionOperationMappingRequest
+    ) async throws -> ConnectionOperationReviewResponse {
+        guard !isDemoMode else { throw DemoModeWriteError() }
+        return try await client.updateConnectionOperationMappings(id: id, requestBody: request)
     }
 
     func removeConnectionProfile(id: String) async throws {

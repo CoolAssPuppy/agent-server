@@ -29,6 +29,8 @@ struct AgentSettingsSheet: View {
     @State private var saveFeedback: AgentSettingsSaveFeedback?
     @State private var connectTarget: AgentSettingsConnectTarget?
     @State private var authoritativeAgent: Agent?
+    @State private var runtimeCompatibility: AgentRuntimeCompatibility?
+    @State private var isCheckingRuntime = false
 
     private var agent: Agent? {
         monitor.agents.first(where: { $0.id == agentId })
@@ -45,9 +47,12 @@ struct AgentSettingsSheet: View {
                 Divider().opacity(0.3)
             }
             AgentSettingsForm(
+                monitor: monitor,
                 agent: displayedAgent,
                 agentId: agentId,
                 draft: $draft,
+                runtimeCompatibility: runtimeCompatibility,
+                isCheckingRuntime: isCheckingRuntime,
                 onToggleCapability: toggleCapability,
                 onDelete: deleteAgent
             )
@@ -60,6 +65,9 @@ struct AgentSettingsSheet: View {
         .onChange(of: agent?.id) { _, _ in seedIfNeeded() }
         .onChange(of: draft) { _, updatedDraft in
             if updatedDraft.isDirty { saveFeedback = nil }
+        }
+        .onChange(of: draft.runtime.choice) { _, _ in
+            checkRuntimeCompatibility()
         }
         .sheet(item: $connectTarget) { target in
             AgentSettingsConnectSheet(monitor: monitor, target: target) { didConnect in
@@ -109,7 +117,7 @@ struct AgentSettingsSheet: View {
                     else { Text("Save") }
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(isSaving || !draft.isValid)
+                .disabled(isSaving || !draft.isValid || isRuntimeSelectionBlocked)
             }
         }
         .padding(.horizontal, NSpacing.xl)
@@ -120,6 +128,7 @@ struct AgentSettingsSheet: View {
         guard draft.sourceAgentId.isEmpty, let agent else { return }
         authoritativeAgent = agent
         draft = AgentSettingsDraft(snapshot: agent.settingsSnapshot)
+        checkRuntimeCompatibility()
     }
 
     private func resetDraft() {
@@ -127,6 +136,37 @@ struct AgentSettingsSheet: View {
         draft = AgentSettingsDraft(snapshot: authoritativeAgent.settingsSnapshot)
         errorMessage = nil
         saveFeedback = nil
+        checkRuntimeCompatibility()
+    }
+
+    private var isRuntimeSelectionBlocked: Bool {
+        draft.hasRuntimeChanges && runtimeCompatibility?.canSelect != true
+    }
+
+    private func checkRuntimeCompatibility() {
+        let executor = draft.runtime.resolvedExecutor ?? "claude-code"
+        isCheckingRuntime = true
+        runtimeCompatibility = nil
+        Task {
+            do {
+                runtimeCompatibility = try await monitor.runtimeCompatibility(
+                    id: agentId,
+                    executor: executor
+                )
+            } catch {
+                runtimeCompatibility = AgentRuntimeCompatibility(
+                    state: .blocked,
+                    issues: [AgentRuntimeCompatibilityIssue(
+                        code: "compatibility_check_failed",
+                        message: error.localizedDescription,
+                        use: nil,
+                        operation: nil,
+                        resource: nil
+                    )]
+                )
+            }
+            isCheckingRuntime = false
+        }
     }
 
     private func toggleCapability(_ capability: AgentCapability, _ isEnabled: Bool) {
@@ -164,10 +204,36 @@ struct AgentSettingsSheet: View {
 
         isSaving = true
         Task {
-            let outcome = await monitor.updateAgent(id: agentId, settingsPatch: patch)
-            isSaving = false
-            switch outcome {
-            case .success(let updatedAgent):
+            if patch.hasAgentFileChanges {
+                let outcome = await monitor.updateAgent(id: agentId, settingsPatch: patch)
+                switch outcome {
+                case .success:
+                    break
+                case .deleted:
+                    isSaving = false
+                    errorMessage = "The agent was deleted before these changes could be saved."
+                    return
+                case .missingEnv(let keys):
+                    isSaving = false
+                    errorMessage = "Missing connection keys: \(keys.joined(separator: ", "))"
+                    return
+                case .failure(let message):
+                    isSaving = false
+                    errorMessage = message
+                    return
+                }
+            }
+            do {
+                if draft.hasRuntimeChanges {
+                    _ = try await monitor.updateAgentRuntime(
+                        id: agentId,
+                        request: draft.runtime.assignmentRequest(
+                            expectedRevision: authoritativeAgent?.runtimeRevision ?? 0
+                        )
+                    )
+                }
+                let updatedAgent = try await monitor.refreshAgent(id: agentId)
+                isSaving = false
                 if AgentSettingsSavePresentation.shouldDismissAfterSave(isEmbedded: isEmbedded) {
                     finish()
                 } else {
@@ -176,11 +242,9 @@ struct AgentSettingsSheet: View {
                     errorMessage = nil
                     saveFeedback = .saved
                 }
-            case .deleted:
-                errorMessage = "The agent was deleted before these changes could be saved."
-            case .missingEnv(let keys):
-                errorMessage = "Missing connection keys: \(keys.joined(separator: ", "))"
-            case .failure(let message): errorMessage = message
+            } catch {
+                isSaving = false
+                errorMessage = error.localizedDescription
             }
         }
     }

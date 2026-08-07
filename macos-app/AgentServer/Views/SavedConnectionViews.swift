@@ -63,6 +63,8 @@ struct SavedConnectionDetailView: View {
     let onRename: (String) async throws -> ConnectionProfile
     let onDuplicate: () async throws -> ConnectionProfile
     let onCheck: () async throws -> ConnectionReadinessResponse
+    let onLoadOperations: () async throws -> ConnectionOperationReviewResponse
+    let onSaveOperations: (ConnectionOperationMappingRequest) async throws -> ConnectionOperationReviewResponse
     let onRemove: () async throws -> Void
 
     @Environment(\.nTheme) private var theme
@@ -91,6 +93,8 @@ struct SavedConnectionDetailView: View {
         onRename: @escaping (String) async throws -> ConnectionProfile,
         onDuplicate: @escaping () async throws -> ConnectionProfile,
         onCheck: @escaping () async throws -> ConnectionReadinessResponse,
+        onLoadOperations: @escaping () async throws -> ConnectionOperationReviewResponse,
+        onSaveOperations: @escaping (ConnectionOperationMappingRequest) async throws -> ConnectionOperationReviewResponse,
         onRemove: @escaping () async throws -> Void
     ) {
         self.presentation = presentation
@@ -99,6 +103,8 @@ struct SavedConnectionDetailView: View {
         self.onRename = onRename
         self.onDuplicate = onDuplicate
         self.onCheck = onCheck
+        self.onLoadOperations = onLoadOperations
+        self.onSaveOperations = onSaveOperations
         self.onRemove = onRemove
         _proposedName = State(initialValue: presentation.name)
     }
@@ -110,6 +116,12 @@ struct SavedConnectionDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     readinessSection
+                    sectionDivider
+                    ConnectionOperationReviewSection(
+                        onLoad: onLoadOperations,
+                        onCheck: onCheck,
+                        onSave: onSaveOperations
+                    )
                     sectionDivider
                     managementSection
                     sectionDivider

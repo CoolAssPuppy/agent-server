@@ -8,8 +8,14 @@ import type { AgentConfig } from '../agents/config.js';
 import { createApi } from './api.js';
 import { discoverAgents } from '../agents/discovery.js';
 import { createAgentWriter } from '../agents/writer.js';
+import { RuntimeAssignmentStore } from '../agents/runtime-assignment-store.js';
+import { applyRuntimeAssignment } from '../agents/runtime-assignment-resolution.js';
+import { AgentBindingStore } from '../agents/agent-binding-store.js';
 import { ConnectionCache } from '../connections/cache.js';
 import { ConnectionProfileStore } from '../connections/profile-store.js';
+import { ConnectionCapabilityStore } from '../connections/capability-store.js';
+import { ConnectionOperationBindingStore } from '../connections/operation-binding-store.js';
+import { probeStoredMcpCapabilities } from '../connections/capability-probe.js';
 import { createConnectionResolvingExecutor } from '../connections/connection-executor.js';
 import {
   discoverCodexMcpInventory,
@@ -324,6 +330,18 @@ export function startServer(
 
   const executorRegistry = createDefaultExecutorRegistry();
   const connectionProfileStore = new ConnectionProfileStore(join(config.agentsDir, '..', 'connections.json'));
+  const connectionCapabilityStore = new ConnectionCapabilityStore(
+    join(config.agentsDir, '..', 'connection-capabilities.json'),
+  );
+  const connectionOperationBindingStore = new ConnectionOperationBindingStore(
+    join(config.agentsDir, '..', 'connection-operation-bindings.json'),
+  );
+  const runtimeAssignmentStore = new RuntimeAssignmentStore(
+    join(config.agentsDir, '..', 'runtime-assignments.json'),
+  );
+  const agentBindingStore = new AgentBindingStore(
+    join(config.agentsDir, '..', 'agent-bindings.json'),
+  );
 
   // Discover the user's installed Claude Code, Codex, and Kimi Code binaries once at startup so
   // runs use the runtimes and logins they already have. Claude Code and Codex
@@ -495,6 +513,10 @@ export function startServer(
         kimiExecutablePath: runtimePaths.kimiExecutablePath,
         },
       ),
+      runtimeAssignmentStore,
+      agentBindingStore,
+      connectionCapabilityStore,
+      connectionOperationBindingStore,
     ),
     createReporter: (runId, name, conversationId, agent) => createReporter(config, runId, name, {
       serverId: workerId,
@@ -562,8 +584,12 @@ export function startServer(
   }
 
   const triggerSafeTest = createSafeTestTrigger({
-    getAgent: async (agentId) => (await discoverConfiguredAgents())
-      .find((agent) => agent.id === agentId),
+    getAgent: async (agentId) => {
+      const agent = (await discoverConfiguredAgents()).find((candidate) => candidate.id === agentId);
+      return agent
+        ? applyRuntimeAssignment(agent, await runtimeAssignmentStore.get(agent.id))
+        : undefined;
+    },
     triggerAgent: (agent) => triggerRunForAgent(agent, { mode: 'safe_test' }),
   });
 
@@ -709,11 +735,14 @@ export function startServer(
     security: analysisRuntime.security,
     content: analysisRuntime.content,
     triggerRun: triggerGuidanceRetry,
+    runtimeAssignments: runtimeAssignmentStore,
+    agentBindings: agentBindingStore,
     getServiceRegistry: async (executor) => buildServiceRegistry({
       agents: await getAgents(),
       environment: loadEnvFile(join(config.agentsDir, '..'), process.env),
       discovered: executor === 'claude-code' ? connectionCache.servers() : [],
       executor,
+      profiles: await connectionProfileStore.list(),
     }),
   });
 
@@ -746,6 +775,18 @@ export function startServer(
       refresh: refreshConnections,
     },
     connectionProfiles: connectionProfileStore,
+    connectionCapabilities: {
+      get: (connectionId) => connectionCapabilityStore.get(connectionId),
+      check: async (profile, environment) => {
+        const snapshot = await probeStoredMcpCapabilities(profile, environment);
+        await connectionCapabilityStore.put(snapshot);
+        return snapshot;
+      },
+      remove: (connectionId) => connectionCapabilityStore.remove(connectionId),
+    },
+    connectionOperationBindings: connectionOperationBindingStore,
+    runtimeAssignments: runtimeAssignmentStore,
+    agentBindings: agentBindingStore,
     slackPairing: {
       getStatus: async () => {
         if (!config.slackBotToken || !config.slackAppToken) {
@@ -788,6 +829,11 @@ export function startServer(
     ],
     apiKey,
     machineId,
+    runtimeAvailable: (executor) => {
+      if (executor === 'claude-code') return runtimePaths.claudeExecutablePath !== undefined;
+      if (executor === 'codex') return runtimePaths.codexExecutablePath !== undefined;
+      return runtimePaths.kimiExecutablePath !== undefined;
+    },
     assistantHomeFacts: async (agent, allAgents) => {
       const executor = agent.executor ?? 'claude-code';
       if (executor === 'claude-code') await connectionCache.ensure();

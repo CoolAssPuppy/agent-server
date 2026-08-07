@@ -1204,6 +1204,52 @@ describe('buildMcpServers eventkit auto-injection', () => {
     });
   });
 
+  it('uses a secret-free local policy relay for a portable saved connection', async () => {
+    const { buildMcpServers } = await import('./claude-code.js');
+    const { resolveAgentConnectionBindings } = await import('../connections/runtime-resolution.js');
+    const { attachRuntimeConnectionPolicies } = await import('../connections/runtime-policy.js');
+    const profile = {
+      schema_version: 1 as const,
+      id: '11111111-1111-4111-8111-111111111111',
+      label: 'Personal notes',
+      adapter: { id: 'generic.mcp', version: 1 },
+      runtime_name: 'notes',
+      credentials: [{
+        id: '22222222-2222-4222-8222-222222222222',
+        label: 'Token', environment_variable: 'NOTES_TOKEN', secret: true,
+      }],
+      transport: {
+        kind: 'mcp_http' as const,
+        url: 'https://notes.example.test/mcp',
+        headers: [{
+          name: 'Authorization',
+          credential_id: '22222222-2222-4222-8222-222222222222',
+          prefix: 'Bearer ',
+        }],
+      },
+      created_at: '2026-07-19T18:00:00.000Z',
+      updated_at: '2026-07-19T18:00:00.000Z',
+    };
+    const resolved = resolveAgentConnectionBindings(createAgentConfig({
+      connection_bindings: { notes: profile.id },
+    }), [profile]);
+    attachRuntimeConnectionPolicies(resolved, {
+      notes: {
+        allowedTools: ['create_note'],
+        argumentConstraints: { create_note: { folder_id: ['work-folder'] } },
+      },
+    });
+
+    const serialized = JSON.stringify(buildMcpServers(resolved, {
+      NOTES_TOKEN: 'claude-http-secret',
+    })?.notes);
+
+    expect(serialized).toContain('mcp-policy-relay.js');
+    expect(serialized).toContain('create_note');
+    expect(serialized).toContain('work-folder');
+    expect(serialized).not.toContain('claude-http-secret');
+  });
+
   it('injects eventkit alongside existing user-declared mcp_servers', async () => {
     const { buildMcpServers } = await import('./claude-code.js');
     process.env.AGENT_SERVER_EVENTKIT_BIN = '/path/to/helper';

@@ -7,6 +7,7 @@ import { assessPromptInjectionRisk, wrapUntrustedUserContext } from './prompt-in
 import type { DecisionContext } from './decision-handler.js';
 import { toErrorMessage } from '../util/errors.js';
 import { withTimeout } from '../util/with-timeout.js';
+import { expandHome } from '../agents/file-watcher.js';
 import {
   assertRequiredOutput,
   OutputContractError,
@@ -16,6 +17,26 @@ export const RUN_TIMEOUT_CODE = 'run_timeout';
 export const LOCK_CONTENTION_CODE = 'lock_contention';
 export const RUN_CANCELED_CODE = 'run_canceled';
 export const USER_CANCELED_CODE = 'user_canceled';
+export const TOOL_EXECUTION_FAILED_CODE = 'tool_execution_failed';
+export const FAILURE_ARTIFACT_WRITTEN_CODE = 'failure_artifact_written';
+
+class ToolExecutionError extends Error {
+  readonly code = TOOL_EXECUTION_FAILED_CODE;
+
+  constructor() {
+    super('Every tool call in the run failed.');
+    this.name = 'ToolExecutionError';
+  }
+}
+
+class FailureArtifactError extends Error {
+  readonly code = FAILURE_ARTIFACT_WRITTEN_CODE;
+
+  constructor() {
+    super('The agent recorded a failure instead of completing its work.');
+    this.name = 'FailureArtifactError';
+  }
+}
 
 export type RunResult = {
   runId?: string;
@@ -172,6 +193,8 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
       if (isTimedOut) return result;
       throwIfAborted(abortController);
 
+      assertDailyRetryMadeProgress(agent, result, options.mode);
+      assertNoFailureArtifact(agent, result, options.mode);
       assertRequiredOutput(agent, result, { mode: options.mode });
       return result;
     })();
@@ -226,10 +249,45 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
       runId,
       status: 'failed',
       error: error.message,
-      code: error instanceof OutputContractError ? error.code : undefined,
+      code: error instanceof OutputContractError
+        || error instanceof ToolExecutionError
+        || error instanceof FailureArtifactError
+        ? error.code
+        : undefined,
     };
   } finally {
     if (shouldReleaseLock) releaseLock(lockDir, agent.id);
+  }
+}
+
+function assertNoFailureArtifact(
+  agent: AgentConfig,
+  result: ExecutionResult,
+  mode: RunAgentOptions['mode'],
+): void {
+  const template = agent.output?.on_failure?.logfile;
+  if (mode === 'safe_test' || !template) return;
+  const expanded = expandHome(template);
+  const markerStart = expanded.indexOf('<');
+  const markerEnd = markerStart >= 0 ? expanded.indexOf('>', markerStart) : -1;
+  const matches = (result.filesWritten ?? []).some((written) => {
+    if (markerStart < 0 || markerEnd < 0) return written === expanded;
+    const prefix = expanded.slice(0, markerStart);
+    const suffix = expanded.slice(markerEnd + 1);
+    return written.startsWith(prefix) && written.endsWith(suffix);
+  });
+  if (matches) throw new FailureArtifactError();
+}
+
+function assertDailyRetryMadeProgress(
+  agent: AgentConfig,
+  result: ExecutionResult,
+  mode: RunAgentOptions['mode'],
+): void {
+  if (mode === 'safe_test' || agent.rerun_policy !== 'skip_if_completed_today') return;
+  const calls = result.toolCalls ?? [];
+  if (calls.length > 0 && calls.every(({ status }) => status === 'failed')) {
+    throw new ToolExecutionError();
   }
 }
 

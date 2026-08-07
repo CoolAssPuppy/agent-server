@@ -42,22 +42,31 @@ export function assertRequiredOutput(
   options: ValidationOptions = {},
 ): void {
   const contract = agent.output?.primary;
-  if (options.mode === 'safe_test' || contract?.required !== true) return;
-
-  const allowedNames = new Set([
-    contract.tool,
-    ...(contract.update_tool ? [contract.update_tool] : []),
-  ]);
-  const attempts = (result.toolCalls ?? []).filter((call) => allowedNames.has(call.name));
-  if (attempts.length === 0) throw new OutputContractError('missing_tool');
+  if (options.mode === 'safe_test' || !contract) return;
+  const attempts = 'use' in contract
+    ? (result.toolCalls ?? []).filter((call) => (
+      call.portable?.use === contract.use
+      && call.portable.operation === contract.operation
+    ))
+    : (result.toolCalls ?? []).filter((call) => (
+      call.name === contract.tool || call.name === contract.update_tool
+    ));
+  if (attempts.length === 0) {
+    if (contract.required === true) throw new OutputContractError('missing_tool');
+    return;
+  }
 
   const succeeded = attempts.filter((call) => call.status === 'succeeded');
   if (succeeded.length === 0) throw new OutputContractError('tool_failed');
 
-  const matching = contract.target_match
-    ? succeeded.filter((call) => callMatchesTarget(call, contract.target_match!))
-    : succeeded;
-  if (contract.target_match && matching.length === 0) {
+  const matching = 'use' in contract && contract.target
+    ? succeeded.filter((call) => call.portable?.target === contract.target)
+    : 'tool' in contract && contract.target_match
+      ? succeeded.filter((call) => callMatchesTarget(call, contract.target_match!))
+      : succeeded;
+  const requiresTarget = ('use' in contract && contract.target !== undefined)
+    || ('tool' in contract && contract.target_match !== undefined);
+  if (requiresTarget && matching.length === 0) {
     throw new OutputContractError('wrong_target');
   }
 
@@ -73,6 +82,14 @@ function callMatchesTarget(
   call: ToolCallTrace,
   target: { field: string; equals: string | number | boolean },
 ): boolean {
+  if (target.field.includes('.')) {
+    const supplied = target.field.split('.').reduce<unknown>((current, segment) => {
+      if (typeof current !== 'object' || current === null || Array.isArray(current)) return undefined;
+      const record = current as Record<string, unknown>;
+      return Object.hasOwn(record, segment) ? record[segment] : undefined;
+    }, call.input);
+    return Object.is(supplied, target.equals);
+  }
   return containsFieldValue(call.input, target.field, target.equals, new WeakSet(), 0);
 }
 

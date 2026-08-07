@@ -14,10 +14,10 @@ The default public origin is `https://downloads.strategicnerds.com`. Installed a
 
 ## One-time setup
 
-1. Generate the Sparkle Ed25519 key with Sparkle's `generate_keys` tool. Back up the private key securely, and keep it out of the repository.
+1. Generate the Sparkle Ed25519 key with Sparkle's `generate_keys` tool using the account `com.strategicnerds.agent-server`. Back up the private key as `SPARKLE_PRIVATE_KEY` in Doppler, and keep it out of the repository.
 2. Set the printed public key as `SUPublicEDKey` in `macos-app/AgentServer/Info.plist`.
 3. Point `SUFeedURL` at `https://coolasspuppy.com/agent-server-updates` and configure that URL to redirect to `https://downloads.strategicnerds.com/apps/agent-server/appcast.xml`.
-4. Put Sparkle's `sign_update` tool at `~/bin/sparkle/sign_update`, or set `SPARKLE_SIGN_UPDATE` to its executable path.
+4. Put Sparkle's `sign_update` tool at `~/bin/sparkle/sign_update`, or set `SPARKLE_SIGN_UPDATE` to its executable path. The release reads `SPARKLE_PRIVATE_KEY` from Doppler through standard input so remote releases do not require a Keychain prompt.
 5. Install Xcode 15+ and the local release tools: `xcodegen`, `create-dmg`, Doppler, Python 3, and Wrangler. The script can also run Wrangler through pnpm.
 6. Give the Doppler `agent-server/prd` config these secrets:
    - `CLOUDFLARE_API_TOKEN`

@@ -78,6 +78,7 @@ public struct ConnectionTransportRequest: Codable, Equatable, Sendable {
 
 public struct ConnectionProfileCreateRequest: Codable, Equatable, Sendable {
     public let label: String
+    public let serviceType: String
     public let adapter: ConnectionAdapterRequest
     public let runtimeName: String?
     public let credentials: [ConnectionCredentialReferenceRequest]
@@ -85,12 +86,15 @@ public struct ConnectionProfileCreateRequest: Codable, Equatable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case label, adapter, credentials, transport
+        case serviceType = "service_type"
         case runtimeName = "runtime_name"
     }
 }
 
 public enum ConnectionSetupError: Error, Equatable {
     case missingLabel
+    case invalidServiceType(String)
+    case invalidAdapterID(String)
     case invalidURL
     case missingCommand
     case invalidEnvironmentVariable(String)
@@ -105,6 +109,7 @@ public struct ConnectionSetupDraft: Equatable, Sendable {
     }
 
     public var label: String
+    public var serviceType: String
     public var adapterID: String
     public var method: Method
     public var webURL: String
@@ -115,11 +120,13 @@ public struct ConnectionSetupDraft: Equatable, Sendable {
 
     public static func web(
         label: String,
+        serviceType: String = "custom",
         url: String,
         credentials: [ConnectionCredentialDraft] = []
     ) -> Self {
         Self(
             label: label,
+            serviceType: serviceType,
             adapterID: "mcp.custom",
             method: .web,
             webURL: url,
@@ -131,12 +138,14 @@ public struct ConnectionSetupDraft: Equatable, Sendable {
 
     public static func local(
         label: String,
+        serviceType: String = "custom",
         command: String,
         arguments: [String] = [],
         credentials: [ConnectionCredentialDraft] = []
     ) -> Self {
         Self(
             label: label,
+            serviceType: serviceType,
             adapterID: "mcp.custom",
             method: .local,
             webURL: "",
@@ -167,12 +176,25 @@ public struct ConnectionSetupDraft: Equatable, Sendable {
         guard !label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw ConnectionSetupError.missingLabel
         }
+        guard serviceType.range(
+            of: "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$",
+            options: .regularExpression
+        ) != nil else {
+            throw ConnectionSetupError.invalidServiceType(serviceType)
+        }
+        guard adapterID.range(
+            of: "^[a-z][a-z0-9._-]{0,119}$",
+            options: .regularExpression
+        ) != nil else {
+            throw ConnectionSetupError.invalidAdapterID(adapterID)
+        }
         for credential in credentials where !Self.isValidEnvironmentVariable(credential.environmentVariable) {
             throw ConnectionSetupError.invalidEnvironmentVariable(credential.environmentVariable)
         }
         try validateUniqueCredentialBindings()
         return ConnectionProfileCreateRequest(
             label: label.trimmingCharacters(in: .whitespacesAndNewlines),
+            serviceType: serviceType,
             adapter: ConnectionAdapterRequest(id: adapterID, version: 1),
             runtimeName: nil,
             credentials: credentials.map {
@@ -231,7 +253,7 @@ public struct ConnectionSetupDraft: Equatable, Sendable {
         let credentialShape = credentials.map {
             [$0.label, $0.environmentVariable, $0.targetName, $0.prefix].joined(separator: "|")
         }.joined(separator: ";")
-        return [adapterID, method.rawValue, webURL, command, arguments.joined(separator: "\u{1f}"), credentialShape]
+        return [serviceType, adapterID, method.rawValue, webURL, command, arguments.joined(separator: "\u{1f}"), credentialShape]
             .joined(separator: "\u{1e}")
     }
 

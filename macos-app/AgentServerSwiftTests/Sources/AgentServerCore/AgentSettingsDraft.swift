@@ -89,6 +89,7 @@ public struct AgentSettingsDraft: Equatable, Sendable {
 
     public var isValid: Bool { validation == .valid }
     public var isDirty: Bool { !patch.isEmpty }
+    public var hasRuntimeChanges: Bool { runtime != initialRuntime }
 
     public func isCapabilityEnabled(_ id: String, fallback: Bool) -> Bool {
         capabilityDraft.isEnabled(id, fallback: fallback)

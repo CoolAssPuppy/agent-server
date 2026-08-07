@@ -228,6 +228,63 @@ describe('security and patch API', () => {
     fixture.reviewStore.close();
   });
 
+  it('previews and applies portable connection intent through the reviewed API', async () => {
+    const fixture = createFixture();
+    const patch = {
+      schema_version: 1,
+      agent_id: 'reader',
+      expected_content_hash: computeAgentContentHash(content),
+      source: 'user',
+      reason: 'Declare the Notion work required by this agent',
+      changes: {
+        connections: {
+          work_notes: {
+            type: 'notion', name: 'Notion Work', purpose: 'Publish the report',
+            operations: ['notion.page.create'],
+            resources: {
+              reports: {
+                type: 'notion.data_source', purpose: 'Report destination', access: 'write',
+              },
+            },
+          },
+        },
+        output: { primary: {
+          description: 'One report', use: 'work_notes', operation: 'notion.page.create',
+          target: 'reports', required: true,
+        } },
+      },
+    };
+    const previewResponse = await fixture.app.request('/configuration-patches/preview', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(patch),
+    });
+    const preview = await previewResponse.json();
+
+    expect(previewResponse.status).toBe(200);
+    expect(preview).toMatchObject({
+      risk: 'high',
+      requires_confirmation: true,
+      advanced_changes: {
+        connections: patch.changes.connections,
+        output: patch.changes.output,
+      },
+    });
+    expect(preview).not.toHaveProperty('result_content');
+
+    const applyResponse = await fixture.app.request('/configuration-patches/apply', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+        ...patch,
+        confirmation: { approved: true, preview_content_hash: preview.result_content_hash },
+      }),
+    });
+
+    expect(applyResponse.status).toBe(200);
+    expect(parseAgentFile(await fixture.repository.read('reader'))).toMatchObject({
+      connections: patch.changes.connections,
+      output: patch.changes.output,
+    });
+    fixture.reviewStore.close();
+  });
+
   it('never echoes replacement instructions or literal tokens in a public preview', async () => {
     const fixture = createFixture();
     const response = await fixture.app.request('/configuration-patches/preview', {

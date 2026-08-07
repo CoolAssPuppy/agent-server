@@ -9,6 +9,7 @@ describe('consumer service registry', () => {
       schema_version: 1,
       id: '018f47a2-9a13-7d61-bf4f-f9a5d8f67c21',
       label: 'My strange but valid name',
+      service_type: 'notion',
       adapter: { id: 'mcp.custom', version: 1 },
       runtime_name: 'connection_018f47a29a137d61bf4ff9a5d8f67c21',
       credentials: [{
@@ -40,6 +41,7 @@ describe('consumer service registry', () => {
     expect(registry.connections).toContainEqual(expect.objectContaining({
       id: profile.id,
       name: profile.label,
+      service_id: 'notion',
       status: 'connected',
       required_env: ['EXISTING_TOKEN'],
     }));
@@ -53,6 +55,46 @@ describe('consumer service registry', () => {
       },
     });
   });
+
+  it('registers a Codex account profile without treating it as an MCP transport', () => {
+    const profile: ConnectionProfile = {
+      schema_version: 1,
+      id: '018f47a2-9a13-7d61-bf4f-f9a5d8f67c22',
+      label: 'Slack Work (Codex)',
+      service_type: 'slack',
+      adapter: { id: 'codex.account', version: 1 },
+      runtime_name: 'connection_018f47a29a137d61bf4ff9a5d8f67c22',
+      credentials: [],
+      transport: {
+        kind: 'runtime_account',
+        executor: 'codex',
+        server_name: 'asdk_app_slack',
+      },
+      created_at: '2026-08-06T18:00:00.000Z',
+      updated_at: '2026-08-06T18:00:00.000Z',
+    };
+
+    const registry = buildServiceRegistry({
+      agents: [],
+      environment: {},
+      discovered: [],
+      profiles: [profile],
+    });
+
+    expect(registry.connections).toContainEqual(expect.objectContaining({
+      id: profile.id,
+      name: profile.label,
+      service_id: 'slack',
+      source: 'account',
+      status: 'connected',
+      required_env: [],
+    }));
+    expect(registry.bindings.get(profile.id)).toEqual({
+      serverName: 'asdk_app_slack',
+      connectionId: profile.id,
+    });
+  });
+
   it('distinguishes an account connector from a personal API-key connection', () => {
     const personal = makeAgent({
       id: 'personal-notes',

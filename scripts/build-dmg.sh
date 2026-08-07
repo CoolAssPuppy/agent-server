@@ -10,7 +10,8 @@
 #   4. A `notarytool` keychain profile stored via:
 #        xcrun notarytool store-credentials <profile-name> --apple-id ... --team-id ...
 #      notarytool requests the app-specific password using a secure prompt.
-#   5. Sparkle `sign_update` tool at ~/bin/sparkle/sign_update (see docs/SPARKLE.md).
+#   5. Sparkle `sign_update` at ~/bin/sparkle/sign_update and the existing
+#      private key in Doppler (see docs/SPARKLE.md).
 #
 # Usage:
 #   ./scripts/build-dmg.sh <path-to-Agent-Server.app> <version> <notarytool-profile>
@@ -34,6 +35,8 @@ run_notarytool() {
 }
 
 SIGN_UPDATE="${SPARKLE_SIGN_UPDATE:-$HOME/bin/sparkle/sign_update}"
+DOPPLER_PROJECT="${DOPPLER_PROJECT:-agent-server}"
+DOPPLER_CONFIG="${DOPPLER_CONFIG:-prd}"
 
 BACKGROUND="$REPO_ROOT/macos-app/dmg-assets/background.tiff"
 DMG_OUT="$REPO_ROOT/dist/AgentServer-$VERSION.dmg"
@@ -57,6 +60,11 @@ fi
 
 if ! command -v create-dmg >/dev/null 2>&1; then
   echo "Error: create-dmg not installed. Run: brew install create-dmg"
+  exit 1
+fi
+
+if ! command -v doppler >/dev/null 2>&1; then
+  echo "Error: Doppler CLI not found"
   exit 1
 fi
 
@@ -125,7 +133,10 @@ spctl -a -t open --context context:primary-signature -v "$DMG_OUT"
 echo ""
 echo "Signing DMG with Sparkle..."
 SPARKLE_OUT="${DMG_OUT%.dmg}.sparkle.txt"
-"$SIGN_UPDATE" "$DMG_OUT" | tee "$SPARKLE_OUT"
+doppler secrets get SPARKLE_PRIVATE_KEY \
+  --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" --plain --no-read-env \
+  | "$SIGN_UPDATE" --ed-key-file - "$DMG_OUT" \
+  | tee "$SPARKLE_OUT"
 
 echo ""
 echo "============================================================"

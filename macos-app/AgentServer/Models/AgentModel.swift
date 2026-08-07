@@ -23,6 +23,12 @@ struct Agent: Codable, Identifiable {
     /// Custom model provider (endpoint + ${VAR} key), when the agent runs on a
     /// non-default model. Optional so older servers decode.
     let provider: ProviderConfig?
+    /// Human-readable service requirements from the shareable agent file.
+    /// Machine-local connection IDs are fetched from the bindings route.
+    let connections: [String: AgentConnectionUseServerModel]?
+    let skills: [String: AgentSkillRequirementServerModel]?
+    let runtimeSource: AgentRuntimeAssignmentResponse.Source?
+    let runtimeRevision: Int?
     let timeout: String?
     let permissionMode: String?
     let workingDirectory: String?
@@ -33,6 +39,9 @@ struct Agent: Codable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, name, description, schedule, prompt, tools, enabled
         case watch, interaction, notification, timezone, model, executor, provider, timeout, capabilities
+        case connections, skills
+        case runtimeSource = "runtime_source"
+        case runtimeRevision = "runtime_revision"
         case maxTurns = "max_turns"
         case onComplete = "on_complete"
         case onFailure = "on_failure"

@@ -32,6 +32,7 @@ describe('scoped Codex CLI invocation', () => {
       '--config', 'permissions.agent-server.network.enabled=true',
       '--config', 'approval_policy="never"',
       '--config', 'web_search="disabled"',
+      '--config', 'shell_environment_policy.inherit="core"',
       '--config', 'openai_base_url="https://example.test/v1"',
     ]));
     expect(invocation.arguments).not.toContain('--sandbox');

@@ -121,6 +121,51 @@ describe('runAgent', () => {
     expect(completionArg.commandsRun).toEqual([]);
   });
 
+  it('fails a daily retry run when every attempted tool failed', async () => {
+    const lockDir = createTempDir('runner');
+    dirs.push(lockDir);
+    const result = await runAgent({
+      agent: makeAgent({ rerun_policy: 'skip_if_completed_today' }),
+      lockDir,
+      execute: async () => makeExecutionResult({
+        summary: 'The preflight check failed.',
+        toolCalls: [{ name: 'command_execution', status: 'failed' }],
+      }),
+      createReporter: () => ({ start: noop, progress: noop, complete: noop, fail: noop, stop: () => {} }),
+    });
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      code: 'tool_execution_failed',
+    });
+  });
+
+  it('fails when the agent writes its declared failure artifact', async () => {
+    const lockDir = createTempDir('runner');
+    dirs.push(lockDir);
+    const result = await runAgent({
+      agent: makeAgent({
+        output: {
+          primary: { description: 'Conditional report', tool: 'mcp__notion__create_page' },
+          on_failure: {
+            action: 'log_and_exit',
+            logfile: '~/.agent-server/logs/failed-outputs/report-<ISO-timestamp>.md',
+          },
+        },
+      }),
+      lockDir,
+      execute: async () => makeExecutionResult({
+        filesWritten: [`${process.env.HOME}/.agent-server/logs/failed-outputs/report-2026-08-07.md`],
+      }),
+      createReporter: () => ({ start: noop, progress: noop, complete: noop, fail: noop, stop: () => {} }),
+    });
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      code: 'failure_artifact_written',
+    });
+  });
+
   it('fails before completion reporting when required output was not created', async () => {
     const lockDir = createTempDir('runner');
     dirs.push(lockDir);

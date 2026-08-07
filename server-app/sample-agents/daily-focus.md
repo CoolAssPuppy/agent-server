@@ -6,50 +6,52 @@ description: >
   to generate a prioritized daily focus list. Sent to Telegram.
 schedule: "0 5 * * 2-6"
 timezone: Europe/Lisbon
-tools:
-  - Read
-  - Bash
+connections:
+  work_messages:
+    type: slack
+    name: Slack Work
+    purpose: Find messages and threads that involved the user in the last 24 hours.
+    operations:
+      - slack.message.search
+      - slack.message.read
+      - slack.thread.read
+  work_projects:
+    type: linear
+    name: Linear Work
+    purpose: Find work items, status changes, deadlines, and comments involving the user.
+    operations:
+      - linear.issue.search
+      - linear.issue.read
+      - linear.comment.read
+  work_notes:
+    type: notion
+    name: Notion Work
+    purpose: Read recent work documents and create the daily focus page.
+    operations:
+      - notion.search
+      - notion.page.read
+      - notion.page.create
+    resources:
+      focus_database:
+        type: notion.data_source
+        purpose: Destination for each daily focus page.
+        access: write
+  work_mail:
+    type: gmail
+    name: Gmail Work
+    purpose: Find recent mail that needs the user's attention.
+    operations:
+      - gmail.message.search
+      - gmail.message.read
+  work_calendar:
+    type: calendar
+    name: Calendar Work
+    purpose: Find meetings and deadlines in the next 48 hours.
+    operations:
+      - calendar.event.list
+      - calendar.event.read
 max_turns: 30
-working_directory: "~"
 enabled: true
-permissions:
-  allow:
-    - "mcp__claude_ai_Slack__slack_read_*"
-    - "mcp__claude_ai_Slack__slack_search_*"
-    - "mcp__claude_ai_Linear__list_*"
-    - "mcp__claude_ai_Linear__get_*"
-    - "mcp__claude_ai_Linear__search_*"
-    - "mcp__claude_ai_Notion__notion-search"
-    - "mcp__claude_ai_Notion__notion-fetch"
-    - "mcp__claude_ai_Notion__notion-get-*"
-    - "mcp__claude_ai_Notion__notion-query-*"
-    - "mcp__claude_ai_Notion__notion-create-pages"
-    - "mcp__claude_ai_Gmail__gmail_search_*"
-    - "mcp__claude_ai_Gmail__gmail_read_*"
-    - "mcp__claude_ai_Gmail__gmail_list_*"
-    - "mcp__claude_ai_Gmail__gmail_get_*"
-    - "mcp__claude_ai_Google_Calendar__gcal_list_*"
-    - "mcp__claude_ai_Google_Calendar__gcal_get_*"
-    - "mcp__claude_ai_Google_Calendar__gcal_find_*"
-    - Read
-    - Bash
-  deny:
-    - "mcp__claude_ai_Slack__slack_send_*"
-    - "mcp__claude_ai_Slack__slack_create_*"
-    - "mcp__claude_ai_Slack__slack_schedule_*"
-    - "mcp__claude_ai_Linear__save_*"
-    - "mcp__claude_ai_Linear__create_*"
-    - "mcp__claude_ai_Linear__delete_*"
-    - "mcp__claude_ai_Notion__notion-update-*"
-    - "mcp__claude_ai_Notion__notion-move-*"
-    - "mcp__claude_ai_Notion__notion-duplicate-*"
-    - "mcp__claude_ai_Notion__notion-create-database"
-    - "mcp__claude_ai_Notion__notion-create-comment"
-    - "mcp__claude_ai_Gmail__gmail_create_*"
-    - "mcp__claude_ai_Google_Calendar__gcal_create_*"
-    - "mcp__claude_ai_Google_Calendar__gcal_update_*"
-    - "mcp__claude_ai_Google_Calendar__gcal_delete_*"
-    - "mcp__claude_ai_Google_Calendar__gcal_respond_*"
 notification:
   channel: telegram
   on_complete: true
@@ -115,9 +117,7 @@ Synthesize everything into a ranked list of things to focus on today. Use this p
 
 ## Step 5: Write the Notion page
 
-Create a new page in the Notion database at `collection://8dd5004b-775f-8339-b38f-87b1e08ebe79`.
-
-Database URL: `https://www.notion.so/supabase/c3e5004b775f835cbedc0199b4069167`
+Create a new page in `work_notes.focus_database`.
 
 **Page title:** `Daily Focus - [Month Day, Year]` (e.g., `Daily Focus - March 11, 2026`)
 

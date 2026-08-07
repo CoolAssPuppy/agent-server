@@ -24,7 +24,7 @@ describe('Codex exact file policy', () => {
 
     expect(overrides).toEqual([
       'default_permissions="agent-server"',
-      'permissions.agent-server.filesystem={":minimal" = "read", "/Users/test/Book/manuscript.md" = "read", "/Users/test/Book/Output" = "write"}',
+      'permissions.agent-server.filesystem={":minimal" = "read", "/System/Library" = "read", "/Users/test/Book/manuscript.md" = "read", "/Users/test/Book/Output" = "write"}',
     ]);
   });
 

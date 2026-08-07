@@ -101,6 +101,19 @@ function createFixture(overrides: Partial<GuidanceApiDependencies> = {}) {
         ['slack', { serverName: 'slack' }],
       ]),
     }),
+    runtimeAssignments: {
+      set: vi.fn(async (agentId, input) => ({
+        agent_id: agentId,
+        ...input,
+        revision: 1,
+        updated_at: '2026-08-06T12:00:00.000Z',
+      })),
+      remove: vi.fn(async () => true),
+    },
+    agentBindings: {
+      replace: vi.fn(async (_agentId, connections) => ({ revision: 1, connections })),
+      remove: vi.fn(async () => true),
+    },
     ...overrides,
   };
   const guidanceApi = createGuidanceApi(dependencies);
@@ -417,7 +430,7 @@ describe('consumer guidance API', () => {
       }],
       bindings: new Map([[connectionId, { connectionId, serverName: 'notion-personal', config }]]),
     };
-    const { app, writer } = createFixture({
+    const { app, writer, dependencies } = createFixture({
       model: { generate: vi.fn(async () => proposal) },
       getServiceRegistry: async () => registry,
     });
@@ -446,13 +459,47 @@ describe('consumer guidance API', () => {
 
     expect(response.status).toBe(201);
     expect(writer.createReviewed).toHaveBeenCalledWith(expect.objectContaining({
-      mcp_servers: { 'notion-personal': config },
-      connection_bindings: { 'notion-personal': connectionId },
-      permissions: expect.objectContaining({ allow: expect.arrayContaining([
-        'mcp__notion-personal__API-query-data-source',
-        'mcp__notion-personal__API-post-page',
-      ]) }),
+      connections: {
+        personal_notion: {
+          type: 'notion',
+          name: 'Personal Notion',
+          purpose: 'Stores the note.',
+          operations: [
+            'notion.search',
+            'notion.data_source.query',
+            'notion.page.read',
+            'notion.page.create',
+          ],
+          resources: {
+            output_destination: {
+              type: 'notion.data_source',
+              purpose: 'Approved destination used by Personal Notion.',
+              access: 'write',
+            },
+          },
+        },
+      },
     }));
+    const createdAgent = vi.mocked(writer.createReviewed).mock.calls[0]?.[0];
+    expect(createdAgent).not.toHaveProperty('executor');
+    expect(createdAgent).not.toHaveProperty('model');
+    expect(createdAgent).not.toHaveProperty('mcp_servers');
+    expect(createdAgent).not.toHaveProperty('connection_bindings');
+    expect(dependencies.agentBindings?.replace).toHaveBeenCalledWith(
+      'friday-github-summary',
+      {
+        personal_notion: {
+          connection_id: connectionId,
+          resources: {},
+        },
+      },
+      0,
+    );
+    expect(dependencies.runtimeAssignments?.set).toHaveBeenCalledWith(
+      'friday-github-summary',
+      { executor: 'codex' },
+      { expectedRevision: 0 },
+    );
   });
 
   it('returns safe follow-up questions when model output remains malformed', async () => {

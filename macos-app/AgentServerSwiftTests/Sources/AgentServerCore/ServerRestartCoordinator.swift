@@ -42,7 +42,7 @@ public struct ServerRestartCoordinator: Equatable, Sendable {
     private var restartingGeneration: Int?
     private var lastStartedAt: String?
 
-    public init(requiredAPIVersion: Int = 12) {
+    public init(requiredAPIVersion: Int = 13) {
         self.requiredAPIVersion = requiredAPIVersion
     }
 

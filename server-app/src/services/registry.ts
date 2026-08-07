@@ -9,7 +9,7 @@ import {
   type CapabilityDefinition,
   type DiscoveredConnection,
 } from '../agents/capabilities.js';
-import type { ConnectionProfile } from '../connections/profile.js';
+import { connectionServiceType, type ConnectionProfile } from '../connections/profile.js';
 import { resolveConnectionProfile } from '../connections/profile-resolver.js';
 import { stableValue } from '../util/stable-value.js';
 
@@ -323,12 +323,17 @@ function savedProfileConnections(
   const runtime = new Map<string, ServiceRuntimeBinding>();
   const connections = profiles.map((profile): ServiceConnection => {
     const required = profile.credentials.map(({ environment_variable: name }) => name);
-    runtime.set(profile.id, { ...resolveConnectionProfile(profile), connectionId: profile.id });
+    const binding = profile.transport.kind === 'runtime_account'
+      ? { serverName: profile.transport.server_name, connectionId: profile.id }
+      : { ...resolveConnectionProfile(profile), connectionId: profile.id };
+    runtime.set(profile.id, binding);
     return {
       id: profile.id,
-      service_id: profile.adapter.id,
+      service_id: connectionServiceType(profile),
       name: profile.label,
-      source: required.length > 0 ? 'configured_api' : 'mcp',
+      source: profile.transport.kind === 'runtime_account'
+        ? 'account'
+        : required.length > 0 ? 'configured_api' : 'mcp',
       status: required.every((name) => Boolean(environment[name]?.trim())) ? 'connected' : 'needs_setup',
       actions: [],
       actions_known: false,

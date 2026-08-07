@@ -2,6 +2,15 @@ import XCTest
 @testable import AgentServerCore
 
 final class ConnectionSetupDraftTests: XCTestCase {
+    func testRejectsAnInvalidAdapterIDBeforeSaving() {
+        var draft = ConnectionSetupDraft.local(label: "Notion Work", command: "npx")
+        draft.adapterID = "Notion Work"
+
+        XCTAssertThrowsError(try draft.makeRequest()) { error in
+            XCTAssertEqual(error as? ConnectionSetupError, .invalidAdapterID("Notion Work"))
+        }
+    }
+
     func testSuggestedCredentialReferenceDoesNotDependOnAServiceName() {
         let credential = ConnectionCredentialDraft.suggested(targetName: "Authorization")
 
@@ -13,6 +22,7 @@ final class ConnectionSetupDraftTests: XCTestCase {
     func testArbitraryLabelDoesNotBecomeAdapterOrRuntimeIdentity() throws {
         let draft = ConnectionSetupDraft.web(
             label: "Whatever I want to call this",
+            serviceType: "notion",
             url: "https://service.example/mcp"
         )
 
@@ -20,7 +30,20 @@ final class ConnectionSetupDraftTests: XCTestCase {
 
         XCTAssertEqual(request.label, "Whatever I want to call this")
         XCTAssertEqual(request.adapter.id, "mcp.custom")
+        XCTAssertEqual(request.serviceType, "notion")
         XCTAssertNil(request.runtimeName)
+    }
+
+    func testRejectsAnInvalidPortableServiceType() {
+        let draft = ConnectionSetupDraft.local(
+            label: "Notion Work",
+            serviceType: "Notion Work",
+            command: "npx"
+        )
+
+        XCTAssertThrowsError(try draft.makeRequest()) { error in
+            XCTAssertEqual(error as? ConnectionSetupError, .invalidServiceType("Notion Work"))
+        }
     }
 
     func testSeveralCredentialsStayGroupedInOneConnection() throws {

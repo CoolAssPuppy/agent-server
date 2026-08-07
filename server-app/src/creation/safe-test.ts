@@ -38,6 +38,7 @@ export function prepareSafeTestAgent(agent: AgentConfig): AgentConfig {
     permissions: { allow: readTools, deny: [...BLOCKED_TOOLS] },
     mcp_servers: {},
     connection_bindings: undefined,
+    connections: undefined,
     calendar_access: undefined,
     native_services: undefined,
     file_access: fileAccess,

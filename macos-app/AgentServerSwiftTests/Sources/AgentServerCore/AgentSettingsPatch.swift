@@ -58,4 +58,13 @@ public struct AgentSettingsPatch: Equatable, Sendable {
             && provider == .unchanged
             && capabilities.isEmpty
     }
+
+    public var hasAgentFileChanges: Bool {
+        name != nil
+            || description != .unchanged
+            || prompt != nil
+            || enabled != nil
+            || schedule != .unchanged
+            || !capabilities.isEmpty
+    }
 }

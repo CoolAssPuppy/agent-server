@@ -9,6 +9,11 @@ import { SqliteRunStore } from '../reporting/sqlite-store.js';
 import { createTempDir, makeAgent, makeStoredRun } from '../test-factories.js';
 import { RunPreflightDeniedError } from '../analysis/run-preflight-gate.js';
 import type { ConnectionProfile } from '../connections/profile.js';
+import type { ConnectionCapabilitySnapshot } from '../connections/capability-snapshot.js';
+import {
+  ConnectionOperationBindingConflictError,
+  type ConnectionOperationBindings,
+} from '../connections/operation-binding-store.js';
 import { InteractionStore, type PendingInteraction } from '../interaction/store.js';
 import { AGENT_SERVER_VERSION } from '../version.js';
 
@@ -140,6 +145,210 @@ describe('API routes', () => {
       const app = createApp();
       const res = await authenticatedRequest(app, '/agents/nonexistent');
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe('agent runtime assignments', () => {
+    it('returns a saved machine-local runtime without changing the agent definition', async () => {
+      const agent = makeAgent({ executor: undefined, model: undefined });
+      const runtimeAssignments = {
+        get: vi.fn().mockResolvedValue({
+          agent_id: agent.id,
+          executor: 'codex',
+          model: 'gpt-5.3-codex',
+          revision: 2,
+          updated_at: '2026-08-06T12:00:00.000Z',
+        }),
+        set: vi.fn(),
+        remove: vi.fn(),
+      };
+      const app = createApi({
+        getAgents: async () => [agent],
+        store,
+        triggerRun,
+        runtimeAssignments,
+      });
+
+      const response = await authenticatedRequest(app, `/agents/${agent.id}/runtime`);
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        source: 'saved_assignment',
+        executor: 'codex',
+        model: 'gpt-5.3-codex',
+        revision: 2,
+      });
+      expect(agent.executor).toBeUndefined();
+    });
+
+    it('saves a runtime assignment with optimistic concurrency', async () => {
+      const agent = makeAgent();
+      const runtimeAssignments = {
+        get: vi.fn(),
+        set: vi.fn().mockResolvedValue({
+          agent_id: agent.id,
+          executor: 'kimi-code',
+          revision: 1,
+          updated_at: '2026-08-06T12:00:00.000Z',
+        }),
+        remove: vi.fn(),
+      };
+      const app = createApi({
+        getAgents: async () => [agent],
+        store,
+        triggerRun,
+        runtimeAssignments,
+      });
+
+      const response = await authenticatedRequest(app, `/agents/${agent.id}/runtime`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ executor: 'kimi-code', expected_revision: 0 }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(await response.clone().json()).toMatchObject({
+        source: 'saved_assignment',
+        agent_id: agent.id,
+        executor: 'kimi-code',
+        revision: 1,
+      });
+      expect(runtimeAssignments.set).toHaveBeenCalledWith(
+        agent.id,
+        { executor: 'kimi-code' },
+        { expectedRevision: 0 },
+      );
+      expect(agent.executor).toBeUndefined();
+    });
+
+    it('refuses to save a runtime that is unavailable on this machine', async () => {
+      const agent = makeAgent();
+      const runtimeAssignments = {
+        get: vi.fn(), set: vi.fn(), remove: vi.fn(),
+      };
+      const app = createApi({
+        getAgents: async () => [agent], store, triggerRun, runtimeAssignments,
+        runtimeAvailable: (executor) => executor !== 'kimi-code',
+      });
+
+      const response = await authenticatedRequest(app, `/agents/${agent.id}/runtime`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ executor: 'kimi-code', expected_revision: 0 }),
+      });
+
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({
+        state: 'blocked', issues: [{ code: 'runtime_unavailable' }],
+      });
+      expect(runtimeAssignments.set).not.toHaveBeenCalled();
+    });
+
+    it('returns 409 when a runtime assignment changed before save', async () => {
+      const agent = makeAgent();
+      const runtimeAssignments = {
+        get: vi.fn(),
+        set: vi.fn().mockRejectedValue(Object.assign(new Error('changed'), {
+          name: 'RuntimeAssignmentConflictError',
+        })),
+        remove: vi.fn(),
+      };
+      const app = createApi({
+        getAgents: async () => [agent],
+        store,
+        triggerRun,
+        runtimeAssignments,
+      });
+
+      const response = await authenticatedRequest(app, `/agents/${agent.id}/runtime`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ executor: 'codex', expected_revision: 3 }),
+      });
+
+      expect(response.status).toBe(409);
+    });
+
+    it('keeps runtime fields out of Markdown when an older app updates agent settings', async () => {
+      const agent = makeAgent();
+      const update = vi.fn().mockResolvedValue(agent);
+      let savedRuntime: Record<string, unknown> | undefined;
+      const runtimeAssignments = {
+        get: vi.fn().mockImplementation(async () => savedRuntime),
+        set: vi.fn().mockImplementation(async () => {
+          savedRuntime = {
+            agent_id: agent.id,
+            executor: 'codex',
+            model: 'gpt-5.3-codex',
+            revision: 1,
+            updated_at: '2026-08-06T12:00:00.000Z',
+          };
+          return savedRuntime;
+        }),
+        remove: vi.fn(),
+      };
+      const app = createApi({
+        getAgents: async () => [agent],
+        store,
+        triggerRun,
+        runtimeAssignments,
+        agentWriter: { update, create: vi.fn(), remove: vi.fn() },
+      });
+
+      const response = await authenticatedRequest(app, `/agents/${agent.id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          name: 'Renamed agent',
+          executor: 'codex',
+          model: 'gpt-5.3-codex',
+        }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(update).toHaveBeenCalledWith(agent.id, { name: 'Renamed agent' });
+      expect(runtimeAssignments.set).toHaveBeenCalledWith(
+        agent.id,
+        { executor: 'codex', model: 'gpt-5.3-codex' },
+        { expectedRevision: 0 },
+      );
+      expect(await response.json()).toMatchObject({
+        executor: 'codex',
+        model: 'gpt-5.3-codex',
+        runtime_source: 'saved_assignment',
+        runtime_revision: 1,
+      });
+    });
+
+    it('restores the runtime assignment when a combined legacy definition update fails', async () => {
+      const agent = makeAgent();
+      const runtimeAssignments = {
+        get: vi.fn().mockResolvedValue(undefined),
+        set: vi.fn().mockResolvedValue({
+          agent_id: agent.id, executor: 'codex', revision: 1,
+          updated_at: '2026-08-06T12:00:00.000Z',
+        }),
+        remove: vi.fn().mockResolvedValue(true),
+      };
+      const app = createApi({
+        getAgents: async () => [agent], store, triggerRun, runtimeAssignments,
+        agentWriter: {
+          update: vi.fn().mockRejectedValue(new Error('definition write failed')),
+          create: vi.fn(), remove: vi.fn(),
+        },
+      });
+
+      const response = await authenticatedRequest(app, `/agents/${agent.id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Renamed agent', executor: 'codex' }),
+      });
+
+      expect(response.status).toBe(500);
+      expect(runtimeAssignments.remove).toHaveBeenCalledWith(
+        agent.id,
+        { expectedRevision: 1 },
+      );
     });
   });
 
@@ -296,8 +505,8 @@ describe('API routes', () => {
     });
 
     it('checks local readiness without returning credential values', async () => {
-      const connection = {
-        schema_version: 1 as const,
+      const connection: ConnectionProfile = {
+        schema_version: 1,
         id: '018f47a2-9a13-7d61-bf4f-f9a5d8f67c21',
         label: 'Reports',
         adapter: { id: 'mcp.custom', version: 1 },
@@ -331,8 +540,275 @@ describe('API routes', () => {
       const body = await response.json();
 
       expect(response.status).toBe(200);
-      expect(body).toEqual({ status: 'ready', missing_credentials: [] });
+      expect(body).toEqual({
+        status: 'ready',
+        missing_credentials: [],
+        mapping_status: 'unchecked',
+        mapping_revision: 0,
+      });
       expect(JSON.stringify(body)).not.toContain('must-not-leak');
+    });
+
+    it('checks and returns a stored semantic operation inventory', async () => {
+      const connection = {
+        schema_version: 1 as const,
+        id: '018f47a2-9a13-7d61-bf4f-f9a5d8f67c21',
+        label: 'Notion Work',
+        adapter: { id: 'notion.rest-mcp', version: 1 },
+        runtime_name: 'notion_work',
+        credentials: [],
+        transport: { kind: 'mcp_stdio', command: 'notion-helper', args: [], environment: {} },
+        created_at: '2026-07-19T18:00:00.000Z',
+        updated_at: '2026-07-19T18:00:00.000Z',
+      };
+      const snapshot: ConnectionCapabilitySnapshot = {
+        schema_version: 1,
+        connection_id: connection.id,
+        source: 'stored_profile',
+        adapter: connection.adapter,
+        operations: [{
+          id: 'mcp:API-post-page',
+          runtime_name: 'API-post-page',
+          effects: ['create'],
+          classification: 'curated',
+        }],
+        capability_version: `sha256:${'a'.repeat(64)}`,
+        classification_version: 'stored-mcp-v1',
+        captured_at: '2026-08-06T13:00:00.000Z',
+      };
+      const check = vi.fn().mockResolvedValue(snapshot);
+      const app = createApi({
+        getAgents: async () => [],
+        store,
+        triggerRun,
+        connectionProfiles: {
+          list: vi.fn(async () => [connection]),
+          create: vi.fn(), rename: vi.fn(), duplicate: vi.fn(), remove: vi.fn(),
+        },
+        connectionCapabilities: { get: vi.fn(), check, remove: vi.fn() },
+      });
+
+      const response = await authenticatedRequest(
+        app,
+        `/connection-profiles/${connection.id}/check`,
+        { method: 'POST' },
+      );
+
+      expect(response.status).toBe(200);
+      expect(check).toHaveBeenCalledWith(connection, expect.any(Object));
+      expect(await response.json()).toMatchObject({
+        status: 'ready',
+        capability_version: snapshot.capability_version,
+        operations: snapshot.operations,
+      });
+    });
+
+    it('seeds trusted adapter mappings after the first checked inventory', async () => {
+      const connection = {
+        schema_version: 1 as const,
+        id: '018f47a2-9a13-7d61-bf4f-f9a5d8f67c21', label: 'Notion Work',
+        service_type: 'notion', adapter: { id: 'notion.rest-mcp', version: 1 },
+        runtime_name: 'notion_work', credentials: [],
+        transport: { kind: 'mcp_stdio' as const, command: 'npx', args: ['-y', '@notionhq/notion-mcp-server'], environment: {} },
+        created_at: '2026-08-06T12:00:00.000Z', updated_at: '2026-08-06T12:00:00.000Z',
+      };
+      const snapshot: ConnectionCapabilitySnapshot = {
+        schema_version: 1, connection_id: connection.id, source: 'stored_profile',
+        adapter: connection.adapter,
+        operations: [{
+          id: 'mcp:API-post-page', runtime_name: 'API-post-page', effects: ['create'],
+          classification: 'curated', input_fields: ['parent', 'parent.database_id'],
+        }],
+        capability_version: `sha256:${'9'.repeat(64)}`,
+        classification_version: 'stored-mcp-v1', captured_at: '2026-08-06T13:00:00.000Z',
+      };
+      const replace = vi.fn().mockResolvedValue({
+        revision: 1, capability_version: snapshot.capability_version,
+        updated_at: '2026-08-06T13:01:00.000Z', operations: {},
+      });
+      const app = createApi({
+        getAgents: async () => [], store, triggerRun,
+        connectionProfiles: {
+          list: vi.fn(async () => [connection]),
+          create: vi.fn(), rename: vi.fn(), duplicate: vi.fn(), remove: vi.fn(),
+        },
+        connectionCapabilities: {
+          get: vi.fn(), check: vi.fn(async () => snapshot), remove: vi.fn(),
+        },
+        connectionOperationBindings: {
+          get: vi.fn(async () => ({ revision: 0 as const, operations: {} })),
+          replace, remove: vi.fn(),
+        },
+      });
+
+      const response = await authenticatedRequest(app, `/connection-profiles/${connection.id}/check`, {
+        method: 'POST',
+      });
+
+      expect(response.status).toBe(200);
+      expect(replace).toHaveBeenCalledWith(connection.id, snapshot, {
+        'notion.page.create': {
+          runtime_name: 'API-post-page',
+          effect: 'write',
+          target: { argument: 'parent.database_id', resource_type: 'notion.data_source' },
+        },
+      }, { expectedRevision: 0, expectedCapabilityVersion: snapshot.capability_version });
+    });
+
+    it('returns current reviewed operation mappings beside the checked inventory', async () => {
+      const connection = {
+        schema_version: 1 as const,
+        id: '018f47a2-9a13-7d61-bf4f-f9a5d8f67c21',
+        label: 'Documents Work',
+        adapter: { id: 'documents.mcp', version: 1 },
+        runtime_name: 'documents_work',
+        credentials: [],
+        transport: { kind: 'mcp_stdio' as const, command: 'documents', args: [], environment: {} },
+        created_at: '2026-08-06T12:00:00.000Z',
+        updated_at: '2026-08-06T12:00:00.000Z',
+      };
+      const capabilityVersion = `sha256:${'c'.repeat(64)}`;
+      const snapshot: ConnectionCapabilitySnapshot = {
+        schema_version: 1,
+        connection_id: connection.id,
+        source: 'stored_profile',
+        adapter: connection.adapter,
+        operations: [{
+          id: 'mcp:list_documents', runtime_name: 'list_documents',
+          effects: ['read'], classification: 'curated', input_fields: ['database_id'],
+        }],
+        capability_version: capabilityVersion,
+        classification_version: 'stored-mcp-v1',
+        captured_at: '2026-08-06T13:00:00.000Z',
+      };
+      const mappings: ConnectionOperationBindings = {
+        revision: 2,
+        capability_version: capabilityVersion,
+        updated_at: '2026-08-06T13:05:00.000Z',
+        operations: {
+          'documents.list': { runtime_name: 'list_documents', effect: 'read' },
+        },
+      };
+      const app = createApi({
+        getAgents: async () => [], store, triggerRun,
+        connectionProfiles: {
+          list: vi.fn(async () => [connection]),
+          create: vi.fn(), rename: vi.fn(), duplicate: vi.fn(), remove: vi.fn(),
+        },
+        connectionCapabilities: {
+          get: vi.fn(async () => snapshot), check: vi.fn(), remove: vi.fn(),
+        },
+        connectionOperationBindings: {
+          get: vi.fn(async () => mappings), replace: vi.fn(), remove: vi.fn(),
+        },
+      });
+
+      const response = await authenticatedRequest(
+        app,
+        `/connection-profiles/${connection.id}/operations`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        status: 'current',
+        capability_version: capabilityVersion,
+        mapping_revision: 2,
+        operations: mappings.operations,
+        inventory: snapshot.operations,
+      });
+    });
+
+    it('saves reviewed operation mappings against the current checked inventory', async () => {
+      const connection = {
+        schema_version: 1 as const,
+        id: '018f47a2-9a13-7d61-bf4f-f9a5d8f67c21',
+        label: 'Documents Work',
+        adapter: { id: 'documents.mcp', version: 1 },
+        runtime_name: 'documents_work', credentials: [],
+        transport: { kind: 'mcp_stdio' as const, command: 'documents', args: [], environment: {} },
+        created_at: '2026-08-06T12:00:00.000Z', updated_at: '2026-08-06T12:00:00.000Z',
+      };
+      const capabilityVersion = `sha256:${'d'.repeat(64)}`;
+      const snapshot: ConnectionCapabilitySnapshot = {
+        schema_version: 1, connection_id: connection.id, source: 'stored_profile',
+        adapter: connection.adapter, operations: [], capability_version: capabilityVersion,
+        classification_version: 'stored-mcp-v1', captured_at: '2026-08-06T13:00:00.000Z',
+      };
+      const replace = vi.fn().mockResolvedValue({
+        revision: 1, capability_version: capabilityVersion,
+        updated_at: '2026-08-06T13:05:00.000Z', operations: {},
+      });
+      const app = createApi({
+        getAgents: async () => [], store, triggerRun,
+        connectionProfiles: {
+          list: vi.fn(async () => [connection]),
+          create: vi.fn(), rename: vi.fn(), duplicate: vi.fn(), remove: vi.fn(),
+        },
+        connectionCapabilities: {
+          get: vi.fn(async () => snapshot), check: vi.fn(), remove: vi.fn(),
+        },
+        connectionOperationBindings: {
+          get: vi.fn(), replace, remove: vi.fn(),
+        },
+      });
+
+      const response = await authenticatedRequest(
+        app,
+        `/connection-profiles/${connection.id}/operations`,
+        {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            expected_revision: 0,
+            capability_version: capabilityVersion,
+            operations: {},
+          }),
+        },
+      );
+
+      expect(response.status).toBe(200);
+      expect(replace).toHaveBeenCalledWith(connection.id, snapshot, {}, {
+        expectedRevision: 0,
+        expectedCapabilityVersion: capabilityVersion,
+      });
+    });
+
+    it('returns conflict when an operation review uses stale inventory', async () => {
+      const connection = {
+        schema_version: 1 as const,
+        id: '018f47a2-9a13-7d61-bf4f-f9a5d8f67c21', label: 'Documents Work',
+        adapter: { id: 'documents.mcp', version: 1 }, runtime_name: 'documents_work',
+        credentials: [], transport: { kind: 'mcp_stdio' as const, command: 'documents', args: [], environment: {} },
+        created_at: '2026-08-06T12:00:00.000Z', updated_at: '2026-08-06T12:00:00.000Z',
+      };
+      const snapshot: ConnectionCapabilitySnapshot = {
+        schema_version: 1, connection_id: connection.id, source: 'stored_profile',
+        adapter: connection.adapter, operations: [], capability_version: `sha256:${'e'.repeat(64)}`,
+        classification_version: 'stored-mcp-v1', captured_at: '2026-08-06T13:00:00.000Z',
+      };
+      const app = createApi({
+        getAgents: async () => [], store, triggerRun,
+        connectionProfiles: {
+          list: vi.fn(async () => [connection]),
+          create: vi.fn(), rename: vi.fn(), duplicate: vi.fn(), remove: vi.fn(),
+        },
+        connectionCapabilities: { get: vi.fn(async () => snapshot), check: vi.fn(), remove: vi.fn() },
+        connectionOperationBindings: {
+          get: vi.fn(),
+          replace: vi.fn().mockRejectedValue(new ConnectionOperationBindingConflictError()),
+          remove: vi.fn(),
+        },
+      });
+
+      const response = await authenticatedRequest(app, `/connection-profiles/${connection.id}/operations`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expected_revision: 0,
+          capability_version: `sha256:${'f'.repeat(64)}`,
+          operations: {},
+        }),
+      });
+
+      expect(response.status).toBe(409);
     });
 
     it('fails closed when removing a profile referenced by agents', async () => {
@@ -367,12 +843,16 @@ describe('API routes', () => {
 
     it('removes an unreferenced profile', async () => {
       const remove = vi.fn(async () => undefined);
+      const removeCapabilities = vi.fn(async () => undefined);
       const app = createApi({
         getAgents: async () => [],
         store,
         triggerRun,
         connectionProfiles: {
           list: vi.fn(), create: vi.fn(), rename: vi.fn(), duplicate: vi.fn(), remove,
+        },
+        connectionCapabilities: {
+          get: vi.fn(), check: vi.fn(), remove: removeCapabilities,
         },
       });
 
@@ -383,6 +863,105 @@ describe('API routes', () => {
       expect(response.status).toBe(200);
       expect(await response.json()).toEqual({ success: true, connection_id: 'profile-1' });
       expect(remove).toHaveBeenCalledWith('profile-1');
+      expect(removeCapabilities).toHaveBeenCalledWith('profile-1');
+    });
+  });
+
+  describe('agent connection bindings', () => {
+    it('saves a machine-local implementation for a declared skill requirement', async () => {
+      const agent = makeAgent({
+        skills: {
+          editorial_diagnostic: {
+            name: 'Fiction manuscript diagnostic', purpose: 'Diagnose manuscript changes.',
+          },
+        },
+      });
+      const replace = vi.fn(async (
+        _agentId: string,
+        connections: Record<string, never>,
+        _revision: number,
+        skills?: Record<string, { path: string }>,
+      ) => ({ revision: 2, connections, skills }));
+      const app = createApi({
+        getAgents: async () => [agent], store, triggerRun,
+        connectionProfiles: {
+          list: vi.fn(async () => []), create: vi.fn(), rename: vi.fn(),
+          duplicate: vi.fn(), remove: vi.fn(),
+        },
+        agentBindings: {
+          get: vi.fn(async () => ({ revision: 1, connections: {}, skills: {} })),
+          replace,
+        },
+      });
+
+      const response = await authenticatedRequest(app, `/agents/${agent.id}/bindings`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expected_revision: 1,
+          connections: {},
+          skills: {
+            editorial_diagnostic: { path: '/shared/skills/fiction-diagnostic' },
+          },
+        }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(replace).toHaveBeenCalledWith(
+        agent.id,
+        {},
+        1,
+        { editorial_diagnostic: { path: '/shared/skills/fiction-diagnostic' } },
+      );
+    });
+
+    it('rejects a saved connection with the wrong portable service type', async () => {
+      const agent = makeAgent({
+        connections: {
+          work_notes: {
+            type: 'notion',
+            name: 'Notion Work',
+            purpose: 'Read work notes',
+            operations: ['notion.search'],
+            resources: {},
+          },
+        },
+      });
+      const replace = vi.fn();
+      const app = createApi({
+        getAgents: async () => [agent], store, triggerRun,
+        connectionProfiles: {
+          list: vi.fn(async () => [{
+            schema_version: 1,
+            id: '018f47a2-9a13-7d61-bf4f-f9a5d8f67c21',
+            label: 'Gmail Work',
+            service_type: 'gmail',
+            adapter: { id: 'company.mail-mcp', version: 1 },
+            runtime_name: 'gmail_work', credentials: [],
+            transport: { kind: 'mcp_stdio', command: 'mail', args: [], environment: {} },
+            created_at: '2026-08-06T12:00:00.000Z',
+            updated_at: '2026-08-06T12:00:00.000Z',
+          }]),
+          create: vi.fn(), rename: vi.fn(), duplicate: vi.fn(), remove: vi.fn(),
+        },
+        agentBindings: { get: vi.fn(), replace },
+      });
+
+      const response = await authenticatedRequest(app, `/agents/${agent.id}/bindings`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          expected_revision: 0,
+          connections: {
+            work_notes: {
+              connection_id: '018f47a2-9a13-7d61-bf4f-f9a5d8f67c21',
+              resources: {},
+            },
+          },
+        }),
+      });
+
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({ state: 'needs_review' });
+      expect(replace).not.toHaveBeenCalled();
     });
   });
 
@@ -897,7 +1476,7 @@ describe('API routes', () => {
 
       const body = await res.json();
       expect(body.status).toBe('ok');
-      expect(body.api_version).toBe(12);
+      expect(body.api_version).toBe(13);
     });
 
     it('returns started_at timestamp when provided', async () => {

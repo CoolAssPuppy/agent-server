@@ -26,6 +26,7 @@ export const ConnectionCapabilityOperationSchema = z.object({
     }
   }),
   classification: z.enum(['curated', 'unknown']),
+  input_fields: z.array(OperationNameSchema).max(256).optional(),
 }).strict();
 
 export const ConnectionCapabilitySnapshotSchema = z.object({
@@ -36,6 +37,7 @@ export const ConnectionCapabilitySnapshotSchema = z.object({
     id: z.string().min(1).max(120),
     version: z.number().int().positive(),
   }).strict(),
+  profile_fingerprint: z.string().regex(/^sha256:[a-f0-9]{64}$/).optional(),
   operations: z.array(ConnectionCapabilityOperationSchema).max(512),
   capability_version: z.string().regex(/^sha256:[a-f0-9]{64}$/),
   classification_version: z.literal('stored-mcp-v1'),
@@ -85,29 +87,63 @@ const NOTION_REST_TOOL_EFFECTS: Readonly<Record<
   'API-update-page-markdown': 'update',
 };
 
+const EVENTKIT_TOOL_EFFECTS: Readonly<Record<
+  string,
+  Exclude<ConnectionOperationEffect, 'unknown'>
+>> = {
+  list_calendars: 'read',
+  list_events: 'read',
+  create_event: 'create',
+  update_event: 'update',
+  delete_event: 'delete',
+  list_reminder_lists: 'read',
+  list_reminders: 'read',
+  create_reminder: 'create',
+  complete_reminder: 'update',
+  list_contacts: 'read',
+};
+
 export type StoredMcpCapabilityOptions = {
   capturedAt: string;
   operationNames?: readonly string[];
+  operations?: readonly {
+    name: string;
+    inputFields: readonly string[];
+  }[];
 };
 
 function isCurrentNotionRestProfile(profile: ConnectionProfile): boolean {
-  return profile.transport.kind === 'mcp_stdio'
+  return profile.adapter.id === 'notion.rest-mcp'
+    && profile.adapter.version === 1
+    && profile.transport.kind === 'mcp_stdio'
     && profile.transport.command === 'npx'
     && profile.transport.args.length === 2
     && profile.transport.args[0] === '-y'
-    && profile.transport.args[1] === '@notionhq/notion-mcp-server';
+    && profile.transport.args[1] === '@notionhq/notion-mcp-server@2.5.1';
+}
+
+function isCurrentEventKitProfile(profile: ConnectionProfile): boolean {
+  return profile.adapter.id === 'eventkit.mcp'
+    && profile.adapter.version === 1
+    && profile.transport.kind === 'mcp_stdio'
+    && profile.transport.command.endsWith('.app/Contents/Helpers/agent-server-eventkit')
+    && profile.transport.args.length === 0
+    && Object.keys(profile.transport.environment).length === 0
+    && profile.credentials.length === 0;
 }
 
 function operation(
   runtimeName: string,
   effect: ConnectionOperationEffect,
   classification: ConnectionCapabilityOperation['classification'],
+  inputFields?: readonly string[],
 ): ConnectionCapabilityOperation {
   return ConnectionCapabilityOperationSchema.parse({
     id: `mcp:${runtimeName}`,
     runtime_name: runtimeName,
     effects: [effect],
     classification,
+    ...(inputFields ? { input_fields: normalizedOperationNames(inputFields) } : {}),
   });
 }
 
@@ -115,30 +151,75 @@ function normalizedOperationNames(operationNames: readonly string[]): string[] {
   return [...new Set(operationNames.map((name) => OperationNameSchema.parse(name)))].sort();
 }
 
-function notionRestOperations(operationNames?: readonly string[]): ConnectionCapabilityOperation[] {
+function notionRestOperations(
+  operationNames?: readonly string[],
+  inputFieldsByName: ReadonlyMap<string, readonly string[]> = new Map(),
+): ConnectionCapabilityOperation[] {
   const names = normalizedOperationNames(operationNames ?? Object.keys(NOTION_REST_TOOL_EFFECTS));
   return names.map((runtimeName) => {
     const effect = NOTION_REST_TOOL_EFFECTS[runtimeName];
     return effect
-      ? operation(runtimeName, effect, 'curated')
-      : operation(runtimeName, 'unknown', 'unknown');
+      ? operation(runtimeName, effect, 'curated', inputFieldsByName.get(runtimeName))
+      : operation(runtimeName, 'unknown', 'unknown', inputFieldsByName.get(runtimeName));
   });
 }
 
-function unknownOperations(operationNames: readonly string[]): ConnectionCapabilityOperation[] {
+function eventKitOperations(
+  operationNames?: readonly string[],
+  inputFieldsByName: ReadonlyMap<string, readonly string[]> = new Map(),
+): ConnectionCapabilityOperation[] {
+  const names = normalizedOperationNames(operationNames ?? Object.keys(EVENTKIT_TOOL_EFFECTS));
+  return names.map((runtimeName) => {
+    const effect = EVENTKIT_TOOL_EFFECTS[runtimeName];
+    return effect
+      ? operation(runtimeName, effect, 'curated', inputFieldsByName.get(runtimeName))
+      : operation(runtimeName, 'unknown', 'unknown', inputFieldsByName.get(runtimeName));
+  });
+}
+
+function unknownOperations(
+  operationNames: readonly string[],
+  inputFieldsByName: ReadonlyMap<string, readonly string[]> = new Map(),
+): ConnectionCapabilityOperation[] {
   return normalizedOperationNames(operationNames)
-    .map((runtimeName) => operation(runtimeName, 'unknown', 'unknown'));
+    .map((runtimeName) => operation(
+      runtimeName,
+      'unknown',
+      'unknown',
+      inputFieldsByName.get(runtimeName),
+    ));
 }
 
 function capabilityVersion(
   adapter: ConnectionProfile['adapter'],
+  profileFingerprint: string,
   operations: readonly ConnectionCapabilityOperation[],
 ): string {
   const digest = createHash('sha256')
     .update(JSON.stringify({
       adapter,
+      profile_fingerprint: profileFingerprint,
       classification_version: 'stored-mcp-v1',
       operations,
+    }))
+    .digest('hex');
+  return `sha256:${digest}`;
+}
+
+/** Creates a secret-free identity for the exact saved transport and credential references. */
+export function connectionProfileFingerprint(profile: ConnectionProfile): string {
+  const credentials = profile.credentials
+    .map(({ id, environment_variable: environmentVariable, secret }) => ({
+      id, environment_variable: environmentVariable, secret,
+    }))
+    .sort((left, right) => left.id.localeCompare(right.id));
+  const digest = createHash('sha256')
+    .update(JSON.stringify({
+      service_type: profile.service_type,
+      adapter: profile.adapter,
+      runtime_name: profile.runtime_name,
+      credentials,
+      transport: profile.transport,
     }))
     .digest('hex');
   return `sha256:${digest}`;
@@ -153,17 +234,25 @@ export function classifyStoredMcpCapabilities(
   profile: ConnectionProfile,
   options: StoredMcpCapabilityOptions,
 ): ConnectionCapabilitySnapshot {
+  const inputFieldsByName = new Map(
+    options.operations?.map(({ name, inputFields }) => [name, inputFields]),
+  );
+  const operationNames = options.operations?.map(({ name }) => name) ?? options.operationNames;
   const operations = isCurrentNotionRestProfile(profile)
-    ? notionRestOperations(options.operationNames)
-    : unknownOperations(options.operationNames ?? []);
+    ? notionRestOperations(operationNames, inputFieldsByName)
+    : isCurrentEventKitProfile(profile)
+      ? eventKitOperations(operationNames, inputFieldsByName)
+      : unknownOperations(operationNames ?? [], inputFieldsByName);
+  const profileFingerprint = connectionProfileFingerprint(profile);
 
   return ConnectionCapabilitySnapshotSchema.parse({
     schema_version: 1,
     connection_id: profile.id,
     source: 'stored_profile',
     adapter: profile.adapter,
+    profile_fingerprint: profileFingerprint,
     operations,
-    capability_version: capabilityVersion(profile.adapter, operations),
+    capability_version: capabilityVersion(profile.adapter, profileFingerprint, operations),
     classification_version: 'stored-mcp-v1',
     captured_at: options.capturedAt,
   });

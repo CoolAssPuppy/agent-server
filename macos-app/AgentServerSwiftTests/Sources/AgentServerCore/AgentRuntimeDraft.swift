@@ -104,6 +104,18 @@ public struct AgentRuntimeDraft: Equatable, Sendable {
         }
     }
 
+    public func assignmentRequest(expectedRevision: Int) -> AgentRuntimeAssignmentRequest {
+        let provider = resolvedProviderEndpoint.map {
+            AgentRuntimeProvider(baseURL: $0, apiKey: resolvedProviderKeyReference)
+        }
+        return AgentRuntimeAssignmentRequest(
+            executor: resolvedExecutor ?? "claude-code",
+            model: resolvedModel,
+            provider: provider,
+            expectedRevision: expectedRevision
+        )
+    }
+
     private static func variableName(from reference: String?) -> String {
         guard let reference else { return "" }
         if reference.hasPrefix("${"), reference.hasSuffix("}") {

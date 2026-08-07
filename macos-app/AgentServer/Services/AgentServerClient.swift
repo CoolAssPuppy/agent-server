@@ -43,6 +43,48 @@ actor AgentServerClient {
         try await get("/agents")
     }
 
+    func agentRuntime(id: String) async throws -> AgentRuntimeAssignmentResponse {
+        try await get("/agents/\(id)/runtime")
+    }
+
+    func runtimeCompatibility(
+        id: String,
+        executor: String
+    ) async throws -> AgentRuntimeCompatibility {
+        try await get(
+            "/agents/\(id)/runtime-compatibility",
+            queryItems: [URLQueryItem(name: "executor", value: executor)]
+        )
+    }
+
+    func updateAgentRuntime(
+        id: String,
+        request: AgentRuntimeAssignmentRequest
+    ) async throws -> AgentRuntimeAssignmentResponse {
+        try await routeRequest(
+            path: "/agents/\(id)/runtime",
+            method: .put,
+            bodyData: try JSONEncoder().encode(request),
+            usesGuidanceErrors: true
+        )
+    }
+
+    func agentBindings(id: String) async throws -> AgentBindingSetResponse {
+        try await get("/agents/\(id)/bindings")
+    }
+
+    func updateAgentBindings(
+        id: String,
+        request: AgentBindingSetRequest
+    ) async throws -> AgentBindingSetResponse {
+        try await routeRequest(
+            path: "/agents/\(id)/bindings",
+            method: .put,
+            bodyData: try JSONEncoder().encode(request),
+            usesGuidanceErrors: true
+        )
+    }
+
     func runs() async throws -> [Run] {
         try await get("/runs")
     }
@@ -303,6 +345,27 @@ actor AgentServerClient {
         return try decoder.decode(ConnectionReadinessResponse.self, from: data)
     }
 
+    func connectionOperationReview(id: String) async throws -> ConnectionOperationReviewResponse {
+        try await get("/connection-profiles/\(id)/operations")
+    }
+
+    func updateConnectionOperationMappings(
+        id: String,
+        requestBody: ConnectionOperationMappingRequest
+    ) async throws -> ConnectionOperationReviewResponse {
+        var request = URLRequest(
+            url: baseURL.appendingPathComponent("/connection-profiles/\(id)/operations")
+        )
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(requestBody)
+        request = try authenticatedRequest(request)
+        let (data, response) = try await session.data(for: request)
+        try validateWriteResponse(data: data, response: response)
+        _ = try decoder.decode(ConnectionOperationMappingSaveResponse.self, from: data)
+        return try await connectionOperationReview(id: id)
+    }
+
     func removeConnectionProfile(id: String) async throws {
         var request = URLRequest(url: baseURL.appendingPathComponent("/connection-profiles/\(id)"))
         request.httpMethod = "DELETE"
@@ -491,6 +554,7 @@ private struct GuidanceErrorBody: Decodable {
 
 enum ClientError: LocalizedError {
     case invalidResponse
+    case notFound
     case missingLocalAPIKey
     case httpError(statusCode: Int)
     case writeFailed(message: String, missingEnv: [String])
@@ -501,6 +565,8 @@ enum ClientError: LocalizedError {
         switch self {
         case .invalidResponse:
             return "Invalid response from server"
+        case .notFound:
+            return "The requested item was not found."
         case .missingLocalAPIKey:
             return "Agent Server needs to finish its secure local setup. Restart the server and try again."
         case .httpError(let statusCode):

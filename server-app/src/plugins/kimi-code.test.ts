@@ -12,6 +12,9 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Reporter } from '../execution/runner.js';
 import { createTempDir, makeAgent } from '../test-factories.js';
 import { executeKimiCodeAgent, runKimiAcpSession } from './kimi-code.js';
+import { resolveAgentConnectionBindings } from '../connections/runtime-resolution.js';
+import { attachRuntimeConnectionPolicies } from '../connections/runtime-policy.js';
+import type { ConnectionProfile } from '../connections/profile.js';
 
 function createStreamPair(): [Stream, Stream] {
   const clientToAgent = new TransformStream();
@@ -204,6 +207,68 @@ describe('Kimi Code ACP execution', () => {
       model: 'Kimi Code',
       usage: expect.objectContaining({ input_tokens: 12, output_tokens: 5, total_tokens: 17 }),
     }));
+  });
+
+  it('gives Kimi a secret-free local relay for portable HTTP connections', async () => {
+    const previous = process.env.NOTES_TOKEN;
+    process.env.NOTES_TOKEN = 'kimi-http-secret';
+    const profile: ConnectionProfile = {
+      schema_version: 1,
+      id: '11111111-1111-4111-8111-111111111111',
+      label: 'Notes',
+      adapter: { id: 'notes.http-mcp', version: 1 },
+      runtime_name: 'notes',
+      credentials: [{
+        id: '22222222-2222-4222-8222-222222222222',
+        label: 'Token', environment_variable: 'NOTES_TOKEN', secret: true,
+      }],
+      transport: {
+        kind: 'mcp_http',
+        url: 'https://notes.example/mcp',
+        headers: [{
+          name: 'Authorization',
+          credential_id: '22222222-2222-4222-8222-222222222222',
+          prefix: 'Bearer ',
+        }],
+      },
+      created_at: '2026-07-19T18:00:00.000Z',
+      updated_at: '2026-07-19T18:00:00.000Z',
+    };
+    const resolved = resolveAgentConnectionBindings(makeAgent({
+      executor: 'kimi-code',
+      connection_bindings: { notes: profile.id },
+    }), [profile]);
+    attachRuntimeConnectionPolicies(resolved, {
+      notes: {
+        allowedTools: ['create_note'],
+        argumentConstraints: { create_note: { folder_id: ['work-folder'] } },
+      },
+    });
+    const [clientStream, agentStream] = createStreamPair();
+    let receivedServers: unknown;
+    const fakeAgent = createAgent({ name: 'fake-kimi' })
+      .onRequest(methods.agent.initialize, () => ({
+        protocolVersion: PROTOCOL_VERSION,
+        agentCapabilities: {},
+      }))
+      .onRequest(methods.agent.session.new, ({ params }) => {
+        receivedServers = params.mcpServers;
+        return { sessionId: 'session-1' };
+      })
+      .onRequest(methods.agent.session.prompt, () => ({ stopReason: 'end_turn' }));
+    const connection = fakeAgent.connect(agentStream);
+    try {
+      await runKimiAcpSession(resolved, createReporter(), clientStream);
+      const serialized = JSON.stringify(receivedServers);
+      expect(serialized).toContain('mcp-policy-relay.js');
+      expect(serialized).toContain('create_note');
+      expect(serialized).toContain('work-folder');
+      expect(serialized).not.toContain('kimi-http-secret');
+    } finally {
+      connection.close();
+      if (previous === undefined) delete process.env.NOTES_TOKEN;
+      else process.env.NOTES_TOKEN = previous;
+    }
   });
 
   it('allows an explicitly granted edit once and rejects a denied command', async () => {
