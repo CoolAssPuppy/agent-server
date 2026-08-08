@@ -48,6 +48,7 @@ struct AgentSettingsForm: View {
             Text("Checking this runtime against the agent requirements...")
                 .font(.system(size: 11))
                 .foregroundStyle(theme.tokens.mutedForeground)
+                .padding(.top, 10)
         } else if let runtimeCompatibility, runtimeCompatibility.state != .compatible {
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(runtimeCompatibility.issues) { issue in
@@ -56,10 +57,12 @@ struct AgentSettingsForm: View {
                         .foregroundStyle(theme.tokens.error)
                 }
             }
+            .padding(.top, 10)
         } else if runtimeCompatibility?.state == .compatible {
             Text("This runtime can meet the agent requirements.")
                 .font(.system(size: 11))
                 .foregroundStyle(theme.tokens.success)
+                .padding(.top, 10)
         }
     }
 
