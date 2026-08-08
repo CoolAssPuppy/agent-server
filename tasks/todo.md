@@ -2993,3 +2993,21 @@ The runtime picker shows these states before saving. It never changes an assignm
 - Sparkle signing read the private key from Doppler through standard input and required no Keychain interaction.
 - The published appcast reports version 3.5.1, build 46, with `Support for local skills and plugins` and `Bug fixes`.
 - The published DMG returns HTTP 200 with the expected 19,910,548-byte length.
+
+## Agent Server 3.5.2 release
+
+- [x] Commit the verified manuscript connection-policy fix.
+- [x] Increment the patch version to 3.5.2 and build number to 47.
+- [x] Run the server and macOS behavior checks.
+- [x] Sign, notarize, staple, and publish the app and DMG.
+- [x] Publish the release note `Bug fixes`.
+- [x] Install the released app and verify server health and agent discovery.
+- [x] Commit the release files and push `main`.
+
+### Review
+
+- Agent Server 3.5.2 build 47 passed 1,704 server tests and 574 Swift tests. Strict TypeScript checks and ESLint passed.
+- Apple accepted application submission `48d0faa9-368a-4be4-a446-e366341056d0` and DMG submission `3244ce77-fe9a-474f-a0d9-64e5cabf8597`.
+- The published appcast reports version 3.5.2, build 47, the requested `Bug fixes` text, and a 19,575,811-byte signed DMG.
+- Finder timed out twice while arranging the custom DMG window. The published DMG uses create-dmg's supported no-Finder-layout mode. Signing, notarization, stapling, the Applications link, and Sparkle metadata passed.
+- The installed app reports version 3.5.2 build 47. Its local server returns healthy API version 13 and discovers seven agents, including enabled `daily-manuscript-review`.
