@@ -5,6 +5,7 @@ import { parse as parseYaml } from 'yaml';
 import type { AgentBindingSet } from '../agents/agent-binding-store.js';
 import type { AgentConfig } from '../agents/config.js';
 import { splitFrontmatter } from '../agents/config.js';
+import { copyRuntimeConnectionPolicies } from '../connections/runtime-policy.js';
 
 const MAX_SKILL_BYTES = 128 * 1_024;
 const SkillMetadataSchema = z.object({
@@ -77,5 +78,7 @@ export async function prepareAgentSkills(
     ]),
     '</agent_server_skills>',
   ].join('\n');
-  return { ...agent, prompt: `${agent.prompt}\n\n${skillContext}` };
+  const preparedAgent = { ...agent, prompt: `${agent.prompt}\n\n${skillContext}` };
+  copyRuntimeConnectionPolicies(agent, preparedAgent);
+  return preparedAgent;
 }

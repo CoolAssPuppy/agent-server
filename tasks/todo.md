@@ -1,5 +1,21 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Repair oversized Notion page writes
+
+- [x] Reproduce the real Notion MCP page-create argument shape through the policy relay.
+- [x] Add a failing behavior test for an oversized manuscript report.
+- [x] Fix the relay so the first 100 blocks create the page and the remainder append safely.
+- [x] Run focused tests, lint, type checks, full tests, and build.
+- [x] Restart the installed app and verify the manuscript agent completes exactly once.
+
+Review:
+
+- Codex sent 133 native blocks to Notion because skill preparation created a new agent object without its hidden connection policy. That bypassed the policy relay entirely.
+- `prepareAgentSkills` now copies connection policies, portable evidence, and Codex app policies to its prepared agent.
+- The new regression test failed before the fix and passes after it. Focused relay and orchestration tests also pass.
+- Verification passes: ESLint, both strict TypeScript checks, build, 134 test files, 1,704 tests passed, and 4 skipped.
+- Restarted the installed app. Recovery run `c46085ff-dda1-4b27-a129-446255e25772` completed and created the 2026-08-08 Notion review.
+
 ## Repair Personal Notion page creation
 
 - [x] Correct every affected Notion-writing agent definition to use `parent.database_id`.
