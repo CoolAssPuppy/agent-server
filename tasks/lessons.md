@@ -1,5 +1,9 @@
 # Lessons
 
+- When the user asks only for Git commit and push, use Git directly. Do not block on GitHub CLI authentication unless a GitHub-specific action such as opening a pull request is required.
+- A failed localhost request from the workspace sandbox does not prove the host service is stopped. Recheck the health endpoint with host access and inspect process start times before declaring a local daemon down.
+- When the user asks to repair agent definitions, keep the change in the shared agent sources and generated definitions. Do not expand the fix into Agent Server code or validation tooling unless the definitions cannot express the required contract.
+
 - A shareable agent definition must exclude both runtime choices and machine-local connection identities. Define logical named connection slots, then let each orchestration tool store local slot bindings and runtime assignments outside the agent file.
 
 - A runtime MCP status call can return initialization state rather than readiness. Sample pending connections for a short bounded window before presenting them, while preserving pending when the runtime does not settle.

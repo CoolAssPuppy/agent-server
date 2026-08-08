@@ -1,5 +1,19 @@
 # Build Week plan: Guided creation, debugging, and security
 
+## Repair Personal Notion page creation
+
+- [x] Correct every affected Notion-writing agent definition to use `parent.database_id`.
+- [x] Correct the shared Personal Notion request contract and regenerate affected agents.
+- [x] Inspect the generated diff and confirm no rejected page-create parent remains.
+- [x] Run Daily Portuguese and French once and confirm both required page writes succeed.
+
+Review:
+
+- Corrected the canonical Personal Notion request snippet and all seven affected agent definitions.
+- Confirmed the definitions parse through `agent-server list` and contain no page-create `parent.data_source_id` instructions.
+- Recovery run `f00b2aa5-c2fb-442a-833d-91ecdc271cc2` completed and created the Portuguese and French pages.
+- The installed app and Node child remained healthy throughout. A sandboxed localhost check produced the false stopped-server report.
+
 ## Runtime-neutral installed-agent migration
 
 - [x] Add semantic connection declarations and machine-local runtime assignments.
