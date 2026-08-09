@@ -1,6 +1,6 @@
 {
   "name": "@agent-server/core",
-  "version": "3.6.0",
+  "version": "3.6.1",
   "description": "Lightweight orchestration server for Claude Code, Codex, and Kimi Code agents",
   "type": "module",
   "main": "dist/index.js",
