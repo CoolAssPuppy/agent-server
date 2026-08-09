@@ -3,9 +3,10 @@ import type { AgentConfig } from '../agents/config.js';
 import { discoverAgents } from '../agents/discovery.js';
 import type { RunResult } from './runner.js';
 import type { RunTriggerEvent } from '../reporting/realtime-client.js';
+import { canRunFromInbound } from './inbound-policy.js';
 import { toErrorMessage } from '../util/errors.js';
 
-export type TriggerKind = 'manual';
+export type TriggerKind = 'manual' | 'inbound';
 
 export type InvokeRunOptions = {
   agent: AgentConfig;
@@ -23,13 +24,72 @@ type TriggerHandlerOptions = {
   sseEvents: EventEmitter;
   invokeRun: InvokeRun;
   fetch?: typeof globalThis.fetch;
+  /** Reported when claiming, so Panel records which device took the trigger. */
+  machineId?: string;
 };
 
 type TerminalStatus = 'completed' | 'failed' | 'canceled';
 
+/** Field order for a rendered inbound trigger. Anything else follows, sorted. */
+const INBOUND_FIELD_ORDER = [
+  'source',
+  'event_type',
+  'subject_kind',
+  'subject_id',
+  'subject_title',
+  'subject_url',
+  'actor',
+  'assignee',
+  'occurred_at',
+  'excerpt',
+];
+
+function labelFor(key: string): string {
+  return key.replace(/_/g, ' ').replace(/^./, (character) => character.toUpperCase());
+}
+
+/**
+ * An inbound trigger arrives as a small object of scalars. Rendering it as
+ * labeled lines rather than JSON spends the prompt budget on the values instead
+ * of on braces and quotes, and reads better inside the untrusted-context
+ * wrapper the runner puts around it.
+ */
+function renderInboundInput(input: Record<string, unknown>): string {
+  const keys = Object.keys(input).filter((key) => key !== 'trigger');
+  const ordered = [
+    ...INBOUND_FIELD_ORDER.filter((key) => keys.includes(key)),
+    ...keys.filter((key) => !INBOUND_FIELD_ORDER.includes(key)).sort(),
+  ];
+
+  return ordered
+    .filter((key) => input[key] !== null && input[key] !== undefined && input[key] !== '')
+    .map((key) => `${labelFor(key)}: ${String(input[key])}`)
+    .join('\n');
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Which provider raised an inbound trigger. An input that does not say is
+ * reported as `unknown`, which no write policy covers, so the refusal in
+ * `inbound-policy.ts` declines it rather than guessing at a safe answer.
+ */
+function inboundSourceOf(input: unknown): string {
+  if (isRecord(input) && typeof input.source === 'string' && input.source.length > 0) {
+    return input.source;
+  }
+  return 'unknown';
+}
+
 function coercePromptSuffix(input: unknown): string | undefined {
   if (input === undefined || input === null) return undefined;
   if (typeof input === 'string') return input;
+  if (isRecord(input) && input.trigger === 'inbound') {
+    const rendered = renderInboundInput(input);
+    return rendered.length > 0 ? rendered : undefined;
+  }
   try {
     return JSON.stringify(input);
   } catch {
@@ -92,7 +152,11 @@ export class TriggerHandler {
   }
 
   private async handleEvent(event: RunTriggerEvent): Promise<void> {
-    await this.postAck(event.trigger_id);
+    // The acknowledgement is the claim. Panel decides it in one conditional
+    // update, so losing here means another device is already running this and
+    // there is nothing left to do.
+    const claimed = await this.postAck(event.trigger_id);
+    if (!claimed) return;
 
     const agent = await this.resolveAgent(event.task_slug);
     if (!agent) {
@@ -103,13 +167,28 @@ export class TriggerHandler {
       return;
     }
 
+    const kind: TriggerKind = event.trigger_kind === 'inbound' ? 'inbound' : 'manual';
+
+    if (kind === 'inbound') {
+      const source = inboundSourceOf(event.input);
+      const verdict = canRunFromInbound(agent, source);
+      if (!verdict.allowed) {
+        console.warn(`[trigger-handler] Refused inbound run of ${agent.id}: ${verdict.reason}`);
+        await this.postComplete(event.trigger_id, {
+          status: 'failed',
+          error_message: verdict.reason,
+        });
+        return;
+      }
+    }
+
     const triggerId = event.trigger_id;
     const promptSuffix = coercePromptSuffix(event.input);
 
     try {
       const result = await this.options.invokeRun({
         agent,
-        trigger: 'manual',
+        trigger: kind,
         promptSuffix,
         onRunStart: async (runId) => {
           await this.postRunning(triggerId, runId);
@@ -134,8 +213,32 @@ export class TriggerHandler {
     }
   }
 
-  private async postAck(triggerId: string): Promise<void> {
-    await this.post(`/api/run-triggers/${encodeURIComponent(triggerId)}/ack`, {});
+  /**
+   * Returns whether this daemon now holds the trigger.
+   *
+   * A transport failure answers true. Panel is the authority on the claim, and
+   * refusing to run because the acknowledgement did not come back would turn
+   * every blip into a silently dropped trigger. Running twice needs two live
+   * machines and a lost response in the same moment; the run lock in
+   * `execution/runner.ts` catches that case locally.
+   */
+  private async postAck(triggerId: string): Promise<boolean> {
+    const body = this.options.machineId ? { machine_id: this.options.machineId } : {};
+    const response = await this.post(
+      `/api/run-triggers/${encodeURIComponent(triggerId)}/ack`,
+      body,
+    );
+
+    if (!response) return true;
+
+    try {
+      const parsed = (await response.json()) as { claimed?: unknown };
+      // An older Panel does not report a claim. Its acknowledgement means the
+      // same thing this one's does when it wins, so absence reads as yes.
+      return parsed?.claimed !== false;
+    } catch {
+      return true;
+    }
   }
 
   private async postRunning(triggerId: string, taskRunId: string): Promise<void> {
@@ -152,7 +255,7 @@ export class TriggerHandler {
     await this.post(`/api/run-triggers/${encodeURIComponent(triggerId)}/complete`, body);
   }
 
-  private async post(path: string, body: unknown): Promise<void> {
+  private async post(path: string, body: unknown): Promise<Response | undefined> {
     const url = `${this.options.panelUrl}${path}`;
     try {
       const response = await this.fetchFn(url, {
@@ -165,10 +268,13 @@ export class TriggerHandler {
       });
       if (!response.ok) {
         console.error(`[trigger-handler] POST ${path} -> ${response.status}`);
+        return undefined;
       }
+      return response;
     } catch (err) {
       const message = toErrorMessage(err);
       console.error(`[trigger-handler] POST ${path} failed: ${message}`);
+      return undefined;
     }
   }
 }

@@ -162,14 +162,41 @@ fi
 #----------------------------------------------------------------------
 # 6. Notarize + staple the .app
 #----------------------------------------------------------------------
+# Where the notarization profile lives. The login keychain refuses writes from
+# a process with no window server access, so `store-credentials` cannot run
+# from an automated session, and a release from one would stop here. Keeping
+# the profile in a dedicated keychain removes that dependency: it is unlocked
+# with a password from Doppler rather than by a person clicking Allow.
+#
+# Unset NOTARY_KEYCHAIN to fall back to the default keychain search.
+NOTARY_KEYCHAIN="${NOTARY_KEYCHAIN:-$HOME/Library/Keychains/agent-server-notary.keychain-db}"
+export NOTARY_KEYCHAIN
+
 run_notarytool() {
-  xcrun notarytool "$@" --keychain-profile "$NOTARY_PROFILE"
+  if [ -n "$NOTARY_KEYCHAIN" ] && [ -f "$NOTARY_KEYCHAIN" ]; then
+    xcrun notarytool "$@" --keychain-profile "$NOTARY_PROFILE" --keychain "$NOTARY_KEYCHAIN"
+  else
+    xcrun notarytool "$@" --keychain-profile "$NOTARY_PROFILE"
+  fi
 }
+
+# A dedicated keychain locks on its own schedule, so unlock before the first
+# call rather than discovering it mid-notarization with an archive uploaded.
+if [ -f "$NOTARY_KEYCHAIN" ]; then
+  NOTARY_KEYCHAIN_PASSWORD="${NOTARY_KEYCHAIN_PASSWORD:-$(doppler secrets get NOTARY_KEYCHAIN_PASSWORD --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" --plain 2>/dev/null || true)}"
+  if [ -n "$NOTARY_KEYCHAIN_PASSWORD" ]; then
+    security unlock-keychain -p "$NOTARY_KEYCHAIN_PASSWORD" "$NOTARY_KEYCHAIN"
+  fi
+fi
 
 if ! run_notarytool history >/dev/null 2>&1; then
   echo "Error: notarization keychain profile '$NOTARY_PROFILE' is missing or invalid."
-  echo "Store it with: xcrun notarytool store-credentials \"$NOTARY_PROFILE\" --apple-id ... --team-id ..."
-  echo "notarytool will request the app-specific password using a secure prompt."
+  echo "Store it with:"
+  echo "  xcrun notarytool store-credentials \"$NOTARY_PROFILE\" \\"
+  echo "    --apple-id <apple-id> --team-id <team-id> --password <app-specific-password> \\"
+  echo "    --keychain \"$NOTARY_KEYCHAIN\""
+  echo "Create that keychain first if it does not exist, and put its password in"
+  echo "Doppler as NOTARY_KEYCHAIN_PASSWORD so an unattended release can unlock it."
   exit 1
 fi
 

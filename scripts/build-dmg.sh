@@ -30,8 +30,16 @@ APP_PATH="${1:?Usage: $0 <path-to-Agent-Server.app> <version> <notarytool-profil
 VERSION="${2:?Usage: $0 <path-to-Agent-Server.app> <version> <notarytool-profile>}"
 NOTARY_PROFILE="${3:?Usage: $0 <path-to-Agent-Server.app> <version> <notarytool-profile>}"
 
+# Inherited from release.sh, which unlocks it before calling here. Set it when
+# running this script on its own; leave it unset to use the default keychain.
+NOTARY_KEYCHAIN="${NOTARY_KEYCHAIN:-}"
+
 run_notarytool() {
-  xcrun notarytool "$@" --keychain-profile "$NOTARY_PROFILE"
+  if [ -n "$NOTARY_KEYCHAIN" ] && [ -f "$NOTARY_KEYCHAIN" ]; then
+    xcrun notarytool "$@" --keychain-profile "$NOTARY_PROFILE" --keychain "$NOTARY_KEYCHAIN"
+  else
+    xcrun notarytool "$@" --keychain-profile "$NOTARY_PROFILE"
+  fi
 }
 
 SIGN_UPDATE="${SPARKLE_SIGN_UPDATE:-$HOME/bin/sparkle/sign_update}"
