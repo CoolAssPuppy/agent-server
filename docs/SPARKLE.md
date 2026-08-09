@@ -26,15 +26,39 @@ The default public origin is `https://downloads.strategicnerds.com`. Installed a
    - `R2_PUBLIC_BASE_URL`, if the default public origin is not used
    - `POSTHOG_PUBLIC_KEY`
 
-The Cloudflare token must be able to write objects to the selected R2 bucket. Store notarization credentials in the macOS Keychain so the release scripts never pass the app-specific password through process arguments or child environments:
+The Cloudflare token must be able to write objects to the selected R2 bucket.
+
+Notarization credentials live in a dedicated keychain rather than the login keychain, so a release can run without anybody present to click Allow. The login keychain refuses writes from a process with no window server access, which means `store-credentials` fails there under automation and takes the whole release with it.
+
+Set it up once:
 
 ```bash
+KC="$HOME/Library/Keychains/agent-server-notary.keychain-db"
+KCPASS=$(openssl rand -base64 24)
+
+security create-keychain -p "$KCPASS" "$KC"
+security unlock-keychain -p "$KCPASS" "$KC"
+
+# So an unattended release can unlock it later.
+printf '%s' "$KCPASS" | doppler secrets set NOTARY_KEYCHAIN_PASSWORD \
+  --project agent-server --config prd
+
 xcrun notarytool store-credentials agent-server \
   --apple-id "you@example.com" \
-  --team-id "955GSY56UT"
+  --team-id "955GSY56UT" \
+  --password "$(doppler secrets get SPARKLE_APP_SPECIFIC_PASSWORD \
+    --project agent-server --config prd --plain)" \
+  --keychain "$KC"
 ```
 
-Leave the password option unset. `notarytool` requests the app-specific password using a secure prompt and stores it in the Keychain profile.
+`release.sh` finds that keychain by default, unlocks it from Doppler, and passes it to every `notarytool` call. Point `NOTARY_KEYCHAIN` somewhere else to use a different one, or set it empty to fall back to the default keychain search and the interactive setup.
+
+Check it without running a release:
+
+```bash
+xcrun notarytool history --keychain-profile agent-server \
+  --keychain "$HOME/Library/Keychains/agent-server-notary.keychain-db"
+```
 
 ## Cut a release
 
