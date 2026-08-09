@@ -59,9 +59,13 @@ function touchesServer(agent: AgentConfig, server: RegExp): boolean {
 }
 
 /**
- * A deny entry covers a family when it names that family on the source's
- * server. `mcp__claude_ai_Linear__save_*` covers `save`; a bare
- * `mcp__claude_ai_Linear` covers everything on that server.
+ * A deny entry covers a family only when it is at least as broad as the family.
+ *
+ * `mcp__claude_ai_Linear__save_*` covers `save`, and a bare
+ * `mcp__claude_ai_Linear` covers everything on that server. A narrower entry
+ * does not: denying `save_comment` leaves `save_issue` allowed, so treating it
+ * as cover for the whole `save` family would clear an agent that can still
+ * write back. The check runs one way round for that reason.
  */
 function isFamilyDenied(denies: readonly string[], server: RegExp, family: string): boolean {
   return denies.some((entry) => {
@@ -71,8 +75,10 @@ function isFamilyDenied(denies: readonly string[], server: RegExp, family: strin
     // No operation part means the deny covers the whole server.
     if (!operation) return true;
 
-    const stem = operation.replace(/\*+$/, '');
-    return family.startsWith(stem) || stem.startsWith(family);
+    // `save_*` and `save*` both mean the save family. The trailing separator
+    // goes with the wildcard so the comparison below can be a prefix test.
+    const stem = operation.replace(/\*+$/, '').replace(/[._-]+$/, '');
+    return stem.length > 0 && family.startsWith(stem);
   });
 }
 

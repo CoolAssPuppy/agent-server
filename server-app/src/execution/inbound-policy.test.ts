@@ -145,3 +145,59 @@ describe('Running an agent because an inbound event asked', () => {
     ).toEqual({ allowed: true });
   });
 });
+
+/**
+ * How a deny entry is read.
+ *
+ * This decides whether an agent is cleared to run from an untrusted event, so
+ * reading an entry as broader than it is would clear an agent that can still
+ * write back to whoever triggered it.
+ */
+describe('Reading a deny entry', () => {
+  const withDenies = (deny: string[]) =>
+    canRunFromInbound(
+      agent({ tools: ['mcp__claude_ai_Linear'], permissions: { allow: [], deny } }),
+      'linear',
+    );
+
+  it('does not let one narrow deny stand for its whole family', () => {
+    // Denying save_comment leaves save_issue allowed, so this agent can still
+    // write back to Linear and must not be cleared.
+    const verdict = withDenies([
+      'mcp__claude_ai_Linear__save_comment',
+      'mcp__claude_ai_Linear__create_*',
+      'mcp__claude_ai_Linear__update_*',
+      'mcp__claude_ai_Linear__delete_*',
+      'mcp__claude_ai_Linear__merge_*',
+      'mcp__claude_ai_Linear__submit_*',
+      'mcp__claude_ai_Linear__resolve_*',
+    ]);
+
+    expect(verdict.allowed).toBe(false);
+    if (verdict.allowed) return;
+    expect(verdict.reason).toContain('save_*');
+  });
+
+  it('accepts the family wildcard, with or without its separator', () => {
+    const families = ['save', 'create', 'update', 'delete', 'merge', 'submit', 'resolve'];
+
+    expect(withDenies(families.map((f) => `mcp__claude_ai_Linear__${f}_*`)))
+      .toEqual({ allowed: true });
+    expect(withDenies(families.map((f) => `mcp__claude_ai_Linear__${f}*`)))
+      .toEqual({ allowed: true });
+  });
+
+  it('ignores a deny aimed at some other service', () => {
+    const verdict = withDenies([
+      'mcp__claude_ai_Slack__save_*',
+      'mcp__claude_ai_Slack__create_*',
+    ]);
+
+    expect(verdict.allowed).toBe(false);
+  });
+
+  it('does not treat a bare wildcard as covering everything by accident', () => {
+    // An entry that reduces to nothing must not clear a family.
+    expect(withDenies(['mcp__claude_ai_Linear__*']).allowed).toBe(false);
+  });
+});
