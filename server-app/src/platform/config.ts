@@ -3,7 +3,7 @@ import { homedir } from 'os';
 import { join } from 'path';
 import { existsSync, readFileSync } from 'fs';
 import { parse as parseDotenv } from 'dotenv';
-import { loadPairing } from './pairing.js';
+import { loadPairing, normalizePanelUrl } from './pairing.js';
 
 /** Load `~/.agent-server/.env` under the existing shell environment. */
 export function loadEnvFile(
@@ -86,7 +86,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     lockDir: env.AGENT_SERVER_LOCK_DIR || join(agentServerHome, 'locks'),
     logsDir: env.AGENT_SERVER_LOGS_DIR || join(agentServerHome, 'logs'),
     runDbPath: env.AGENT_SERVER_RUN_DB || join(agentServerHome, 'runs.db'),
-    panelUrl: panelEnabled ? env.AGENT_SERVER_PANEL_URL || undefined : undefined,
+    panelUrl: panelEnabled
+      ? (env.AGENT_SERVER_PANEL_URL ? normalizePanelUrl(env.AGENT_SERVER_PANEL_URL) : undefined)
+      : undefined,
     panelApiKey: panelEnabled
       ? pairing?.credential || env.AGENT_SERVER_PANEL_API_KEY || undefined
       : undefined,

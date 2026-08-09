@@ -90,6 +90,17 @@ export function clearPairing(workspaceDir: string): void {
   if (existsSync(path)) unlinkSync(path);
 }
 
+/**
+ * Trims a trailing slash so joining a path cannot produce a double one.
+ *
+ * `https://panel.example/` plus `/api/machines/register` is
+ * `https://panel.example//api/machines/register`, which is a different URL and
+ * answers 404. Nobody typing a base URL expects that to matter.
+ */
+export function normalizePanelUrl(raw: string): string {
+  return raw.trim().replace(/\/+$/, '');
+}
+
 /** Codes are shown in groups and typed by hand, so spacing and case are noise. */
 export function normalizePairingCode(raw: string): string {
   return raw.trim().replace(/[\s-]/g, '').toUpperCase();
@@ -120,7 +131,7 @@ export async function redeemPairingCode(options: {
 
   let response: Response;
   try {
-    response = await fetchFn(`${options.panelUrl}/api/machines/register`, {
+    response = await fetchFn(`${normalizePanelUrl(options.panelUrl)}/api/machines/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -135,10 +146,21 @@ export async function redeemPairingCode(options: {
     return { ok: false, error: `Could not reach Agent Panel: ${toErrorMessage(err)}` };
   }
 
-  if (response.status === 404 || response.status === 410) {
+  if (response.status === 410) {
     return {
       ok: false,
       error: 'That code is not valid any more. Codes work once and expire, so generate a new one.',
+    };
+  }
+
+  // A 404 means the address is wrong, not the code. Reporting it as an expired
+  // code sends somebody off generating new ones for ever while the real fault
+  // is a panel URL pointing at nothing.
+  if (response.status === 404) {
+    return {
+      ok: false,
+      error: `Agent Panel has no pairing endpoint at ${normalizePanelUrl(options.panelUrl)}. `
+        + 'Check AGENT_SERVER_PANEL_URL: it should be the address you open Panel at.',
     };
   }
 

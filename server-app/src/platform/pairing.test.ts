@@ -5,6 +5,7 @@ import { tmpdir } from 'os';
 
 import {
   clearPairing,
+  normalizePanelUrl,
   loadPairing,
   normalizePairingCode,
   redeemPairingCode,
@@ -112,19 +113,51 @@ describe('Redeeming a code', () => {
   });
 
   it('explains a used or expired code, which is the common mistake', async () => {
-    for (const status of [404, 410]) {
-      const result = await redeemPairingCode({
-        code: 'ABCDEFGH',
-        panelUrl: 'https://panel.test',
-        machineId: 'm1',
-        serverVersion: '3.6.1',
-        fetch: vi.fn(async () => new Response('{}', { status })) as never,
-      });
+    const result = await redeemPairingCode({
+      code: 'ABCDEFGH',
+      panelUrl: 'https://panel.test',
+      machineId: 'm1',
+      serverVersion: '3.6.1',
+      fetch: vi.fn(async () => new Response('{}', { status: 410 })) as never,
+    });
 
-      expect(result).toMatchObject({ ok: false });
-      if (result.ok) return;
-      expect(result.error).toMatch(/not valid any more|generate a new one/i);
-    }
+    expect(result).toMatchObject({ ok: false });
+    if (result.ok) return;
+    expect(result.error).toMatch(/not valid any more|generate a new one/i);
+  });
+
+  it('blames the address, not the code, when there is no endpoint there', async () => {
+    // Calling this an expired code sends somebody generating new ones for ever
+    // while the real fault is a panel URL pointing at nothing.
+    const result = await redeemPairingCode({
+      code: 'ABCDEFGH',
+      panelUrl: 'http://localhost:3000',
+      machineId: 'm1',
+      serverVersion: '3.7.0',
+      fetch: vi.fn(async () => new Response('{}', { status: 404 })) as never,
+    });
+
+    expect(result).toMatchObject({ ok: false });
+    if (result.ok) return;
+    expect(result.error).toContain('http://localhost:3000');
+    expect(result.error).toContain('AGENT_SERVER_PANEL_URL');
+    expect(result.error).not.toMatch(/expired|generate a new one/i);
+  });
+
+  it('survives a base URL that ends in a slash', async () => {
+    const fetchFn = vi.fn(async () => okResponse({ org_id: 'o', credential: 'c' }));
+
+    await redeemPairingCode({
+      code: 'ABCDEFGH',
+      panelUrl: 'https://panel.test/',
+      machineId: 'm1',
+      serverVersion: '3.7.0',
+      fetch: fetchFn as never,
+    });
+
+    const [url] = fetchFn.mock.calls[0] as unknown as [string];
+    // A double slash is a different URL, and it answers 404.
+    expect(url).toBe('https://panel.test/api/machines/register');
   });
 
   it('repeats what Panel said rather than inventing its own wording', async () => {
@@ -229,5 +262,18 @@ describe('Keeping the credential', () => {
       credential: 'ap_live_second',
       orgId: '33333333-3333-4333-8333-333333333333',
     });
+  });
+});
+
+describe('Normalizing a panel address', () => {
+  it('strips trailing slashes and surrounding space', () => {
+    expect(normalizePanelUrl('https://panel.test/')).toBe('https://panel.test');
+    expect(normalizePanelUrl('https://panel.test///')).toBe('https://panel.test');
+    expect(normalizePanelUrl('  https://panel.test  ')).toBe('https://panel.test');
+  });
+
+  it('leaves a clean address alone, including a path prefix', () => {
+    expect(normalizePanelUrl('https://panel.test')).toBe('https://panel.test');
+    expect(normalizePanelUrl('https://host/panel')).toBe('https://host/panel');
   });
 });
