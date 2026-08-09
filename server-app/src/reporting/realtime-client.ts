@@ -32,6 +32,15 @@ export type RunTriggerEvent = {
   trigger_id: string;
   task_slug: string;
   input?: unknown;
+  /**
+   * Why the trigger exists. `manual` is a person pressing Run Now; `inbound` is
+   * a provider webhook that Panel routed here. The distinction decides whether
+   * the write-back refusal in `execution/inbound-policy.ts` applies, so it is
+   * carried on the event rather than inferred later.
+   */
+  trigger_kind?: 'manual' | 'inbound';
+  /** Which device the trigger is addressed to. Null on legacy untargeted rows. */
+  target_machine_id?: string | null;
 };
 
 export type DecisionResolvedEvent = {
@@ -93,6 +102,8 @@ type RunTriggerRow = {
   input: unknown;
   status?: string;
   created_at: string;
+  trigger_kind?: string | null;
+  target_machine_id?: string | null;
 };
 
 type CatchUpTriggerRow = RunTriggerRow & {
@@ -377,9 +388,9 @@ export class RealtimeClient {
 
     const { data: triggers, error: triggerErr } = await this.supabase
       .from('run_triggers')
-      .select('id, task_id, input, created_at, agent_tasks!inner(slug)')
+      .select('id, task_id, input, status, trigger_kind, target_machine_id, created_at, agent_tasks!inner(slug)')
       .eq('org_id', this.orgId)
-      .eq('status', 'queued')
+      .in('status', ['queued', 'requested'])
       .gt('created_at', cursorIso)
       .order('created_at', { ascending: true });
 
@@ -387,6 +398,10 @@ export class RealtimeClient {
       this.warn(`Catch-up run_triggers query failed: ${triggerErr.message}`);
     } else {
       for (const row of (triggers ?? []) as unknown as CatchUpTriggerRow[]) {
+        // Same ownership question as the live path. A machine that was asleep
+        // must not wake up and take work that was addressed to another one.
+        if (!this.isUnclaimed(row)) continue;
+
         const slug = row.agent_tasks?.slug;
         if (!slug) {
           this.warn(`Dropping catch-up run_trigger ${row.id}: no task_slug for task ${row.task_id}`);
@@ -399,6 +414,8 @@ export class RealtimeClient {
           trigger_id: row.id,
           task_slug: slug,
           input: row.input,
+          trigger_kind: row.trigger_kind === 'inbound' ? 'inbound' : 'manual',
+          target_machine_id: row.target_machine_id ?? null,
         });
       }
     }
@@ -447,8 +464,22 @@ export class RealtimeClient {
     }
   }
 
+  /**
+   * A row is worth offering to the handler when nobody has started it yet.
+   *
+   * Addressing is deliberately not decided here. `target_machine_id` is a
+   * Panel row id, and this daemon only knows the device identity it reports at
+   * registration, so the two are not comparable without inventing a lookup.
+   * Panel resolves them when the trigger is acknowledged and answers
+   * `claimed: false` to a device the trigger was not meant for, which makes the
+   * claim the one place addressing is decided.
+   */
+  private isUnclaimed(row: RunTriggerRow): boolean {
+    return row.status === 'queued' || row.status === 'requested';
+  }
+
   private async handleRunTriggerInsert(row: RunTriggerRow): Promise<void> {
-    if (row.status !== 'queued') return;
+    if (!this.isUnclaimed(row)) return;
     const slug = await this.resolveSlug(row.task_id);
     if (!slug) {
       this.warn(`Dropping run_trigger ${row.id}: no task_slug for task ${row.task_id}`);
@@ -460,6 +491,8 @@ export class RealtimeClient {
       trigger_id: row.id,
       task_slug: slug,
       input: row.input,
+      trigger_kind: row.trigger_kind === 'inbound' ? 'inbound' : 'manual',
+      target_machine_id: row.target_machine_id ?? null,
     });
   }
 

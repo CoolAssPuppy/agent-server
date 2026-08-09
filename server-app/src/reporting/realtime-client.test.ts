@@ -35,6 +35,9 @@ class FakeQuery {
   eq(): this {
     return this;
   }
+  in(): this {
+    return this;
+  }
   gt(): this {
     return this;
   }
@@ -363,6 +366,41 @@ describe('RealtimeClient', () => {
       trigger_id: 'trig-1',
       task_slug: 'weekly-report',
       input: { foo: 'bar' },
+      // A row that does not say how it was raised was raised by a person, and
+      // one with no target is available to whichever device claims it.
+      trigger_kind: 'manual',
+      target_machine_id: null,
+    });
+    client.stop();
+  });
+
+  it('carries the trigger kind and target through to the handler', async () => {
+    const supabase = createFakeSupabase({ agent_tasks: [{ slug: 'linear-capture' }] });
+    const client = makeClient({ supabase });
+    const received: RunTriggerEvent[] = [];
+    client.events.on('run_trigger', (e) => received.push(e));
+
+    await client.start();
+    await flush();
+
+    supabase.channels[0].fire({
+      new: {
+        id: 'trig-2',
+        task_id: 'task-2',
+        input: { trigger: 'inbound', source: 'linear' },
+        // The V2 vocabulary. A daemon that only accepted 'queued' would drop
+        // every inbound trigger on the floor.
+        status: 'requested',
+        trigger_kind: 'inbound',
+        target_machine_id: 'machine-row-1',
+        created_at: '2026-08-09T14:02:11.000Z',
+      },
+    });
+    await flush();
+
+    expect(received[0]).toMatchObject({
+      trigger_kind: 'inbound',
+      target_machine_id: 'machine-row-1',
     });
     client.stop();
   });

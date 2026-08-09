@@ -252,3 +252,278 @@ describe('TriggerHandler', () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+/**
+ * Inbound triggers.
+ *
+ * These arrive from a provider webhook that Panel routed here, so the payload
+ * is written by whoever filed the issue. Two things change compared with a
+ * person pressing Run Now: the acknowledgement decides whether this daemon
+ * actually holds the trigger, and an agent that can write back to the source
+ * is refused rather than run.
+ */
+describe('TriggerHandler and inbound triggers', () => {
+  let dir: string;
+  let emitter: EventEmitter;
+
+  beforeEach(() => {
+    dir = createTempDir('trigger-inbound');
+    emitter = new EventEmitter();
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  function fireAndWait(event: RunTriggerEvent, waitMs = 50): Promise<void> {
+    emitter.emit('run_trigger', event);
+    return new Promise((resolve) => setTimeout(resolve, waitMs));
+  }
+
+  /** An agent that reads Linear and writes elsewhere, so it may run from Linear. */
+  function writeReadOnlyLinearAgent(directory: string, slug: string): void {
+    writeFileSync(
+      join(directory, `${slug}.yaml`),
+      [
+        `id: ${slug}`,
+        `name: ${slug}`,
+        'prompt: Capture the issue.',
+        'tools:',
+        '  - mcp__claude_ai_Linear',
+        'permissions:',
+        '  allow:',
+        '    - "mcp__claude_ai_Linear__get_*"',
+        '  deny:',
+        '    - "mcp__claude_ai_Linear__save_*"',
+        '    - "mcp__claude_ai_Linear__create_*"',
+        '    - "mcp__claude_ai_Linear__update_*"',
+        '    - "mcp__claude_ai_Linear__delete_*"',
+        '    - "mcp__claude_ai_Linear__merge_*"',
+        '    - "mcp__claude_ai_Linear__submit_*"',
+        '    - "mcp__claude_ai_Linear__resolve_*"',
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+  }
+
+  function recorderWith(ackBody: unknown) {
+    const calls: FetchCall[] = [];
+    const fetchFn = vi.fn(async (url: string, opts: RequestInit) => {
+      const headers = (opts.headers ?? {}) as Record<string, string>;
+      const bodyText = typeof opts.body === 'string' ? opts.body : undefined;
+      calls.push({
+        url,
+        method: opts.method ?? 'GET',
+        body: bodyText ? JSON.parse(bodyText) : undefined,
+        authorization: headers.Authorization,
+      });
+      if (url.endsWith('/ack')) {
+        return new Response(JSON.stringify(ackBody), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(null, { status: 200 });
+    });
+    return { fetch: fetchFn, calls };
+  }
+
+  const inboundEvent = (input: Record<string, unknown> = {}): RunTriggerEvent => ({
+    id: 1,
+    type: 'run_trigger',
+    trigger_id: 'trig_inbound',
+    task_slug: 'linear-capture',
+    trigger_kind: 'inbound',
+    input: {
+      trigger: 'inbound',
+      source: 'linear',
+      event_type: 'issue.assigned',
+      subject_id: 'ENG-1234',
+      subject_title: 'Rework the onboarding email',
+      subject_url: 'https://linear.app/acme/issue/ENG-1234',
+      actor: 'Nate',
+      ...input,
+    },
+  });
+
+  it('does not run when another device already claimed the trigger', async () => {
+    writeReadOnlyLinearAgent(dir, 'linear-capture');
+    const { fetch: fetchFn, calls } = recorderWith({ ok: true, claimed: false });
+    const invokeRun = vi.fn<InvokeRun>(async () => ({ status: 'completed', runId: 'r' }));
+
+    const handler = new TriggerHandler({
+      agentsDir: dir,
+      panelUrl: 'https://panel.test',
+      panelApiKey: 'secret',
+      machineId: 'device-1',
+      sseEvents: emitter,
+      invokeRun,
+      fetch: fetchFn as unknown as typeof globalThis.fetch,
+    });
+    handler.start();
+
+    await fireAndWait(inboundEvent());
+    handler.stop();
+
+    expect(invokeRun).not.toHaveBeenCalled();
+    // The acknowledgement is the only call. Reporting a terminal state for a
+    // run somebody else is doing would overwrite their result.
+    expect(calls).toHaveLength(1);
+    expect(calls[0].body).toEqual({ machine_id: 'device-1' });
+  });
+
+  it('runs when it wins the claim', async () => {
+    writeReadOnlyLinearAgent(dir, 'linear-capture');
+    const { fetch: fetchFn } = recorderWith({ ok: true, claimed: true });
+    const invokeRun = vi.fn<InvokeRun>(async (opts) => {
+      await opts.onRunStart('run-1');
+      return { status: 'completed', runId: 'run-1' };
+    });
+
+    const handler = new TriggerHandler({
+      agentsDir: dir,
+      panelUrl: 'https://panel.test',
+      panelApiKey: 'secret',
+      sseEvents: emitter,
+      invokeRun,
+      fetch: fetchFn as unknown as typeof globalThis.fetch,
+    });
+    handler.start();
+
+    await fireAndWait(inboundEvent());
+    handler.stop();
+
+    expect(invokeRun).toHaveBeenCalledTimes(1);
+    expect(invokeRun.mock.calls[0][0].trigger).toBe('inbound');
+  });
+
+  it('runs when an older Panel does not report a claim at all', async () => {
+    writeReadOnlyLinearAgent(dir, 'linear-capture');
+    const { fetch: fetchFn } = recorderWith({ ok: true, status: 'acknowledged' });
+    const invokeRun = vi.fn<InvokeRun>(async () => ({ status: 'completed', runId: 'r' }));
+
+    const handler = new TriggerHandler({
+      agentsDir: dir,
+      panelUrl: 'https://panel.test',
+      panelApiKey: 'secret',
+      sseEvents: emitter,
+      invokeRun,
+      fetch: fetchFn as unknown as typeof globalThis.fetch,
+    });
+    handler.start();
+
+    await fireAndWait(inboundEvent());
+    handler.stop();
+
+    expect(invokeRun).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the trigger as labeled lines rather than JSON', async () => {
+    writeReadOnlyLinearAgent(dir, 'linear-capture');
+    const { fetch: fetchFn } = recorderWith({ ok: true, claimed: true });
+    const invokeRun = vi.fn<InvokeRun>(async () => ({ status: 'completed', runId: 'r' }));
+
+    const handler = new TriggerHandler({
+      agentsDir: dir,
+      panelUrl: 'https://panel.test',
+      panelApiKey: 'secret',
+      sseEvents: emitter,
+      invokeRun,
+      fetch: fetchFn as unknown as typeof globalThis.fetch,
+    });
+    handler.start();
+
+    await fireAndWait(inboundEvent());
+    handler.stop();
+
+    const suffix = invokeRun.mock.calls[0][0].promptSuffix ?? '';
+    expect(suffix).toContain('Subject id: ENG-1234');
+    expect(suffix).toContain('Source: linear');
+    expect(suffix).not.toContain('{');
+    // `trigger: inbound` is how the renderer recognised the shape. Repeating it
+    // to the agent spends budget on something the agent cannot act on.
+    expect(suffix).not.toContain('Trigger:');
+  });
+
+  it('refuses an agent that can write back to the source that triggered it', async () => {
+    writeFileSync(
+      join(dir, 'linear-capture.yaml'),
+      [
+        'id: linear-capture',
+        'name: Linear Capture',
+        'prompt: Reply on the issue.',
+        'tools:',
+        '  - mcp__claude_ai_Linear',
+        'permissions:',
+        '  allow:',
+        '    - "mcp__claude_ai_Linear__save_comment"',
+        '  deny: []',
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+
+    const { fetch: fetchFn, calls } = recorderWith({ ok: true, claimed: true });
+    const invokeRun = vi.fn<InvokeRun>(async () => ({ status: 'completed', runId: 'r' }));
+
+    const handler = new TriggerHandler({
+      agentsDir: dir,
+      panelUrl: 'https://panel.test',
+      panelApiKey: 'secret',
+      sseEvents: emitter,
+      invokeRun,
+      fetch: fetchFn as unknown as typeof globalThis.fetch,
+    });
+    handler.start();
+
+    await fireAndWait(inboundEvent());
+    handler.stop();
+
+    expect(invokeRun).not.toHaveBeenCalled();
+
+    const complete = calls.find((call) => call.url.endsWith('/complete'));
+    expect(complete?.body).toMatchObject({ status: 'failed' });
+    expect(String((complete?.body as { error_message: string }).error_message))
+      .toContain('may not be started by a linear event');
+  });
+
+  it('applies no such refusal to a run a person asked for', async () => {
+    writeFileSync(
+      join(dir, 'linear-capture.yaml'),
+      [
+        'id: linear-capture',
+        'name: Linear Capture',
+        'prompt: Reply on the issue.',
+        'tools:',
+        '  - mcp__claude_ai_Linear',
+        'permissions:',
+        '  allow:',
+        '    - "mcp__claude_ai_Linear__save_comment"',
+        '  deny: []',
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+
+    const { fetch: fetchFn } = recorderWith({ ok: true, claimed: true });
+    const invokeRun = vi.fn<InvokeRun>(async () => ({ status: 'completed', runId: 'r' }));
+
+    const handler = new TriggerHandler({
+      agentsDir: dir,
+      panelUrl: 'https://panel.test',
+      panelApiKey: 'secret',
+      sseEvents: emitter,
+      invokeRun,
+      fetch: fetchFn as unknown as typeof globalThis.fetch,
+    });
+    handler.start();
+
+    await fireAndWait({ ...inboundEvent(), trigger_kind: 'manual' });
+    handler.stop();
+
+    // A person choosing to run an agent is a different act from a stranger's
+    // issue title choosing it.
+    expect(invokeRun).toHaveBeenCalledTimes(1);
+  });
+});

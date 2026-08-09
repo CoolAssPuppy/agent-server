@@ -970,6 +970,7 @@ export function startServer(
         agentsDir: config.agentsDir,
         panelUrl: config.panelUrl!,
         panelApiKey: config.panelApiKey!,
+        machineId,
         sseEvents: realtimeClient.events,
         invokeRun: async ({ agent, promptSuffix, onRunStart }) => {
           try {
