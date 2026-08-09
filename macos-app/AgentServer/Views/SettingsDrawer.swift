@@ -133,16 +133,10 @@ struct SettingsDrawer: View {
             )
         case .device:
             SettingsDeviceSection(presentation: monitor.currentDevicePresentation)
-        case .runtimes:
-            SettingsRuntimeSection(
-                usesInstalledKimi: runtimeBinding(\.usesInstalledKimi),
-                requiresRestart: draft.requiresRuntimeRestart,
-                onRestart: restartForRuntimeChange
-            )
+        case .pairing:
+            SettingsPairingSection(monitor: monitor)
         case .notifications:
             SettingsNotificationsSection()
-        case .appearance:
-            SettingsAppearanceSection()
         case .storage:
             SettingsStorageSection(
                 workspace: workspace,
@@ -173,8 +167,6 @@ struct SettingsDrawer: View {
                 onRefreshValidation: {},
                 onPersist: persistEnvironmentDraft
             )
-        case .security:
-            SettingsSecuritySection(onOpen: { router.openSecurity() })
         }
     }
 }

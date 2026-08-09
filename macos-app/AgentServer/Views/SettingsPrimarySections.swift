@@ -130,25 +130,6 @@ struct SettingsDeviceSection: View {
     }
 }
 
-struct SettingsAppearanceSection: View {
-    @ObservedObject private var themeManager = ThemeManager.shared
-
-    var body: some View {
-        SettingsGroup(title: SettingsSection.appearance.title) {
-            SettingsValueRow(label: "Theme") {
-                Picker("Theme", selection: $themeManager.currentTheme) {
-                    ForEach(AgentServerThemeId.allCases) { appTheme in
-                        Text(appTheme.displayName).tag(appTheme)
-                    }
-                }
-                .labelsHidden()
-                .frame(width: 150)
-                .accessibilityIdentifier("settings.appearance.theme")
-            }
-        }
-    }
-}
-
 struct SettingsTelemetrySection: View {
     @Binding var telemetryOptIn: Bool
 
@@ -173,43 +154,6 @@ struct SettingsTelemetrySection: View {
                         "enabled": true,
                     ])
                 }
-            }
-        }
-    }
-}
-
-struct SettingsSecuritySection: View {
-    let onOpen: () -> Void
-
-    var body: some View {
-        SettingsGroup(title: SettingsSection.security.title) {
-            SettingsFullWidthActionButton(
-                title: "Review agent access and safety…",
-                action: onOpen
-            )
-            .accessibilityIdentifier("settings.openSecurity")
-        }
-    }
-}
-
-struct SettingsRuntimeSection: View {
-    @Binding var usesInstalledKimi: Bool
-    let requiresRestart: Bool
-    let onRestart: () -> Void
-
-    var body: some View {
-        SettingsGroup(title: SettingsSection.runtimes.title) {
-            SettingsToggleRow(label: "Use installed Kimi", isOn: $usesInstalledKimi)
-                .onChange(of: usesInstalledKimi) { _, value in
-                    Telemetry.capture(.settingChanged, properties: [
-                        "setting": "use_installed_kimi",
-                        "enabled": value,
-                    ])
-                }
-            if requiresRestart {
-                SettingsRestartNotice(action: onRestart)
-                    .padding(.top, 10)
-                    .accessibilityIdentifier("settings.restartRuntime")
             }
         }
     }

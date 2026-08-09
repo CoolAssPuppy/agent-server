@@ -74,6 +74,8 @@ import { ANALYTICS_EVENTS } from '../analytics/events.js';
 import { classifyErrorReason } from '../analytics/reason.js';
 import { loadOrCreateMachineId } from '../platform/machine-identity.js';
 import { collectAssistantHomeFacts } from '../presentation/assistant-readiness.js';
+import { redeemPairingCode, savePairing } from '../platform/pairing.js';
+import { AGENT_SERVER_VERSION } from '../version.js';
 
 export type ServerInstance = {
   ready: Promise<void>;
@@ -829,6 +831,24 @@ export function startServer(
     ],
     apiKey,
     machineId,
+    // Present only when a Panel is configured. Without a URL there is nothing
+    // to redeem a code against, and the route says so rather than failing in a
+    // way somebody has to interpret.
+    pairWithPanel: config.panelUrl
+      ? async (code: string) => {
+        const result = await redeemPairingCode({
+          code,
+          panelUrl: config.panelUrl!,
+          machineId,
+          serverVersion: AGENT_SERVER_VERSION,
+        });
+
+        if (!result.ok) return { ok: false as const, error: result.error };
+
+        savePairing(config.workspaceDir, result.record);
+        return { ok: true as const, displayName: result.record.displayName };
+      }
+      : undefined,
     runtimeAvailable: (executor) => {
       if (executor === 'claude-code') return runtimePaths.claudeExecutablePath !== undefined;
       if (executor === 'codex') return runtimePaths.codexExecutablePath !== undefined;

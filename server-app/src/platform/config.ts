@@ -3,6 +3,7 @@ import { homedir } from 'os';
 import { join } from 'path';
 import { existsSync, readFileSync } from 'fs';
 import { parse as parseDotenv } from 'dotenv';
+import { loadPairing } from './pairing.js';
 
 /** Load `~/.agent-server/.env` under the existing shell environment. */
 export function loadEnvFile(
@@ -72,6 +73,13 @@ export type ServerConfig = z.infer<typeof ServerConfigSchema>;
 export function loadConfig(env: Record<string, string | undefined> = process.env): ServerConfig {
   const agentServerHome = env.AGENT_SERVER_HOME || join(homedir(), '.agent-server');
   const panelEnabled = env.AGENT_SERVER_PANEL_ENABLED !== 'false';
+
+  // A paired credential wins over the environment variable. It names this
+  // machine, where an organization key does not, so Panel can address a job to
+  // one Mac rather than to whoever picks it up first. An unpaired daemon, or
+  // one whose credential file is unreadable, falls back to the key and keeps
+  // working exactly as before.
+  const pairing = panelEnabled ? loadPairing(agentServerHome) : undefined;
   return ServerConfigSchema.parse({
     workspaceDir: agentServerHome,
     agentsDir: env.AGENT_SERVER_AGENTS_DIR || join(agentServerHome, 'agents'),
@@ -79,7 +87,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     logsDir: env.AGENT_SERVER_LOGS_DIR || join(agentServerHome, 'logs'),
     runDbPath: env.AGENT_SERVER_RUN_DB || join(agentServerHome, 'runs.db'),
     panelUrl: panelEnabled ? env.AGENT_SERVER_PANEL_URL || undefined : undefined,
-    panelApiKey: panelEnabled ? env.AGENT_SERVER_PANEL_API_KEY || undefined : undefined,
+    panelApiKey: panelEnabled
+      ? pairing?.credential || env.AGENT_SERVER_PANEL_API_KEY || undefined
+      : undefined,
     panelEnabled,
     checkIntervalMs: env.AGENT_SERVER_CHECK_INTERVAL_MS
       ? Number(env.AGENT_SERVER_CHECK_INTERVAL_MS)

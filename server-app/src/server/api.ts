@@ -212,6 +212,12 @@ type ApiDependencies = {
   guidanceApi?: Hono;
   apiKey: string;
   machineId?: string;
+  /**
+   * Exchanges a pairing code with Panel and stores the result. Absent when no
+   * Panel is configured, which is what makes the route answer 501 rather than
+   * failing in a way a person has to interpret.
+   */
+  pairWithPanel?: (code: string) => Promise<{ ok: true; displayName: string } | { ok: false; error: string }>;
   /** Injectable time sources keep presentation snapshots deterministic in tests. */
   presentationClock?: () => Date;
   presentationWindow?: (now: Date) => {
@@ -1497,6 +1503,37 @@ export function createApi(deps: ApiDependencies): Hono {
   // instead of polling the panel. Empty when no panel is configured.
   app.get('/decisions', (c) => {
     return c.json({ decisions: deps.getPendingDecisions?.() ?? [] });
+  });
+
+  // Redeeming a pairing code from Agent Panel. The macOS app posts what was
+  // typed in; everything else about pairing happens here so the app never
+  // holds a credential of its own.
+  app.post('/pair', async (c) => {
+    if (!deps.pairWithPanel) {
+      return c.json(
+        { error: 'No Agent Panel is configured, so there is nothing to pair with.' },
+        501,
+      );
+    }
+
+    let code: unknown;
+    try {
+      const body = (await c.req.json()) as { code?: unknown };
+      code = body?.code;
+    } catch {
+      return c.json({ error: 'Invalid request body' }, 400);
+    }
+
+    if (typeof code !== 'string' || code.trim().length === 0) {
+      return c.json({ error: 'Enter the code shown in Agent Panel.' }, 400);
+    }
+
+    const result = await deps.pairWithPanel(code);
+    if (!result.ok) {
+      return c.json({ error: result.error }, 400);
+    }
+
+    return c.json({ ok: true, display_name: result.displayName });
   });
 
   app.post('/cleanup', async (c) => {

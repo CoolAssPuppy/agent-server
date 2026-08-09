@@ -193,6 +193,25 @@ actor AgentServerClient {
         return try decoder.decode(CleanupResponse.self, from: data)
     }
 
+    /// Redeems a pairing code from Agent Panel.
+    ///
+    /// The code goes to the daemon and the credential it comes back with stays
+    /// there. This app never holds one, which is why there is nothing here to
+    /// store or to leak.
+    func pairWithPanel(code: String) async throws -> String {
+        var request = URLRequest(url: baseURL.appendingPathComponent("/pair"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["code": code])
+        request = try authenticatedRequest(request)
+
+        let (data, response) = try await session.data(for: request)
+        try validateWriteResponse(data: data, response: response)
+
+        let decoded = try decoder.decode(PairingResponse.self, from: data)
+        return decoded.displayName
+    }
+
     /// Applies a structured patch to an agent definition via the server's
     /// PUT /agents/:id route. Values use JSON conventions: NSNull() removes
     /// a field, and a "capabilities" array of {id, enabled} objects toggles

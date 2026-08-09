@@ -11,11 +11,11 @@ final class SettingsPreferenceTests: XCTestCase {
     func testSettingsLeadWithEverydayChoicesAndKeepInfrastructureAdvanced() {
         XCTAssertEqual(
             SettingsPresentation.primarySections,
-            [.general, .device, .notifications, .appearance, .updates]
+            [.general, .device, .pairing, .notifications, .updates]
         )
         XCTAssertEqual(
             SettingsPresentation.advancedSections,
-            [.runtimes, .storage, .agentPanel, .telemetry, .environment, .security]
+            [.storage, .agentPanel, .telemetry, .environment]
         )
     }
 
@@ -25,15 +25,25 @@ final class SettingsPreferenceTests: XCTestCase {
             [
                 "General",
                 "This Mac",
+                "Pair with Agent Panel",
                 "Notifications",
-                "Appearance",
                 "Updates",
-                "AI engine",
                 "Local server",
                 "Agent Panel",
                 "Diagnostics and telemetry",
                 "Environment",
-                "Security",
+            ]
+        )
+    }
+
+    func testPairingLeadsTheRightColumnAboveEveryPreference() {
+        // It is the only thing on this screen that changes what the product can
+        // do. Everything under it is a preference.
+        XCTAssertEqual(
+            SettingsPresentation.primaryColumns,
+            [
+                [.general, .device],
+                [.pairing, .notifications, .updates],
             ]
         )
     }
@@ -45,8 +55,8 @@ final class SettingsPreferenceTests: XCTestCase {
         XCTAssertEqual(
             SettingsPresentation.advancedColumns,
             [
-                [.runtimes, .storage, .environment],
-                [.agentPanel, .telemetry, .security],
+                [.storage, .environment],
+                [.agentPanel, .telemetry],
             ]
         )
     }
@@ -80,16 +90,6 @@ final class SettingsPreferenceTests: XCTestCase {
         XCTAssertEqual(SettingsPresentation.iconButtonFontSize, 12)
         XCTAssertEqual(SettingsPresentation.iconButtonWidth, 28)
         XCTAssertEqual(SettingsPresentation.iconButtonHeight, 26)
-    }
-
-    func testPrimarySettingsKeepUpdatesInTheRightColumn() {
-        XCTAssertEqual(
-            SettingsPresentation.primaryColumns,
-            [
-                [.general, .device, .notifications],
-                [.appearance, .updates],
-            ]
-        )
     }
 
     func testCurrentDeviceSummaryUsesHumanStatusAndKeepsIdentityTechnical() {

@@ -18,6 +18,8 @@ import type { Analytics } from './analytics/analytics.js';
 import { createAnalyticsFromEnvironment } from './analytics/factory.js';
 import { ANALYTICS_EVENTS } from './analytics/events.js';
 import { classifyErrorReason } from './analytics/reason.js';
+import { loadOrCreateMachineId } from './platform/machine-identity.js';
+import { redeemPairingCode, savePairing } from './platform/pairing.js';
 
 type CliOutput = {
   log: (message: string) => void;
@@ -171,6 +173,37 @@ export function createCli(dependencies: CliDependencies): Command {
     .action(instrument(analytics, 'list', async () => {
       const config = dependencies.loadConfig(dependencies.env);
       await dependencies.listAgents(config);
+    }));
+
+  program
+    .command('pair <code>')
+    .description('Exchange a pairing code from Agent Panel for this machine\'s own credential')
+    .action(instrument(analytics, 'pair', async (code: string) => {
+      const config = dependencies.loadConfig(dependencies.env);
+
+      if (!config.panelUrl) {
+        console.error('AGENT_SERVER_PANEL_URL is not set, so there is no Panel to pair with.');
+        process.exitCode = 1;
+        return;
+      }
+
+      const machineId = loadOrCreateMachineId(config.workspaceDir);
+      const result = await redeemPairingCode({
+        code,
+        panelUrl: config.panelUrl,
+        machineId,
+        serverVersion: AGENT_SERVER_VERSION,
+      });
+
+      if (!result.ok) {
+        console.error(result.error);
+        process.exitCode = 1;
+        return;
+      }
+
+      savePairing(config.workspaceDir, result.record);
+      console.log(`Paired as "${result.record.displayName}".`);
+      console.log('Restart Agent Server for it to start using this credential.');
     }));
 
   program

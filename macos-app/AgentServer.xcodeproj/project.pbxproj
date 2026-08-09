@@ -28,6 +28,7 @@
 		14A59188BABD313140B4E0CA /* CalendarToolService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E391331085C63F3E2A8583CA /* CalendarToolService.swift */; };
 		14FFBE10B529863FAA1C6322 /* ScheduleDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C3FF9848DE69E91CE5C73B4 /* ScheduleDraft.swift */; };
 		173E55A9502E299FAE71C651 /* AgentPromptEditorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4809143EC5D2EAB2A2978E1C /* AgentPromptEditorModel.swift */; };
+		18BD5FB91E6884D1D7568FA7 /* SettingsPairingSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 834C8BBABABDC8ACFCDD49AB /* SettingsPairingSection.swift */; };
 		18DBB572B045AD41B966D76A /* SecurityFindingCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE79D9B93066560186CAA3DB /* SecurityFindingCard.swift */; };
 		1A70176290A6E671445DAF86 /* AgentServerEventKitCore in Frameworks */ = {isa = PBXBuildFile; productRef = 7B30382C20D5A1745848FE8E /* AgentServerEventKitCore */; };
 		1C663E6583F1F8BB03EBD9F1 /* InteractionResponseSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6537B64F03C4181A179B0B6B /* InteractionResponseSheet.swift */; };
@@ -339,6 +340,7 @@
 		7B8C3600FDBE09650A796C7E /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		814BB589866FCCB37AAC13D1 /* NativeAuthorization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeAuthorization.swift; sourceTree = "<group>"; };
 		817E918060B661BA51609EBB /* SecurityDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityDashboardView.swift; sourceTree = "<group>"; };
+		834C8BBABABDC8ACFCDD49AB /* SettingsPairingSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPairingSection.swift; sourceTree = "<group>"; };
 		83F246615EB2840C0AAD020A /* AgentRunControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentRunControl.swift; sourceTree = "<group>"; };
 		8420F95FA423C0CDFCFFE952 /* TodayActivitySnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayActivitySnapshot.swift; sourceTree = "<group>"; };
 		84D0610682024FD2CFA94E8A /* TopDrawerSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopDrawerSurface.swift; sourceTree = "<group>"; };
@@ -637,6 +639,7 @@
 				509B360653F9527F4AD2986B /* SettingsDrawer.swift */,
 				988DAAC30F31860A55EC3572 /* SettingsDrawerPersistence.swift */,
 				910C0A86688961650CBD1821 /* SettingsDrawerShape.swift */,
+				834C8BBABABDC8ACFCDD49AB /* SettingsPairingSection.swift */,
 				6384C54B60569A1940A1D591 /* SettingsPrimarySections.swift */,
 				791058F6E70434B580B4CAC3 /* SettingsWorkspaceActions.swift */,
 				061AB904031536A4DEDD6795 /* Sidebar.swift */,
@@ -1172,6 +1175,7 @@
 				67523C8BC19E45A92FA3799F /* SettingsDrawer.swift in Sources */,
 				5D38B72ECB3313D9A9194288 /* SettingsDrawerPersistence.swift in Sources */,
 				BE511E5F654609B485527B97 /* SettingsDrawerShape.swift in Sources */,
+				18BD5FB91E6884D1D7568FA7 /* SettingsPairingSection.swift in Sources */,
 				86D7A78B13F445F9CB9D5754 /* SettingsPresentation.swift in Sources */,
 				1400EF09293F8DB8A85BB909 /* SettingsPrimarySections.swift in Sources */,
 				3096F74ED0DD979B7E961729 /* SettingsWorkspaceActions.swift in Sources */,

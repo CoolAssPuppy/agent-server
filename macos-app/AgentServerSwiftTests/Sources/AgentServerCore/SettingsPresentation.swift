@@ -9,29 +9,25 @@ public enum ProductAnalyticsConsent {
 public enum SettingsSection: String, CaseIterable, Equatable, Sendable {
     case general
     case device
+    case pairing
     case notifications
-    case appearance
     case updates
-    case runtimes
     case storage
     case agentPanel
     case telemetry
     case environment
-    case security
 
     public var title: String {
         switch self {
         case .general: "General"
         case .device: "This Mac"
+        case .pairing: "Pair with Agent Panel"
         case .notifications: "Notifications"
-        case .appearance: "Appearance"
         case .updates: "Updates"
-        case .runtimes: "AI engine"
         case .storage: "Local server"
         case .agentPanel: "Agent Panel"
         case .telemetry: "Diagnostics and telemetry"
         case .environment: "Environment"
-        case .security: "Security"
         }
     }
 }
@@ -80,35 +76,38 @@ public enum SettingsPresentation {
     public static let iconButtonWidth: Double = 28
     public static let iconButtonHeight: Double = 26
 
+    // Appearance is chosen from the menu bar, so a second place to set it was
+    // one place too many. The AI engine repeated what the runtime picker
+    // already says, and security is set where the thing being secured lives.
     public static let primarySections: [SettingsSection] = [
         .general,
         .device,
+        .pairing,
         .notifications,
-        .appearance,
         .updates,
     ]
 
     public static let advancedSections: [SettingsSection] = [
-        .runtimes,
         .storage,
         .agentPanel,
         .telemetry,
         .environment,
-        .security,
     ]
 
     public static func columnCount(availableWidth: Double) -> Int {
         availableWidth >= 760 ? 2 : 1
     }
 
+    // Pairing leads the right column: it is the one thing here that changes
+    // what the product can do, and everything under it is a preference.
     public static let primaryColumns: [[SettingsSection]] = [
-        [.general, .device, .notifications],
-        [.appearance, .updates],
+        [.general, .device],
+        [.pairing, .notifications, .updates],
     ]
 
     public static let advancedColumns: [[SettingsSection]] = [
-        [.runtimes, .storage, .environment],
-        [.agentPanel, .telemetry, .security],
+        [.storage, .environment],
+        [.agentPanel, .telemetry],
     ]
 }
 

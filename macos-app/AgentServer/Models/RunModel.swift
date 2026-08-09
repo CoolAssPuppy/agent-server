@@ -165,6 +165,12 @@ struct CleanupResponse: Codable {
     let cleaned: Int
 }
 
+struct PairingResponse: Codable {
+    let ok: Bool
+    /// What Panel will call this Mac in its device list.
+    let displayName: String
+}
+
 struct TriggerResponse: Codable {
     let runId: String
     let agentId: String
