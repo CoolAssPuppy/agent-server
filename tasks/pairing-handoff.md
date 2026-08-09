@@ -1,5 +1,15 @@
 # Handoff: finish device pairing
 
+Done in 3.7.2. Kept for the reasoning behind each change.
+
+Two things below turned out not to be true. Panel did already have a V2 sync
+route, reached by the protocol envelope on `/api/agents/sync`, so job 1 on the
+Panel side was adoption of pre-pairing rows rather than a new route. And the
+two sides disagreed about the payload itself: Agent Server built rows repeating
+the machine and the protocol version and labelling the digest `sha256:`, none
+of which Panel's schema accepts. Nothing had ever sent a V2 payload, so nothing
+had noticed. Both repositories now assert the same bytes.
+
 Four jobs. The first is the real one; the rest are small and independent.
 
 ## Repos

@@ -34,6 +34,12 @@ export const ServerConfigSchema = z.object({
   runDbPath: z.string().default(() => join(homedir(), '.agent-server', 'runs.db')),
   panelUrl: z.string().url().optional(),
   panelApiKey: z.string().optional(),
+  /**
+   * This machine's identity in Panel, present only once paired. Its absence is
+   * what tells the reporting paths to keep speaking the organization-wide
+   * protocol, which cannot say which Mac is reporting.
+   */
+  machineId: z.string().optional(),
   panelEnabled: z.boolean().default(true),
   checkIntervalMs: z.number().int().positive().default(60_000),
   // Panel-side stale threshold is 90s. A 30s heartbeat permits two missed
@@ -92,6 +98,10 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     panelApiKey: panelEnabled
       ? pairing?.credential || env.AGENT_SERVER_PANEL_API_KEY || undefined
       : undefined,
+    // Only when the credential itself came from pairing. An organization key
+    // in the environment names no machine, so a machine id alongside one would
+    // be a claim this daemon cannot prove.
+    machineId: pairing?.credential ? pairing.machineId : undefined,
     panelEnabled,
     checkIntervalMs: env.AGENT_SERVER_CHECK_INTERVAL_MS
       ? Number(env.AGENT_SERVER_CHECK_INTERVAL_MS)

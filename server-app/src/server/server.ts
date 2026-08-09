@@ -417,6 +417,7 @@ export function startServer(
         agentsDir: config.agentsDir,
         panelUrl: config.panelUrl!,
         panelApiKey: config.panelApiKey!,
+        machineId: config.machineId,
       })
     : undefined;
   const realtimeClient = panelConfigured

@@ -47,11 +47,24 @@ export class AgentDiscoveryError extends Error {
   }
 }
 
+/**
+ * A parsed agent alongside the exact bytes it was parsed from.
+ *
+ * The text is kept because a hash of the definition has to be a hash of what
+ * is on disk. Re-rendering the parsed config would produce a different digest
+ * every time formatting changed, and callers would see edits that never
+ * happened.
+ */
+export type AgentDefinition = {
+  agent: AgentConfig;
+  content: string;
+};
+
 async function tryParseAgent(
   directory: string,
   file: string,
   options: Required<Pick<DiscoveryOptions, 'readFile' | 'warn' | 'onInvalid'>>,
-): Promise<AgentConfig | null> {
+): Promise<AgentDefinition | null> {
   let content: string;
   try {
     content = await options.readFile(join(directory, file), 'utf-8');
@@ -63,7 +76,7 @@ async function tryParseAgent(
   }
 
   try {
-    return parseAgentFile(content);
+    return { agent: parseAgentFile(content), content };
   } catch (error) {
     const code = invalidDefinitionCode(error);
     options.warn(`[agent-discovery] Invalid agent file "${sanitizeText(file, 240)}" (${code})`);
@@ -72,10 +85,10 @@ async function tryParseAgent(
   }
 }
 
-export async function discoverAgents(
+export async function discoverAgentDefinitions(
   directory: string,
   options: DiscoveryOptions = {},
-): Promise<AgentConfig[]> {
+): Promise<AgentDefinition[]> {
   const readDirectory = options.readdir ?? readdir;
   const readAgentFile = options.readFile ?? readFile;
   const warn = options.warn ?? console.warn;
@@ -98,18 +111,26 @@ export async function discoverAgents(
     }))
   );
 
-  const unique = new Map<string, AgentConfig>();
-  for (const agent of results) {
-    if (!agent) continue;
+  const unique = new Map<string, AgentDefinition>();
+  for (const definition of results) {
+    if (!definition) continue;
 
-    if (unique.has(agent.id)) {
-      console.warn(`Skipping duplicate agent id: ${agent.id}`);
+    if (unique.has(definition.agent.id)) {
+      console.warn(`Skipping duplicate agent id: ${definition.agent.id}`);
       continue;
     }
 
-    unique.set(agent.id, agent);
+    unique.set(definition.agent.id, definition);
   }
 
   return [...unique.values()]
-    .sort((a, b) => a.id.localeCompare(b.id));
+    .sort((a, b) => a.agent.id.localeCompare(b.agent.id));
+}
+
+export async function discoverAgents(
+  directory: string,
+  options: DiscoveryOptions = {},
+): Promise<AgentConfig[]> {
+  const definitions = await discoverAgentDefinitions(directory, options);
+  return definitions.map((definition) => definition.agent);
 }

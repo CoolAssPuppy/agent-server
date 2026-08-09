@@ -45,16 +45,32 @@ describe('buildV2AssistantSyncPayload', () => {
       .toMatchObject({ enabled: false });
     expect(payload.assistants.find((assistant) => assistant.local_agent_id === 'weekly-report'))
       .toEqual({
-        protocol_version: 2,
-        machine_id: machineId,
         local_agent_id: 'weekly-report',
         display_name: 'Weekly Report',
         enabled: true,
-        definition_hash: computeAgentContentHash(content),
+        definition_hash: computeAgentContentHash(content).replace('sha256:', ''),
       });
     expect(JSON.stringify(payload)).not.toContain('Private description');
     expect(JSON.stringify(payload)).not.toContain('/Users/name/private');
     expect(JSON.stringify(payload)).not.toContain('secret-token');
+  });
+
+  // Panel parses these rows strictly and stores the digest in a 64 character
+  // column. An extra key or a labelled hash is not tolerated and ignored; it
+  // is a 400 on every sync, which reads on the Devices screen as a paired Mac
+  // that has never checked in.
+  it('names the machine and the protocol once, in the payload rather than in every row', () => {
+    const payload = buildV2AssistantSyncPayload(
+      [{ agent: makeAgent({ id: 'weekly-report' }), content: 'weekly-report' }],
+      { machineId, now },
+    );
+
+    expect(payload).toMatchObject({ protocol_version: 2, machine_id: machineId });
+    for (const assistant of payload.assistants) {
+      expect(assistant).not.toHaveProperty('protocol_version');
+      expect(assistant).not.toHaveProperty('machine_id');
+      expect(assistant.definition_hash).toMatch(/^[a-f0-9]{64}$/);
+    }
   });
 
   it('hashes exact definition content instead of re-rendering parsed configuration', () => {

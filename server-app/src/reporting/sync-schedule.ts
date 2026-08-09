@@ -1,9 +1,10 @@
 import { watch } from 'fs';
 import type { AgentConfig } from '../agents/config.js';
-import { discoverAgents, isAgentFile } from '../agents/discovery.js';
+import { discoverAgentDefinitions, isAgentFile } from '../agents/discovery.js';
 import { getNextRun } from '../agents/scheduler.js';
 import { toErrorMessage } from '../util/errors.js';
 import { withTimeout } from '../util/with-timeout.js';
+import { buildV2AssistantSyncPayload, type V2AssistantSyncPayload } from './v2-assistant-sync.js';
 
 const DEFAULT_FILE_CHANGE_DEBOUNCE_MS = 2_000;
 const DEFAULT_HOURLY_INTERVAL_MS = 60 * 60 * 1_000;
@@ -63,19 +64,51 @@ type SyncOptions = {
   agentsDir: string;
   panelUrl: string;
   panelApiKey: string;
+  /**
+   * Present once this Mac is paired. It turns the sync into a check-in: Panel
+   * can attribute the agents to a device and record that it was heard from,
+   * neither of which an organization-wide sync can say.
+   */
+  machineId?: string;
   fetch?: typeof globalThis.fetch;
   now?: Date;
   requestTimeoutMs?: number;
 };
 
+/**
+ * The catalog to send, in whichever protocol this daemon can speak.
+ *
+ * An unpaired daemon has no machine to name, so it keeps sending the
+ * organization-wide payload it always has.
+ */
+async function buildSyncPayload(
+  options: SyncOptions,
+  now: Date,
+): Promise<{ body: AgentSyncPayload | V2AssistantSyncPayload; count: number }> {
+  const definitions = await discoverAgentDefinitions(options.agentsDir);
+
+  if (options.machineId) {
+    const body = buildV2AssistantSyncPayload(definitions, {
+      machineId: options.machineId,
+      now,
+    });
+    return { body, count: body.assistants.length };
+  }
+
+  const body = buildAgentSyncPayload(
+    definitions.map((definition) => definition.agent),
+    now,
+  );
+  return { body, count: body.agents.length };
+}
+
 export async function syncAgentSchedule(options: SyncOptions): Promise<SyncResult> {
   const fetchFn = options.fetch ?? globalThis.fetch;
   const now = options.now ?? new Date();
 
-  let payload: AgentSyncPayload;
+  let payload: { body: AgentSyncPayload | V2AssistantSyncPayload; count: number };
   try {
-    const agents = await discoverAgents(options.agentsDir);
-    payload = buildAgentSyncPayload(agents, now);
+    payload = await buildSyncPayload(options, now);
   } catch (err) {
     const message = toErrorMessage(err);
     console.error(`[sync-schedule] Failed to build agent catalog: ${message}`);
@@ -92,7 +125,7 @@ export async function syncAgentSchedule(options: SyncOptions): Promise<SyncResul
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${options.panelApiKey}`,
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload.body),
         signal: requestController.signal,
       }),
       {
@@ -109,8 +142,8 @@ export async function syncAgentSchedule(options: SyncOptions): Promise<SyncResul
       return { ok: false, status: response.status };
     }
 
-    console.log(`[sync-schedule] Synced ${payload.agents.length} agent(s) to panel`);
-    return { ok: true, status: response.status, count: payload.agents.length };
+    console.log(`[sync-schedule] Synced ${payload.count} agent(s) to panel`);
+    return { ok: true, status: response.status, count: payload.count };
   } catch (err) {
     const message = toErrorMessage(err);
     console.error(`[sync-schedule] Failed to sync agent schedule: ${message}`);

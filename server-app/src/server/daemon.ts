@@ -274,6 +274,7 @@ export function startDaemon(config: ServerConfig): { stop: () => void } {
         agentsDir: config.agentsDir,
         panelUrl: config.panelUrl!,
         panelApiKey: config.panelApiKey!,
+        machineId: config.machineId,
       })
     : undefined;
 

@@ -194,6 +194,59 @@ describe('syncAgentSchedule', () => {
     expect(typeof body.agents[0].next_run_at).toBe('string');
   });
 
+  // Without this, a paired Mac still spoke the organization-wide protocol, so
+  // Panel had no device to attach the agents to and no request that counted as
+  // a check-in. The Devices screen read "0 agents, last heard from never" for a
+  // machine that was syncing every hour.
+  it('sends the machine catalog once this Mac is paired', async () => {
+    writeAgent('a.yaml', [
+      'id: news',
+      'name: News',
+      'schedule: "0 9 * * *"',
+      'prompt: Do news.',
+    ].join('\n'));
+    writeAgent('b.yaml', 'id: paused\nname: Paused\nenabled: false\nprompt: p\n');
+
+    const fetchFn = createMockFetch();
+    const result = await syncAgentSchedule({
+      agentsDir: dir,
+      panelUrl: 'https://panel.example.com',
+      panelApiKey: 'test-key',
+      machineId: 'a5a5a5a5-0000-4000-8000-a5a5a5a5a5a5',
+      fetch: fetchFn,
+    });
+
+    expect(result).toMatchObject({ ok: true, count: 2 });
+    const body = JSON.parse(fetchFn.mock.calls[0][1].body);
+    expect(body).toMatchObject({
+      protocol_version: 2,
+      machine_id: 'a5a5a5a5-0000-4000-8000-a5a5a5a5a5a5',
+    });
+    expect(body.agents).toBeUndefined();
+    // A disabled agent is reported as disabled rather than withheld, so Panel
+    // can show it greyed out instead of losing it.
+    expect(body.assistants.map((a: { local_agent_id: string; enabled: boolean }) => a)).toEqual([
+      expect.objectContaining({ local_agent_id: 'news', enabled: true }),
+      expect.objectContaining({ local_agent_id: 'paused', enabled: false }),
+    ]);
+  });
+
+  it('keeps sending the organization-wide catalog while this Mac is unpaired', async () => {
+    writeAgent('a.yaml', 'id: news\nname: News\nprompt: Do news.\n');
+
+    const fetchFn = createMockFetch();
+    await syncAgentSchedule({
+      agentsDir: dir,
+      panelUrl: 'https://panel.example.com',
+      panelApiKey: 'test-key',
+      fetch: fetchFn,
+    });
+
+    const body = JSON.parse(fetchFn.mock.calls[0][1].body);
+    expect(body.agents).toHaveLength(1);
+    expect(body.protocol_version).toBeUndefined();
+  });
+
   it('returns ok=false when server responds non-2xx without throwing', async () => {
     writeAgent('a.yaml', 'id: x\nname: X\nprompt: p\n');
     const fetchFn = createMockFetch({ ok: false, status: 500, body: { error: 'boom' } });

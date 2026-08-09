@@ -206,7 +206,12 @@ actor AgentServerClient {
         request = try authenticatedRequest(request)
 
         let (data, response) = try await session.data(for: request)
-        try validateWriteResponse(data: data, response: response)
+        // Pairing is the one screen where a person is watching and waiting, so
+        // a status code with no sentence around it sends them looking at Panel
+        // when the fault is the server on this Mac.
+        try validateWriteResponse(data: data, response: response) { _ in
+            .localServerUnavailable
+        }
 
         let decoded = try decoder.decode(PairingResponse.self, from: data)
         return decoded.displayName
@@ -411,7 +416,16 @@ actor AgentServerClient {
 
     /// Write routes return structured errors (message + missing env vars for
     /// connection capabilities); surface those instead of a bare status code.
-    private func validateWriteResponse(data: Data, response: URLResponse) throws {
+    ///
+    /// `undecodable` supplies the error for a body that is not one of ours.
+    /// Hono answers an unknown route with plain text, so without it a route
+    /// this build asks for and the running server does not have arrives as a
+    /// naked status code, and the person reading it has nothing to go on.
+    private func validateWriteResponse(
+        data: Data,
+        response: URLResponse,
+        undecodable: (Int) -> ClientError = { .httpError(statusCode: $0) }
+    ) throws {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ClientError.invalidResponse
         }
@@ -423,7 +437,7 @@ actor AgentServerClient {
                 missingEnv: body.missingEnv ?? []
             )
         }
-        throw ClientError.httpError(statusCode: httpResponse.statusCode)
+        throw undecodable(httpResponse.statusCode)
     }
 
     func triggerRun(agentId: String, with context: String? = nil) async throws -> TriggerResponse {
@@ -575,6 +589,7 @@ enum ClientError: LocalizedError {
     case invalidResponse
     case notFound
     case missingLocalAPIKey
+    case localServerUnavailable
     case httpError(statusCode: Int)
     case writeFailed(message: String, missingEnv: [String])
     case runTriggerFailed(message: String, code: String?, missingEnv: [String])
@@ -588,6 +603,8 @@ enum ClientError: LocalizedError {
             return "The requested item was not found."
         case .missingLocalAPIKey:
             return "Agent Server needs to finish its secure local setup. Restart the server and try again."
+        case .localServerUnavailable:
+            return "Agent Server is not responding on this Mac. Quit it and open it again, then try once more."
         case .httpError(let statusCode):
             return "HTTP error: \(statusCode)"
         case .connectionInUse(let message):

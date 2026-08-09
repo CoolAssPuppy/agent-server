@@ -1,4 +1,5 @@
 import SwiftUI
+import AgentServerDesignSystem
 
 /// Pairing this Mac with Agent Panel.
 ///
@@ -28,8 +29,7 @@ struct SettingsPairingSection: View {
 
             HStack(spacing: 8) {
                 TextField("ABCD EFGH", text: $code)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 13, design: .monospaced))
+                    .pairingFieldStyle(theme: theme)
                     .disabled(isPairing)
                     .accessibilityIdentifier("settings.pairingCode")
                     .onSubmit { pair() }
@@ -77,5 +77,29 @@ struct SettingsPairingSection: View {
                 }
             }
         }
+    }
+}
+
+private extension View {
+    /// The same treatment every other field in the app gets.
+    ///
+    /// A field that sets no foreground colour draws its text in the system
+    /// default, which under this app's dark theme is dark on dark. The code
+    /// was going in and rendering as an empty box.
+    func pairingFieldStyle(theme: ThemeConfiguration) -> some View {
+        self
+            .textFieldStyle(.plain)
+            .font(.system(size: 13, design: .monospaced))
+            .foregroundStyle(theme.tokens.foreground)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: NRadius.xs)
+                    .fill(theme.tokens.background)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: NRadius.xs)
+                            .stroke(theme.tokens.border, lineWidth: 1)
+                    )
+            )
     }
 }
