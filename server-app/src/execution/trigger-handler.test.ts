@@ -527,3 +527,92 @@ describe('TriggerHandler and inbound triggers', () => {
     expect(invokeRun).toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * What the daemon does when the claim does not come back cleanly.
+ *
+ * A refusal and an outage are different answers. Panel saying the trigger is
+ * not ours is the one case we definitely know not to run; a Panel we cannot
+ * reach is a case we know nothing about, and skipping there would drop
+ * triggers every time the network hiccups.
+ */
+describe('TriggerHandler when the claim is not a clean yes', () => {
+  let dir: string;
+  let emitter: EventEmitter;
+
+  beforeEach(() => {
+    dir = createTempDir('trigger-claim');
+    emitter = new EventEmitter();
+    writeAgentFile(dir, 'demo-agent');
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  function runWith(status: number, body?: unknown) {
+    const invokeRun = vi.fn<InvokeRun>(async () => ({ status: 'completed', runId: 'r' }));
+    const fetchFn = vi.fn(async (url: string) => {
+      if (url.endsWith('/ack')) {
+        return new Response(body === undefined ? null : JSON.stringify(body), {
+          status,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(null, { status: 200 });
+    });
+
+    const handler = new TriggerHandler({
+      agentsDir: dir,
+      panelUrl: 'https://panel.test',
+      panelApiKey: 'secret',
+      sseEvents: emitter,
+      invokeRun,
+      fetch: fetchFn as unknown as typeof globalThis.fetch,
+    });
+    handler.start();
+
+    emitter.emit('run_trigger', makeRunTrigger());
+    return new Promise<typeof invokeRun>((resolve) =>
+      setTimeout(() => {
+        handler.stop();
+        resolve(invokeRun);
+      }, 50),
+    );
+  }
+
+  it('does not run when Panel says the trigger is not there', async () => {
+    expect(await runWith(404)).not.toHaveBeenCalled();
+  });
+
+  it('does not run when Panel says the trigger belongs to somebody else', async () => {
+    expect(await runWith(403)).not.toHaveBeenCalled();
+  });
+
+  it('runs when Panel is broken, because that is not an answer', async () => {
+    // Skipping on a 500 would drop a real trigger every time Panel wobbles.
+    expect(await runWith(500)).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs when Panel cannot be reached at all', async () => {
+    const invokeRun = vi.fn<InvokeRun>(async () => ({ status: 'completed', runId: 'r' }));
+    const fetchFn = vi.fn(async () => {
+      throw new Error('network down');
+    });
+
+    const handler = new TriggerHandler({
+      agentsDir: dir,
+      panelUrl: 'https://panel.test',
+      panelApiKey: 'secret',
+      sseEvents: emitter,
+      invokeRun,
+      fetch: fetchFn as unknown as typeof globalThis.fetch,
+    });
+    handler.start();
+    emitter.emit('run_trigger', makeRunTrigger());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    handler.stop();
+
+    expect(invokeRun).toHaveBeenCalledTimes(1);
+  });
+});

@@ -229,7 +229,22 @@ export class TriggerHandler {
       body,
     );
 
+    // No response at all is a network failure. Panel might well have accepted
+    // the claim, and refusing to run on a dropped reply would turn every blip
+    // into a silently skipped trigger, so this fails open. Running twice needs
+    // two live machines and a lost reply in the same moment, and the lock in
+    // `execution/runner.ts` catches that locally.
     if (!response) return true;
+
+    // A refusal is an answer, not a failure. Panel saying the trigger does not
+    // exist, belongs to another organization, or is addressed elsewhere is the
+    // one case where we definitely know not to run, so fail closed here.
+    if (response.status >= 400 && response.status < 500) {
+      console.warn(`[trigger-handler] Panel refused the claim for ${triggerId} (${response.status})`);
+      return false;
+    }
+
+    if (!response.ok) return true;
 
     try {
       const parsed = (await response.json()) as { claimed?: unknown };
@@ -268,8 +283,10 @@ export class TriggerHandler {
       });
       if (!response.ok) {
         console.error(`[trigger-handler] POST ${path} -> ${response.status}`);
-        return undefined;
       }
+      // Returned either way. A refused request and an unreachable Panel are
+      // different answers, and the caller is the only one that can tell which
+      // of them matters.
       return response;
     } catch (err) {
       const message = toErrorMessage(err);
