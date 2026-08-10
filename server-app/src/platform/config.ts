@@ -3,7 +3,7 @@ import { homedir } from 'os';
 import { join } from 'path';
 import { existsSync, readFileSync } from 'fs';
 import { parse as parseDotenv } from 'dotenv';
-import { loadPairing, normalizePanelUrl } from './pairing.js';
+import { loadPairing, normalizePanelUrl, type PairingRecord } from './pairing.js';
 
 /** Load `~/.agent-server/.env` under the existing shell environment. */
 export function loadEnvFile(
@@ -76,7 +76,19 @@ export const ServerConfigSchema = z.object({
 
 export type ServerConfig = z.infer<typeof ServerConfigSchema>;
 
-export function loadConfig(env: Record<string, string | undefined> = process.env): ServerConfig {
+/**
+ * How the configuration finds out whether this machine is paired.
+ *
+ * Injectable because the default reads a file in the user's home directory,
+ * and a test that reads the developer's own credential passes or fails
+ * depending on whether that developer has paired their Mac.
+ */
+export type PairingLookup = (workspaceDir: string) => PairingRecord | undefined;
+
+export function loadConfig(
+  env: Record<string, string | undefined> = process.env,
+  lookUpPairing: PairingLookup = loadPairing,
+): ServerConfig {
   const agentServerHome = env.AGENT_SERVER_HOME || join(homedir(), '.agent-server');
   const panelEnabled = env.AGENT_SERVER_PANEL_ENABLED !== 'false';
 
@@ -85,7 +97,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   // one Mac rather than to whoever picks it up first. An unpaired daemon, or
   // one whose credential file is unreadable, falls back to the key and keeps
   // working exactly as before.
-  const pairing = panelEnabled ? loadPairing(agentServerHome) : undefined;
+  const pairing = panelEnabled ? lookUpPairing(agentServerHome) : undefined;
   return ServerConfigSchema.parse({
     workspaceDir: agentServerHome,
     agentsDir: env.AGENT_SERVER_AGENTS_DIR || join(agentServerHome, 'agents'),

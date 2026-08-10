@@ -6,6 +6,24 @@
     <description>Agent Server updates</description>
     <language>en</language>
     <item>
+      <title>Version 3.7.2</title>
+      <pubDate>Sun, 09 Aug 2026 22:37:10 +0000</pubDate>
+      <sparkle:version>53</sparkle:version>
+      <sparkle:shortVersionString>3.7.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>A paired Mac now reports its agents to Agent Panel, and every sync counts as checking in. Panel shows the device with its agents and the time it was last heard from.</li><li>An agent that Panel already knew about from before pairing is taken over by the Mac it runs on, so its run history stays where you left it.</li><li>The pairing code field shows what you type. It was drawing dark text on a dark background.</li><li>Pairing now says when Agent Server itself is not responding, instead of showing a status code.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.7.2.dmg"
+        sparkle:edSignature="W9QjB3qxVhwaB8FJHLlI8AixAU+9dXIB6oXf7esfO1D+d/KpuGlsJr8FhxdaDsIBDr6ApglvcELQZteHDr1zDA=="
+        length="19959094"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
       <title>Version 3.7.1</title>
       <pubDate>Sun, 09 Aug 2026 21:21:44 +0000</pubDate>
       <sparkle:version>52</sparkle:version>

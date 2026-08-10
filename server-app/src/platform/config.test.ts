@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { loadConfig, loadEnvFile } from './config.js';
+import type { PairingRecord } from './pairing.js';
 import { homedir } from 'os';
 import { join } from 'path';
 import { mkdirSync, readFileSync, writeFileSync, rmSync } from 'fs';
@@ -9,9 +10,26 @@ import {
   renderEnvironmentReferenceTable,
 } from './environment-reference.js';
 
+/**
+ * Pairing is read from disk, so every case that is not about pairing says so
+ * out loud. Without this the suite passes on an unpaired Mac and fails on the
+ * developer's own machine the moment they pair it.
+ */
+const unpaired = () => undefined;
+
+const paired = (overrides?: Partial<PairingRecord>): PairingRecord => ({
+  credential: 'ap_live_from_pairing',
+  orgId: '00000000-0000-4000-8000-000000000001',
+  machineId: '00000000-0000-4000-8000-000000000002',
+  displayName: 'Studio Mac',
+  pairedAt: '2026-08-10T00:00:00.000Z',
+  heartbeatIntervalSeconds: 60,
+  ...overrides,
+});
+
 describe('loadConfig', () => {
   it('uses defaults when no env vars are set', () => {
-    const config = loadConfig({});
+    const config = loadConfig({}, unpaired);
     expect(config.workspaceDir).toBe(join(homedir(), '.agent-server'));
     expect(config.agentsDir).toBe(join(homedir(), '.agent-server', 'agents'));
     expect(config.lockDir).toBe(join(homedir(), '.agent-server', 'locks'));
@@ -72,7 +90,7 @@ describe('loadConfig', () => {
       AGENT_SERVER_TELEMETRY_PROGRESS_MAX_ENTRIES: '20',
       AGENT_SERVER_TELEMETRY_PROGRESS_INCLUDE_METADATA: 'true',
       AGENT_SERVER_RUN_DB: '/tmp/history.db',
-    });
+    }, unpaired);
     expect(config.runDbPath).toBe('/tmp/history.db');
     expect(config.agentsDir).toBe('/tmp/agents');
     expect(config.lockDir).toBe('/tmp/locks');
@@ -89,6 +107,38 @@ describe('loadConfig', () => {
     expect(config.telemetryProgressSampleMs).toBe(7000);
     expect(config.telemetryProgressMaxEntries).toBe(20);
     expect(config.telemetryProgressIncludeMetadata).toBe(true);
+  });
+
+  it('prefers a paired credential over an organization key', () => {
+    const config = loadConfig(
+      { AGENT_SERVER_PANEL_API_KEY: 'ap_live_from_env' },
+      () => paired(),
+    );
+
+    // The paired credential names this Mac. The environment key names an
+    // organization, so Panel could not tell one machine from another.
+    expect(config.panelApiKey).toBe('ap_live_from_pairing');
+    expect(config.machineId).toBe('00000000-0000-4000-8000-000000000002');
+  });
+
+  it('claims no machine identity when the credential came from the environment', () => {
+    const config = loadConfig(
+      { AGENT_SERVER_PANEL_API_KEY: 'ap_live_from_env' },
+      unpaired,
+    );
+
+    expect(config.panelApiKey).toBe('ap_live_from_env');
+    expect(config.machineId).toBeUndefined();
+  });
+
+  it('ignores a paired credential while panel traffic is off', () => {
+    const config = loadConfig(
+      { AGENT_SERVER_PANEL_ENABLED: 'false' },
+      () => paired(),
+    );
+
+    expect(config.panelApiKey).toBeUndefined();
+    expect(config.machineId).toBeUndefined();
   });
 
   it('rejects short API keys', () => {
