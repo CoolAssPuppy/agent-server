@@ -74,7 +74,7 @@ import { ANALYTICS_EVENTS } from '../analytics/events.js';
 import { classifyErrorReason } from '../analytics/reason.js';
 import { loadOrCreateMachineId } from '../platform/machine-identity.js';
 import { collectAssistantHomeFacts } from '../presentation/assistant-readiness.js';
-import { redeemPairingCode, savePairing } from '../platform/pairing.js';
+import { loadPairing, redeemPairingCode, savePairing } from '../platform/pairing.js';
 import { AGENT_SERVER_VERSION } from '../version.js';
 
 export type ServerInstance = {
@@ -832,6 +832,11 @@ export function startServer(
     ],
     apiKey,
     machineId,
+    // Read per call rather than captured, so a code redeemed a moment ago is
+    // visible to the app immediately. Whether the daemon is reporting with it
+    // is a separate question: configuration was read at startup.
+    getPairing: () => loadPairing(config.workspaceDir),
+    pairedCredentialInUse: config.machineId !== undefined,
     // Present only when a Panel is configured. Without a URL there is nothing
     // to redeem a code against, and the route says so rather than failing in a
     // way somebody has to interpret.

@@ -193,6 +193,17 @@ actor AgentServerClient {
         return try decoder.decode(CleanupResponse.self, from: data)
     }
 
+    /// Whether this Mac is paired with Agent Panel, and whether the running
+    /// daemon is using that pairing yet.
+    ///
+    /// Asked of the server rather than remembered here, because the app is
+    /// quit and reopened all the time and the answer lives on the server's
+    /// disk. Remembering it in the view is what made a paired Mac look
+    /// unpaired after a restart.
+    func pairingStatus() async throws -> PairingStatus {
+        try await get(LocalServerEndpoint.pairPath)
+    }
+
     /// Redeems a pairing code from Agent Panel.
     ///
     /// The code goes to the daemon and the credential it comes back with stays

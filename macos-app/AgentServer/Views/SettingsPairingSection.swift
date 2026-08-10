@@ -18,10 +18,34 @@ struct SettingsPairingSection: View {
     @State private var isPairing = false
     @State private var message: String?
     @State private var didPair = false
+    @State private var status: PairingStatus?
 
     var body: some View {
         SettingsGroup(title: SettingsSection.pairing.title) {
-            Text("Panel shows an eight character code under Settings, Devices. Enter it here and this Mac appears there by name.")
+            // Read from the server every time this appears. The previous
+            // version only ever said "paired" in a @State line written by the
+            // pairing itself, so quitting the app -- or just leaving this
+            // screen -- made a paired Mac look like it had never paired.
+            if let status, let summary = PairingPresentation.summary(for: status) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(summary)
+                        .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize), weight: .medium))
+                        .foregroundStyle(status.inUse ? theme.tokens.success : theme.tokens.warning)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let detail = PairingPresentation.detail(for: status) {
+                        Text(detail)
+                            .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
+                            .foregroundStyle(theme.tokens.mutedForeground)
+                    }
+                }
+                .accessibilityIdentifier("settings.pairingStatus")
+                .padding(.bottom, 8)
+            }
+
+            Text(status?.paired == true
+                ? "Entering a new code from Panel pairs this Mac again and replaces the credential it holds."
+                : "Panel shows an eight character code under Settings, Devices. Enter it here and this Mac appears there by name.")
                 .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
                 .foregroundStyle(theme.tokens.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
@@ -51,6 +75,15 @@ struct SettingsPairingSection: View {
                     .padding(.top, 8)
             }
         }
+        .task { await refreshStatus() }
+    }
+
+    /// A server that cannot answer leaves the section as it was. An unpaired
+    /// Mac and an unreachable one both show the form, and inventing a
+    /// "not paired" line for the second would be a guess.
+    private func refreshStatus() async {
+        guard let latest = try? await monitor.client.pairingStatus() else { return }
+        await MainActor.run { status = latest }
     }
 
     private func pair() {
@@ -69,6 +102,9 @@ struct SettingsPairingSection: View {
                     code = ""
                     isPairing = false
                 }
+                // The section above this now has something to say, and the
+                // person is still looking at it.
+                await refreshStatus()
             } catch {
                 await MainActor.run {
                     didPair = false

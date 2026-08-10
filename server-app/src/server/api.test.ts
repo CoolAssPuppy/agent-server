@@ -1522,6 +1522,82 @@ describe('API routes', () => {
     });
   });
 
+  describe('GET /pair', () => {
+    const record = {
+      credential: 'ap_live_secret_value',
+      orgId: '9f1f3c2a-0000-4000-8000-9f1f3c2a0001',
+      machineId: '9f1f3c2a-0000-4000-8000-9f1f3c2a0002',
+      displayName: 'Studio Mac',
+      pairedAt: '2026-08-10T06:11:20.322Z',
+      heartbeatIntervalSeconds: 60,
+    };
+
+    it('reports an unpaired Mac as an answer rather than an error', async () => {
+      const app = createApi({ getAgents: async () => [], store, triggerRun });
+
+      const response = await authenticatedRequest(app, '/pair');
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        paired: false,
+        in_use: false,
+      });
+    });
+
+    it('describes the pairing without ever returning the credential', async () => {
+      const app = createApi({
+        getAgents: async () => [],
+        store,
+        triggerRun,
+        getPairing: () => record,
+        pairedCredentialInUse: true,
+      });
+
+      const response = await authenticatedRequest(app, '/pair');
+      const body = await response.json();
+
+      expect(body).toEqual({
+        paired: true,
+        in_use: true,
+        display_name: 'Studio Mac',
+        org_id: record.orgId,
+        machine_id: record.machineId,
+        paired_at: record.pairedAt,
+      });
+      expect(JSON.stringify(body)).not.toContain('ap_live_secret_value');
+    });
+
+    it('separates a stored pairing from one the daemon is using', async () => {
+      // The gap between the two is a restart, and it is the whole reason
+      // somebody stares at a screen wondering whether pairing worked.
+      const app = createApi({
+        getAgents: async () => [],
+        store,
+        triggerRun,
+        getPairing: () => record,
+        pairedCredentialInUse: false,
+      });
+
+      const body = await (await authenticatedRequest(app, '/pair')).json();
+
+      expect(body.paired).toBe(true);
+      expect(body.in_use).toBe(false);
+    });
+
+    it('refuses to describe the pairing to an unauthenticated caller', async () => {
+      const app = createApi({
+        getAgents: async () => [],
+        store,
+        triggerRun,
+        getPairing: () => record,
+      });
+
+      const response = await app.request('/pair');
+
+      expect(response.status).toBe(401);
+    });
+  });
+
   describe('GET /presentation/today-activity', () => {
     it('returns one authenticated, machine-scoped snapshot without technical or secret source data', async () => {
       const machineId = '1d2f8f5e-9ea8-4fce-89b1-1c7c2f5ecf99';

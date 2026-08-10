@@ -17,6 +17,7 @@ public enum LocalServerEndpoint {
 
     public static let todayActivityPath = "/presentation/today-activity"
     public static let machinePath = "/machine"
+    public static let pairPath = "/pair"
     public static let slackPairingPath = "/channels/slack/pairing"
     public static let slackPairingTestPath = "/channels/slack/pairing/test"
 

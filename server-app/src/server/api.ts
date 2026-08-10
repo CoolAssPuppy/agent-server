@@ -4,6 +4,7 @@ import { toErrorMessage } from '../util/errors.js';
 import { timingSafeEqual } from 'crypto';
 import { z } from 'zod';
 import type { AgentConfig } from '../agents/config.js';
+import type { PairingRecord } from '../platform/pairing.js';
 import {
   RuntimeAssignmentInputSchema,
   type RuntimeAssignment,
@@ -218,6 +219,17 @@ type ApiDependencies = {
    * failing in a way a person has to interpret.
    */
   pairWithPanel?: (code: string) => Promise<{ ok: true; displayName: string } | { ok: false; error: string }>;
+  /**
+   * This machine's stored pairing, read fresh so a code redeemed a moment ago
+   * is visible without a restart.
+   */
+  getPairing?: () => PairingRecord | undefined;
+  /**
+   * Whether the running daemon is actually reporting with that credential.
+   * Configuration is read once at startup, so a pairing is on disk before it
+   * is in use, and only a restart closes the gap.
+   */
+  pairedCredentialInUse?: boolean;
   /** Injectable time sources keep presentation snapshots deterministic in tests. */
   presentationClock?: () => Date;
   presentationWindow?: (now: Date) => {
@@ -1503,6 +1515,26 @@ export function createApi(deps: ApiDependencies): Hono {
   // instead of polling the panel. Empty when no panel is configured.
   app.get('/decisions', (c) => {
     return c.json({ decisions: deps.getPendingDecisions?.() ?? [] });
+  });
+
+  // What this Mac's pairing looks like from outside. The credential never
+  // appears here: the app displays this, and it has no use for a secret it
+  // cannot spend. Answering `paired: false` is a normal answer, not an error,
+  // so an unpaired Mac renders a form rather than a failure.
+  app.get('/pair', (c) => {
+    const record = deps.getPairing?.();
+    if (!record) {
+      return c.json({ paired: false, in_use: false });
+    }
+
+    return c.json({
+      paired: true,
+      in_use: deps.pairedCredentialInUse === true,
+      display_name: record.displayName,
+      org_id: record.orgId,
+      machine_id: record.machineId,
+      paired_at: record.pairedAt,
+    });
   });
 
   // Redeeming a pairing code from Agent Panel. The macOS app posts what was
