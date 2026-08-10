@@ -169,6 +169,14 @@ struct PairingResponse: Codable {
     let ok: Bool
     /// What Panel will call this Mac in its device list.
     let displayName: String
+
+    // The route answers `display_name`, like every other snake_case reply the
+    // local API sends. Without this the credential is written, the machine is
+    // paired, and the person is told the data could not be read.
+    enum CodingKeys: String, CodingKey {
+        case ok
+        case displayName = "display_name"
+    }
 }
 
 struct TriggerResponse: Codable {
