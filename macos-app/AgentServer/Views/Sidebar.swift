@@ -25,7 +25,9 @@ struct Sidebar: View {
                 scheduleLabel: agent.schedule.map { CronEnglishFormatter.describe($0) },
                 kind: SidebarKindBridge.from(agent.kind),
                 lastRunFailed: lastRuns[agent.id]?.status == .failed,
-                isEnabled: agent.enabled
+                isEnabled: agent.enabled,
+                needsSecurityReview: monitor.securityAnalyses[agent.id]?
+                    .automaticRuns?.stopsAutomaticRuns ?? false
             )
         }
         return SidebarSort.sortedRows(
@@ -310,11 +312,16 @@ private struct SidebarRowView: View {
         return !s.contains("*")
     }
 
-    private var showsScheduleGlyph: Bool { hasFriendlySchedule && !row.kind.usesScheduleStatusIcon }
+    private var showsScheduleGlyph: Bool {
+        !row.needsSecurityReview && hasFriendlySchedule && !row.kind.usesScheduleStatusIcon
+    }
 
     /// The single secondary line: a friendly schedule first, then a one-line
     /// description, then a plain "Custom schedule" — but never raw cron.
     private var secondaryLine: String? {
+        // Said first, because it is the only line that is currently true:
+        // an agent waiting on a review is not keeping the schedule beside it.
+        if row.needsSecurityReview { return "Waiting for your security review" }
         if hasFriendlySchedule { return row.scheduleLabel }
         if let description = row.description, !description.isEmpty { return description }
         if row.scheduleLabel != nil { return "Custom schedule" }

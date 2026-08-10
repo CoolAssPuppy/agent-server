@@ -23,6 +23,46 @@ final class SidebarSortTests: XCTestCase {
         )
     }
 
+    func testAnAgentWaitingOnASecurityReviewAsksForAttention() {
+        // It has stopped running and only this person can start it again,
+        // which is what `needsYou` already means.
+        var blocked = agent("1", "Manuscript")
+        blocked.needsSecurityReview = true
+
+        let rows = SidebarSort.sortedRows(
+            agents: [blocked],
+            runningAgentIds: [],
+            pendingDecisions: []
+        )
+
+        XCTAssertEqual(rows.first?.state, .needsYou)
+        XCTAssertEqual(rows.first?.needsSecurityReview, true)
+    }
+
+    func testARunningAgentIsStillReportedAsRunning() {
+        var blocked = agent("1", "Manuscript")
+        blocked.needsSecurityReview = true
+
+        let rows = SidebarSort.sortedRows(
+            agents: [blocked],
+            runningAgentIds: ["1"],
+            pendingDecisions: []
+        )
+
+        XCTAssertEqual(rows.first?.state, .running)
+    }
+
+    func testAnAllowedAgentSaysNothingAboutReviews() {
+        let rows = SidebarSort.sortedRows(
+            agents: [agent("1", "Manuscript")],
+            runningAgentIds: [],
+            pendingDecisions: []
+        )
+
+        XCTAssertEqual(rows.first?.state, .idle)
+        XCTAssertEqual(rows.first?.needsSecurityReview, false)
+    }
+
     func testAlphabeticalSortByNameCaseInsensitive() {
         let agents = [agent("3", "charlie"), agent("1", "Alpha"), agent("2", "bravo")]
         let rows = SidebarSort.sortedRows(

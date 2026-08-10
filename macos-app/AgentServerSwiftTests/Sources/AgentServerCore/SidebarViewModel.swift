@@ -69,6 +69,10 @@ struct SidebarRow: Equatable, Identifiable {
     /// Whether this agent's frontmatter has `enabled: true`. Sidebar rows
     /// render a muted "Disabled" pill when false.
     let isEnabled: Bool
+    /// Whether the local server would refuse this agent's schedule right now,
+    /// pending a security review. A row in this state used to advertise the
+    /// schedule it was no longer keeping.
+    let needsSecurityReview: Bool
 }
 
 // MARK: - Sidebar input
@@ -82,6 +86,7 @@ struct SidebarAgent: Equatable {
     let kind: SidebarRow.Kind
     let lastRunFailed: Bool
     let isEnabled: Bool
+    var needsSecurityReview: Bool = false
 }
 
 // MARK: - Sort & state derivation
@@ -101,7 +106,11 @@ enum SidebarSort {
             let isRunning = runningAgentIds.contains(agent.id)
             let state: SidebarRow.State = {
                 if isRunning { return .running }
-                if count > 0 { return .needsYou }
+                // Being refused is the same kind of fact as a pending
+                // decision: the agent is stopped and only this person can
+                // start it again. It gets the same state rather than a new
+                // vocabulary of its own.
+                if count > 0 || agent.needsSecurityReview { return .needsYou }
                 if agent.lastRunFailed { return .failed }
                 return .idle
             }()
@@ -113,7 +122,8 @@ enum SidebarSort {
                 kind: agent.kind,
                 state: state,
                 pendingDecisionCount: count,
-                isEnabled: agent.isEnabled
+                isEnabled: agent.isEnabled,
+                needsSecurityReview: agent.needsSecurityReview
             )
         }
 

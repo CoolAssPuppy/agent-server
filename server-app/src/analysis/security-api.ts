@@ -11,6 +11,7 @@ import {
   type StructuredPatchService,
 } from './patch.js';
 import { computeAgentContentHash } from './security-rules.js';
+import { evaluateRunPreflight } from './run-preflight.js';
 import type { Finding } from './models.js';
 import type { SecurityAnalysisService } from './security-service.js';
 
@@ -146,6 +147,13 @@ export function createAnalysisApi(dependencies: AnalysisApiDependencies): Hono {
     const input = await dependencies.content.get(context.req.param('id'));
     if (!input) return context.json({ error: 'Agent not found' }, 404);
     const analysis = await dependencies.security.analyze(input);
+    // What would happen if this agent's schedule fired right now. The gate
+    // already knows, and until this was reported an agent could stop running
+    // for days with nothing on screen saying so: risk and finding counts read
+    // as advice, and being refused is not advice. Analysis is cached, so
+    // asking costs nothing beyond the lookup.
+    const preflight = await dependencies.security.preflight(input);
+    const scheduled = evaluateRunPreflight(preflight, { source: 'schedule' });
     return context.json({
       ...analysis,
       findings: analysis.findings.map((finding) => {
@@ -153,6 +161,7 @@ export function createAnalysisApi(dependencies: AnalysisApiDependencies): Hono {
         return patch ? { ...finding, patch } : finding;
       }),
       review_state: dependencies.security.getReviewState(analysis.agent_id, analysis.content_hash),
+      automatic_runs: scheduled.allowed ? 'allowed' : scheduled.code,
     });
   });
 

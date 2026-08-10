@@ -115,6 +115,23 @@ public struct SecurityFindingPayload: Decodable, Equatable, Sendable {
     }
 }
 
+/// What the local server would do with this agent's schedule right now.
+///
+/// The server decides this; the app displays it. Re-deriving it here from
+/// findings and review state would be a second implementation of a rule that
+/// stops agents from running, and the two would drift.
+public enum AutomaticRunVerdict: String, Codable, Equatable, Sendable {
+    /// Scheduled, watched, and chained runs go ahead.
+    case allowed
+    /// Refused until this person reviews the findings.
+    case reviewRequired = "review_required"
+    /// Refused until the risks themselves are resolved. A review will not
+    /// clear it, so offering one would be a lie.
+    case blocked
+
+    public var stopsAutomaticRuns: Bool { self != .allowed }
+}
+
 public struct SecurityAnalysisPayload: Decodable, Equatable, Sendable {
     public struct ReviewState: Decodable, Equatable, Sendable {
         public let reviewedAt: String?
@@ -145,6 +162,10 @@ public struct SecurityAnalysisPayload: Decodable, Equatable, Sendable {
     public let isStale: Bool
     public let modelStatus: String
     public let reviewState: ReviewState?
+    /// What the server would do if this agent's schedule fired right now.
+    /// Absent from servers older than 3.7.6, which is read as "no opinion"
+    /// rather than as permission.
+    public let automaticRuns: AutomaticRunVerdict?
 
     enum CodingKeys: String, CodingKey {
         case findings, risk
@@ -156,6 +177,7 @@ public struct SecurityAnalysisPayload: Decodable, Equatable, Sendable {
         case isStale = "is_stale"
         case modelStatus = "model_status"
         case reviewState = "review_state"
+        case automaticRuns = "automatic_runs"
     }
 
     public var presentation: SecurityScanPresentation {

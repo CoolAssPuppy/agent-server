@@ -109,6 +109,69 @@ describe('security and patch API', () => {
     fixture.reviewStore.close();
   });
 
+  it('leaves a harmless agent alone', async () => {
+    const fixture = createFixture();
+
+    const body = await (await fixture.app.request('/security/agents/reader')).json();
+
+    expect(body.automatic_runs).toBe('allowed');
+    fixture.reviewStore.close();
+  });
+
+  it('reports a critical agent as blocked rather than as awaiting a review', async () => {
+    // Reviewing does not clear this one, so offering a review would be a lie.
+    const repository = new InMemoryAgentContentRepository({ reader: commandContent });
+    const reviewStore = new SqliteSecurityReviewStore({ path: ':memory:' });
+    const security = new SecurityAnalysisService({ reviewStore, homeDir: '/Users/example' });
+    const app = new Hono();
+    app.route('/', createAnalysisApi({
+      security,
+      patches: new StructuredPatchService(repository),
+      content: {
+        get: async (id) => ({ content: await repository.read(id), agent: parseAgentFile(await repository.read(id)) }),
+        list: async () => [{ content: await repository.read('reader'), agent: parseAgentFile(await repository.read('reader')) }],
+      },
+    }));
+
+    const body = await (await app.request('/security/agents/reader')).json();
+
+    expect(body.automatic_runs).toBe('blocked');
+    reviewStore.close();
+  });
+
+  it('says whether the schedule would be refused, and stops saying it once reviewed', async () => {
+    // An agent can stop running for days on this verdict. Reporting it beside
+    // the findings is what lets anything on screen show more than a count.
+    const repository = new InMemoryAgentContentRepository({ reader: nativeMutationContent });
+    const reviewStore = new SqliteSecurityReviewStore({ path: ':memory:' });
+    const security = new SecurityAnalysisService({ reviewStore, homeDir: '/Users/example' });
+    const app = new Hono();
+    app.route('/', createAnalysisApi({
+      security,
+      patches: new StructuredPatchService(repository),
+      content: {
+        get: async (id) => ({ content: await repository.read(id), agent: parseAgentFile(await repository.read(id)) }),
+        list: async () => [{ content: await repository.read('reader'), agent: parseAgentFile(await repository.read('reader')) }],
+      },
+    }));
+
+    const before = await (await app.request('/security/agents/reader')).json();
+    expect(before.automatic_runs).toBe('review_required');
+
+    await app.request('/security/agents/reader/review', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        content_hash: before.content_hash,
+        acknowledged_finding_ids: before.findings.map((finding: { id: string }) => finding.id),
+      }),
+    });
+
+    const after = await (await app.request('/security/agents/reader')).json();
+    expect(after.automatic_runs).toBe('allowed');
+    reviewStore.close();
+  });
+
   it('runs before-run preflight through the same security service', async () => {
     const fixture = createFixture();
     const response = await fixture.app.request('/security/agents/reader/preflight', { method: 'POST' });
