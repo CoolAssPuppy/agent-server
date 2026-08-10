@@ -64,20 +64,25 @@ Confirmed cases:
 Ordered by how much user pain each step removes. Each step is small and
 shippable on its own.
 
-### Phase 1: nothing fails silently
+### Phase 1: nothing fails silently (done 2026-08-10, shipped in 3.7.6)
 
-- [ ] 1. Fix the mislabeled notification: a security skip arrives as
+Notes from doing it: lock contention was already recorded as a skipped run,
+so item 4 reduced to chain refusals and missed-while-asleep. Watcher debounce
+was left alone on purpose -- it coalesces triggers rather than losing them,
+so there is nothing to confess.
+
+- [x] 1. Fix the mislabeled notification: a security skip arrives as
       `run_failed` and banners as "failed". Send `run_skipped` with the
       reason and give it its own wording and the info chime.
-- [ ] 2. Panel connection health. The reporter records last success and last
+- [x] 2. Panel connection health. The reporter records last success and last
       auth failure. Expose it on `/health`, show it in Settings, and notify
       once when reporting starts failing. This would have caught the 401
       storm and the stale-credential window.
-- [ ] 3. Version skew banner. `/health` already returns the server version.
+- [x] 3. Version skew banner. `/health` already returns the server version.
       The app compares it to its bundled version and shows one line in
       Settings when they differ. Kills the whole stale-server class,
       not just the pairing symptom.
-- [ ] 4. Sweep the remaining warn-only decisions (lock contention, catch-up
+- [x] 4. Sweep the remaining warn-only decisions (lock contention, catch-up
       skips, watcher debounce drops, trigger depth cap) and route each one
       to the run history as a skipped run with a reason, the way security
       skips already are.

@@ -6,6 +6,24 @@
     <description>Agent Server updates</description>
     <language>en</language>
     <item>
+      <title>Version 3.7.5</title>
+      <pubDate>Mon, 10 Aug 2026 07:38:40 +0000</pubDate>
+      <sparkle:version>56</sparkle:version>
+      <sparkle:shortVersionString>3.7.5</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Settings now shows whether this Mac is paired with Agent Panel, the name Panel knows it by, and whether the running server is using that pairing yet.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.7.5.dmg"
+        sparkle:edSignature="wU6850qNPGhpAqRa6AdNPuuv8yhKQLz3HmSTdxoEBHKtK8Bz8affSm4/8LR0Eo01778+zN0CZklT2VXdcDdHDA=="
+        length="19957927"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
       <title>Version 3.7.4</title>
       <pubDate>Mon, 10 Aug 2026 06:04:36 +0000</pubDate>
       <sparkle:version>55</sparkle:version>
