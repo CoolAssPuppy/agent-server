@@ -6,6 +6,24 @@
     <description>Agent Server updates</description>
     <language>en</language>
     <item>
+      <title>Version 3.7.10</title>
+      <pubDate>Mon, 10 Aug 2026 17:13:08 +0000</pubDate>
+      <sparkle:version>61</sparkle:version>
+      <sparkle:shortVersionString>3.7.10</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Approving a security review now clears the warning everywhere immediately, instead of after a restart.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.7.10.dmg"
+        sparkle:edSignature="FDVoDtU2sSCUnZM56/96agfCmjuXRxNxfqDXAyz1sQyBxuqznKZOCAqwmFqrOdwSGzkV63g7v9br2wGf+AG5Dg=="
+        length="20011615"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
       <title>Version 3.7.9</title>
       <pubDate>Mon, 10 Aug 2026 16:45:22 +0000</pubDate>
       <sparkle:version>60</sparkle:version>
