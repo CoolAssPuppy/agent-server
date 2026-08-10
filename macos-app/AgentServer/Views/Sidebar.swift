@@ -22,7 +22,7 @@ struct Sidebar: View {
                 slug: agent.id,
                 name: agent.name,
                 description: agent.description,
-                scheduleLabel: agent.schedule.map { CronEnglishFormatter.describe($0) },
+                scheduleLabel: agent.schedule.map { CronEnglishFormatter.label($0) },
                 kind: SidebarKindBridge.from(agent.kind),
                 lastRunFailed: lastRuns[agent.id]?.status == .failed,
                 isEnabled: agent.enabled,

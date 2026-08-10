@@ -337,7 +337,13 @@ struct AgentDetailDrawer: View {
                 detailState.openRun(id: runID)
             }
         case .resolveAttention, .respond:
-            openInteraction(from: action.targetReference)
+            // "Review security" routes to this agent's security screen; every
+            // other attention target is a pending interaction.
+            if action.targetReference.hasPrefix("security:") {
+                router.openSecurity(agentId: agentId)
+            } else {
+                openInteraction(from: action.targetReference)
+            }
         case .safeTest:
             startSafeTest()
         case .viewAssistant, .unknown:

@@ -79,7 +79,7 @@ struct Agent: Codable, Identifiable {
 
     var scheduleDisplay: String {
         if let schedule {
-            return CronEnglishFormatter.describe(schedule)
+            return CronEnglishFormatter.label(schedule)
         }
         return AgentTriggerPresentation(schedule: nil, hasWatch: hasWatch).fallbackLabel ?? "On demand"
     }

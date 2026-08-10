@@ -125,4 +125,24 @@ final class CronEnglishFormatterTests: XCTestCase {
             "Hourly, 9 AM–5 PM"
         )
     }
+
+    func testMinuteListAtOneHourReadsAsTimes() {
+        XCTAssertEqual(
+            CronEnglishFormatter.describe("0,20,40 3 * * *"),
+            "Daily at 3:00 AM, 3:20 AM and 3:40 AM"
+        )
+        XCTAssertEqual(
+            CronEnglishFormatter.describe("0,30 9 * * 1-5"),
+            "Weekdays at 9:00 AM and 9:30 AM"
+        )
+    }
+
+    func testLabelNeverShowsCronNotation() {
+        // describe() may echo shapes it cannot phrase; label() is what
+        // screens use, and a screen never shows an asterisk.
+        XCTAssertEqual(CronEnglishFormatter.label("0 9 * * 1"), CronEnglishFormatter.describe("0 9 * * 1"))
+        XCTAssertEqual(CronEnglishFormatter.label("5 4 3 2 1"), "Custom schedule")
+        XCTAssertEqual(CronEnglishFormatter.label("@yearly"), "Custom schedule")
+        XCTAssertEqual(CronEnglishFormatter.label("not a cron"), "Custom schedule")
+    }
 }

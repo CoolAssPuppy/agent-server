@@ -283,7 +283,11 @@ function configuredAccountServerNames(agents: AgentConfig[]): string[] {
     ...(agent.permissions?.deny ?? []),
   ]);
   const names = rules.flatMap((rule): string[] => {
-    const match = /^mcp__(claude_ai_[A-Za-z0-9_]+)(?:__|$)/.exec(rule);
+    // Lazy capture: `mcp__claude_ai_Slack__slack_add_reaction` names the
+    // server `claude_ai_Slack` and then a tool. The greedy version of this
+    // ate through the __ separator, so every allowlisted tool surfaced as
+    // its own account and a one-Slack agent read as many.
+    const match = /^mcp__(claude_ai_[A-Za-z0-9_]+?)(?:__|$)/.exec(rule);
     return match?.[1] ? [match[1]] : [];
   });
   return [...new Set(names)];

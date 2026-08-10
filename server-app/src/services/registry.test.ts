@@ -145,6 +145,44 @@ describe('consumer service registry', () => {
     expect(registry.bindings.get(services[0].id)?.config).toEqual(personal.mcp_servers?.['notion-personal']);
   });
 
+  it('shows one account per service, not one per tool in the allowlist', () => {
+    // An agent allowlisting five Slack tools and nine Customer.io tools is
+    // still connected to one Slack and one Customer.io. The tool-name parser
+    // was capturing through the __ separator, so every tool became its own
+    // "account" and the connections list read as a wall of duplicates.
+    const agent = makeAgent({
+      id: 'weekly-status-report',
+      tools: [
+        'mcp__claude_ai_Slack__slack_send_message',
+        'mcp__claude_ai_Slack__slack_add_reaction',
+        'mcp__claude_ai_Gmail__search_threads',
+        'mcp__claude_ai_Gmail__get_thread',
+        'mcp__claude_ai_Customer_io__cio_read_api',
+        'mcp__claude_ai_Customer_io__cio_schema',
+        'mcp__claude_ai_Customer_io',
+      ],
+    });
+
+    const services = buildServiceRegistry({
+      agents: [agent],
+      environment: {},
+      discovered: [],
+      executor: 'claude-code',
+    }).connections;
+
+    const accountNames = services
+      .filter((service) => service.source === 'account')
+      .map((service) => service.name)
+      .sort();
+
+    expect(accountNames.filter((name) => name.includes('Slack'))).toHaveLength(1);
+    expect(accountNames.filter((name) => name.includes('Gmail'))).toHaveLength(1);
+    expect(accountNames.filter((name) => name.toLowerCase().includes('customer'))).toHaveLength(1);
+    // No entry may be named after a tool.
+    expect(accountNames.every((name) => !name.includes('send message'))).toBe(true);
+    expect(accountNames.every((name) => !name.includes('cio '))).toBe(true);
+  });
+
   it('scopes account connectors to the Claude Code executor', () => {
     const discovered = [{ name: 'claude.ai Notion', status: 'connected' }];
 

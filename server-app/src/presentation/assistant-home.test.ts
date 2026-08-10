@@ -153,6 +153,12 @@ describe('Assistant home presentation', () => {
 
     expect(presentation.health.state).toBe('needs_attention');
     expect(presentation.health.summary.text).toBe('Waiting for your security review.');
+    // The sentence names a review; the button is the way to it.
+    expect(presentation.primaryAction).toEqual({
+      kind: 'resolve_attention',
+      label: 'Review security',
+      targetReference: 'security:publisher',
+    });
   });
 
   it('names a security block as a block, not as a review', () => {
@@ -171,6 +177,7 @@ describe('Assistant home presentation', () => {
 
     expect(presentation.health.state).toBe('needs_attention');
     expect(presentation.health.summary.text).toBe('Stopped by its security check.');
+    expect(presentation.primaryAction).toMatchObject({ label: 'Review security' });
   });
 
   it('still asks for setup when a check the Mac can prove is not satisfied', () => {

@@ -81,6 +81,27 @@ public enum CronEnglishFormatter {
             }
         }
 
+        // A list of minutes at one hour: "0,20,40 3 * * *". Recovery-attempt
+        // schedules look like this, and the raw field list was reaching the
+        // screen as cron notation.
+        if minute.contains(","), let hourValue = Int(hour), (0...23).contains(hourValue),
+           dayOfMonth == "*", month == "*" {
+            let minuteValues = minute.split(separator: ",").compactMap { Int($0) }
+            if minuteValues.count == minute.split(separator: ",").count,
+               minuteValues.allSatisfy({ (0...59).contains($0) }) {
+                let times = minuteValues.map { formatTime(hour: hourValue, minute: $0) }
+                let joined = times.count == 2
+                    ? times.joined(separator: " and ")
+                    : times.dropLast().joined(separator: ", ") + " and " + times[times.count - 1]
+                if dayOfWeek == "*" {
+                    return "Daily at \(joined)"
+                }
+                if let label = describeDayOfWeek(dayOfWeek) {
+                    return "\(label) at \(joined)"
+                }
+            }
+        }
+
         if let minuteValue = Int(minute), let hourValue = Int(hour),
            (0...59).contains(minuteValue), (0...23).contains(hourValue),
            month == "*" {
@@ -101,6 +122,17 @@ public enum CronEnglishFormatter {
         }
 
         return expression
+    }
+
+    /// `describe`, but guaranteed fit for a screen: when the expression is a
+    /// shape `describe` cannot phrase, this says "Custom schedule" instead of
+    /// echoing cron notation at somebody who never wrote it.
+    public static func label(_ expression: String) -> String {
+        let described = describe(expression)
+        if described == expression.trimmingCharacters(in: .whitespaces) || described.contains("*") {
+            return "Custom schedule"
+        }
+        return described
     }
 
     /// Parses an hour range field like `9-16`, or a stepped range like

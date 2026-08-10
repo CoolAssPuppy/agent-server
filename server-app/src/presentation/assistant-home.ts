@@ -188,6 +188,16 @@ function primaryAction(
   if (active) {
     return { kind: 'view_activity', label: 'View activity', targetReference: `run:${active.runId}` };
   }
+  // The page says the agent is waiting for a review; this button is the way
+  // there. A sentence about a review with no way to reach it sends somebody
+  // hunting through the app for a security screen.
+  if (input.automaticRuns === 'review_required' || input.automaticRuns === 'blocked') {
+    return {
+      kind: 'resolve_attention',
+      label: 'Review security',
+      targetReference: `security:${input.agent.id}`,
+    };
+  }
   if (!input.agent.enabled || readiness.state !== 'ready') {
     return {
       kind: 'edit',
