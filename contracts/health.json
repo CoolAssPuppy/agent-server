@@ -1,0 +1,14 @@
+{
+  "status": "ok",
+  "api_version": 14,
+  "server_version": "3.7.6",
+  "timestamp": "2026-08-10T14:41:19.902Z",
+  "started_at": "2026-08-10T06:00:00.000Z",
+  "panel": {
+    "state": "failing",
+    "last_success_at": "2026-08-10T06:00:00.000Z",
+    "last_failure_at": "2026-08-10T06:09:00.000Z",
+    "last_failure": "HTTP 401",
+    "consecutive_failures": 3
+  }
+}

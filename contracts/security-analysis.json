@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "agent_id": "reader",
+  "content_hash": "sha256:3603e42876a314001cd2b65172df308ff8a7d5109bf9f932255f5385c2668841",
+  "analyzer_version": "1.1.0",
+  "analyzed_at": "2026-08-10T14:41:41.557Z",
+  "risk": {
+    "level": "critical",
+    "reasons": [
+      "This agent can change files across your home folder"
+    ],
+    "finding_count": 2
+  },
+  "findings": [
+    {
+      "id": "permissions.commands:0",
+      "rule_id": "permissions.commands",
+      "severity": "high",
+      "title": "This agent can run commands",
+      "explanation": "Commands can change files and start other programs.",
+      "potential_impact": "A command could have effects beyond the selected folder.",
+      "trigger": "Command execution is enabled.",
+      "evidence": [
+        {
+          "code": "commands",
+          "label": "Commands",
+          "detail": "Allowed",
+          "source": "configuration"
+        }
+      ],
+      "recommendation": {
+        "id": "permissions.commands.fix",
+        "label": "Turn off command access",
+        "description": "Remove command access if the task can use app connections or file actions instead.",
+        "kind": "configuration_patch",
+        "risk": "needs_review",
+        "requires_confirmation": false,
+        "affects_functionality": true
+      },
+      "can_ignore": true,
+      "model_generated": false,
+      "confidence": 1,
+      "patch": {
+        "schema_version": 1,
+        "agent_id": "reader",
+        "expected_content_hash": "sha256:3603e42876a314001cd2b65172df308ff8a7d5109bf9f932255f5385c2668841",
+        "source": "security_analyzer",
+        "reason": "Turn off command access",
+        "changes": {
+          "tools": [
+            "Read"
+          ],
+          "disallowed_tools": [
+            "Bash"
+          ]
+        }
+      }
+    },
+    {
+      "id": "path.broad_write:0",
+      "rule_id": "path.broad_write",
+      "severity": "critical",
+      "title": "This agent can change files across your home folder",
+      "explanation": "The writable area is much broader than most tasks require.",
+      "potential_impact": "A mistake could affect personal files outside the intended task.",
+      "trigger": "The working folder is the home folder and file changes or commands are allowed.",
+      "evidence": [
+        {
+          "code": "path",
+          "label": "Working folder",
+          "detail": "/Users/example",
+          "source": "configuration"
+        }
+      ],
+      "recommendation": {
+        "id": "path.broad_write.fix",
+        "label": "Choose one working folder",
+        "description": "Limit access to the narrow folder used by this task.",
+        "kind": "configuration_patch",
+        "risk": "high",
+        "requires_confirmation": true,
+        "affects_functionality": true
+      },
+      "can_ignore": false,
+      "model_generated": false,
+      "confidence": 1
+    }
+  ],
+  "is_stale": false,
+  "model_status": "unavailable",
+  "review_state": {
+    "reviewed_at": null,
+    "is_reviewed": false,
+    "is_stale": false,
+    "acknowledged_finding_ids": [],
+    "analyzer_version": "1.1.0",
+    "content_hash": "sha256:3603e42876a314001cd2b65172df308ff8a7d5109bf9f932255f5385c2668841"
+  },
+  "automatic_runs": "blocked"
+}

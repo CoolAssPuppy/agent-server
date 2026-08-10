@@ -1013,7 +1013,8 @@ describe('API routes', () => {
       expect(res.status).toBe(202);
 
       const body = await res.json();
-      expect(body.runId).toBe('run-123');
+      expect(body.run_id).toBe('run-123');
+      expect(body.agent_id).toBe('test-agent');
       expect(triggerRun).toHaveBeenCalledWith('test-agent', undefined);
     });
 
@@ -1070,7 +1071,7 @@ describe('API routes', () => {
       const response = await authenticatedRequest(app, '/agents/test-agent/safe-test', { method: 'POST' });
 
       expect(response.status).toBe(202);
-      expect(await response.json()).toEqual({ runId: 'safe-run', agentId: 'test-agent', mode: 'safe_test' });
+      expect(await response.json()).toEqual({ run_id: 'safe-run', agent_id: 'test-agent', mode: 'safe_test' });
       expect(triggerSafeTest).toHaveBeenCalledWith('test-agent');
       expect(triggerRun).not.toHaveBeenCalled();
     });
@@ -1476,7 +1477,7 @@ describe('API routes', () => {
 
       const body = await res.json();
       expect(body.status).toBe('ok');
-      expect(body.api_version).toBe(13);
+      expect(body.api_version).toBe(14);
       // The app compares this to its own version to spot a stale server.
       expect(body.server_version).toBe(AGENT_SERVER_VERSION);
       // No Panel wired in this fixture, so no claim about one.

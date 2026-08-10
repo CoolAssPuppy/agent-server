@@ -222,9 +222,9 @@ async function triggerAgent(port: number, agentId: string): Promise<string> {
     },
     body: JSON.stringify({ confirmed_content_hash: preflight.content_hash }),
   });
-  const body = await response.json() as { runId: string; error?: string; code?: string };
+  const body = await response.json() as { run_id: string; error?: string; code?: string };
   expect({ status: response.status, body }).toMatchObject({ status: 202 });
-  return body.runId;
+  return body.run_id;
 }
 
 describe('startServer production composition', { timeout: 20_000 }, () => {

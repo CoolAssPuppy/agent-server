@@ -30,8 +30,11 @@ const paired = (overrides?: Partial<PairingRecord>): PairingRecord => ({
 describe('loadConfig', () => {
   it('uses defaults when no env vars are set', () => {
     const config = loadConfig({}, unpaired);
+    // eslint-disable-next-line no-restricted-syntax -- asserting that the default derives from the home directory is the point of this test; nothing on disk is read
     expect(config.workspaceDir).toBe(join(homedir(), '.agent-server'));
+    // eslint-disable-next-line no-restricted-syntax -- same derivation assertion
     expect(config.agentsDir).toBe(join(homedir(), '.agent-server', 'agents'));
+    // eslint-disable-next-line no-restricted-syntax -- same derivation assertion
     expect(config.lockDir).toBe(join(homedir(), '.agent-server', 'locks'));
     expect(config.checkIntervalMs).toBe(60_000);
     expect(config.heartbeatMs).toBe(30_000);
@@ -48,6 +51,7 @@ describe('loadConfig', () => {
     expect(config.maxConcurrentRuns).toBe(8);
     expect(config.maxTriggerDepth).toBe(10);
     expect(config.maxWebSocketClients).toBe(100);
+    // eslint-disable-next-line no-restricted-syntax -- same derivation assertion
     expect(config.runDbPath).toBe(join(homedir(), '.agent-server', 'runs.db'));
   });
 

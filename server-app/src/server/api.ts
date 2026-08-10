@@ -74,7 +74,10 @@ import type { SlackPairingStatus } from '../channels/slack.js';
 import type { ChannelLifecycleStatus } from '../channels/lifecycle.js';
 
 type EnvSource = Record<string, string | undefined>;
-const LOCAL_API_VERSION = 13;
+// 14: run trigger, safe-test, cancel, and delete responses moved to
+// snake_case like every other route. The mixed convention is what made a
+// hand-written CodingKeys mapping guessable-wrong on the app side.
+const LOCAL_API_VERSION = 14;
 const MACHINE_PROTOCOL_VERSION = 2;
 
 type ConnectionSnapshot = {
@@ -1378,7 +1381,7 @@ export function createApi(deps: ApiDependencies): Hono {
       const runId = confirmedContentHash
         ? await deps.triggerRun(agentId, promptSuffix, { confirmedContentHash })
         : await deps.triggerRun(agentId, promptSuffix);
-      return c.json({ runId, agentId }, 202);
+      return c.json({ run_id: runId, agent_id: agentId }, 202);
     } catch (err) {
       if (err instanceof RunPreflightDeniedError) {
         const { outcome } = err;
@@ -1410,7 +1413,7 @@ export function createApi(deps: ApiDependencies): Hono {
     }
     try {
       const runId = await deps.triggerSafeTest(agentId);
-      return c.json({ runId, agentId, mode: 'safe_test' }, 202);
+      return c.json({ run_id: runId, agent_id: agentId, mode: 'safe_test' }, 202);
     } catch (error) {
       if (error instanceof Error
         && 'code' in error
@@ -1596,7 +1599,7 @@ export function createApi(deps: ApiDependencies): Hono {
     const runId = c.req.param('id');
     const existed = deps.store.delete(runId);
     if (!existed) return c.json({ error: 'Run not found' }, 404);
-    return c.json({ success: true, runId });
+    return c.json({ success: true, run_id: runId });
   });
 
   app.post('/runs/:id/cancel', (c) => {
@@ -1615,7 +1618,7 @@ export function createApi(deps: ApiDependencies): Hono {
       });
     }
 
-    return c.json({ status: 'cancelled', runId });
+    return c.json({ status: 'cancelled', run_id: runId });
   });
 
   return app;

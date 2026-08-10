@@ -87,23 +87,43 @@ so there is nothing to confess.
       to the run history as a skipped run with a reason, the way security
       skips already are.
 
-### Phase 2: the wire format cannot drift again
+### Phase 2: the wire format cannot drift again (done 2026-08-10)
 
-- [ ] 5. Golden fixtures. A server test renders every route's real JSON into
+Notes from doing it: eight fixtures in contracts/ cover health, machine, both
+pairing routes, run trigger, cleanup, a full run, and the security analysis.
+The server proves it still answers those shapes (contract-fixtures.test.ts,
+values erased, keys and types compared); the app proves its shipped models
+still read them (ContractFixtureTests, decoding with the client's own decoder
+configuration). The wire models moved into AgentServerCore so the package
+test can reach them; the SwiftUI color helper stayed behind in the app.
+The /runs payload is camelCase and now contract-pinned; converting it to
+snake_case is cosmetic churn with regression risk and was deliberately not
+done. Normalizing the trigger route immediately broke a test helper that
+read the old key -- the exact failure mode, caught the same hour.
+
+- [x] 5. Golden fixtures. A server test renders every route's real JSON into
       checked-in fixture files. A Swift test decodes every fixture with the
       real app models. A field rename on either side fails CI instead of
       failing on the user's Mac. Agent Panel already does this for the sync
       payload; copy that pattern.
-- [ ] 6. Normalize the two camelCase routes to snake_case behind an
+- [x] 6. Normalize the two camelCase routes to snake_case behind an
       api_version bump, then delete the hand-written `CodingKeys` in favor
       of one decoder with snake_case conversion. Less code, one convention.
 
-### Phase 3: no assumptions about the machine
+### Phase 3: no assumptions about the machine (done 2026-08-10)
 
-- [ ] 7. Lint rule: `homedir()` and hard-coded `~/.agent-server` are banned
+Notes from doing it: the lint ban covers homedir() calls in tests, with four
+annotated exceptions in config.test.ts where the assertion is about the
+homedir-derived default itself. A broader ban on '.agent-server' literals
+flagged seventeen sites, most of them harmless strings like
+com.agent-server.daemon, and was dropped rather than taught exceptions.
+Item 8 was already true: CI runs the full server suite on a bare ubuntu
+runner and the Swift suite on a bare macos runner.
+
+- [x] 7. Lint rule: `homedir()` and hard-coded `~/.agent-server` are banned
       in `*.test.ts`. The config test regression becomes impossible to
       reintroduce.
-- [ ] 8. CI runs the server test suite on a runner with no `~/.agent-server`,
+- [x] 8. CI runs the server test suite on a runner with no `~/.agent-server`,
       no Doppler, and no keychain, so machine-state leaks fail fast.
 
 ### Phase 4: shrink the surface

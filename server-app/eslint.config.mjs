@@ -21,4 +21,21 @@ export default tseslint.config(
       'prefer-const': ['error', { ignoreReadBeforeAssign: true }],
     },
   },
+  {
+    // Tests must not depend on the machine they run on. A config test once
+    // read the developer's real ~/.agent-server, broke the moment that Mac
+    // was paired, and printed the live Panel credential into the failure
+    // output. Inject paths and lookups instead; a deliberate exception can
+    // disable the rule on one line with a comment saying why.
+    files: ['**/*.test.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "CallExpression[callee.name='homedir']",
+          message: 'Tests must not read the real home directory. Inject the path.',
+        },
+      ],
+    },
+  },
 );
