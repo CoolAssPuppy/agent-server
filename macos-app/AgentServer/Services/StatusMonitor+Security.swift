@@ -64,6 +64,11 @@ extension StatusMonitor {
         do {
             let analysis = try await client.securityAnalysis(agentId: agentId)
             securityAnalyses[agentId] = analysis
+            // The sidebar and the header pill read derived state, so a fresh
+            // analysis has to reach them too, not only the page that asked.
+            if !securityScanState.agents.isEmpty {
+                securityDashboard = makeSecurityDashboard(for: securityScanState.agents)
+            }
             return .success(securityPresentation(analysis))
         } catch {
             return .failure(securityFailure(
@@ -89,8 +94,13 @@ extension StatusMonitor {
                 acknowledgedFindingIds: analysis.findings.map(\.id)
             )
             guard response.reviewed else { throw ClientError.invalidResponse }
+            // Re-read what the server now says. The cached analysis still
+            // carries the pre-review verdict, and the sidebar and dashboard
+            // read the cache -- without this, an agent stayed marked as
+            // waiting for the review its person had just finished.
+            let fresh = await refreshAnalysisAfterReview(agentId: agentId) ?? analysis
             return .success(securityPresentation(
-                analysis,
+                fresh,
                 reviewedAt: response.reviewState?.reviewedDate ?? Date(),
                 isStale: response.reviewState?.isStale ?? false
             ))
@@ -131,7 +141,8 @@ extension StatusMonitor {
                 acknowledgedFindingIds: acknowledgedIds.sorted()
             )
             guard response.reviewed else { throw ClientError.invalidResponse }
-            return .success(securityPresentation(analysis, isStale: false))
+            let fresh = await refreshAnalysisAfterReview(agentId: agentId) ?? analysis
+            return .success(securityPresentation(fresh, isStale: false))
         } catch {
             return .failure(securityFailure(
                 title: "Could not ignore this warning",
@@ -239,6 +250,17 @@ extension StatusMonitor {
             self.securityScanTask = nil
             return result
         }
+    }
+
+    /// Re-fetches one agent's analysis after its review changed on the
+    /// server, and rebuilds every published surface that reads the cache.
+    private func refreshAnalysisAfterReview(agentId: String) async -> SecurityAnalysisPayload? {
+        guard let fresh = try? await client.securityAnalysis(agentId: agentId) else { return nil }
+        securityAnalyses[agentId] = fresh
+        if !securityScanState.agents.isEmpty {
+            securityDashboard = makeSecurityDashboard(for: securityScanState.agents)
+        }
+        return fresh
     }
 
     private func performSequentialSecurityScan(
