@@ -4,6 +4,30 @@ import { join } from 'path';
 import { createTempDir, makeAgent } from '../test-factories.js';
 import { AgentFileWatchManager, FileWatcher } from './file-watcher.js';
 
+/**
+ * Resolves once the mock has seen no new calls for `quietMs`. Fixed sleeps
+ * race the watcher's debounce timers whenever the machine is busy; quiet is
+ * the condition the tests actually mean.
+ */
+async function waitForQuiet(
+  mock: { mock: { calls: unknown[] } },
+  quietMs = 150,
+  deadlineMs = 3_000,
+): Promise<void> {
+  const startedAt = Date.now();
+  let lastCount = mock.mock.calls.length;
+  let quietSince = Date.now();
+  while (Date.now() - startedAt < deadlineMs) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    if (mock.mock.calls.length !== lastCount) {
+      lastCount = mock.mock.calls.length;
+      quietSince = Date.now();
+    } else if (Date.now() - quietSince >= quietMs) {
+      return;
+    }
+  }
+}
+
 describe('FileWatcher', () => {
   const dirs: string[] = [];
   const watchers: FileWatcher[] = [];
@@ -128,7 +152,11 @@ describe('FileWatcher', () => {
     watchers.push(watcher);
 
     expect(() => watcher.start()).not.toThrow();
-    await new Promise((resolve) => setTimeout(resolve, 75));
+    // Wait for quiet, not for a fixed interval. Under load (a notarization
+    // running beside the suite) the startup writes' debounce timer can fire
+    // after any fixed settle window, and the straggler lands in the cleared
+    // mock as a phantom failure.
+    await waitForQuiet(onChange);
     onChange.mockClear();
     writeFileSync(regexLookalike, 'changed');
     await new Promise((resolve) => setTimeout(resolve, 100));

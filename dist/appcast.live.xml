@@ -6,6 +6,24 @@
     <description>Agent Server updates</description>
     <language>en</language>
     <item>
+      <title>Version 3.7.7</title>
+      <pubDate>Mon, 10 Aug 2026 15:07:44 +0000</pubDate>
+      <sparkle:version>58</sparkle:version>
+      <sparkle:shortVersionString>3.7.7</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Faster, safer plumbing: the app and server now verify their shared wire format against checked-in contracts, and run triggers use the same field naming as the rest of the API.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.7.7.dmg"
+        sparkle:edSignature="XANPx1FSd/O367dO4oN8Fnsb0Ckqo05QHoj+UenNRT9M9ozbCtcyQQz6j+eu53gxGmkB2wkt3SUURK6c7eOGDQ=="
+        length="19985736"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
       <title>Version 3.7.6</title>
       <pubDate>Mon, 10 Aug 2026 13:26:29 +0000</pubDate>
       <sparkle:version>57</sparkle:version>
