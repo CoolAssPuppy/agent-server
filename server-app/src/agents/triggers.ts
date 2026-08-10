@@ -14,6 +14,21 @@ export type SafeTrigger = {
   chain: TriggerChain;
 };
 
+/** A downstream agent that was declared but will not fire, and why. */
+export type RefusedTrigger = {
+  agent: AgentConfig;
+  reason: 'depth_limit' | 'cycle';
+};
+
+export type SafeTriggerEvaluation = {
+  fired: SafeTrigger[];
+  /**
+   * Refusals used to be silent: a chain that hit its depth cap or looped
+   * simply had its tail never happen, with nothing anywhere saying so.
+   */
+  refused: RefusedTrigger[];
+};
+
 /** Start ancestry tracking for a manually or externally launched agent. */
 export function createTriggerChain(sourceAgentId: string, id: string = randomUUID()): TriggerChain {
   return {
@@ -72,9 +87,21 @@ export function evaluateSafeTriggers(
   status: CompletionStatus,
   chain: TriggerChain,
   maxDepth: number,
-): SafeTrigger[] {
-  return evaluateTriggers(agents, sourceAgentId, status).flatMap((agent) => {
+): SafeTriggerEvaluation {
+  const fired: SafeTrigger[] = [];
+  const refused: RefusedTrigger[] = [];
+
+  for (const agent of evaluateTriggers(agents, sourceAgentId, status)) {
     const nextChain = childChain(chain, agent.id, maxDepth);
-    return nextChain ? [{ agent, chain: nextChain }] : [];
-  });
+    if (nextChain) {
+      fired.push({ agent, chain: nextChain });
+    } else {
+      refused.push({
+        agent,
+        reason: chain.visitedAgentIds.includes(agent.id) ? 'cycle' : 'depth_limit',
+      });
+    }
+  }
+
+  return { fired, refused };
 }

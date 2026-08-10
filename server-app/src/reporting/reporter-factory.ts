@@ -2,6 +2,7 @@ import type { ServerConfig } from '../platform/config.js';
 import type { AgentTelemetry } from '../agents/config.js';
 import type { Reporter } from '../execution/runner.js';
 import { TelemetryReporter } from './reporter.js';
+import type { PanelHealth } from './panel-health.js';
 
 const noopReporter: Reporter = {
   start: async () => {},
@@ -21,6 +22,8 @@ type CreateReporterOptions = {
    * hard-coded defaults in `TelemetryReporter`.
    */
   agentTelemetry?: AgentTelemetry;
+  /** Shared delivery-outcome tracker; one per server, read by /health. */
+  panelHealth?: PanelHealth;
 };
 
 export function createReporter(
@@ -47,5 +50,6 @@ export function createReporter(
     includeProgressMetadata: at?.progress_include_metadata ?? config.telemetryProgressIncludeMetadata,
     serverId: options.serverId,
     conversationId: options.conversationId,
+    panelHealth: options.panelHealth,
   });
 }

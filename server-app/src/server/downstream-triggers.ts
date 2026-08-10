@@ -9,6 +9,12 @@ type DownstreamTriggerDependencies = {
   discover: () => Promise<AgentConfig[]>;
   trigger: (agent: AgentConfig, chain: TriggerChain) => Promise<void> | void;
   maxDepth: number;
+  /**
+   * Called for each declared downstream agent that will not fire, so the
+   * refusal lands in run history instead of being the part of the chain
+   * that silently never happens.
+   */
+  onRefused?: (agent: AgentConfig, reason: 'depth_limit' | 'cycle', sourceAgentId: string) => void;
   log?: (message: string) => void;
   logError?: (message: string, error: unknown) => void;
 };
@@ -29,17 +35,22 @@ export function createDownstreamTriggerHandler(
   return async (sourceAgent, status, existingChain) => {
     if (status === 'skipped') return;
 
-    let targets: ReturnType<typeof evaluateSafeTriggers>;
+    let targets: ReturnType<typeof evaluateSafeTriggers>['fired'];
     try {
       const agents = await dependencies.discover();
       const chain = existingChain ?? createTriggerChain(sourceAgent.id);
-      targets = evaluateSafeTriggers(
+      const evaluation = evaluateSafeTriggers(
         agents,
         sourceAgent.id,
         status,
         chain,
         dependencies.maxDepth,
       );
+      targets = evaluation.fired;
+      for (const refusal of evaluation.refused) {
+        log(`[triggers] ${sourceAgent.id} -> ${refusal.agent.id} refused (${refusal.reason})`);
+        dependencies.onRefused?.(refusal.agent, refusal.reason, sourceAgent.id);
+      }
     } catch (error) {
       logError(`[triggers] Failed to evaluate triggers for ${sourceAgent.id}:`, error);
       return;

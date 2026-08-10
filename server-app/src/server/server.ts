@@ -75,6 +75,7 @@ import { classifyErrorReason } from '../analytics/reason.js';
 import { loadOrCreateMachineId } from '../platform/machine-identity.js';
 import { collectAssistantHomeFacts } from '../presentation/assistant-readiness.js';
 import { loadPairing, redeemPairingCode, savePairing } from '../platform/pairing.js';
+import { PanelHealth } from '../reporting/panel-health.js';
 import { AGENT_SERVER_VERSION } from '../version.js';
 
 export type ServerInstance = {
@@ -299,6 +300,10 @@ export function startServer(
   const machineId = loadOrCreateMachineId(config.workspaceDir);
   const workerId = machineId;
   const panelClient = createPanelClient(config);
+  // One tracker for every reporter this server creates. /health reads it, so
+  // "Panel has not heard a delivery in an hour" is a fact on screen instead
+  // of a log line.
+  const panelHealth = new PanelHealth();
 
   const analytics = options?.analytics ?? createNoopAnalytics();
   const store = options?.store ?? createRunStore(config.runDbPath);
@@ -418,6 +423,7 @@ export function startServer(
         panelUrl: config.panelUrl!,
         panelApiKey: config.panelApiKey!,
         machineId: config.machineId,
+        panelHealth,
       })
     : undefined;
   const realtimeClient = panelConfigured
@@ -495,6 +501,32 @@ export function startServer(
       await checkedTriggerRunForAgent(agent, { chain }, 'chain');
     },
     maxDepth: config.maxTriggerDepth,
+    // A refused link in a chain lands in run history as a skipped run. The
+    // downstream agent's page is where somebody looks when it did not run.
+    onRefused: (agent, reason, sourceAgentId) => {
+      const now = new Date();
+      const message = reason === 'cycle'
+        ? `Not triggered by ${sourceAgentId}: this chain already ran ${agent.id} once.`
+        : `Not triggered by ${sourceAgentId}: the chain reached its depth limit of ${config.maxTriggerDepth}.`;
+      store.add({
+        runId: randomUUID(),
+        agentId: agent.id,
+        agentName: agent.name,
+        status: 'skipped',
+        code: `chain_${reason}`,
+        startedAt: now,
+        completedAt: now,
+        summary: message,
+        error: message,
+        turnCount: 0,
+        toolsUsed: [],
+        filesRead: [],
+        filesWritten: [],
+        commandsRun: [],
+        progressMessages: [],
+        mode: 'normal',
+      });
+    },
   });
 
   const runLifecycle = createRunLifecycle({
@@ -525,6 +557,7 @@ export function startServer(
       serverId: workerId,
       conversationId,
       agentTelemetry: agent.telemetry,
+      panelHealth,
     }),
     buildDecisionContext,
     resolveTimeoutMs: (agent) => resolveRunTimeoutMs(agent, config),
@@ -609,13 +642,13 @@ export function startServer(
     if (isStopping) return;
     const now = new Date();
 
-    if (config.catchUp) {
-      const gap = now.getTime() - lastCheckedAt.getTime();
-      if (gap > SLEEP_GAP_MULTIPLIER * config.checkIntervalMs) {
-        console.log(`[catch-up] Detected sleep gap of ${Math.round(gap / 1000)}s, checking for missed agents`);
-        const missedAgents = agents.filter((agent) => hasMissedRun(agent, lastCheckedAt, now));
-        for (const agent of missedAgents) {
-          if (isStopping) break;
+    const gap = now.getTime() - lastCheckedAt.getTime();
+    if (gap > SLEEP_GAP_MULTIPLIER * config.checkIntervalMs) {
+      console.log(`[catch-up] Detected sleep gap of ${Math.round(gap / 1000)}s, checking for missed agents`);
+      const missedAgents = agents.filter((agent) => hasMissedRun(agent, lastCheckedAt, now));
+      for (const agent of missedAgents) {
+        if (isStopping) break;
+        if (config.catchUp) {
           try {
             console.log(`[catch-up] Triggering missed agent: ${agent.id}`);
             await checkedTriggerRunForAgent(agent, {}, 'schedule');
@@ -623,6 +656,32 @@ export function startServer(
             if (isExpectedShutdownError(err)) break;
             console.error(`[catch-up] ${agent.id}: error - ${err}`);
           }
+        } else {
+          // Catch-up is off, so the run is not happening -- but the miss
+          // itself goes in run history. A schedule that fired while the Mac
+          // was asleep used to leave no trace at all, which reads as "my
+          // agent is broken" instead of "my Mac was closed".
+          const missedAt = new Date();
+          const message = 'Missed its schedule while this Mac was asleep. '
+            + 'Turn on catch-up in Settings to run missed schedules on wake.';
+          store.add({
+            runId: randomUUID(),
+            agentId: agent.id,
+            agentName: agent.name,
+            status: 'skipped',
+            code: 'missed_while_asleep',
+            startedAt: missedAt,
+            completedAt: missedAt,
+            summary: message,
+            error: message,
+            turnCount: 0,
+            toolsUsed: [],
+            filesRead: [],
+            filesWritten: [],
+            commandsRun: [],
+            progressMessages: [],
+            mode: 'normal',
+          });
         }
       }
     }
@@ -710,8 +769,11 @@ export function startServer(
     skipRecorder: new PreflightSkipRecorder(store),
     onAutomaticSkip: (agent, outcome, runId) => {
       console.warn(`[security] Skipped automatic run for ${agent.id}: ${outcome.message}`);
+      // A withheld run is not a failed one. The app words the two
+      // differently, and calling this a failure had it announcing "failed"
+      // for an agent that was waiting on its person.
       broadcaster.emit({
-        type: 'run_failed',
+        type: 'run_skipped',
         runId,
         agentId: agent.id,
         error: outcome.message,
@@ -836,6 +898,7 @@ export function startServer(
     // visible to the app immediately. Whether the daemon is reporting with it
     // is a separate question: configuration was read at startup.
     getPairing: () => loadPairing(config.workspaceDir),
+    panelHealth: config.panelUrl ? () => panelHealth.snapshot() : undefined,
     pairedCredentialInUse: config.machineId !== undefined,
     // Present only when a Panel is configured. Without a URL there is nothing
     // to redeem a code against, and the route says so rather than failing in a

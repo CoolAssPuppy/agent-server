@@ -139,12 +139,20 @@ struct HealthResponse: Codable {
     let timestamp: String
     let startedAt: String?
     let apiVersion: Int?
+    /// The version of the server that answered, so the app can notice it is
+    /// running a build older than itself. Absent before 3.7.6.
+    let serverVersion: String?
+    /// Whether Panel is hearing from this Mac. Absent when no Panel is
+    /// configured or the server predates 3.7.6.
+    let panel: PanelReportingStatus?
 
     enum CodingKeys: String, CodingKey {
         case status
         case timestamp
+        case panel
         case startedAt = "started_at"
         case apiVersion = "api_version"
+        case serverVersion = "server_version"
     }
 }
 

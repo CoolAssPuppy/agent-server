@@ -4,6 +4,7 @@ import { join } from 'path';
 import { sanitizeText } from '../server/security-utils.js';
 import { toErrorMessage } from '../util/errors.js';
 import { withTimeout } from '../util/with-timeout.js';
+import type { PanelHealth } from './panel-health.js';
 
 export type StatusState =
   | 'submitted'
@@ -53,6 +54,12 @@ type ReporterConfig = {
   conversationId?: string;
   /** Override the pending-terminals directory (tests only). */
   pendingTerminalsDir?: string;
+  /**
+   * Shared delivery-outcome tracker, one per server. Without it, delivery
+   * failures live only in the terminal log and Panel goes quiet with nothing
+   * on screen saying so.
+   */
+  panelHealth?: PanelHealth;
 };
 
 const DEFAULT_HEARTBEAT_MS = 60_000;
@@ -139,7 +146,7 @@ async function fetchWithTimeout(
 }
 
 export class TelemetryReporter {
-  private readonly config: Required<Omit<ReporterConfig, 'fetch' | 'heartbeatMs' | 'serverId' | 'conversationId' | 'pendingTerminalsDir'>> & {
+  private readonly config: Required<Omit<ReporterConfig, 'fetch' | 'heartbeatMs' | 'serverId' | 'conversationId' | 'pendingTerminalsDir' | 'panelHealth'>> & {
     fetch: typeof globalThis.fetch;
     heartbeatMs: number;
     progressMode: 'live' | 'batched';
@@ -150,6 +157,7 @@ export class TelemetryReporter {
     serverId?: string;
     conversationId?: string;
     pendingTerminalsDir?: string;
+    panelHealth?: PanelHealth;
   };
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private deferredRetryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -341,16 +349,19 @@ export class TelemetryReporter {
           if (TERMINAL_STATES.has(body.state)) {
             await removePendingTerminal(this.config.runId, this.config.pendingTerminalsDir);
           }
+          this.config.panelHealth?.recordSuccess();
           console.log(`[telemetry] Successfully sent ${body.state} event for "${this.config.agentName}" (${response.status})`);
           return;
         }
 
+        this.config.panelHealth?.recordFailure(`HTTP ${response.status}`);
         console.error(
           `[telemetry] POST ${this.config.endpoint} returned ${response.status} ${response.statusText} ` +
           `for ${body.state} event of "${this.config.agentName}" (attempt ${attempt}/${maxAttempts})`
         );
       } catch (err) {
         const message = sanitizeText(toErrorMessage(err), 300);
+        this.config.panelHealth?.recordFailure(message);
         console.error(
           `[telemetry] Failed to send ${body.state} event for "${this.config.agentName}" ` +
           `(attempt ${attempt}/${maxAttempts}): ${message}`

@@ -78,14 +78,17 @@ describe('safe trigger chains', () => {
     ];
 
     expect(evaluateSafeTriggers(agents, 'source', 'completed', sourceChain, 5))
-      .toEqual([{
-        agent: agents[1],
-        chain: {
-          id: 'chain-1',
-          visitedAgentIds: ['source', 'downstream'],
-          depth: 1,
-        },
-      }]);
+      .toEqual({
+        fired: [{
+          agent: agents[1],
+          chain: {
+            id: 'chain-1',
+            visitedAgentIds: ['source', 'downstream'],
+            depth: 1,
+          },
+        }],
+        refused: [],
+      });
   });
 
   it('rejects a self-trigger', () => {
@@ -97,7 +100,10 @@ describe('safe trigger chains', () => {
       'completed',
       createTriggerChain(source.id, 'chain-1'),
       5,
-    )).toEqual([]);
+    )).toEqual({
+      fired: [],
+      refused: [{ agent: source, reason: 'cycle' }],
+    });
   });
 
   it('rejects a target already visited by the current branch', () => {
@@ -111,7 +117,10 @@ describe('safe trigger chains', () => {
       depth: 1,
     };
 
-    expect(evaluateSafeTriggers(agents, 'agent-b', 'completed', chain, 5)).toEqual([]);
+    expect(evaluateSafeTriggers(agents, 'agent-b', 'completed', chain, 5)).toEqual({
+      fired: [],
+      refused: [{ agent: agents[1], reason: 'cycle' }],
+    });
   });
 
   it('stops before launching an edge beyond the maximum depth', () => {
@@ -125,7 +134,12 @@ describe('safe trigger chains', () => {
       depth: 1,
     };
 
-    expect(evaluateSafeTriggers(agents, 'agent-b', 'completed', chain, 1)).toEqual([]);
+    // Named as a depth refusal, not dropped: the silent version of this is
+    // a chain whose tail never happens with nothing anywhere saying so.
+    expect(evaluateSafeTriggers(agents, 'agent-b', 'completed', chain, 1)).toEqual({
+      fired: [],
+      refused: [{ agent: agents[1], reason: 'depth_limit' }],
+    });
   });
 
   it('allows the edge that reaches the configured maximum depth', () => {
@@ -139,7 +153,7 @@ describe('safe trigger chains', () => {
       depth: 1,
     };
 
-    expect(evaluateSafeTriggers(agents, 'agent-b', 'completed', chain, 2)[0]?.chain)
+    expect(evaluateSafeTriggers(agents, 'agent-b', 'completed', chain, 2).fired[0]?.chain)
       .toEqual({
         id: 'chain-1',
         visitedAgentIds: ['agent-a', 'agent-b', 'agent-c'],

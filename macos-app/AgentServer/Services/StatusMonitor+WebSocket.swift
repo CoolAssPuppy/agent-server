@@ -71,7 +71,18 @@ extension StatusMonitor {
               let event = try? JSONDecoder().decode(ProgressEvent.self, from: data) else { return }
 
         switch event.type {
-        case .runStarted, .runSkipped:
+        case .runStarted:
+            poll()
+        case .runSkipped:
+            // Most skips are routine (a rerun policy deciding there is
+            // nothing to do) and stay quiet. A security refusal is different:
+            // the agent stays stopped until this person acts, and the server
+            // sends at most one of these per agent per edit.
+            if event.code?.hasPrefix("security_preflight_") == true {
+                notificationManager?.notifyRunNeedsReview(
+                    agentName: agentName(for: event.agentId)
+                )
+            }
             poll()
         case .runCompleted:
             notificationManager?.notifyRunCompleted(

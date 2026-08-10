@@ -26,6 +26,12 @@ final class StatusMonitor: ObservableObject {
     @Published var securityScanState = SecurityBackgroundScanState.idle
     @Published var securityDashboard: SecurityDashboardPresentation?
     @Published var securityScanFailure: ConsumerFlowFailure?
+    /// Panel reporting health from /health; nil when no Panel is configured
+    /// or the server predates 3.7.6.
+    @Published private(set) var panelReporting: PanelReportingStatus?
+    /// The running server's version from /health, for skew warnings.
+    @Published private(set) var reportedServerVersion: String?
+    private var lastPanelState: PanelReportingStatus.State?
 
     let client = AgentServerClient()
     // Retained only for resolving decisions (a write, POSTed to the panel with
@@ -341,6 +347,17 @@ final class StatusMonitor: ObservableObject {
             consecutiveFailures = 0
             restartCoordinator.observeRunning(startedAt: health.startedAt)
             serverLifecycleState = restartCoordinator.state
+            reportedServerVersion = health.serverVersion
+            panelReporting = health.panel
+            // Notify once per outage, on the transition into failing. The
+            // state is on the Settings screen; the notification only points
+            // at it.
+            if let panel = health.panel {
+                if panel.state == .failing, lastPanelState != .failing {
+                    notificationManager?.notifyPanelReportingFailing(reason: panel.lastFailure)
+                }
+                lastPanelState = panel.state
+            }
 
             let fetchedAgents = try await client.agents()
             localAPISetupError = nil

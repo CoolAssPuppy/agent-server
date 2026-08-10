@@ -115,6 +115,32 @@ final class NotificationManager {
 
     // MARK: System events (tier 1)
 
+    /// An agent's scheduled run was withheld pending a security review. Not a
+    /// failure: nothing broke, and the failure chime at 3am for it taught one
+    /// person to distrust the word "failed".
+    func notifyRunNeedsReview(agentName: String) {
+        post(
+            title: "\(agentName) is waiting on you",
+            body: "It will not run on its schedule until you approve its security review.",
+            category: .systemEvent,
+            chime: .info,
+            identifier: "run-needs-review-\(UUID().uuidString)"
+        )
+    }
+
+    /// Runs have stopped reaching Agent Panel. Sent once per outage, when the
+    /// state transitions to failing; the ongoing condition lives in Settings.
+    func notifyPanelReportingFailing(reason: String?) {
+        let detail = reason.flatMap { $0.isEmpty ? nil : " (\($0))" } ?? ""
+        post(
+            title: "Agent Panel is not hearing from this Mac",
+            body: "Runs are happening but are not reaching Panel\(detail). Open Settings for details.",
+            category: .systemEvent,
+            chime: .info,
+            identifier: "panel-reporting-\(UUID().uuidString)"
+        )
+    }
+
     func notifyMcpNeedsAuth(serverNames: [String]) {
         guard !serverNames.isEmpty else { return }
         let list = serverNames.joined(separator: ", ")

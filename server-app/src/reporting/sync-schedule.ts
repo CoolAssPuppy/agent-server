@@ -4,6 +4,7 @@ import { discoverAgentDefinitions, isAgentFile } from '../agents/discovery.js';
 import { getNextRun } from '../agents/scheduler.js';
 import { toErrorMessage } from '../util/errors.js';
 import { withTimeout } from '../util/with-timeout.js';
+import type { PanelHealth } from './panel-health.js';
 import { buildV2AssistantSyncPayload, type V2AssistantSyncPayload } from './v2-assistant-sync.js';
 
 const DEFAULT_FILE_CHANGE_DEBOUNCE_MS = 2_000;
@@ -71,6 +72,8 @@ type SyncOptions = {
    */
   machineId?: string;
   fetch?: typeof globalThis.fetch;
+  /** Shared delivery-outcome tracker; sync failures count as Panel failures. */
+  panelHealth?: PanelHealth;
   now?: Date;
   requestTimeoutMs?: number;
 };
@@ -138,14 +141,17 @@ export async function syncAgentSchedule(options: SyncOptions): Promise<SyncResul
     );
 
     if (!response.ok) {
+      options.panelHealth?.recordFailure(`HTTP ${response.status}`);
       console.error(`[sync-schedule] Panel responded ${response.status}`);
       return { ok: false, status: response.status };
     }
 
+    options.panelHealth?.recordSuccess();
     console.log(`[sync-schedule] Synced ${payload.count} agent(s) to panel`);
     return { ok: true, status: response.status, count: payload.count };
   } catch (err) {
     const message = toErrorMessage(err);
+    options.panelHealth?.recordFailure(message);
     console.error(`[sync-schedule] Failed to sync agent schedule: ${message}`);
     return { ok: false, error: message };
   }

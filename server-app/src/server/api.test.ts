@@ -1477,6 +1477,36 @@ describe('API routes', () => {
       const body = await res.json();
       expect(body.status).toBe('ok');
       expect(body.api_version).toBe(13);
+      // The app compares this to its own version to spot a stale server.
+      expect(body.server_version).toBe(AGENT_SERVER_VERSION);
+      // No Panel wired in this fixture, so no claim about one.
+      expect(body.panel).toBeUndefined();
+    });
+
+    it('reports whether Panel is hearing from this Mac', async () => {
+      const agents = [makeAgent()];
+      const app = createApi({
+        getAgents: async () => agents,
+        store,
+        triggerRun,
+        panelHealth: () => ({
+          state: 'failing',
+          last_success_at: '2026-08-10T06:00:00.000Z',
+          last_failure_at: '2026-08-10T06:09:00.000Z',
+          last_failure: 'HTTP 401',
+          consecutive_failures: 12,
+        }),
+      });
+
+      const body = await (await authenticatedRequest(app, '/health')).json();
+
+      expect(body.panel).toEqual({
+        state: 'failing',
+        last_success_at: '2026-08-10T06:00:00.000Z',
+        last_failure_at: '2026-08-10T06:09:00.000Z',
+        last_failure: 'HTTP 401',
+        consecutive_failures: 12,
+      });
     });
 
     it('returns started_at timestamp when provided', async () => {

@@ -53,6 +53,7 @@ struct SettingsDrawer: View {
                     alignment: .leading,
                     spacing: CGFloat(SettingsPresentation.interCardSpacing)
                 ) {
+                    healthWarnings
                     primarySectionColumns
                     SettingsAdvancedDisclosure(isExpanded: $showAdvancedSettings)
                     if showAdvancedSettings {
@@ -68,6 +69,48 @@ struct SettingsDrawer: View {
             .scrollBounceBehavior(.basedOnSize)
             .background(theme.tokens.background)
         }
+    }
+
+    /// Conditions worth a banner above the cards: a server older than this
+    /// app, and Panel no longer hearing from this Mac. Both were previously
+    /// findable only in the server log.
+    @ViewBuilder
+    private var healthWarnings: some View {
+        let appVersion = Bundle.main
+            .object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        if let skew = ServerHealthPresentation.versionSkewWarning(
+            appVersion: appVersion,
+            serverVersion: monitor.reportedServerVersion
+        ) {
+            healthWarningBanner(skew, identifier: "settings.versionSkewWarning")
+        }
+        if let panel = monitor.panelReporting,
+           let warning = ServerHealthPresentation.panelReportingWarning(for: panel) {
+            healthWarningBanner(warning, identifier: "settings.panelReportingWarning")
+        }
+    }
+
+    private func healthWarningBanner(_ text: String, identifier: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 12))
+                .foregroundStyle(theme.tokens.warning)
+            Text(text)
+                .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
+                .foregroundStyle(theme.tokens.foreground)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: NRadius.sm)
+                .fill(theme.tokens.warning.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: NRadius.sm)
+                        .stroke(theme.tokens.warning.opacity(0.35), lineWidth: 1)
+                )
+        )
+        .accessibilityIdentifier(identifier)
     }
 
     private var primarySectionColumns: some View {

@@ -5,6 +5,7 @@ import { timingSafeEqual } from 'crypto';
 import { z } from 'zod';
 import type { AgentConfig } from '../agents/config.js';
 import type { PairingRecord } from '../platform/pairing.js';
+import type { PanelHealthSnapshot } from '../reporting/panel-health.js';
 import {
   RuntimeAssignmentInputSchema,
   type RuntimeAssignment,
@@ -243,6 +244,8 @@ type ApiDependencies = {
   ) => Promise<AssistantHomeFacts>;
   startedAt?: string;
   host?: string;
+  /** Delivery health of Panel reporting, read fresh per request. */
+  panelHealth?: () => PanelHealthSnapshot;
 };
 
 const MAX_BODY_BYTES = 8_192;
@@ -494,8 +497,15 @@ export function createApi(deps: ApiDependencies): Hono {
     return c.json({
       status: 'ok',
       api_version: LOCAL_API_VERSION,
+      // The app compares this against its own version to catch the case
+      // where it is launching a server older than itself, which otherwise
+      // shows up only as features quietly missing.
+      server_version: AGENT_SERVER_VERSION,
       timestamp: new Date().toISOString(),
       ...(deps.startedAt ? { started_at: deps.startedAt } : {}),
+      // Whether Panel is hearing from this Mac. Absent when no Panel is
+      // configured; `unknown` until the first delivery of this process.
+      ...(deps.panelHealth ? { panel: deps.panelHealth() } : {}),
     });
   });
 

@@ -23,6 +23,33 @@ function createHandler(
 }
 
 describe('createDownstreamTriggerHandler', () => {
+  it('reports a refused link instead of silently not firing it', async () => {
+    const downstream = makeAgent({ id: 'downstream' });
+    const onRefused = vi.fn();
+    const trigger = vi.fn();
+    const handler = createDownstreamTriggerHandler({
+      discover: vi.fn().mockResolvedValue([
+        makeAgent({ id: 'source', on_complete: [{ agent: 'downstream' }] }),
+        downstream,
+      ]),
+      trigger,
+      maxDepth: 1,
+      onRefused,
+      log: () => {},
+    });
+
+    // The chain is already at the cap, so the link must not fire -- and the
+    // person who wired it must be able to find out why it did not.
+    await handler(makeAgent({ id: 'source' }), 'completed', {
+      id: 'chain-1',
+      visitedAgentIds: ['origin', 'source'],
+      depth: 1,
+    });
+
+    expect(trigger).not.toHaveBeenCalled();
+    expect(onRefused).toHaveBeenCalledWith(downstream, 'depth_limit', 'source');
+  });
+
   it('triggers downstream agents on completion with the propagated chain', async () => {
     const downstream = makeAgent({ id: 'downstream' });
     const { handler, trigger } = createHandler([
