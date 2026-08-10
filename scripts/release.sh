@@ -60,10 +60,77 @@ for tool in xcodebuild xcodegen create-dmg doppler python3 "$SPARKLE_SIGN_UPDATE
   fi
 done
 
+# Both the Swift checks and the archive need a full Xcode. On a Mac where
+# xcode-select points at CommandLineTools, `swift test` fails with "no such
+# module 'XCTest'" a few minutes in, which reads as a broken test suite rather
+# than a missing toolchain. Choosing one here needs no sudo and leaves the
+# machine's own selection alone.
+if ! xcrun --find xctest >/dev/null 2>&1; then
+  for candidate in /Applications/Xcode.app /Applications/Xcode*.app; do
+    [ -d "$candidate/Contents/Developer" ] || continue
+    export DEVELOPER_DIR="$candidate/Contents/Developer"
+    break
+  done
+  if ! xcrun --find xctest >/dev/null 2>&1; then
+    echo "Error: no full Xcode found. xcode-select points at $(xcode-select -p)."
+    echo "Install Xcode, or export DEVELOPER_DIR=/path/to/Xcode.app/Contents/Developer."
+    exit 1
+  fi
+  echo "==> Using Xcode at $DEVELOPER_DIR"
+fi
+
 if ! "${WRANGLER[@]}" --version >/dev/null 2>&1; then
   echo "Error: pinned wrangler is unavailable. Run pnpm install --frozen-lockfile."
   exit 1
 fi
+
+# Where the notarization profile lives. The login keychain refuses writes from
+# a process with no window server access, so `store-credentials` cannot run
+# from an automated session, and a release from one would stop here. Keeping
+# the profile in a dedicated keychain removes that dependency: it is unlocked
+# with a password from Doppler rather than by a person clicking Allow.
+#
+# Unset NOTARY_KEYCHAIN to fall back to the default keychain search.
+NOTARY_KEYCHAIN="${NOTARY_KEYCHAIN:-$HOME/Library/Keychains/agent-server-notary.keychain-db}"
+export NOTARY_KEYCHAIN
+
+run_notarytool() {
+  if [ -n "$NOTARY_KEYCHAIN" ] && [ -f "$NOTARY_KEYCHAIN" ]; then
+    xcrun notarytool "$@" --keychain-profile "$NOTARY_PROFILE" --keychain "$NOTARY_KEYCHAIN"
+  else
+    xcrun notarytool "$@" --keychain-profile "$NOTARY_PROFILE"
+  fi
+}
+
+# Unlock first: a dedicated keychain locks on its own schedule, and finding
+# that out mid-notarization means an archive has already been uploaded.
+ensure_notary_ready() {
+  if [ -f "$NOTARY_KEYCHAIN" ]; then
+    NOTARY_KEYCHAIN_PASSWORD="${NOTARY_KEYCHAIN_PASSWORD:-$(doppler secrets get NOTARY_KEYCHAIN_PASSWORD --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" --plain 2>/dev/null || true)}"
+    if [ -n "$NOTARY_KEYCHAIN_PASSWORD" ]; then
+      security unlock-keychain -p "$NOTARY_KEYCHAIN_PASSWORD" "$NOTARY_KEYCHAIN"
+    fi
+  fi
+
+  if run_notarytool history >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "Error: notarization keychain profile '$NOTARY_PROFILE' is missing or invalid."
+  echo "Store it with:"
+  echo "  xcrun notarytool store-credentials \"$NOTARY_PROFILE\" \\"
+  echo "    --apple-id <apple-id> --team-id <team-id> --password <app-specific-password> \\"
+  echo "    --keychain \"$NOTARY_KEYCHAIN\""
+  echo "Create that keychain first if it does not exist, and put its password in"
+  echo "Doppler as NOTARY_KEYCHAIN_PASSWORD so an unattended release can unlock it."
+  exit 1
+}
+
+# Checked here rather than at step 6. A missing credential used to surface
+# after the tests, the version bump, and a ten minute archive, with the tree
+# already rewritten for a release that could not finish.
+echo "==> Checking the notarization credential"
+ensure_notary_ready
 
 mkdir -p "$DIST"
 
@@ -162,43 +229,9 @@ fi
 #----------------------------------------------------------------------
 # 6. Notarize + staple the .app
 #----------------------------------------------------------------------
-# Where the notarization profile lives. The login keychain refuses writes from
-# a process with no window server access, so `store-credentials` cannot run
-# from an automated session, and a release from one would stop here. Keeping
-# the profile in a dedicated keychain removes that dependency: it is unlocked
-# with a password from Doppler rather than by a person clicking Allow.
-#
-# Unset NOTARY_KEYCHAIN to fall back to the default keychain search.
-NOTARY_KEYCHAIN="${NOTARY_KEYCHAIN:-$HOME/Library/Keychains/agent-server-notary.keychain-db}"
-export NOTARY_KEYCHAIN
-
-run_notarytool() {
-  if [ -n "$NOTARY_KEYCHAIN" ] && [ -f "$NOTARY_KEYCHAIN" ]; then
-    xcrun notarytool "$@" --keychain-profile "$NOTARY_PROFILE" --keychain "$NOTARY_KEYCHAIN"
-  else
-    xcrun notarytool "$@" --keychain-profile "$NOTARY_PROFILE"
-  fi
-}
-
-# A dedicated keychain locks on its own schedule, so unlock before the first
-# call rather than discovering it mid-notarization with an archive uploaded.
-if [ -f "$NOTARY_KEYCHAIN" ]; then
-  NOTARY_KEYCHAIN_PASSWORD="${NOTARY_KEYCHAIN_PASSWORD:-$(doppler secrets get NOTARY_KEYCHAIN_PASSWORD --project "$DOPPLER_PROJECT" --config "$DOPPLER_CONFIG" --plain 2>/dev/null || true)}"
-  if [ -n "$NOTARY_KEYCHAIN_PASSWORD" ]; then
-    security unlock-keychain -p "$NOTARY_KEYCHAIN_PASSWORD" "$NOTARY_KEYCHAIN"
-  fi
-fi
-
-if ! run_notarytool history >/dev/null 2>&1; then
-  echo "Error: notarization keychain profile '$NOTARY_PROFILE' is missing or invalid."
-  echo "Store it with:"
-  echo "  xcrun notarytool store-credentials \"$NOTARY_PROFILE\" \\"
-  echo "    --apple-id <apple-id> --team-id <team-id> --password <app-specific-password> \\"
-  echo "    --keychain \"$NOTARY_KEYCHAIN\""
-  echo "Create that keychain first if it does not exist, and put its password in"
-  echo "Doppler as NOTARY_KEYCHAIN_PASSWORD so an unattended release can unlock it."
-  exit 1
-fi
+# The credential was proved in preflight. Prove it again: an archive and an
+# export sit between the two, long enough for a dedicated keychain to relock.
+ensure_notary_ready
 
 echo "==> Notarizing .app (takes a few minutes)"
 APP_ZIP="$DIST/export-$VERSION/AgentServer.app.zip"

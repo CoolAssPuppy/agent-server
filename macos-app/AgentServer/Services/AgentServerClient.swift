@@ -209,8 +209,13 @@ actor AgentServerClient {
         // Pairing is the one screen where a person is watching and waiting, so
         // a status code with no sentence around it sends them looking at Panel
         // when the fault is the server on this Mac.
-        try validateWriteResponse(data: data, response: response) { _ in
-            .localServerUnavailable
+        //
+        // A 404 is the server answering that it has no /pair route at all,
+        // which happens when the app has been updated and the server it
+        // launches has not. Calling that "not responding" sends somebody to
+        // quit and reopen an app that will start the same old server again.
+        try validateWriteResponse(data: data, response: response) { status in
+            status == 404 ? .localServerOutOfDate : .httpError(statusCode: status)
         }
 
         let decoded = try decoder.decode(PairingResponse.self, from: data)
@@ -590,6 +595,7 @@ enum ClientError: LocalizedError {
     case notFound
     case missingLocalAPIKey
     case localServerUnavailable
+    case localServerOutOfDate
     case httpError(statusCode: Int)
     case writeFailed(message: String, missingEnv: [String])
     case runTriggerFailed(message: String, code: String?, missingEnv: [String])
@@ -605,6 +611,10 @@ enum ClientError: LocalizedError {
             return "Agent Server needs to finish its secure local setup. Restart the server and try again."
         case .localServerUnavailable:
             return "Agent Server is not responding on this Mac. Quit it and open it again, then try once more."
+        case .localServerOutOfDate:
+            return "The server running on this Mac is older than this app and cannot pair. "
+                + "Quit Agent Server and open it again. If that does not help, it is starting a server "
+                + "from somewhere else: check AGENT_SERVER_LOCATION."
         case .httpError(let statusCode):
             return "HTTP error: \(statusCode)"
         case .connectionInUse(let message):
