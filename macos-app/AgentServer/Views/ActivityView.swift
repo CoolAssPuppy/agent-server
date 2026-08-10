@@ -34,7 +34,7 @@ struct ActivityView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: NSpacing.lg) {
             VStack(alignment: .leading, spacing: NSpacing.xs) {
-                Text("Activity")
+                Text("Agent history")
                     .font(NTypography.displayMedium)
                     .foregroundStyle(theme.tokens.foreground)
                     .accessibilityAddTraits(.isHeader)

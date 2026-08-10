@@ -9,15 +9,8 @@ final class DrawerRouterTests: XCTestCase {
         XCTAssertEqual(TopDrawerPresentation.dividerOpacity, 0.3)
     }
 
-    func testFooterKeepsOnlySettingsAsAPersistentUtility() {
-        XCTAssertEqual(
-            MainFooterUtilityDestination.allCases,
-            [.settings]
-        )
-        XCTAssertEqual(
-            MainFooterUtilityDestination.allCases.map(\.title),
-            ["Settings"]
-        )
+    func testFooterUtilitiesAreIconOnly() {
+        // Order and membership are pinned in MainFooterUtilityDestinationTests.
         XCTAssertTrue(MainFooterUtilityDestination.allCases.allSatisfy(\.isIconOnly))
     }
 

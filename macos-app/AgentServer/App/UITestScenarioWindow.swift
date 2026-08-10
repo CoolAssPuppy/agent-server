@@ -254,47 +254,23 @@ private struct UITestScenarioRoot: View {
 }
 
 private struct TodayActivityScenarioView: View {
-    @State private var destination: MainDestination
     @State private var isInteractionPresented = false
 
     private let snapshot = DemoTodayActivitySnapshot.make(referenceDate: Date())
 
     init() {
-        let requestedDestination = ProcessInfo.processInfo.environment[
-            "AGENT_SERVER_UI_TEST_DESTINATION"
-        ]
         let shouldOpenInteraction = ProcessInfo.processInfo.environment[
             "AGENT_SERVER_UI_TEST_OPEN_INTERACTION"
         ] == "true"
-        _destination = State(
-            initialValue: requestedDestination == MainDestination.activity.rawValue
-                ? .activity
-                : .today
-        )
         _isInteractionPresented = State(initialValue: shouldOpenInteraction)
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            MainPaneDestinationBar(selection: $destination)
-            switch destination {
-            case .today:
-                TodayView(
-                    presentation: snapshot.makeTodayPresentation(),
-                    onAction: { _, action in
-                        if action.kind == .respond {
-                            isInteractionPresented = true
-                        }
-                    }
-                )
-            case .activity:
-                ActivityView(
-                    items: snapshot.makeActivityPresentation(filter: .all).items,
-                    onOpen: { _ in }
-                )
-            case .assistants, .connections, .settings:
-                EmptyView()
-            }
+            ActivityView(
+                items: snapshot.makeActivityPresentation(filter: .all).items,
+                onOpen: { _ in }
+            )
         }
         .sheet(isPresented: $isInteractionPresented) {
             if let interaction = Self.interaction {
