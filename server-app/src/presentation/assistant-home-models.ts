@@ -158,4 +158,11 @@ export type AssistantHomeInput = {
   pendingInteractions: readonly PendingInteraction[];
   now: Date;
   facts: AssistantHomeFacts;
+  /**
+   * What the security gate would do with this agent's schedule right now.
+   * Absent means unknown, which reads as healthy -- never claim a problem
+   * the gate has not reported. An agent the gate will refuse must not read
+   * "Healthy" while the sidebar says it is waiting for review.
+   */
+  automaticRuns?: 'allowed' | 'review_required' | 'blocked';
 };

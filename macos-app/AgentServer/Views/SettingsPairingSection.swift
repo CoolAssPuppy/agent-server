@@ -44,7 +44,7 @@ struct SettingsPairingSection: View {
             }
 
             Text(status?.paired == true
-                ? "Entering a new code from Panel pairs this Mac again and replaces the credential it holds."
+                ? "To pair this Mac again, get a new code from Panel and enter it here."
                 : "Panel shows an eight character code under Settings, Devices. Enter it here and this Mac appears there by name.")
                 .font(.system(size: CGFloat(SettingsPresentation.supportingFontSize)))
                 .foregroundStyle(theme.tokens.mutedForeground)

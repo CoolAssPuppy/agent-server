@@ -59,7 +59,7 @@ import { createGuidanceApi } from '../creation/guidance-api.js';
 import { createLocalStructuredModel } from '../creation/local-structured-model.js';
 import { createRunPreflightGate } from '../analysis/run-preflight-gate.js';
 import { PreflightSkipRecorder } from '../analysis/preflight-skip-recorder.js';
-import type { RunTriggerSource } from '../analysis/run-preflight.js';
+import { evaluateRunPreflight, type RunTriggerSource } from '../analysis/run-preflight.js';
 import { createSafeTestTrigger } from '../creation/safe-test.js';
 import {
   createRunLifecycle,
@@ -964,6 +964,14 @@ export function startServer(
           };
         },
       });
+    },
+    // The same verdict the sidebar and the security page report, so no
+    // screen calls an agent healthy while another says it is waiting.
+    assistantAutomaticRuns: async (agent) => {
+      const preflight = await analysisRuntime.preflight(agent);
+      const outcome = evaluateRunPreflight(preflight, { source: 'schedule' });
+      if (outcome.allowed) return 'allowed';
+      return outcome.code === 'blocked' ? 'blocked' : 'review_required';
     },
     startedAt,
     host: config.host,

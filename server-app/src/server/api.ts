@@ -245,6 +245,14 @@ type ApiDependencies = {
     agent: AgentConfig,
     allAgents: AgentConfig[],
   ) => Promise<AssistantHomeFacts>;
+  /**
+   * The security gate's verdict on this agent's schedule, for the assistant
+   * home page. Absent when analysis is not wired (tests); the page then makes
+   * no claim about the gate.
+   */
+  assistantAutomaticRuns?: (
+    agent: AgentConfig,
+  ) => Promise<'allowed' | 'review_required' | 'blocked'>;
   startedAt?: string;
   host?: string;
   /** Delivery health of Panel reporting, read fresh per request. */
@@ -578,6 +586,7 @@ export function createApi(deps: ApiDependencies): Hono {
     if (!agent) return c.json({ error: 'Agent not found' }, 404);
     const now = deps.presentationClock?.() ?? new Date();
     const facts = await deps.assistantHomeFacts(agent, agents);
+    const automaticRuns = await deps.assistantAutomaticRuns?.(agent);
     return c.json({
       generatedAt: now.toISOString(),
       ...createAssistantHomePresentation({
@@ -587,6 +596,7 @@ export function createApi(deps: ApiDependencies): Hono {
         pendingInteractions: deps.getPendingInteractions?.() ?? [],
         now,
         facts,
+        ...(automaticRuns ? { automaticRuns } : {}),
       }),
     });
   });

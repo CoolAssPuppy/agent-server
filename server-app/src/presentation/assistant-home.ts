@@ -138,6 +138,23 @@ function createHealth(input: AssistantHomeInput, readiness: ReadinessPresentatio
       reasonReferences: ['readiness.state'],
     };
   }
+  // The same sentence the sidebar shows, so the two screens agree. An agent
+  // the gate will refuse tonight is not healthy, whatever its runtime,
+  // paths, and connections say.
+  if (input.automaticRuns === 'review_required') {
+    return {
+      state: 'needs_attention',
+      summary: evidenceStatement('Waiting for your security review.', 'security.automatic_runs'),
+      reasonReferences: ['security.automatic_runs'],
+    };
+  }
+  if (input.automaticRuns === 'blocked') {
+    return {
+      state: 'needs_attention',
+      summary: evidenceStatement('Stopped by its security check.', 'security.automatic_runs'),
+      reasonReferences: ['security.automatic_runs'],
+    };
+  }
   if (!input.agent.enabled) {
     return {
       state: 'paused',

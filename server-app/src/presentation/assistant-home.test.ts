@@ -134,6 +134,45 @@ describe('Assistant home presentation', () => {
     expect(presentation.secondaryActions.map(({ kind }) => kind)).not.toContain('safe_test');
   });
 
+  it('does not call an agent healthy while the security gate would refuse it', () => {
+    // The sidebar says "Waiting for your security review"; this page said
+    // "Healthy" about the same agent at the same moment. Both read the same
+    // verdict now, in the same words.
+    const agent = makeAgent({ id: 'publisher', schedule: undefined });
+    const presentation = createAssistantHomePresentation({
+      machineId: MACHINE_ID,
+      agent,
+      runs: [],
+      pendingInteractions: [],
+      now: NOW,
+      facts: makeFacts({
+        engine: { runtimeAvailable: true, authentication: 'unknown' },
+      }),
+      automaticRuns: 'review_required',
+    });
+
+    expect(presentation.health.state).toBe('needs_attention');
+    expect(presentation.health.summary.text).toBe('Waiting for your security review.');
+  });
+
+  it('names a security block as a block, not as a review', () => {
+    const agent = makeAgent({ id: 'publisher', schedule: undefined });
+    const presentation = createAssistantHomePresentation({
+      machineId: MACHINE_ID,
+      agent,
+      runs: [],
+      pendingInteractions: [],
+      now: NOW,
+      facts: makeFacts({
+        engine: { runtimeAvailable: true, authentication: 'unknown' },
+      }),
+      automaticRuns: 'blocked',
+    });
+
+    expect(presentation.health.state).toBe('needs_attention');
+    expect(presentation.health.summary.text).toBe('Stopped by its security check.');
+  });
+
   it('still asks for setup when a check the Mac can prove is not satisfied', () => {
     const agent = makeAgent({ id: 'publisher', schedule: undefined });
     const presentation = createAssistantHomePresentation({
