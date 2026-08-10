@@ -319,9 +319,11 @@ private struct SidebarRowView: View {
     /// The single secondary line: a friendly schedule first, then a one-line
     /// description, then a plain "Custom schedule" — but never raw cron.
     private var secondaryLine: String? {
-        // Said first, because it is the only line that is currently true:
-        // an agent waiting on a review is not keeping the schedule beside it.
+        // Exceptional states speak before the schedule does. A red dot with a
+        // schedule under it reads as a mystery, and the mystery gets blamed
+        // on whatever screen the person saw last.
         if row.needsSecurityReview { return "Waiting for your security review" }
+        if row.state == .failed { return "Last run failed" }
         if hasFriendlySchedule { return row.scheduleLabel }
         if let description = row.description, !description.isEmpty { return description }
         if row.scheduleLabel != nil { return "Custom schedule" }
