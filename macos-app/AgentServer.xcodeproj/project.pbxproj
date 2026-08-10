@@ -129,6 +129,7 @@
 		8952BBEC6C2E7723B78B683A /* AgentModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE7640067645F8E1352BCE04 /* AgentModel.swift */; };
 		8CB33B152099C8BB025BC4EE /* MCPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FDC36BB13528F7FD3BE8F2C /* MCPServer.swift */; };
 		8D9A0C7374DD4D1B57E281E3 /* AgentsListBadgeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 689DD1451D8EBE1AF2A3FBE1 /* AgentsListBadgeViewModel.swift */; };
+		8E4ED1144337185522833FE3 /* WireModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6B4EE6DCE743D6829DB8912 /* WireModels.swift */; };
 		8EB773586E83249FC7A96C15 /* AgentSettingsSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0992875D58F93D1256CE2EF /* AgentSettingsSections.swift */; };
 		8F2CE02573C9F4CD344CDE70 /* AgentSecurityAnalyzerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 157F358524BFC2F586756006 /* AgentSecurityAnalyzerView.swift */; };
 		90A0FF6A7652F14A2849A650 /* SettingsButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEBD9D532ECC05B3315AE47F /* SettingsButtons.swift */; };
@@ -369,6 +370,7 @@
 		A1C244E8EFAB9899352ECD2C /* UpdaterManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterManager.swift; sourceTree = "<group>"; };
 		A519B0160F24186BEF49EE47 /* AgentServerEventKitCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = AgentServerEventKitCore; path = AgentServerEventKitCore; sourceTree = SOURCE_ROOT; };
 		A520B1763B663153CBBA3F1B /* RunDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunDetailView.swift; sourceTree = "<group>"; };
+		A6B4EE6DCE743D6829DB8912 /* WireModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WireModels.swift; sourceTree = "<group>"; };
 		A8F58F7D3CBAE78227893670 /* LocalServerEndpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalServerEndpoint.swift; sourceTree = "<group>"; };
 		ACF4DF2407A9787F480AEEE7 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		AE7410D6F6B48563664B0DDF /* DemoMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoMode.swift; sourceTree = "<group>"; };
@@ -766,6 +768,7 @@
 				1BFCD7A301F47004477B1B5F /* TodayActivityContract.swift */,
 				8420F95FA423C0CDFCFFE952 /* TodayActivitySnapshot.swift */,
 				007EE29C400BA60A0A88DDEF /* TodayPresentation.swift */,
+				A6B4EE6DCE743D6829DB8912 /* WireModels.swift */,
 			);
 			name = AgentServerCore;
 			path = AgentServerSwiftTests/Sources/AgentServerCore;
@@ -1208,6 +1211,7 @@
 				FDBD6AED1F67A35E735DA77B /* TopDrawerSurface.swift in Sources */,
 				2E7E4BD18DE37418D0472DBF /* UITestScenarioWindow.swift in Sources */,
 				6DC305D1685AE6EBD82B7427 /* UpdaterManager.swift in Sources */,
+				8E4ED1144337185522833FE3 /* WireModels.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1233,7 +1237,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = AgentServer/AgentServer.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 57;
+				CURRENT_PROJECT_VERSION = 58;
 				INFOPLIST_FILE = AgentServer/Info.plist;
 				INFOPLIST_KEY_NSContactsUsageDescription = "Agent Server reads only the contact groups and details you choose for an agent.";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1241,7 +1245,7 @@
 					"@executable_path/../Frameworks",
 				);
 				LS_MINIMUM_SYSTEM_VERSION = 14.0;
-				MARKETING_VERSION = 3.7.6;
+				MARKETING_VERSION = 3.7.7;
 				POSTHOG_API_KEY = "";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.strategicnerds.agent-server";
 				PRODUCT_NAME = "Agent Server";
@@ -1342,7 +1346,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = AgentServer/AgentServer.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 57;
+				CURRENT_PROJECT_VERSION = 58;
 				INFOPLIST_FILE = AgentServer/Info.plist;
 				INFOPLIST_KEY_NSContactsUsageDescription = "Agent Server reads only the contact groups and details you choose for an agent.";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1350,7 +1354,7 @@
 					"@executable_path/../Frameworks",
 				);
 				LS_MINIMUM_SYSTEM_VERSION = 14.0;
-				MARKETING_VERSION = 3.7.6;
+				MARKETING_VERSION = 3.7.7;
 				POSTHOG_API_KEY = "";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.strategicnerds.agent-server";
 				PRODUCT_NAME = "Agent Server";

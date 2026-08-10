@@ -6,6 +6,24 @@
     <description>Agent Server updates</description>
     <language>en</language>
     <item>
+      <title>Version 3.7.6</title>
+      <pubDate>Mon, 10 Aug 2026 13:26:29 +0000</pubDate>
+      <sparkle:version>57</sparkle:version>
+      <sparkle:shortVersionString>3.7.6</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>The app now tells you when an agent is waiting on a security review, when runs stop reaching Agent Panel, and when the server it is running is older than the app itself.</li><li>Runs that could not happen (a chain hitting its limit, a schedule missed while the Mac was asleep) now appear in run history with the reason.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.7.6.dmg"
+        sparkle:edSignature="6JPhgRxOZVUk/I2OGZ/0AZCN4H/t0LCmpFOG9HrJlkNWcCEwzzNpMk44SICWsRjvBkDansTo0lEPx49zmdyzDQ=="
+        length="19980899"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
       <title>Version 3.7.5</title>
       <pubDate>Mon, 10 Aug 2026 07:38:40 +0000</pubDate>
       <sparkle:version>56</sparkle:version>
