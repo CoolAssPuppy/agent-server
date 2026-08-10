@@ -6,6 +6,24 @@
     <description>Agent Server updates</description>
     <language>en</language>
     <item>
+      <title>Version 3.7.8</title>
+      <pubDate>Mon, 10 Aug 2026 16:07:19 +0000</pubDate>
+      <sparkle:version>59</sparkle:version>
+      <sparkle:shortVersionString>3.7.8</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>An agent waiting on a security review now says so everywhere: the sidebar, its own page, and notifications all agree instead of one calling it healthy.</li><li>Plainer wording on the pairing screen.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.7.8.dmg"
+        sparkle:edSignature="Ry+WvwQFgzO40V2IZa+xS0EvoVbxCApImb45o/hB+Et5iv7HmgwHhNpOZZa4h9ptgppSCOOssjkMiujNDgAeBw=="
+        length="19987470"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
       <title>Version 3.7.7</title>
       <pubDate>Mon, 10 Aug 2026 15:07:44 +0000</pubDate>
       <sparkle:version>58</sparkle:version>
