@@ -126,12 +126,23 @@ runner and the Swift suite on a bare macos runner.
 - [x] 8. CI runs the server test suite on a runner with no `~/.agent-server`,
       no Doppler, and no keychain, so machine-state leaks fail fast.
 
-### Phase 4: shrink the surface
+### Phase 4: shrink the surface (done 2026-08-10)
 
-- [ ] 9. Route inventory: list all 45 API routes against what the app and CLI
+Notes from doing it: the inventory came back better than feared. 55 of 57
+routes have a caller in the app or CLI. Deleted: /connections/discover, a
+back-compat alias for a client shape that no longer ships. Kept with a flag:
+/metrics (named roadmap surface, one line of code) and /channels (it reports
+channel auth state -- the missing piece is a Settings card that shows it,
+which is a Phase 1-shaped gap to fill, not surface to cut). The security
+dashboard audit found no unconsumed computation left: findings, risk,
+staleness, patches, and now the run verdict all have UI consumers. The
+"over-engineered" hypothesis was mostly wrong about the server surface; the
+real excess was silent decision-making, which Phase 1 addressed.
+
+- [x] 9. Route inventory: list all 45 API routes against what the app and CLI
       actually call. Delete the unreachable ones. Every dead route is
       untested wire format waiting to drift.
-- [ ] 10. Same inventory for the security dashboard: it computes risk tiers,
+- [x] 10. Same inventory for the security dashboard: it computes risk tiers,
       staleness, semantic analysis, and patches, and until today did not
       say whether the agent would run. Cut what the UI never shows.
 

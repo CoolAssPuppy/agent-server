@@ -1473,11 +1473,6 @@ export function createApi(deps: ApiDependencies): Hono {
     return c.json({ channels: deps.channelStatuses?.() ?? [] });
   });
 
-  // Back-compat alias for older clients that expect `{ servers }`.
-  app.get('/connections/discover', (c) => {
-    return c.json({ servers: deps.connections?.get().servers ?? [] });
-  });
-
   app.get('/channels/slack/pairing', async (c) => {
     if (!deps.slackPairing) {
       return c.json({
