@@ -232,6 +232,114 @@ describe('runAgent', () => {
     });
   });
 
+  it('fails when the agent logged an error, whatever the executor returned', async () => {
+    const lockDir = createTempDir('runner');
+    const logRoot = createTempDir('runner-logs');
+    dirs.push(lockDir, logRoot);
+    const logStore = new AgentLogStore({ root: logRoot, machineId: 'machine-uuid', hostname: 'test-mac' });
+
+    const result = await runAgent({
+      runId: 'run-1',
+      agent: makeAgent(),
+      lockDir,
+      logStore,
+      execute: async () => {
+        logStore.append({
+          agentId: 'test-agent',
+          runId: 'run-1',
+          level: 'error',
+          message: 'Notion refused the page, kept the body',
+          body: '# Draft',
+        });
+        return makeExecutionResult({ summary: 'Done' });
+      },
+      createReporter: () => makeSilentReporter(),
+    });
+
+    expect(result).toMatchObject({
+      status: 'failed',
+      code: 'agent_logged_failure',
+    });
+    expect(result.error).toContain('Notion refused the page, kept the body');
+  });
+
+  it('completes when the agent only logged a warning', async () => {
+    const lockDir = createTempDir('runner');
+    const logRoot = createTempDir('runner-logs');
+    dirs.push(lockDir, logRoot);
+    const logStore = new AgentLogStore({ root: logRoot, machineId: 'machine-uuid', hostname: 'test-mac' });
+
+    const result = await runAgent({
+      runId: 'run-1',
+      agent: makeAgent(),
+      lockDir,
+      logStore,
+      execute: async () => {
+        logStore.append({
+          agentId: 'test-agent',
+          runId: 'run-1',
+          level: 'warn',
+          message: 'The Amazon report was not ready in time',
+        });
+        return makeExecutionResult({ summary: 'Done' });
+      },
+      createReporter: () => makeSilentReporter(),
+    });
+
+    expect(result).toMatchObject({ status: 'completed' });
+  });
+
+  it('ignores an error the server itself recorded when judging the outcome', async () => {
+    const lockDir = createTempDir('runner');
+    const logRoot = createTempDir('runner-logs');
+    dirs.push(lockDir, logRoot);
+    const logStore = new AgentLogStore({ root: logRoot, machineId: 'machine-uuid', hostname: 'test-mac' });
+
+    const result = await runAgent({
+      runId: 'run-1',
+      agent: makeAgent(),
+      lockDir,
+      logStore,
+      execute: async () => {
+        logStore.append({
+          agentId: 'test-agent',
+          runId: 'run-1',
+          level: 'error',
+          message: 'Run failed',
+          source: 'server',
+        });
+        return makeExecutionResult({ summary: 'Done' });
+      },
+      createReporter: () => makeSilentReporter(),
+    });
+
+    expect(result).toMatchObject({ status: 'completed' });
+  });
+
+  it('leaves an error logged on an earlier run alone', async () => {
+    const lockDir = createTempDir('runner');
+    const logRoot = createTempDir('runner-logs');
+    dirs.push(lockDir, logRoot);
+    const logStore = new AgentLogStore({ root: logRoot, machineId: 'machine-uuid', hostname: 'test-mac' });
+    logStore.append({
+      agentId: 'test-agent',
+      runId: 'run-0',
+      level: 'error',
+      message: 'Yesterday the write failed',
+    });
+
+    const result = await runAgent({
+      runId: 'run-1',
+      agent: makeAgent(),
+      lockDir,
+      logStore,
+      execute: async () => makeExecutionResult({ summary: 'Done' }),
+      createReporter: () => makeSilentReporter(),
+    });
+
+    expect(result).toMatchObject({ status: 'completed' });
+  });
+
   it('fails before completion reporting when required output was not created', async () => {
     const lockDir = createTempDir('runner');
     dirs.push(lockDir);

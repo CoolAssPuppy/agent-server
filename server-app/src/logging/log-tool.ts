@@ -11,6 +11,8 @@ const TOOL_DESCRIPTION = [
   'Use it to record what happened, and to keep a document that could not be delivered',
   'to its destination, such as a page body an external service refused.',
   'The server owns the location, so there is no path to pass and no file access to grant.',
+  'A level of error reports the whole run as failed, so use error when the work did not',
+  'get where it was going, and warn when it did.',
 ].join(' ');
 
 export type LogToolContext = {
@@ -33,7 +35,8 @@ type ToolResult = {
 
 const inputShape = {
   message: z.string().min(1).max(500).describe('One line saying what happened.'),
-  level: z.enum(LOG_LEVELS).optional().describe('debug, info, warn, or error. Defaults to info.'),
+  level: z.enum(LOG_LEVELS).optional()
+    .describe('debug, info, warn, or error. Defaults to info. error fails the run.'),
   body: z.string().optional().describe('Long text to keep with the entry, such as an undelivered document.'),
   data: z.record(z.string(), z.unknown()).optional().describe('Extra fields to record alongside the message.'),
 };

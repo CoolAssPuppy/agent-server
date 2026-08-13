@@ -20,6 +20,7 @@ export const RUN_CANCELED_CODE = 'run_canceled';
 export const USER_CANCELED_CODE = 'user_canceled';
 export const TOOL_EXECUTION_FAILED_CODE = 'tool_execution_failed';
 export const FAILURE_ARTIFACT_WRITTEN_CODE = 'failure_artifact_written';
+export const AGENT_LOGGED_FAILURE_CODE = 'agent_logged_failure';
 
 class ToolExecutionError extends Error {
   readonly code = TOOL_EXECUTION_FAILED_CODE;
@@ -36,6 +37,21 @@ class FailureArtifactError extends Error {
   constructor() {
     super('The agent recorded a failure instead of completing its work.');
     this.name = 'FailureArtifactError';
+  }
+}
+
+/**
+ * Agents that could not deliver their work write it to the log at error level
+ * rather than to a file. An executor that returns normally after that still ran
+ * a failed run, and reporting it as a success is how an undelivered document
+ * goes unnoticed.
+ */
+class LoggedFailureError extends Error {
+  readonly code = AGENT_LOGGED_FAILURE_CODE;
+
+  constructor(loggedMessage: string) {
+    super(`The agent logged a failure: ${loggedMessage}`);
+    this.name = 'LoggedFailureError';
   }
 }
 
@@ -209,6 +225,7 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
 
       assertDailyRetryMadeProgress(agent, result, options.mode);
       assertNoFailureArtifact(agent, result, options.mode);
+      assertNoLoggedFailure(options.logStore, agent.id, runId, options.mode);
       assertRequiredOutput(agent, result, { mode: options.mode });
       return result;
     })();
@@ -270,6 +287,7 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
       code: error instanceof OutputContractError
         || error instanceof ToolExecutionError
         || error instanceof FailureArtifactError
+        || error instanceof LoggedFailureError
         ? error.code
         : undefined,
     };
@@ -295,6 +313,33 @@ function assertNoFailureArtifact(
     return written.startsWith(prefix) && written.endsWith(suffix);
   });
   if (matches) throw new FailureArtifactError();
+}
+
+/**
+ * `error` in the agent log means the agent is saying it failed. The run reports
+ * failed on that alone, because the entry is often the only place the work
+ * survives and nothing downstream reads a run marked completed.
+ *
+ * Only what the agent itself wrote counts. The runner records its own outcome
+ * at error level too, and this run's entries are the only ones in scope, so
+ * neither the server nor an earlier run can fail a run that worked.
+ */
+function assertNoLoggedFailure(
+  store: AgentLogStore | undefined,
+  agentId: string,
+  runId: string,
+  mode: RunAgentOptions['mode'],
+): void {
+  if (mode === 'safe_test' || !store) return;
+  let entries;
+  try {
+    entries = store.readRun({ agentId, runId });
+  } catch {
+    // A log we cannot read back is not grounds to fail a run that otherwise worked.
+    return;
+  }
+  const failure = entries.find((entry) => entry.level === 'error' && entry.source === 'agent');
+  if (failure) throw new LoggedFailureError(failure.message);
 }
 
 function assertDailyRetryMadeProgress(
