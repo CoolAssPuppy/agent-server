@@ -66,7 +66,7 @@ All sixteen are new since the 2026-07-21 repeat audit. The 46 initial findings a
 | TD-58 | Resource hygiene | `interaction/store.ts:149-151,137-143` | Medium | S | Capacity eviction and the stale sweep delete straight out of the interactions map. A claimed interaction also holds an entry in `claimTokens`, which neither path knew about, so every claimed interaction that was evicted or swept left a token behind permanently. Memory only — a token cannot be redeemed without its interaction. | Drop orphaned tokens after both deletion paths; make the cap injectable so the eviction case is testable. | FIXED |
 | TD-59 | Architectural decay | `reporting/store.ts:1`, `server/security-utils.ts:1`, `logging/log-read-tool.ts:5` | Low | S | Three circular dependencies. Each is a shared type living in the module that consumes it: `StoredRun`, `ProgressEvent`, `LogToolContext`. All type-only in one direction, so erased at runtime, but they make the modules impossible to reason about separately. | Extract each type into its own module and re-export for compatibility, the pattern `documents/tool-name.ts` already uses. | FIXED |
 | TD-60 | Dead code | `server-app/scripts/migrate-runtime-neutral-agents.ts:1-254` | Low | S | A one-off migration script with zero references anywhere in the repo, carrying a hardcoded personal absolute path (`/Users/prashant/Developer/brain/agents/agents`) as its default. `tasks/runtime-neutral-agent-migration-report.md` records the migration as applied and verified. | Delete it; git holds it if it is ever needed again. | FIXED |
-| TD-61 | Architectural decay | `server/api.ts:1`, `server/server.ts:1`, `agents/capabilities.ts:1`, `plugins/claude-code.ts:1` | Medium | L | Four files exceed the project's own 500-line rule in `CLAUDE.md`: 1,630, 1,567, 1,028, and 872 lines. The two largest are also the two highest-churn files in the repo, and are where TD-49 came from. | Extract route groups from `api.ts` into registrar modules and the channel and trigger wiring out of `server.ts`. See "Open questions" — deliberately not done in this pass. | OPEN |
+| TD-61 | Architectural decay | `server/api.ts:1`, `server/server.ts:1`, `agents/capabilities.ts:1`, `plugins/claude-code.ts:1` | Medium | L | Four files exceed the project's own 500-line rule in `CLAUDE.md`: 1,630, 1,567, 1,028, and 872 lines. The two largest are also the two highest-churn files in the repo, and are where TD-49 came from. They are not equally splittable — see the assessment below. | Split `capabilities.ts` on its three existing concerns and lift the pure helpers out of `api.ts` and `claude-code.ts`. Leave `server.ts` alone. Reuse is not the reason; see below. | OPEN |
 | TD-62 | Test debt | `dependency-and-ci-policy.test.ts:62` | Medium | S | The regression test guarding advisory floors asserted `hono >= 4.12.25`, below the 4.12.34 the advisories require, and covered only `ws` and `hono`. It passed throughout the window in which the audit was failing. | Table-drive the test from every package with a floor, assert each against its real floor, and fail the build on any exact override. | FIXED |
 
 ## Top 5: if you fix nothing else, fix these
@@ -156,7 +156,7 @@ All complete.
 
 - **`console.log` on 20 lines of `server.ts` and the channels.** This looks like debug output left in production, and the project rules ban committing `console.log`. It is the daemon's operator log: the process runs under launchd, which captures stdout into the log file the macOS app reads. Agent-authored logs go through `AgentLogger` and its drivers; these lines are server lifecycle, addressed to whoever is reading the daemon's output. Replacing them with a logging framework would add a dependency to reproduce what launchd already does.
 - **`documents/zip.ts:35` trusting `uncompressedSize` from the central directory.** A malicious archive can lie in that field, and the size check reads like the only defense against a zip bomb. It is not: `readEntryData` passes `maxOutputLength: maxBytes` to `inflateRawSync`, which is enforced by zlib against actual output. The header check is an early exit, not the bound.
-- **`agents/capabilities.ts` at 1,028 lines.** Over the 500-line rule, but roughly 700 of those lines are `CAPABILITY_CATALOG`, a declarative table of services and the tools they map to. Splitting a data table across files to satisfy a line count makes it harder to read, not easier. Only the derivation logic below it would benefit, and it is already under 300 lines.
+- **`documents/registry.ts` reading the whole file into memory before parsing.** A 64 MB ceiling on a single `readFile` looks like an obvious streaming candidate. The hash and the parse both need the same bytes, and reading twice is what would let the two disagree about which version of the file they describe. The ceiling is the bound; one read is the correctness argument.
 - **`execFileSync` in `runtime-discovery.ts:49,58`.** Synchronous subprocess calls, including a `--version` probe of every Codex candidate, which looks like blocking I/O on a hot path. `discoverRuntimePaths` runs once at startup before the HTTP listener is bound. Making it async would spread `await` through the composition root to save milliseconds nobody is waiting on.
 - **129 "unused exported types" from knip.** Almost all are re-exported through `src/index.ts`, which is a deliberate library barrel — the package declares `"main": "dist/index.js"` and `"types": "dist/index.d.ts"`. Knip has no configuration here, so it cannot tell a public API from dead code. The one genuine finding in its report was the unused *file* (TD-60).
 - **The new leak tests reach into private maps via bracket access.** This violates the repository's own rule about testing behavior rather than implementation. A leaked claim token is unreachable through the public API by construction — that is exactly why it is only a memory problem — so the alternative was leaving three real leaks uncovered. The tests carry a comment saying so.
@@ -164,8 +164,98 @@ All complete.
 
 ## Open questions for the maintainer
 
-1. **TD-61, the god files — how do you want this sequenced?** `api.ts` (1,630 lines, 43 routes) and `server.ts` (1,567 lines) both break the project's 500-line rule, and `server.ts` is where the coverage floor slipped. I did not decompose them in this pass: they are the two highest-churn files in the repository, a split touches every route or every wiring path at once, and the risk of a quiet regression is real even with 1,906 tests behind it. The scoped version I would suggest is extracting `api.ts` route groups into registrar modules one group at a time — connections and connection profiles first, since they are 9 routes with almost no coupling to the rest — each as its own commit. Say the word and I will start there.
+1. **TD-61, the god files — do you want the two cheap splits?** The measured assessment is in the section below. The short version: reuse is not on offer, `server.ts` should be left alone, and `capabilities.ts` is the one file where a split is both safe and worth it.
 2. **Should `CLAUDE.md`'s environment table be generated?** The generated README table stayed accurate for six months; the hand-maintained `CLAUDE.md` table drifted by 14 variables and one wrong default. `scripts/generate-environment-reference.ts` already knows how to rewrite a table between markers in a file. Pointing it at `CLAUDE.md` as well would make this class of drift structurally impossible, at the cost of one more generated region in a file people hand-edit.
 3. **Is a documentation-drift check worth a CI step?** The three checks that found TD-50 through TD-54 are all mechanical: every `AGENT_SERVER_*` string in `src` appears in the reference module, every route registered in `api.ts` appears in the docs, and every documented environment variable is read somewhere outside a test. Each is maybe 30 lines of test. The judgment call is whether that ossifies prose you want to keep editing freely.
 4. **Was the per-file coverage floor for `server.ts` meant to ratchet automatically?** It was set from a verified baseline in July and the file drifted under it. A floor that only moves when someone remembers to move it has the same failure mode as TD-47's pin and TD-62's stale assertion — that is three instances of one pattern in this audit.
 5. **`AGENT_SERVER_TEST_KIMI` is read only by `plugins/kimi-code.test.ts:53,73,99,123`,** and is correctly absent from the user-facing reference. If the drift checks in question 3 happen, it needs to be skipped. The `AGENT_SERVER_TEST_*` prefix already there would let them skip it by rule rather than by a named exception — worth making that convention explicit?
+
+## TD-61 in detail: how much of the god files is actually refactorable
+
+The framing worth rejecting first is reuse. Nothing is waiting to consume these
+modules. `createApi` has one real caller. `startServer` has two, and both are
+entry points into the same process. This is one product, one daemon, and one
+loopback client, so extracting "libraries" would be publishing an API to an
+audience of one and paying indirection for it. The file that *is* reused
+widely — `capabilities.ts`, with eight consumers — already has that reuse
+without being split.
+
+So the question is not what a split makes reusable. It is what a split makes
+testable, and the four files answer that very differently.
+
+| File | Lines | Shape | Splittable | What it would buy |
+|---|---|---|---|---|
+| `agents/capabilities.ts` | 1,028 | 142-line data catalog, ~25 pure helpers, and two ~220-line functions that do opposite jobs | **Yes, cleanly** | Real. Three cohesive concerns already exist in one file. |
+| `plugins/claude-code.ts` | 872 | One 370-line function, then ~500 lines of independent module-level helpers | **Yes, mechanically** | Modest. The helpers become directly testable. |
+| `server/api.ts` | 1,630 | 428 module-level lines, then a 1,201-line `createApi` closure | **Partly** | Small. 133 lines are free; the rest is closure surgery. |
+| `server/server.ts` | 1,567 | One `startServer` closure over 15 shared mutable bindings | **No, not without a redesign** | Negative at current risk. |
+
+### `capabilities.ts` — the one worth doing
+
+My earlier note in "things that look bad but are actually fine" claimed this
+file was mostly its data table and therefore not worth splitting. That was
+wrong, and measuring it is what showed the mistake. `CAPABILITY_CATALOG` runs
+lines 112–254: 142 lines, not the bulk of the file. What follows is:
+
+- `:297-468` — about 25 small pure predicates and formatters
+- `:470-688` — `deriveCapabilities`, 218 lines, the **read** path
+- `:768-997` — `applyCapabilityChanges`, 229 lines, the **write** path
+- `:998-1028` — secret masking
+
+Read and write are separate jobs against a shared catalog, and they are the
+two largest functions in the file. `capability-catalog.ts` (data),
+`capability-derivation.ts` (read), and `capability-changes.ts` (write) is a
+split the file is already shaped for, with the predicates going wherever they
+are used. Eight modules import from here, so the win is that a caller who only
+derives stops depending on the mutation path.
+
+### `api.ts` — 133 free lines, then diminishing returns
+
+Lines 296–428 are pure functions with no closure dependency at all:
+`projectInteraction`, `isAuthorized`, `extractApiKeyHeader`,
+`bufferRequestWithinLimit`, `isSameOriginRequest`, `parseOriginHost`. Moving
+those out is zero-risk and makes the request-security helpers unit-testable
+without standing up a Hono app.
+
+The remaining 1,201 lines are inside `createApi`, and the closure surface is
+genuinely small: handlers touch `deps.` 151 times and reference only seven
+other locals (`apiKey`, two rate limiters, `authFailures`, `getEnv`,
+`getConnections`, `emptySnapshot`) across 21 references. So route groups *can*
+be lifted into `registerConnectionRoutes(app, deps, ctx)`-style registrars.
+It is mechanical rather than hard. It is also 1,200 lines of edits to a file
+with 60 commits in six months, in exchange for navigability, which is why I
+would take the 133 free lines and stop unless something else forces the issue.
+
+### `server.ts` — leave it
+
+`startServer` holds 15 `let` bindings of shared lifecycle state: `isStopping`,
+`stopping`, `startupFailed`, `wsClientCount`, `lastCheckedAt`, the two channel
+handles, three timer handles, the MCP inventories and their states, the file
+watch manager, and `stopManagedServices`. Startup, the scheduler, the channel
+handlers, the WebSocket path, and the shutdown sequence all read and write
+across that set — the shutdown ordering bug in TD-56 is exactly this kind of
+state being read by two paths at once.
+
+There are two ways to split it and both are worse than leaving it. Passing a
+mutable context object keeps every coupling and adds a layer of indirection
+over it. Hoisting to module state breaks multi-instance, and the test suite
+depends on multi-instance: `start-server.test.ts` calls `startServer` 34
+times. A real fix means modelling the lifecycle as objects that own their own
+state and expose explicit transitions, which is a redesign, not a refactor.
+
+### The testability argument does not survive contact with the evidence
+
+The strongest case for splitting these files is that big files are hard to
+test, and `server.ts` failing its own coverage floor looks like proof. It
+isn't. That floor was recovered in this pass with six behavior tests and zero
+restructuring. Size was not what stopped those branches being covered; nobody
+having written the tests was. A split would have moved the same uncovered
+branches into smaller files and left the coverage number where it was.
+
+### Recommendation
+
+Do `capabilities.ts`, because read and write are genuinely separate jobs with
+eight callers between them. Take the free helper extractions in `api.ts` and
+`claude-code.ts` if the line count bothers you — roughly 600 lines across the
+two, no behavior risk, some pure functions become directly testable. Leave
+`server.ts` until there is a reason better than its size.
