@@ -83,35 +83,39 @@ struct SecurityCenterView: View {
         )
     }
 
+    /// The agent's own security page. The list beside it already names every
+    /// agent and marks the selected one, so this panel does not repeat that
+    /// with a back chevron and a title bar.
     private func agentPanel(agentId: String) -> some View {
-        VStack(spacing: 0) {
-            HStack(spacing: NSpacing.sm) {
-                Button {
-                    _ = navigation.stepBack()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .frame(width: 24, height: 24)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Back to all agents")
-                Text(monitor.agents.first(where: { $0.id == agentId })?.name ?? agentId)
-                    .font(.system(size: 13, weight: .semibold))
-                Spacer()
-            }
-            .padding(.horizontal, NSpacing.xl)
-            .padding(.vertical, NSpacing.md)
-            Divider().opacity(0.3)
-            AgentSecurityAnalyzerView(
-                agentName: monitor.agents.first(where: { $0.id == agentId })?.name ?? agentId,
-                actions: agentActions(agentId: agentId),
-                showsHeading: false,
-                selectedFindingId: Binding(
-                    get: { navigation.selectedFindingId },
-                    set: updateSelectedFinding
-                )
+        AgentSecurityAnalyzerView(
+            agentName: agentName(agentId),
+            actions: agentActions(agentId: agentId),
+            approveActionTitle: approvalQueue.approveActionTitle(after: agentId),
+            onApproved: { advance(after: agentId) },
+            selectedFindingId: Binding(
+                get: { navigation.selectedFindingId },
+                set: updateSelectedFinding
             )
-        }
+        )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func agentName(_ agentId: String) -> String {
+        monitor.agents.first(where: { $0.id == agentId })?.name ?? agentId
+    }
+
+    private var approvalQueue: SecurityApprovalQueue {
+        SecurityApprovalQueue(dashboard: monitor.securityDashboard)
+    }
+
+    /// Clearing a backlog should not send someone back to the list after every
+    /// approval, so the panel moves straight to the next agent that needs one.
+    private func advance(after agentId: String) {
+        if let next = approvalQueue.next(after: agentId) {
+            navigation.selectAgent(next)
+        } else {
+            _ = navigation.stepBack()
+        }
     }
 
     private func updateSelectedFinding(_ findingId: String?) {

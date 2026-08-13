@@ -66,8 +66,37 @@ public enum ConsumerFlowDemoFixtures {
     )
 
     public static let dashboard = SecurityDashboardPresentation(agents: [
-        SecurityAgentPresentation(id: "friday-summary", name: "Friday GitHub summary", risk: .high, findingCount: 2, isStale: true),
-        SecurityAgentPresentation(id: "research-index", name: "Research index", risk: .low, findingCount: 0, isStale: false),
-        SecurityAgentPresentation(id: "inbox-helper", name: "Inbox helper", risk: .needsReview, findingCount: 1, isStale: false),
+        SecurityAgentPresentation(
+            id: "friday-summary",
+            name: "Friday GitHub summary",
+            risk: .high,
+            findingCount: 2,
+            isStale: true,
+            approval: .awaitingApproval
+        ),
+        SecurityAgentPresentation(
+            id: "research-index",
+            name: "Research index",
+            risk: .low,
+            findingCount: 0,
+            isStale: false,
+            approval: .notRequired
+        ),
+        SecurityAgentPresentation(
+            id: "inbox-helper",
+            name: "Inbox helper",
+            risk: .needsReview,
+            findingCount: 1,
+            isStale: false,
+            approval: .awaitingApproval
+        ),
+        SecurityAgentPresentation(
+            id: "expense-filer",
+            name: "Expense filer",
+            risk: .high,
+            findingCount: 1,
+            isStale: false,
+            approval: .approved(Date(timeIntervalSince1970: 1_770_000_000))
+        ),
     ])
 }

@@ -124,44 +124,6 @@ public struct SecurityRowPresentation: Equatable, Sendable {
     }
 }
 
-public extension SecurityAgentPresentation {
-    func securityRow(isSelected: Bool) -> SecurityRowPresentation {
-        switch result {
-        case .checked(let risk, let findingCount, let isStale):
-            return SecurityRowPresentation(
-                id: id,
-                title: name,
-                detail: isStale ? "Changed since its last review" : findingCountLabel(findingCount),
-                status: risk.title,
-                severity: risk,
-                isSelected: isSelected
-            )
-        case .failed(let message):
-            return SecurityRowPresentation(
-                id: id,
-                title: name,
-                detail: message ?? "The security check did not finish.",
-                status: "Could not check",
-                severity: nil,
-                isSelected: isSelected
-            )
-        case .pending:
-            return SecurityRowPresentation(
-                id: id,
-                title: name,
-                detail: "This agent was not checked.",
-                status: "Waiting",
-                severity: nil,
-                isSelected: isSelected
-            )
-        }
-    }
-
-    private func findingCountLabel(_ count: Int) -> String {
-        count == 1 ? "1 thing to review" : "\(count) things to review"
-    }
-}
-
 public extension SecurityFindingPresentation {
     func securityRow(isSelected: Bool) -> SecurityRowPresentation {
         SecurityRowPresentation(

@@ -422,17 +422,32 @@ public struct SecurityAgentPresentation: Identifiable, Equatable, Sendable {
     public let id: String
     public let name: String
     public let result: SecurityAgentResult
+    public let approval: SecurityApprovalState
 
-    public init(id: String, name: String, risk: ConsumerRiskLevel, findingCount: Int, isStale: Bool) {
+    public init(
+        id: String,
+        name: String,
+        risk: ConsumerRiskLevel,
+        findingCount: Int,
+        isStale: Bool,
+        approval: SecurityApprovalState = .notRequired
+    ) {
         self.id = id
         self.name = name
         self.result = .checked(risk: risk, findingCount: findingCount, isStale: isStale)
+        self.approval = approval
     }
 
-    public init(id: String, name: String, result: SecurityAgentResult) {
+    public init(
+        id: String,
+        name: String,
+        result: SecurityAgentResult,
+        approval: SecurityApprovalState = .notRequired
+    ) {
         self.id = id
         self.name = name
         self.result = result
+        self.approval = approval
     }
 
     public var risk: ConsumerRiskLevel? {

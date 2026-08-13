@@ -19,6 +19,11 @@ struct AgentSecurityAnalyzerView: View {
     let agentName: String
     let actions: AgentSecurityActions
     var showsHeading = true
+    /// Title of the approval button. The security check passes a
+    /// "go to the next agent" variant while a backlog is being cleared.
+    var approveActionTitle = "Approve automatic runs"
+    /// Called after an approval succeeds, so the caller can advance the queue.
+    var onApproved: (() -> Void)?
     @Binding var selectedFindingId: String?
 
     @Environment(\.nTheme) private var theme
@@ -35,11 +40,15 @@ struct AgentSecurityAnalyzerView: View {
         agentName: String,
         actions: AgentSecurityActions,
         showsHeading: Bool = true,
+        approveActionTitle: String = "Approve automatic runs",
+        onApproved: (() -> Void)? = nil,
         selectedFindingId: Binding<String?> = .constant(nil)
     ) {
         self.agentName = agentName
         self.actions = actions
         self.showsHeading = showsHeading
+        self.approveActionTitle = approveActionTitle
+        self.onApproved = onApproved
         _selectedFindingId = selectedFindingId
     }
 
@@ -59,8 +68,9 @@ struct AgentSecurityAnalyzerView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: NSpacing.xl) {
                 if showsHeading {
-                    Text("Security check")
+                    Text(agentName)
                         .font(NTypography.headlineLarge)
+                        .accessibilityAddTraits(.isHeader)
                 }
                 Text(explanation)
                     .font(NTypography.caption)
@@ -80,15 +90,10 @@ struct AgentSecurityAnalyzerView: View {
     @ViewBuilder
     private var content: some View {
         if isLoading {
-            VStack(alignment: .leading, spacing: NSpacing.sm) {
-                ProgressView()
-                Text("Checking this agent")
-                    .font(.system(size: 13, weight: .medium))
-                Text("Reviewing access, connections, schedule, and instructions.")
-                    .font(NTypography.caption)
-                    .foregroundStyle(theme.tokens.mutedForeground)
-            }
-            .frame(maxWidth: .infinity, minHeight: 180, alignment: .center)
+            ConsumerProgressView(
+                title: "Checking this agent",
+                message: "Reviewing access, connections, schedule, and instructions."
+            )
         } else if let failure {
             ConsumerFlowFailureView(
                 failure: failure,
@@ -280,7 +285,7 @@ struct AgentSecurityAnalyzerView: View {
                         Text("Approving")
                     }
                 } else {
-                    Text("Approve automatic runs")
+                    Text(approveActionTitle)
                 }
             }
             .buttonStyle(.borderedProminent)
@@ -301,7 +306,10 @@ struct AgentSecurityAnalyzerView: View {
         failure = nil
         defer { isApprovingAutomaticRuns = false }
         switch await actions.approveAutomaticRuns() {
-        case .success(let updated): scan = updated
+        case .success(let updated):
+            scan = updated
+            selectedFindingId = nil
+            onApproved?()
         case .failure(let error): failure = error
         }
     }

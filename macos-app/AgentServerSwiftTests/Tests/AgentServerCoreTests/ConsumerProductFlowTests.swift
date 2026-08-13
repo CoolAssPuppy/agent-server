@@ -856,7 +856,7 @@ final class ConsumerProductFlowTests: XCTestCase {
 
     func testDemoFixturesAreDeterministicAndContainNoCredentials() {
         XCTAssertEqual(ConsumerFlowDemoFixtures.proposal.name, "Friday GitHub summary")
-        XCTAssertEqual(ConsumerFlowDemoFixtures.dashboard.agents.count, 3)
+        XCTAssertEqual(ConsumerFlowDemoFixtures.dashboard.agents.count, 4)
 
         let visibleText = [
             ConsumerFlowDemoFixtures.proposal.instructions,

@@ -187,6 +187,16 @@ public struct SecurityAnalysisPayload: Decodable, Equatable, Sendable {
             isStale: reviewState?.isStale ?? isStale
         )
     }
+
+    public var approvalState: SecurityApprovalState {
+        SecurityApprovalState(
+            risk: risk.consumerLevel,
+            isStale: reviewState?.isStale ?? isStale,
+            isReviewed: reviewState?.isReviewed ?? false,
+            reviewedAt: reviewState?.reviewedDate,
+            automaticRuns: automaticRuns
+        )
+    }
 }
 
 public struct SecurityScanPayload: Decodable, Equatable, Sendable {
@@ -212,7 +222,8 @@ public struct SecurityScanPayload: Decodable, Equatable, Sendable {
                 name: agentNames[analysis.agentId] ?? analysis.agentId,
                 risk: analysis.risk.consumerLevel,
                 findingCount: analysis.findings.count,
-                isStale: analysis.reviewState?.isStale ?? analysis.isStale
+                isStale: analysis.reviewState?.isStale ?? analysis.isStale,
+                approval: analysis.approvalState
             )
         }, reportedNeedsReviewCount: summary.staleReviews)
     }

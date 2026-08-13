@@ -310,7 +310,8 @@ extension StatusMonitor {
                 name: agent.name,
                 risk: analysis.risk.consumerLevel,
                 findingCount: analysis.findings.count,
-                isStale: analysis.reviewState?.isStale ?? analysis.isStale
+                isStale: analysis.reviewState?.isStale ?? analysis.isStale,
+                approval: analysis.approvalState
             )
         }
         return SecurityDashboardPresentation(
