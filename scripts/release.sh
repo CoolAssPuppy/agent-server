@@ -158,6 +158,20 @@ echo "==> Running macOS behavior checks"
 #----------------------------------------------------------------------
 # 2. Bump version in project.yml
 #----------------------------------------------------------------------
+# Snapshot first. project.yml and package.json are rewritten by the bump
+# below, project.pbxproj by the xcodegen run in step 3, and all three stay
+# rewritten if the run dies before publishing.
+VERSION_FILES=(
+  "$MACOS_APP/project.yml"
+  "$MACOS_APP/AgentServer.xcodeproj/project.pbxproj"
+  "$REPO_ROOT/server-app/package.json"
+)
+VERSION_BACKUP_DIR="$(mktemp -d)"
+DID_PUBLISH=0
+snapshot_release_versions "$VERSION_BACKUP_DIR" "${VERSION_FILES[@]}"
+trap 'finish_release_versions "$VERSION_BACKUP_DIR" "$DID_PUBLISH" "${VERSION_FILES[@]}"' EXIT
+trap 'trap - INT TERM; exit 130' INT TERM
+
 echo "==> Bumping version to $VERSION"
 NEW_BUILD=$(PYTHONPATH="$SCRIPTS" python3 -m release_tools.cli prepare \
   --version "$VERSION" \
@@ -293,6 +307,10 @@ PYTHONPATH="$SCRIPTS" python3 -m release_tools.cli publish \
   --staged-appcast "$STAGED_APPCAST" --tracked-appcast "$APPCAST" \
   --baseline-digest "$BASELINE_DIGEST" --bucket "$R2_BUCKET" \
   --public-base "$R2_PUBLIC_BASE" --dub-url "$DUB_SHORTLINK"
+
+# The release is live, so the bump is now what gets committed. Nothing after
+# this point may roll it back.
+DID_PUBLISH=1
 
 echo ""
 echo "============================================================"

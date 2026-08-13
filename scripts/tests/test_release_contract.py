@@ -82,6 +82,76 @@ notarize_app_archive "/tmp/Agent Server.app" "$2"
                     self.assertEqual(result.returncode, expected_code)
                     self.assertFalse(archive.exists())
 
+    def test_version_bump_survives_only_a_published_release(self) -> None:
+        helper = ROOT / "scripts/release-helpers.sh"
+        shell = r'''
+set -euo pipefail
+source "$1"
+VERSION_BACKUP_DIR="$2"
+VERSION_FILES=("$3")
+DID_PUBLISH=0
+printf 'before' > "$3"
+snapshot_release_versions "$VERSION_BACKUP_DIR" "${VERSION_FILES[@]}"
+trap 'finish_release_versions "$VERSION_BACKUP_DIR" "$DID_PUBLISH" "${VERSION_FILES[@]}"' EXIT
+trap 'trap - INT TERM; exit 130' INT TERM
+printf 'after' > "$3"
+case "$TEST_MODE" in
+  published) DID_PUBLISH=1 ;;
+  failure) exit 9 ;;
+  interrupt) kill -TERM "$BASHPID" ;;
+esac
+'''
+        cases = {
+            "published": (0, "after"),
+            "failure": (9, "before"),
+            "interrupt": (130, "before"),
+        }
+        for mode, (expected_code, expected_content) in cases.items():
+            with self.subTest(mode=mode):
+                with tempfile.TemporaryDirectory() as directory:
+                    backup = Path(directory) / "backup"
+                    tracked = Path(directory) / "project.yml"
+                    result = subprocess.run(
+                        [
+                            "bash",
+                            "-c",
+                            shell,
+                            "bash",
+                            str(helper),
+                            str(backup),
+                            str(tracked),
+                        ],
+                        env={**os.environ, "TEST_MODE": mode},
+                        capture_output=True,
+                        check=False,
+                    )
+                    self.assertEqual(result.returncode, expected_code)
+                    self.assertEqual(tracked.read_text(), expected_content)
+                    self.assertFalse(backup.exists())
+
+    def test_release_rolls_back_every_bumped_file(self) -> None:
+        release = (ROOT / "scripts/release.sh").read_text()
+
+        self.assertIn('"$MACOS_APP/project.yml"', release)
+        self.assertIn('"$MACOS_APP/AgentServer.xcodeproj/project.pbxproj"', release)
+        self.assertIn('"$REPO_ROOT/server-app/package.json"', release)
+        self.assertIn(
+            'trap \'finish_release_versions "$VERSION_BACKUP_DIR" "$DID_PUBLISH" '
+            '"${VERSION_FILES[@]}"\' EXIT',
+            release,
+        )
+        self.assertIn("trap 'trap - INT TERM; exit 130' INT TERM", release)
+        # The snapshot has to precede the bump, and the publish flag has to
+        # follow the publish.
+        self.assertLess(
+            release.index("snapshot_release_versions"),
+            release.index("release_tools.cli prepare"),
+        )
+        self.assertLess(
+            release.index("release_tools.cli publish"),
+            release.index("DID_PUBLISH=1"),
+        )
+
     def test_release_uses_only_workspace_pinned_node_tools(self) -> None:
         release = (ROOT / "scripts/release.sh").read_text()
         package = (ROOT / "package.json").read_text()
