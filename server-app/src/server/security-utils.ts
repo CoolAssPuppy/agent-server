@@ -1,4 +1,4 @@
-import type { ProgressEvent } from './websocket.js';
+import type { ProgressEvent } from './progress-event.js';
 
 // eslint-disable-next-line no-control-regex -- intentionally strips control characters
 const CONTROL_CHAR_PATTERN = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g;

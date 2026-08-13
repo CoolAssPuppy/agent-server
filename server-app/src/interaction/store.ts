@@ -45,13 +45,19 @@ export type PendingInteraction = {
 
 export type AddInteractionInput = Omit<PendingInteraction, 'status'>;
 
-const MAX_INTERACTIONS = 1_000;
+const DEFAULT_MAX_INTERACTIONS = 1_000;
 
 export class InteractionStore {
   private interactions = new Map<string, PendingInteraction>();
   private claimTokens = new Map<string, string>();
+  private readonly maxInteractions: number;
 
-  constructor(private readonly createClaimToken: () => string = randomUUID) {}
+  constructor(
+    private readonly createClaimToken: () => string = randomUUID,
+    maxInteractions: number = DEFAULT_MAX_INTERACTIONS,
+  ) {
+    this.maxInteractions = maxInteractions;
+  }
 
   add(input: AddInteractionInput): void {
     this.claimTokens.delete(input.id);
@@ -135,11 +141,13 @@ export class InteractionStore {
   }
 
   expireStale(): string[] {
-    return sweepExpired(this.interactions, new Date(), {
+    const expiredIds = sweepExpired(this.interactions, new Date(), {
       isActive: (i) => i.status === 'pending',
       hasExpired: (i, now) => i.expiresAt <= now,
       toExpired: (i) => ({ ...i, status: 'expired' as const }),
     });
+    this.dropOrphanedClaimTokens();
+    return expiredIds;
   }
 
   listPending(): PendingInteraction[] {
@@ -147,7 +155,25 @@ export class InteractionStore {
   }
 
   private evictOldestIfNeeded(): void {
-    evictOldest(this.interactions, MAX_INTERACTIONS, (i) => i.createdAt.getTime());
+    evictOldest(this.interactions, this.maxInteractions, (i) => i.createdAt.getTime());
+    this.dropOrphanedClaimTokens();
+  }
+
+  /**
+   * Removes claim tokens whose interaction is gone.
+   *
+   * Capacity eviction and the stale sweep delete straight out of the
+   * interactions map, and a claimed interaction carries a second entry in
+   * `claimTokens` that neither of them knows about. A token left behind can
+   * never be redeemed — `matchClaim` needs the interaction too — so this leaks
+   * memory rather than authority, growing by one entry per claimed interaction
+   * that is evicted or swept.
+   */
+  private dropOrphanedClaimTokens(): void {
+    if (this.claimTokens.size === 0) return;
+    for (const id of this.claimTokens.keys()) {
+      if (!this.interactions.has(id)) this.claimTokens.delete(id);
+    }
   }
 
   private matchClaim(id: string, claimToken: string): PendingInteraction | undefined {

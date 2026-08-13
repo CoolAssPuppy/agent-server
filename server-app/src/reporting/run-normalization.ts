@@ -1,4 +1,4 @@
-import type { StoredRun } from './store.js';
+import type { StoredRun } from './stored-run.js';
 import { sanitizeText } from '../server/security-utils.js';
 
 /**

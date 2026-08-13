@@ -396,4 +396,94 @@ describe('Agent Panel log driver', () => {
 
     expect(panel.requests).toHaveLength(0);
   });
+
+  it('stops delivering when a line is written during the shutdown flush', async () => {
+    let releaseFirstRequest: () => void = () => {};
+    const firstRequestStarted = new Promise<void>((resolve) => {
+      releaseFirstRequest = resolve;
+    });
+    const panel = createPanelStub(async (callNumber) => {
+      if (callNumber === 1) {
+        releaseFirstRequest();
+        // Long enough that the write below lands while the flush is in flight.
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      return okResponse();
+    });
+    const destination = createDestination({
+      fetchImpl: panel.fetchImpl,
+      // Short enough that a re-armed timer would fire during the assertions.
+      flushIntervalMs: 5,
+    });
+
+    destination.write(createRecord({ message: 'the last thing that happened' }));
+    const shuttingDown = destination.shutdown();
+    await firstRequestStarted;
+    // The old ordering left `isStopped` false until after the flush resolved,
+    // so this write re-armed the interval that shutdown had just cleared and
+    // nothing cleared it again.
+    destination.write(createRecord({ message: 'written during shutdown' }));
+    await shuttingDown;
+
+    const deliveredAtShutdown = panel.requests.length;
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    expect(panel.requests).toHaveLength(deliveredAtShutdown);
+    expect(panel.requests.flatMap((request) => request.batch.entries.map((e) => e.message)))
+      .toEqual(['the last thing that happened']);
+  });
+
+  it('forgets the retry counter of a run whose entries it had to drop', async () => {
+    const panel = createPanelStub((callNumber) => (
+      // The first attempt fails in a way worth retrying; everything after it
+      // succeeds, so a surviving counter would show up as a delayed delivery.
+      callNumber === 1 ? errorResponse(503) : okResponse()
+    ));
+    const destination = createDestination({
+      fetchImpl: panel.fetchImpl,
+      // One entry of headroom, so the retried batch going back at the head of
+      // the queue is the first thing capacity pressure drops.
+      maxQueuedEntries: 1,
+    });
+
+    destination.write(createRecord({ message: 'entry that will be retried' }));
+    await destination.flush();
+    expect(panel.requests).toHaveLength(1);
+
+    // Pushes the retried entry out of the queue. Its run now has a retry
+    // counter and nothing left to deliver, so no later pass would reach it.
+    destination.write(createRecord({ run_id: RUN_TWO, message: 'entry that evicts it' }));
+    await destination.flush();
+
+    const retries = (destination as unknown as { retries: Map<string, unknown> }).retries;
+    expect([...retries.keys()]).toEqual([]);
+  });
+
+  it('keeps the retry counter of a run that still has entries waiting', async () => {
+    const panel = createPanelStub(() => errorResponse(503));
+    const destination = createDestination({ fetchImpl: panel.fetchImpl });
+
+    destination.write(createRecord({ message: 'entry that will be retried' }));
+    await destination.flush();
+
+    const retries = (destination as unknown as {
+      retries: Map<string, { attempts: number }>;
+    }).retries;
+    expect(retries.get(RUN_ONE)?.attempts).toBe(1);
+  });
+
+  it('forgets every retry counter once the credential is refused', async () => {
+    const panel = createPanelStub((callNumber) => (
+      callNumber === 1 ? errorResponse(503) : errorResponse(401)
+    ));
+    const destination = createDestination({ fetchImpl: panel.fetchImpl });
+
+    destination.write(createRecord({ message: 'first run, will retry' }));
+    await destination.flush();
+    destination.write(createRecord({ run_id: RUN_TWO, message: 'second run, refused' }));
+    await destination.flush();
+
+    const retries = (destination as unknown as { retries: Map<string, unknown> }).retries;
+    expect([...retries.keys()]).toEqual([]);
+  });
 });

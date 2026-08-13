@@ -185,7 +185,9 @@ The server injects the tool into every ordinary Claude Code run from `plugins/cl
 
 ### Runtime discovery and custom model providers
 
-Runs use the user's installed Claude Code, Codex, or Kimi Code executable and login when found. `execution/runtime-discovery.ts` resolves all three once at startup. Claude checks its opt-out flag, explicit path, local install, then `PATH`. Codex checks its opt-out flag, explicit path, then `PATH`. Kimi checks `AGENT_SERVER_USE_INSTALLED_KIMI`, `AGENT_SERVER_KIMI_PATH`, `~/.kimi-code/bin/kimi`, then `PATH`. Claude Code and Codex can fall back to their SDK runtimes. Kimi Code has no bundled fallback.
+Runs use the user's installed Claude Code, Codex, or Kimi Code executable and login. `execution/runtime-discovery.ts` resolves all three once at startup. Claude checks `AGENT_SERVER_CLAUDE_PATH`, then `~/.local/bin/claude` and `~/.claude/local/claude`, then `PATH`. Codex checks `AGENT_SERVER_CODEX_PATH`, then user-local Node installs (`~/.local/bin`, `~/.volta/bin`, and each `~/.nvm` version, newest first), then `PATH`; every Codex candidate must also start and report a version, so a stale wrapper cannot hide a working install. Kimi checks `AGENT_SERVER_USE_INSTALLED_KIMI`, `AGENT_SERVER_KIMI_PATH`, `~/.kimi-code/bin/kimi`, then `PATH`.
+
+None of the three has a bundled fallback. When a runtime is missing, its executor throws an actionable error (`plugins/claude-code.ts:63`, `plugins/codex.ts:59`) rather than running on something the user did not choose. `AGENT_SERVER_USE_INSTALLED_KIMI` is the only opt-out, and it exists because Kimi Code alone is opt-in. The Claude and Codex equivalents were removed with the bundled runtimes; `runtime-discovery.test.ts` asserts that setting them changes nothing.
 
 Agents can point Claude Code or Codex at a custom model provider through the `provider` block (`base_url` plus optional `api_key`). Codex maps it to `CodexOptions.baseUrl` and `apiKey`, so Moonshot's Kimi K3 works through the Codex executor. Claude Code maps it to per-session Anthropic environment values. `cli.ts` strips `ANTHROPIC_API_KEY` at startup. The `api_key` field holds a `${VAR}` reference resolved at run time and never a literal secret. Installed Kimi Code uses its own login and ACP model selection, so it rejects a `provider` block.
 
@@ -377,7 +379,21 @@ Callback data uses `index:interactionId` encoding to stay within Telegram's 64-b
 
 ### HTTP API
 
-Hono app created via `createApi()` with dependency injection. Routes: `/agents` (GET list, POST create), `/agents/:id` (GET, PUT update, DELETE), `/agents/:id/run`, `/capabilities`, `/runs`, `/runs/:id`, `/runs/:id/cancel`, `/cleanup`, `/health`, `/ws`. The `startServer()` function combines HTTP + scheduler + Telegram + WebSocket in one process.
+Hono app created via `createApi()` with dependency injection. The `startServer()` function combines HTTP + scheduler + Telegram + Slack + WebSocket in one process.
+
+`api.ts` registers about forty routes, so read the file rather than a list here, which will be stale before it is useful. They fall into these groups:
+
+| Group | Routes |
+|---|---|
+| Health and identity | `/health`, `/machine`, `/pair` (GET, POST), `/ws` |
+| Agents | `/agents` (GET, POST), `/agents/:id` (GET, PUT, DELETE), `/agents/:id/run`, `/agents/:id/safe-test`, `/agents/:id/runtime` (GET, PUT), `/agents/:id/runtime-compatibility`, `/agents/:id/bindings` (GET, PUT) |
+| Runs | `/runs`, `/runs/:id` (GET, DELETE), `/runs/:id/cancel`, `/runs/:id/review`, `/metrics`, `/cleanup` |
+| Connections and services | `/capabilities`, `/services`, `/connections`, `/connections/refresh`, `/connection-profiles` (GET, POST), `/connection-profiles/:id` (DELETE), `/connection-profiles/:id/duplicate`, `/connection-profiles/:id/operations` (GET, PUT), `/connection-profiles/:id/check` |
+| People in the loop | `/interactions/:id` (GET), `/interactions/:id/reply`, `/decisions` |
+| Presentation for the macOS app | `/presentation/today-activity`, `/presentation/assistants/:id` |
+| Channels | `/channels`, `/channels/slack/pairing` (GET, PUT), `/channels/slack/pairing/test` |
+
+Only `GET`/`HEAD /health` is public (`api.ts:446`). Every other route requires `AGENT_SERVER_API_KEY`.
 
 Agent GET responses are **enriched**: hard-coded secrets in `mcp_servers` env/headers are masked (`${VAR}` references pass through), and a derived `capabilities` array is attached so clients can render consumer toggles without knowing YAML semantics. Agent write routes accept bodies up to 256 KB (prompts); all other routes keep the 8 KB cap.
 
@@ -534,24 +550,36 @@ agent-server uninstall       # Remove macOS LaunchAgent
 
 The CLI loads `~/.agent-server/.env` at startup. Shell env vars and Doppler (`doppler run -- agent-server start`) take precedence over the file.
 
+`platform/environment-reference.ts` is the canonical list, and `pnpm run docs:environment` renders it into the README table. The table below is a hand-maintained summary of the same contract, so change the reference module first and let the README regenerate.
+
 | Variable | Default | Description |
 |---|---|---|
+| AGENT_SERVER_HOME | ~/.agent-server | Base directory for the default agent, lock, log, database, and `.env` paths |
 | AGENT_SERVER_AGENTS_DIR | ~/.agent-server/agents | Directory containing agent definition files |
 | AGENT_SERVER_LOCK_DIR | ~/.agent-server/locks | Lock file directory |
 | AGENT_SERVER_LOGS_DIR | ~/.agent-server/logs | Log directory |
 | AGENT_SERVER_RUN_DB | ~/.agent-server/runs.db | Durable run-history SQLite database. `:memory:` for ephemeral. |
-| AGENT_SERVER_USE_INSTALLED_CLAUDE | true | Use the user's installed Claude binary when found. Set `false` to force the bundled runtime. |
-| AGENT_SERVER_USE_INSTALLED_CODEX | true | Use the user's installed Codex binary when found. Set `false` to force the bundled runtime. |
-| AGENT_SERVER_USE_INSTALLED_KIMI | true | Use the user's installed Kimi Code binary when found. Set `false` to turn off Kimi Code. |
+| AGENT_SERVER_API_KEY | generated by `agent-server init` | Required local API key, minimum 16 characters. Every route except `/health` needs it. |
+| AGENT_SERVER_USE_INSTALLED_KIMI | true | Set `false` to turn off installed Kimi Code discovery. Claude and Codex have no equivalent: there is no bundled runtime to fall back to. |
 | AGENT_SERVER_CLAUDE_PATH | (auto) | Explicit path to the Claude executable, overriding auto-discovery. |
 | AGENT_SERVER_CODEX_PATH | (auto) | Explicit path to the Codex executable, overriding auto-discovery. |
-| AGENT_SERVER_KIMI_PATH | (auto) | Explicit path to the Kimi Code executable, overriding auto-discovery. |
+| AGENT_SERVER_KIMI_PATH | (auto) | Explicit path to the Kimi Code executable. An invalid explicit path fails closed. |
 | AGENT_SERVER_CHECK_INTERVAL_MS | 60000 | Daemon check interval |
 | AGENT_SERVER_PANEL_URL | (none) | Agent Panel URL for telemetry |
 | AGENT_SERVER_PANEL_API_KEY | (none) | API key for Agent Panel |
-| AGENT_SERVER_HEARTBEAT_MS | 60000 | Heartbeat interval (ms). Panel marks runs stale after 90s, so 60s gives a 1.5x safety buffer against single dropped heartbeats. |
+| AGENT_SERVER_PANEL_ENABLED | true | Set `false` to stop all panel traffic while keeping saved credentials |
+| AGENT_SERVER_HEARTBEAT_MS | 30000 | Heartbeat interval during runs (ms). Panel marks runs stale after 90s, so 30s absorbs two dropped heartbeats. |
 | AGENT_SERVER_PORT | 47821 | HTTP API port |
+| AGENT_SERVER_HOST | 127.0.0.1 | HTTP bind host |
+| AGENT_SERVER_MAX_CONCURRENT_RUNS | 8 | Concurrent running agents before new triggers are rejected |
+| AGENT_SERVER_MAX_TRIGGER_DEPTH | 10 | Outgoing agent-to-agent trigger edges allowed in one branch |
+| AGENT_SERVER_MAX_WS_CLIENTS | 100 | Simultaneous WebSocket clients |
+| AGENT_SERVER_DEFAULT_MAX_TURNS | 20 | `max_turns` used when an agent omits it |
+| AGENT_SERVER_PROMPT_INJECTION_GUARD | true | Wrap untrusted user context in guarded delimiters and policy instructions before execution |
+| AGENT_SERVER_PROMPT_INJECTION_STRICT | false | Reject suspicious user context (pattern-based) before execution |
+| AGENT_SERVER_NATIVE_SERVICE_GRANTS | (none) | Reviewed Calendar, Reminders, and Contacts grants, passed to the executor's child process as JSON. Written by the server, not by hand. |
 | AGENT_SERVER_TELEGRAM_BOT_TOKEN | (none) | Telegram bot token for interactive agents |
+| AGENT_SERVER_TELEGRAM_CHAT_ID | (none) | Optional Telegram chat ID restriction |
 | AGENT_SERVER_SLACK_BOT_TOKEN / SLACK_BOT_TOKEN | (none) | Slack bot token (`xoxb-…`) for the Slack messaging channel (Web API) |
 | AGENT_SERVER_SLACK_APP_TOKEN / SLACK_APP_TOKEN | (none) | Slack app-level token (`xapp-…`) for Socket Mode. Both Slack tokens are required to enable the channel. |
 | AGENT_SERVER_CATCH_UP | false | Resume missed scheduled agents after sleep/wake |
@@ -560,6 +588,12 @@ The CLI loads `~/.agent-server/.env` at startup. Shell env vars and Doppler (`do
 | AGENT_SERVER_TELEMETRY_PROGRESS_SAMPLE_MS | 5000 | Minimum interval between live progress posts. Batched updates within the window are surfaced on the next non-throttled post. |
 | AGENT_SERVER_TELEMETRY_PROGRESS_MAX_ENTRIES | 50 | Hard cap on accumulated progress entries per run. Excess updates increment `progress_updates_dropped`. |
 | AGENT_SERVER_TELEMETRY_PROGRESS_INCLUDE_METADATA | false | When `true`, full metadata is recorded on every progress entry. Default keeps only `turns_completed` and `tools_used` to shrink payload. |
+| AGENT_SERVER_ANALYTICS_KEY | (none) | Product analytics project key, injected by the macOS app. Unset means analytics is off. |
+| AGENT_SERVER_ANALYTICS_HOST | https://us.i.posthog.com | Product analytics ingest host |
+| AGENT_SERVER_ANALYTICS_DISTINCT_ID | (none) | Per-install identifier passed down by the macOS app so both surfaces resolve to one person |
+| AGENT_SERVER_ANALYTICS_OPT_OUT | true | Analytics stays off until this is explicitly `false`. The `.env` value wins over the shell so the macOS toggle reaches a running daemon. |
+| AGENT_SERVER_LOCATION | (none) | Path to the agent-server repo root. Used by the macOS app to find the server. |
+| AGENT_SERVER_EVENTKIT_BIN | (none) | Path to the bundled EventKit helper. Set by the macOS app; triggers eventkit MCP auto-injection. |
 
 ## Testing
 
@@ -700,8 +734,6 @@ Building the `AgentServer` scheme runs `preBuildScripts` first (stages productio
 
 ## Future work
 
-- **Run history and log persistence**: Runs are stored in-memory and lost on restart. Persist run history to SQLite or flat files so past runs survive server restarts and can be queried/exported.
-- **Agent metrics dashboard**: Expose success/failure rates, average run duration, and token usage per agent via API endpoints for the macOS app or Agent Panel to visualize.
 - **Conditional triggers**: Extend `on_complete` triggers with conditions (e.g., only fire if the output contains a certain keyword, or if the run used fewer than N turns).
 - **Retry with backoff**: Allow agents to specify retry behavior on failure (max retries, backoff strategy) instead of requiring a separate `on_failure` chain.
 - **Agent template library**: Ship a curated set of agent templates (daily summary, PR reviewer, inbox triager) that users can install via `agent-server init --template <name>`.

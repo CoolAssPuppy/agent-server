@@ -1251,6 +1251,250 @@ describe('startServer production composition', { timeout: 20_000 }, () => {
       rmSync(context.home, { recursive: true, force: true });
     }
   });
+
+  it('reports the one resource that failed to stop, by its own message', async () => {
+    const context = await createTestServerContext('single-shutdown-error-server');
+    const store = new RunStore();
+    vi.spyOn(store, 'close').mockImplementation(() => {
+      throw new Error('the run database would not close');
+    });
+    const server = startServer(context.config, { store });
+
+    try {
+      await server.ready;
+      // One failure is reported as itself. Wrapping a single cause in an
+      // AggregateError would bury the only sentence worth reading.
+      await expect(server.stop()).rejects.toThrow('the run database would not close');
+    } finally {
+      rmSync(context.home, { recursive: true, force: true });
+    }
+  });
+
+  it('collects every resource that failed to stop when more than one does', async () => {
+    const context = await createTestServerContext('multi-shutdown-error-server');
+    const store = new RunStore();
+    vi.spyOn(store, 'close').mockImplementation(() => {
+      throw new Error('the run database would not close');
+    });
+    const analytics = makeRecordingAnalytics();
+    vi.spyOn(analytics, 'flush').mockRejectedValue(new Error('analytics would not flush'));
+    const server = startServer(context.config, { store, analytics });
+
+    try {
+      await server.ready;
+      const failure = await server.stop().then(() => undefined, (error: unknown) => error);
+
+      expect(failure).toBeInstanceOf(AggregateError);
+      expect((failure as AggregateError).errors.map((e: Error) => e.message)).toEqual([
+        'the run database would not close',
+        'analytics would not flush',
+      ]);
+    } finally {
+      rmSync(context.home, { recursive: true, force: true });
+    }
+  });
+
+  it('ignores a chat reply that names an interaction it is not holding', async () => {
+    const context = await createTestServerContext('unknown-reply-server', {
+      AGENT_SERVER_TELEGRAM_BOT_TOKEN: 'telegram-test-token',
+    });
+    const store = new RunStore();
+    writeAgent(context.home, 'responder.yaml', [
+      'id: responder',
+      'name: Responder',
+      'prompt: Must not run',
+      ...restrictedAgentLines(context.home),
+      'enabled: true',
+      '',
+    ].join('\n'));
+    const telegram = createFakeChatChannel('telegram', 42);
+    createTelegramChannel.mockResolvedValueOnce(telegram);
+    const executeCallsBefore = executeAgent.mock.calls.length;
+    const server = startServer(context.config, { store });
+
+    try {
+      await server.ready;
+      // A tap on a button from a previous run of the daemon: the message is
+      // still in the chat, the interaction it names is not in this process.
+      telegram.emitReply({ interactionId: 'interaction-from-a-dead-process', selectedValue: 'Yes' });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(executeAgent).toHaveBeenCalledTimes(executeCallsBefore);
+      expect(store.list()).toHaveLength(0);
+    } finally {
+      await server.stop();
+      rmSync(context.home, { recursive: true, force: true });
+    }
+  });
+
+  it('spends a real interaction on an empty reply without triggering the follow-up', async () => {
+    const context = await createTestServerContext('empty-reply-server', {
+      AGENT_SERVER_TELEGRAM_BOT_TOKEN: 'telegram-test-token',
+    });
+    const store = new RunStore();
+    writeAgent(context.home, 'requester.yaml', [
+      'id: requester',
+      'name: Requester',
+      'prompt: Ask for a choice',
+      ...restrictedAgentLines(context.home),
+      'interaction:',
+      '  channel: telegram',
+      '  on_reply: responder',
+      '  timeout: 1h',
+      'enabled: true',
+      '',
+    ].join('\n'));
+    writeAgent(context.home, 'responder.yaml', [
+      'id: responder',
+      'name: Responder',
+      'prompt: Must not run on an empty reply',
+      ...restrictedAgentLines(context.home),
+      'enabled: true',
+      '',
+    ].join('\n'));
+    const telegram = createFakeChatChannel('telegram', 42);
+    createTelegramChannel.mockResolvedValueOnce(telegram);
+    executeAgent.mockResolvedValueOnce(executionResult('Choose', {
+      interaction: {
+        message: 'Say something',
+        options: [],
+        freeText: true,
+      },
+    }));
+    const server = startServer(context.config, { store });
+
+    try {
+      await server.ready;
+      await triggerAgent(context.port, 'requester');
+      await waitForIntegration(() => expect(telegram.send).toHaveBeenCalledOnce());
+      const interactionId = telegram.send.mock.calls[0]?.[0];
+
+      // Free text that carries nothing. The interaction is still spent, so the
+      // same id cannot be replayed, but there is no prompt to hand the
+      // follow-up agent and it must not start on an empty one.
+      telegram.emitReply({ interactionId, freeText: '' });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(store.list().map((run) => run.agentId)).toEqual(['requester']);
+
+      telegram.emitReply({ interactionId, selectedValue: 'too late' });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(store.list().map((run) => run.agentId)).toEqual(['requester']);
+    } finally {
+      await server.stop();
+      rmSync(context.home, { recursive: true, force: true });
+    }
+  });
+
+  it('ignores chat messages until the bot has been messaged once', async () => {
+    const context = await createTestServerContext('unpaired-chat-server', {
+      AGENT_SERVER_TELEGRAM_BOT_TOKEN: 'telegram-test-token',
+    });
+    const store = new RunStore();
+    writeAgent(context.home, 'router-target.yaml', [
+      'id: router-target',
+      'name: Router Target',
+      'prompt: Must not run',
+      ...restrictedAgentLines(context.home),
+      'enabled: true',
+      '',
+    ].join('\n'));
+    // No chat id: nobody has sent the bot a message, so there is nowhere to
+    // send an answer even if routing produced one.
+    const telegram = createFakeChatChannel('telegram', undefined);
+    createTelegramChannel.mockResolvedValueOnce(telegram);
+    const routeCallsBefore = routeMessage.mock.calls.length;
+    const server = startServer(context.config, { store });
+
+    try {
+      await server.ready;
+      telegram.emitMessage('run the router target');
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(routeMessage).toHaveBeenCalledTimes(routeCallsBefore);
+      expect(store.list()).toHaveLength(0);
+    } finally {
+      await server.stop();
+      rmSync(context.home, { recursive: true, force: true });
+    }
+  });
+
+  it("lets an agent's own timeout override the server default", async () => {
+    const context = await createTestServerContext('agent-timeout-server', {
+      AGENT_SERVER_RUN_TIMEOUT_MS: '900000',
+    });
+    const store = new RunStore();
+    writeAgent(context.home, 'slow.yaml', [
+      'id: slow',
+      'name: Slow',
+      'prompt: Take a while',
+      ...restrictedAgentLines(context.home),
+      // parseDuration takes s, m, or h only, so this is the shortest ceiling
+      // an agent can actually declare.
+      'timeout: 1s',
+      'enabled: true',
+      '',
+    ].join('\n'));
+    executeAgent.mockImplementationOnce(
+      (_agent: unknown, _reporter: unknown, extra: { abortController?: AbortController }) => (
+        new Promise<ExecutionResult>((resolve) => {
+          extra.abortController?.signal.addEventListener('abort', () => {
+            resolve(executionResult('aborted'));
+          }, { once: true });
+        })
+      ),
+    );
+    const server = startServer(context.config, { store });
+
+    try {
+      await server.ready;
+      await triggerAgent(context.port, 'slow');
+
+      // The server default is fifteen minutes. Only the agent's own second can
+      // end this run inside the test.
+      await waitForIntegration(() => {
+        expect(store.list()[0]).toMatchObject({ agentId: 'slow', status: 'failed' });
+      });
+      expect(store.list()[0].code).toBe('run_timeout');
+    } finally {
+      await server.stop();
+      rmSync(context.home, { recursive: true, force: true });
+    }
+  });
+
+  it('runs without any wall-clock ceiling when the server default is zero', async () => {
+    const context = await createTestServerContext('no-timeout-server', {
+      AGENT_SERVER_RUN_TIMEOUT_MS: '0',
+    });
+    const store = new RunStore();
+    writeAgent(context.home, 'unbounded.yaml', [
+      'id: unbounded',
+      'name: Unbounded',
+      'prompt: Run with no ceiling',
+      ...restrictedAgentLines(context.home),
+      'enabled: true',
+      '',
+    ].join('\n'));
+    executeAgent.mockResolvedValueOnce(executionResult('Finished on its own'));
+    const server = startServer(context.config, { store });
+
+    try {
+      await server.ready;
+      await triggerAgent(context.port, 'unbounded');
+
+      await waitForIntegration(() => {
+        expect(store.list()[0]).toMatchObject({
+          agentId: 'unbounded',
+          status: 'completed',
+          summary: 'Finished on its own',
+        });
+      });
+      expect(store.list()[0].code).toBeUndefined();
+    } finally {
+      await server.stop();
+      rmSync(context.home, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('server analytics', { timeout: 20_000 }, () => {

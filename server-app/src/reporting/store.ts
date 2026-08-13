@@ -4,37 +4,9 @@ import {
   truncateProgressMessage,
 } from './run-normalization.js';
 import { evictOldest } from '../util/map-store.js';
+import type { StoredRun } from './stored-run.js';
 
-export type StoredRun = {
-  runId: string;
-  agentId: string;
-  agentName: string;
-  status: 'running' | 'completed' | 'failed' | 'skipped';
-  startedAt: Date;
-  completedAt?: Date;
-  summary?: string;
-  error?: string;
-  code?: string;
-  turnCount: number;
-  toolsUsed: string[];
-  filesRead: string[];
-  filesWritten: string[];
-  commandsRun: string[];
-  progressMessages: string[];
-  conversationId?: string;
-  conversationChannel?: 'slack' | 'telegram';
-  // Populated from the executor's ExecutionResult.usage so clients
-  // (the macOS app, the panel) can render per-run duration and cost
-  // without waiting for panel-side hydration.
-  durationMs?: number;
-  estimatedCostUsd?: number;
-  inputTokens?: number;
-  outputTokens?: number;
-  model?: string;
-  mode?: 'normal' | 'safe_test';
-  retryOfRunId?: string;
-  repairId?: string;
-};
+export type { StoredRun };
 
 /**
  * The contract the server depends on for run history. Both the in-memory

@@ -139,9 +139,13 @@ export class PanelLogDestination implements LogDestination {
   }
 
   async shutdown(): Promise<void> {
+    // Closed before the final flush, not after. `write` and `startTimer` both
+    // read this flag, and the flush is awaited, so a line written during it
+    // would otherwise re-arm the interval that was just cleared and leave it
+    // running past shutdown. The line is not lost: the local driver holds it.
+    this.isStopped = true;
     this.stopTimer();
     await this.flush();
-    this.isStopped = true;
   }
 
   private startTimer(): void {
@@ -180,6 +184,25 @@ export class PanelLogDestination implements LogDestination {
     for (const runId of ready) {
       if (this.isRefused) return;
       await this.deliverRun(runId);
+    }
+
+    this.pruneRetries();
+  }
+
+  /**
+   * Drops retry state for runs that have nothing left to deliver.
+   *
+   * A retried batch goes back at the head of the queue, which is the end
+   * `trimQueue` drops first, so a run under capacity pressure can lose every
+   * entry it was waiting to resend. Nothing then puts that run back in `ready`,
+   * and without this its counter would sit in the map for the life of the
+   * daemon — one dead entry per run, on a process that runs for months.
+   */
+  private pruneRetries(): void {
+    if (this.retries.size === 0) return;
+    const queued = new Set(this.queue.map((item) => item.runId));
+    for (const runId of this.retries.keys()) {
+      if (!queued.has(runId)) this.retries.delete(runId);
     }
   }
 
@@ -266,6 +289,9 @@ export class PanelLogDestination implements LogDestination {
       // would be refused the same way.
       this.isRefused = true;
       this.queue = [];
+      // Nothing will be delivered again, so retry counters for the other runs
+      // have nothing left to count and no later pass would reach them.
+      this.retries.clear();
       this.warn(`[logging] ${this.name} stopped: Agent Panel rejected the machine credential.`);
       return { kind: 'discarded' };
     }

@@ -1,8 +1,8 @@
 import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { LOG_LEVELS, LogEntryTooLargeError, type LogLevel } from './record.js';
-import type { AgentLogger } from './logger.js';
 import { buildLogReadTool } from './log-read-tool.js';
+import type { LogToolContext } from './log-tool-context.js';
 
 export const AGENT_LOG_SERVER_NAME = 'agent_log';
 export const AGENT_LOG_TOOL_NAME = 'mcp__agent_log__write_log';
@@ -16,11 +16,7 @@ const TOOL_DESCRIPTION = [
   'get where it was going, and warn when it did.',
 ].join(' ');
 
-export type LogToolContext = {
-  logger: AgentLogger;
-  agentId: string;
-  runId: string;
-};
+export type { LogToolContext };
 
 export type LogToolInput = {
   message: string;

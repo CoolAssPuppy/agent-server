@@ -38,28 +38,70 @@ function isAtLeast(version: string, minimum: readonly [number, number, number]):
   });
 }
 
+/**
+ * Every package an advisory has forced a floor onto, with the floor itself.
+ * The audit only reports what is vulnerable today; this table is what stops a
+ * resolved graph from sliding back under a floor once the advisory is old news.
+ */
+const ADVISORY_FLOORS: ReadonlyArray<readonly [string, readonly [number, number, number]]> = [
+  // GHSA-96hv-2xvq-fx4p, reached through @hono/node-ws on the /ws endpoint.
+  ['ws', [8, 21, 0]],
+  // GHSA-88fw-hqm2-52qc plus the memo(), Language-middleware, and proxy-header
+  // advisories, all fixed in 4.12.34.
+  ['hono', [4, 12, 34]],
+  // Path traversal in serve-static on Windows via an encoded backslash.
+  ['@hono/node-server', [1, 19, 15]],
+  // Host confusion in fast-uri, reached through ajv inside the MCP SDK.
+  ['fast-uri', [3, 1, 5]],
+  // SSRF and trust-boundary bypasses, reached through express-rate-limit.
+  ['ip-address', [10, 3, 1]],
+  // Response desynchronization and cache disclosure, via @slack/socket-mode.
+  ['undici', [7, 29, 0]],
+  // Express parser helpers the MCP SDK resolves.
+  ['body-parser', [2, 3, 0]],
+  ['qs', [6, 15, 2]],
+];
+
 describe('production dependency policy', () => {
   it('keeps vulnerable web-server versions out of the resolved graph', async () => {
     const manifest = PackageManifestSchema.parse(
       JSON.parse(await readRepositoryFile('server-app/package.json')),
     );
-    const lockfile = LockfileSchema.parse(parse(await readRepositoryFile('pnpm-lock.yaml')));
-    const packageKeys = Object.keys(lockfile.packages);
-    const wsVersions = packageKeys.flatMap((key) => {
-      const version = versionFromLockfileKey('ws', key);
-      return version ? [version] : [];
-    });
-    const honoVersions = packageKeys.flatMap((key) => {
-      const version = versionFromLockfileKey('hono', key);
-      return version ? [version] : [];
-    });
 
     expect(manifest.dependencies?.ws).toBeUndefined();
     expect(manifest.devDependencies?.['@types/ws']).toBeUndefined();
-    expect(wsVersions.length).toBeGreaterThan(0);
-    expect(wsVersions.every((version) => isAtLeast(version, [8, 21, 0]))).toBe(true);
-    expect(honoVersions.length).toBeGreaterThan(0);
-    expect(honoVersions.every((version) => isAtLeast(version, [4, 12, 25]))).toBe(true);
+  });
+
+  it.each(ADVISORY_FLOORS)('resolves every %s copy at or above its advisory floor', async (
+    packageName,
+    floor,
+  ) => {
+    const lockfile = LockfileSchema.parse(parse(await readRepositoryFile('pnpm-lock.yaml')));
+    const versions = Object.keys(lockfile.packages).flatMap((key) => {
+      const version = versionFromLockfileKey(packageName, key);
+      return version ? [version] : [];
+    });
+
+    expect(versions.length).toBeGreaterThan(0);
+    expect(versions.filter((version) => !isAtLeast(version, floor))).toEqual([]);
+  });
+
+  it('states every advisory floor as a range so patches are never pinned out', async () => {
+    const settings = z
+      .object({ overrides: z.record(z.string(), z.string()) })
+      .parse(parse(await readRepositoryFile('pnpm-workspace.yaml')));
+
+    // An exact override is a floor that stops rising. `hono: 4.12.30` was the
+    // July remedy and by August it was holding the graph two patches below its
+    // own fix, because nothing re-reads a pin once it is written.
+    const exactPins = Object.entries(settings.overrides)
+      .filter(([, range]) => /^\d+\.\d+\.\d+$/.test(range))
+      .map(([name]) => name);
+
+    expect(exactPins).toEqual([]);
+    for (const [packageName] of ADVISORY_FLOORS) {
+      expect(settings.overrides[packageName]).toBeDefined();
+    }
   });
 
   it('enforces the seven-day package quarantine through pnpm workspace settings', async () => {

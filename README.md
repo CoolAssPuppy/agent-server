@@ -670,6 +670,8 @@ The CLI loads `~/.agent-server/.env` at startup. Shell environment variables tak
 | `AGENT_SERVER_ANALYTICS_HOST` | `https://us.i.posthog.com` | Product analytics ingest host |
 | `AGENT_SERVER_ANALYTICS_DISTINCT_ID` |  | Per-install identifier passed down by the macOS app so both surfaces resolve to one person |
 | `AGENT_SERVER_ANALYTICS_OPT_OUT` | `true` | Product analytics stays off until this is explicitly set to `false`. The value in `~/.agent-server/.env` wins over the shell so the macOS toggle reaches a running daemon. |
+| `AGENT_SERVER_NATIVE_SERVICE_GRANTS` |  | Reviewed Calendar, Reminders, and Contacts grants, passed to the executor child process as JSON. The server writes this; it is not set by hand. |
+| `AGENT_SERVER_EVENTKIT_BIN` |  | Path to the bundled EventKit helper. Set by the macOS app, and what triggers eventkit MCP auto-injection. |
 | `ANTHROPIC_API_KEY` |  | Anthropic API key. Required for Telegram message routing (agent selection via Haiku). |
 
 Example `~/.agent-server/.env`:

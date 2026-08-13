@@ -349,4 +349,69 @@ describe('InteractionStore', () => {
       expect(store.get('int-claim')?.status).toBe('expired');
     });
   });
+
+  /**
+   * A claimed interaction holds a second entry in the claim-token map, and
+   * both routes that delete an interaction outright — capacity eviction and
+   * the stale sweep — only ever knew about the first map. The token left
+   * behind can never be redeemed, because a claim needs its interaction too,
+   * so what this costs is memory on a daemon that runs for months rather than
+   * authority. Nothing in the public API reports it, so these assert on the
+   * map itself; the alternative is not covering a real leak at all.
+   */
+  describe('claim token lifetime', () => {
+    function claimTokensOf(store: InteractionStore): Map<string, string> {
+      return (store as unknown as { claimTokens: Map<string, string> }).claimTokens;
+    }
+
+    function addClaimed(store: InteractionStore, id: string, createdAt: Date): void {
+      store.add({
+        id,
+        runId: `run-${id}`,
+        agentId: 'checker',
+        replyAgentId: 'booker',
+        request: makeRequest(),
+        channel: 'console',
+        createdAt,
+        expiresAt: new Date(createdAt.getTime() + 60_000),
+      });
+      store.claim(id, { type: 'option', optionIndex: 0 }, createdAt);
+    }
+
+    it('drops the claim token of an interaction evicted for capacity', () => {
+      const store = new InteractionStore(() => 'claim-token', 2);
+      addClaimed(store, 'int-oldest', new Date('2026-08-13T10:00:00Z'));
+      addClaimed(store, 'int-middle', new Date('2026-08-13T10:01:00Z'));
+      expect(claimTokensOf(store).size).toBe(2);
+
+      addClaimed(store, 'int-newest', new Date('2026-08-13T10:02:00Z'));
+
+      expect(store.get('int-oldest')).toBeUndefined();
+      expect([...claimTokensOf(store).keys()].sort()).toEqual(['int-middle', 'int-newest']);
+    });
+
+    it('drops the claim token of an interaction dropped by the stale sweep', () => {
+      const store = new InteractionStore(() => 'claim-token');
+      // Processing is not an active status, so the sweep deletes the entry once
+      // it passes the stale retention window. An agent that never answers a
+      // claim it took is exactly how an interaction reaches that state.
+      addClaimed(store, 'int-abandoned', new Date(Date.now() - 25 * 60 * 60 * 1000));
+      expect(claimTokensOf(store).size).toBe(1);
+
+      store.expireStale();
+
+      expect(store.get('int-abandoned')).toBeUndefined();
+      expect(claimTokensOf(store).size).toBe(0);
+    });
+
+    it('keeps the claim token of an interaction the sweep leaves in place', () => {
+      const store = new InteractionStore(() => 'claim-token');
+      addClaimed(store, 'int-live', new Date());
+
+      store.expireStale();
+
+      expect(claimTokensOf(store).size).toBe(1);
+      expect(store.complete('int-live', 'claim-token')).toBe(true);
+    });
+  });
 });

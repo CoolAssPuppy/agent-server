@@ -8,17 +8,35 @@ minimumReleaseAge: 10080
 minimumReleaseAgeStrict: true
 
 overrides:
-  # GHSA-88fw-hqm2-52qc affected Hono's optional CORS middleware. This server
-  # uses its own same-origin mutation guard, but the floor prevents future use
-  # of the vulnerable middleware and keeps the production audit clean at high.
-  hono: 4.12.30
+  # Every entry here is a range, never an exact version. An exact pin stops
+  # tracking upstream patches the moment it is written, so the next advisory
+  # against the same package finds the pin holding the graph below the fix
+  # rather than above it. That is exactly what `hono: 4.12.30` did: it was the
+  # remedy in July and the cause of four advisories by August. Each range
+  # carries a floor at the patched version and an upper bound at the current
+  # major, so patches arrive on their own and a major never does.
+  #
+  # GHSA-88fw-hqm2-52qc affected Hono's optional CORS middleware, and the
+  # 4.12.34 floor also covers the memo(), Language-middleware, and proxy-header
+  # advisories. This server uses its own same-origin mutation guard.
+  hono: '>=4.12.34 <5'
+  # Path traversal in serve-static on Windows via an encoded backslash.
+  '@hono/node-server': '>=1.19.15 <2'
   # GHSA-96hv-2xvq-fx4p applies to the /ws endpoint through @hono/node-ws.
-  ws: 8.21.0
+  ws: '>=8.21.0 <9'
   # MCP SDK currently resolves Express through advisory-affected parser helpers.
   # These compatible patch floors keep the bundled runtime's production graph
   # clear until the upstream range advances.
-  body-parser: 2.3.0
-  qs: 6.15.2
+  body-parser: '>=2.3.0 <3'
+  qs: '>=6.15.2 <7'
+  # Host confusion in fast-uri, reached through ajv inside the MCP SDK.
+  fast-uri: '>=3.1.5 <4'
+  # SSRF and trust-boundary bypasses in ip-address, reached through
+  # express-rate-limit inside the MCP SDK.
+  ip-address: '>=10.3.1 <11'
+  # Response desynchronization, cache disclosure, and header injection in
+  # undici, reached through @slack/socket-mode.
+  undici: '>=7.29.0 <8'
 
 allowBuilds:
   # esbuild's postinstall fetches the platform-specific binary used by
