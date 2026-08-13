@@ -19,6 +19,10 @@ struct AgentDetailDrawer: View {
     @State private var homeContract: AssistantHomeContract?
     @State private var isLoadingHome = false
     @State private var homeError: String?
+    /// A failed action on an already-loaded page. Separate from `homeError`,
+    /// which replaces the whole pane and only makes sense when the page never
+    /// loaded at all.
+    @State private var actionError: String?
     @State private var isPerformingHomeAction = false
     @State private var presentedInteraction: AgentHomePresentedInteraction?
 
@@ -89,6 +93,7 @@ struct AgentDetailDrawer: View {
             runState = .idle
             homeContract = nil
             homeError = nil
+            actionError = nil
         }
         .onChange(of: router.requestedRun) { _, requestedRun in
             guard requestedRun?.agentId == agentId,
@@ -236,14 +241,20 @@ struct AgentDetailDrawer: View {
     private var assistantHomeView: some View {
         Group {
             if let homeContract {
-                AssistantHomeView(
-                    presentation: AssistantHomePresentation(contract: homeContract),
-                    showsIdentity: false,
-                    isPerformingAction: isPerformingHomeAction,
-                    onPrimaryAction: performHomeAction,
-                    onSecondaryAction: performHomeAction,
-                    onOpenRun: { detailState.openRun(id: $0.runId) }
-                )
+                VStack(spacing: 0) {
+                    if let actionError {
+                        actionErrorBanner(actionError)
+                        Divider().opacity(0.3)
+                    }
+                    AssistantHomeView(
+                        presentation: AssistantHomePresentation(contract: homeContract),
+                        showsIdentity: false,
+                        isPerformingAction: isPerformingHomeAction,
+                        onPrimaryAction: performHomeAction,
+                        onSecondaryAction: performHomeAction,
+                        onOpenRun: { detailState.openRun(id: $0.runId) }
+                    )
+                }
             } else if isLoadingHome {
                 ConsumerProgressView(title: "Checking readiness")
             } else {
@@ -254,6 +265,31 @@ struct AgentDetailDrawer: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    /// Inline notice for an action that failed on a page that is otherwise
+    /// fine. Dismissible, because the page underneath is still usable.
+    private func actionErrorBanner(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: NSpacing.sm) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 11))
+                .foregroundStyle(theme.tokens.destructive)
+            Text(message)
+                .font(NTypography.caption)
+                .foregroundStyle(theme.tokens.foreground)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            Button("Dismiss") { actionError = nil }
+                .buttonStyle(.borderless)
+                .font(NTypography.caption)
+        }
+        .padding(.horizontal, NSpacing.xl)
+        .padding(.vertical, NSpacing.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(theme.tokens.destructive.opacity(0.1))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(message)
     }
 
     private var homeFailure: ConsumerFlowFailure {
@@ -368,6 +404,7 @@ struct AgentDetailDrawer: View {
 
     private func startSafeTest() {
         isPerformingHomeAction = true
+        actionError = nil
         Task {
             defer { isPerformingHomeAction = false }
             do {
@@ -375,7 +412,7 @@ struct AgentDetailDrawer: View {
                 detailState.openRun(id: response.runId)
                 monitor.poll()
             } catch {
-                homeError = error.localizedDescription
+                actionError = "Could not start the safe test: \(error.localizedDescription)"
             }
         }
     }
@@ -383,6 +420,7 @@ struct AgentDetailDrawer: View {
     private func openInteraction(from reference: String) {
         guard let interactionID = reference.removingPrefix("interaction:") else { return }
         isPerformingHomeAction = true
+        actionError = nil
         Task {
             defer { isPerformingHomeAction = false }
             do {
@@ -393,7 +431,7 @@ struct AgentDetailDrawer: View {
                 }
                 presentedInteraction = AgentHomePresentedInteraction(interaction: interaction)
             } catch {
-                homeError = error.localizedDescription
+                actionError = "Could not open this request: \(error.localizedDescription)"
             }
         }
     }
