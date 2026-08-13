@@ -244,21 +244,26 @@ struct AgentDetailDrawer: View {
                     onOpenRun: { detailState.openRun(id: $0.runId) }
                 )
             } else if isLoadingHome {
-                ProgressView("Checking readiness")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                ConsumerProgressView(title: "Checking readiness")
             } else {
-                ContentUnavailableView(
-                    "Could not load this agent",
-                    systemImage: "exclamationmark.circle",
-                    description: Text(homeError ?? "Try again.")
+                ConsumerFlowFailureView(
+                    failure: homeFailure,
+                    retry: { Task { await loadAssistantHome() } }
                 )
-                Button("Try again") {
-                    Task { await loadAssistantHome() }
-                }
-                .buttonStyle(.borderedProminent)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var homeFailure: ConsumerFlowFailure {
+        ConsumerFlowFailure(
+            title: "Could not load this agent",
+            message: "Agent Server could not read this agent's page.",
+            recovery: "Make sure the local server is running, then try again.",
+            technicalDetails: homeError ?? "The local server did not answer.",
+            didSave: nil,
+            canRetry: true
+        )
     }
 
     private var missingConnectionCount: Int {
