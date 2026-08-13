@@ -3,14 +3,18 @@ import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { AgentLogStore } from './log-store.js';
+import { AgentLogger } from './logger.js';
 import { AGENT_LOG_TOOL_NAME, writeAgentLog } from './log-tool.js';
 
 function createContext(overrides: { maxBytes?: number } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'log-tool-'));
-  const store = new AgentLogStore({
-    root, machineId: 'machine-uuid', hostname: 'test-mac', ...overrides,
+  const logger = new AgentLogger({
+    readsFrom: new AgentLogStore({ root }),
+    machineId: 'machine-uuid',
+    hostname: 'test-mac',
+    ...overrides,
   });
-  return { root, store, context: { store, agentId: 'daily-focus', runId: 'run-1' } };
+  return { root, logger, context: { logger, agentId: 'daily-focus', runId: 'run-1' } };
 }
 
 function textOf(result: { content: Array<{ type: string; text?: string }> }): string {
@@ -23,22 +27,22 @@ describe('agent log tool', () => {
   });
 
   it('records what the agent logged against its own run', async () => {
-    const { store, context } = createContext();
+    const { logger, context } = createContext();
 
     const result = await writeAgentLog(context, { message: 'Notion write failed', level: 'error' });
 
     expect(result.isError).toBeFalsy();
-    expect(store.readRun({ agentId: 'daily-focus', runId: 'run-1' })).toMatchObject([
+    expect(logger.readRun({ agentId: 'daily-focus', runId: 'run-1' })).toMatchObject([
       { message: 'Notion write failed', level: 'error', run_id: 'run-1' },
     ]);
   });
 
   it('keeps an undeliverable document as the entry body', async () => {
-    const { store, context } = createContext();
+    const { logger, context } = createContext();
 
     await writeAgentLog(context, { message: 'Unsent page', body: '# Report\n' });
 
-    expect(store.readRun({ agentId: 'daily-focus', runId: 'run-1' })[0].body).toBe('# Report\n');
+    expect(logger.readRun({ agentId: 'daily-focus', runId: 'run-1' })[0].body).toBe('# Report\n');
   });
 
   it('reports the size limit back to the agent instead of throwing', async () => {
@@ -51,11 +55,11 @@ describe('agent log tool', () => {
   });
 
   it('refuses an empty message rather than writing a blank entry', async () => {
-    const { store, context } = createContext();
+    const { logger, context } = createContext();
 
     const result = await writeAgentLog(context, { message: '   ' });
 
     expect(result.isError).toBe(true);
-    expect(store.readRun({ agentId: 'daily-focus', runId: 'run-1' })).toEqual([]);
+    expect(logger.readRun({ agentId: 'daily-focus', runId: 'run-1' })).toEqual([]);
   });
 });

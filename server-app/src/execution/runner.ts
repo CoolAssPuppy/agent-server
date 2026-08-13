@@ -7,7 +7,7 @@ import { assessPromptInjectionRisk, wrapUntrustedUserContext } from './prompt-in
 import type { DecisionContext } from './decision-handler.js';
 import { toErrorMessage } from '../util/errors.js';
 import { withTimeout } from '../util/with-timeout.js';
-import type { AgentLogStore, LogLevel } from '../logging/index.js';
+import type { AgentLogger, LogLevel } from '../logging/index.js';
 import { expandHome } from '../agents/file-watcher.js';
 import {
   assertRequiredOutput,
@@ -111,7 +111,7 @@ type RunAgentOptions = {
    * When present, every run leaves an outcome entry behind without the agent
    * having to ask, so a run that died mid-flight is still explainable.
    */
-  logStore?: AgentLogStore;
+  logger?: AgentLogger;
 };
 
 export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
@@ -128,9 +128,9 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
   } = options;
   const runId = options.runId ?? randomUUID();
   const recordOutcome = (level: LogLevel, message: string, body?: string): void => {
-    if (!options.logStore) return;
+    if (!options.logger) return;
     try {
-      options.logStore.append({ agentId: agent.id, runId, level, message, body, source: 'server' });
+      options.logger.append({ agentId: agent.id, runId, level, message, body, source: 'server' });
     } catch {
       // A run is not worth failing over its own log entry.
     }
@@ -225,7 +225,7 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
 
       assertDailyRetryMadeProgress(agent, result, options.mode);
       assertNoFailureArtifact(agent, result, options.mode);
-      assertNoLoggedFailure(options.logStore, agent.id, runId, options.mode);
+      assertNoLoggedFailure(options.logger, agent.id, runId, options.mode);
       assertRequiredOutput(agent, result, { mode: options.mode });
       return result;
     })();
@@ -325,15 +325,15 @@ function assertNoFailureArtifact(
  * neither the server nor an earlier run can fail a run that worked.
  */
 function assertNoLoggedFailure(
-  store: AgentLogStore | undefined,
+  logger: AgentLogger | undefined,
   agentId: string,
   runId: string,
   mode: RunAgentOptions['mode'],
 ): void {
-  if (mode === 'safe_test' || !store) return;
+  if (mode === 'safe_test' || !logger) return;
   let entries;
   try {
-    entries = store.readRun({ agentId, runId });
+    entries = logger.readRun({ agentId, runId });
   } catch {
     // A log we cannot read back is not grounds to fail a run that otherwise worked.
     return;

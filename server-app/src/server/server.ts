@@ -23,7 +23,7 @@ import {
   runtimeConnectionInventory,
 } from '../connections/runtime-mcp-inventory.js';
 import { loadEnvFile } from '../platform/config.js';
-import { createAgentLogStore } from '../logging/index.js';
+import { createAgentLogger } from '../logging/index.js';
 import type { RunStoreLike } from '../reporting/store.js';
 import { RunStore } from '../reporting/store.js';
 import { SqliteRunStore } from '../reporting/sqlite-store.js';
@@ -356,7 +356,7 @@ export function startServer(
   // can fall back to SDK runtimes; Kimi Code requires an installed executable.
   // Resolve once because a `which` lookup per run would be wasteful.
   const runtimePaths = discoverRuntimePaths();
-  const logStore = createAgentLogStore({ logsDir: config.logsDir, machineId: config.machineId });
+  const logger = createAgentLogger({ logsDir: config.logsDir, machineId: config.machineId });
   let codexMcpServers = discoverCodexMcpInventory(runtimePaths.codexExecutablePath);
   let kimiMcpServers = discoverKimiMcpInventory(runtimePaths.kimiExecutablePath);
   let codexMcpState = runtimePaths.codexExecutablePath === undefined
@@ -548,7 +548,7 @@ export function startServer(
         claudeExecutablePath: runtimePaths.claudeExecutablePath,
         codexExecutablePath: runtimePaths.codexExecutablePath,
         kimiExecutablePath: runtimePaths.kimiExecutablePath,
-        logStore,
+        logger,
         },
       ),
       runtimeAssignmentStore,

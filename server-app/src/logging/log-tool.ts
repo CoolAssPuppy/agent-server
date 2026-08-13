@@ -1,6 +1,7 @@
 import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
-import { LOG_LEVELS, LogEntryTooLargeError, type AgentLogStore, type LogLevel } from './log-store.js';
+import { LOG_LEVELS, LogEntryTooLargeError, type LogLevel } from './record.js';
+import type { AgentLogger } from './logger.js';
 import { buildLogReadTool } from './log-read-tool.js';
 
 export const AGENT_LOG_SERVER_NAME = 'agent_log';
@@ -16,7 +17,7 @@ const TOOL_DESCRIPTION = [
 ].join(' ');
 
 export type LogToolContext = {
-  store: AgentLogStore;
+  logger: AgentLogger;
   agentId: string;
   runId: string;
 };
@@ -49,7 +50,7 @@ export async function writeAgentLog(
     return errorResult('The log entry had no message, so nothing was written.');
   }
   try {
-    const record = context.store.append({
+    const record = context.logger.append({
       agentId: context.agentId,
       runId: context.runId,
       message: input.message,

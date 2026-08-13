@@ -2,7 +2,7 @@ import type { AgentConfig } from '../agents/config.js';
 import type { Reporter } from './runner.js';
 import type { ExecutionResult } from './executor.js';
 import type { DecisionContext } from './decision-handler.js';
-import type { AgentLogStore } from '../logging/index.js';
+import type { AgentLogger } from '../logging/index.js';
 
 export type ExecutorFnOptions = {
   abortController?: AbortController;
@@ -18,8 +18,8 @@ export type ExecutorFnOptions = {
   kimiExecutablePath?: string;
   /** Disable user-level MCP configuration for a restricted safe test. */
   disableMcpServers?: boolean;
-  /** Server-owned log destination, exposed to the agent as a tool. */
-  logStore?: AgentLogStore;
+  /** Server-owned log, exposed to the agent as a tool. */
+  logger?: AgentLogger;
 };
 
 export type ExecutorFn = (agent: AgentConfig, reporter: Reporter, options?: ExecutorFnOptions) => Promise<ExecutionResult>;

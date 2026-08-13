@@ -1,9 +1,14 @@
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { AgentLogStore } from './log-store.js';
+import { AgentLogger } from './logger.js';
 
-export { AgentLogStore, LogEntryTooLargeError, LOG_LEVELS } from './log-store.js';
-export type { LogAppendInput, LogLevel, LogRecord } from './log-store.js';
+export { AgentLogStore } from './log-store.js';
+export { AgentLogger } from './logger.js';
+export type { AgentLoggerOptions } from './logger.js';
+export { LogEntryTooLargeError, LOG_LEVELS } from './record.js';
+export type { LogAppendInput, LogLevel, LogRecord, LogRunQuery, LogSource } from './record.js';
+export type { LogDestination, ReadableLogDestination } from './destination.js';
 export {
   AGENT_LOG_SERVER_NAME,
   AGENT_LOG_TOOL_NAME,
@@ -14,17 +19,20 @@ export type { LogToolContext, LogToolInput } from './log-tool.js';
 export { AGENT_LOG_READ_TOOL_NAME, readAgentLog } from './log-read-tool.js';
 
 /**
- * Builds the log store from server configuration. `machineId` is the paired
- * identity when the panel knows this machine, so one panel can tell logs from
- * several machines apart; unpaired servers fall back to the hostname.
+ * Builds the logger from server configuration, with the local JSONL file as the
+ * driver reads come back from. Extra drivers are appended here as they arrive.
+ *
+ * `machineId` is the paired identity when the panel knows this machine, so one
+ * panel can tell logs from several machines apart; unpaired servers fall back to
+ * the hostname.
  */
-export function createAgentLogStore(config: {
+export function createAgentLogger(config: {
   logsDir: string;
   machineId?: string;
-}): AgentLogStore {
+}): AgentLogger {
   const host = hostname();
-  return new AgentLogStore({
-    root: join(config.logsDir, 'agents'),
+  return new AgentLogger({
+    readsFrom: new AgentLogStore({ root: join(config.logsDir, 'agents') }),
     machineId: config.machineId ?? host,
     hostname: host,
   });

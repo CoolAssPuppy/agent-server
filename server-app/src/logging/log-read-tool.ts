@@ -1,6 +1,7 @@
 import { tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
-import type { AgentLogStore, LogRecord } from './log-store.js';
+import type { LogRecord } from './record.js';
+import type { AgentLogger } from './logger.js';
 import type { LogToolContext } from './log-tool.js';
 
 export const AGENT_LOG_READ_TOOL_NAME = 'mcp__agent_log__read_log';
@@ -36,11 +37,13 @@ const inputShape = {
 };
 
 export async function readAgentLog(
-  context: { store: AgentLogStore; agentId: string },
+  context: { logger: AgentLogger; agentId: string },
   input: LogReadInput,
 ): Promise<ToolResult> {
   const needle = input.messageContains?.toLowerCase();
-  const entries = context.store.readAgent(context.agentId)
+  // Entries come from the logger's designated readable driver. A read is one
+  // answer from one place, never a merge of every driver a write reached.
+  const entries = context.logger.readAgent(context.agentId)
     .filter((record) => (needle ? record.message.toLowerCase().includes(needle) : true))
     .reverse()
     .slice(0, Math.min(input.limit ?? DEFAULT_LIMIT, MAX_LIMIT))

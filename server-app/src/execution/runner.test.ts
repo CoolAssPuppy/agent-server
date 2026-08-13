@@ -5,9 +5,14 @@ import { runAgent } from './runner.js';
 import { OUTPUT_CONTRACT_UNMET_CODE } from './output-contract.js';
 import { TelemetryReporter } from '../reporting/reporter.js';
 import { makeAgent, makeExecutionResult, createTempDir } from '../test-factories.js';
-import { AgentLogStore } from '../logging/index.js';
+import { AgentLogger, AgentLogStore } from '../logging/index.js';
 
 const noop = async () => {};
+const createLogger = (root: string) => new AgentLogger({
+  readsFrom: new AgentLogStore({ root }),
+  machineId: 'machine-uuid',
+  hostname: 'test-mac',
+});
 const makeSilentReporter = () => ({
   start: noop, progress: noop, complete: noop, fail: noop, stop: () => {},
 });
@@ -28,18 +33,18 @@ describe('runAgent', () => {
     const lockDir = createTempDir('runner');
     const logRoot = createTempDir('runner-logs');
     dirs.push(lockDir, logRoot);
-    const logStore = new AgentLogStore({ root: logRoot, machineId: 'machine-uuid', hostname: 'test-mac' });
+    const logger = createLogger(logRoot);
 
     await runAgent({
       runId: 'run-1',
       agent: makeAgent(),
       lockDir,
-      logStore,
+      logger,
       execute: async () => makeExecutionResult({ summary: 'Posted the report.' }),
       createReporter: () => makeSilentReporter(),
     });
 
-    expect(logStore.readRun({ agentId: 'test-agent', runId: 'run-1' })).toMatchObject([
+    expect(logger.readRun({ agentId: 'test-agent', runId: 'run-1' })).toMatchObject([
       { level: 'info', message: 'Run completed', body: 'Posted the report.' },
     ]);
   });
@@ -48,18 +53,18 @@ describe('runAgent', () => {
     const lockDir = createTempDir('runner');
     const logRoot = createTempDir('runner-logs');
     dirs.push(lockDir, logRoot);
-    const logStore = new AgentLogStore({ root: logRoot, machineId: 'machine-uuid', hostname: 'test-mac' });
+    const logger = createLogger(logRoot);
 
     await runAgent({
       runId: 'run-1',
       agent: makeAgent(),
       lockDir,
-      logStore,
+      logger,
       execute: async () => { throw new Error('Notion refused the write'); },
       createReporter: () => makeSilentReporter(),
     });
 
-    expect(logStore.readRun({ agentId: 'test-agent', runId: 'run-1' })).toMatchObject([
+    expect(logger.readRun({ agentId: 'test-agent', runId: 'run-1' })).toMatchObject([
       { level: 'error', message: 'Run failed', body: 'Notion refused the write' },
     ]);
   });
@@ -68,21 +73,21 @@ describe('runAgent', () => {
     const lockDir = createTempDir('runner');
     const logRoot = createTempDir('runner-logs');
     dirs.push(lockDir, logRoot);
-    const logStore = new AgentLogStore({ root: logRoot, machineId: 'machine-uuid', hostname: 'test-mac' });
+    const logger = createLogger(logRoot);
 
     await runAgent({
       runId: 'run-1',
       agent: makeAgent(),
       lockDir,
-      logStore,
+      logger,
       execute: async () => {
-        logStore.append({ agentId: 'test-agent', runId: 'run-1', message: 'Unsent page', body: '# Draft' });
+        logger.append({ agentId: 'test-agent', runId: 'run-1', message: 'Unsent page', body: '# Draft' });
         return makeExecutionResult({ summary: 'Done' });
       },
       createReporter: () => makeSilentReporter(),
     });
 
-    expect(logStore.readRun({ agentId: 'test-agent', runId: 'run-1' }).map((entry) => entry.message))
+    expect(logger.readRun({ agentId: 'test-agent', runId: 'run-1' }).map((entry) => entry.message))
       .toEqual(['Unsent page', 'Run completed']);
   });
 
@@ -236,15 +241,15 @@ describe('runAgent', () => {
     const lockDir = createTempDir('runner');
     const logRoot = createTempDir('runner-logs');
     dirs.push(lockDir, logRoot);
-    const logStore = new AgentLogStore({ root: logRoot, machineId: 'machine-uuid', hostname: 'test-mac' });
+    const logger = createLogger(logRoot);
 
     const result = await runAgent({
       runId: 'run-1',
       agent: makeAgent(),
       lockDir,
-      logStore,
+      logger,
       execute: async () => {
-        logStore.append({
+        logger.append({
           agentId: 'test-agent',
           runId: 'run-1',
           level: 'error',
@@ -267,15 +272,15 @@ describe('runAgent', () => {
     const lockDir = createTempDir('runner');
     const logRoot = createTempDir('runner-logs');
     dirs.push(lockDir, logRoot);
-    const logStore = new AgentLogStore({ root: logRoot, machineId: 'machine-uuid', hostname: 'test-mac' });
+    const logger = createLogger(logRoot);
 
     const result = await runAgent({
       runId: 'run-1',
       agent: makeAgent(),
       lockDir,
-      logStore,
+      logger,
       execute: async () => {
-        logStore.append({
+        logger.append({
           agentId: 'test-agent',
           runId: 'run-1',
           level: 'warn',
@@ -293,15 +298,15 @@ describe('runAgent', () => {
     const lockDir = createTempDir('runner');
     const logRoot = createTempDir('runner-logs');
     dirs.push(lockDir, logRoot);
-    const logStore = new AgentLogStore({ root: logRoot, machineId: 'machine-uuid', hostname: 'test-mac' });
+    const logger = createLogger(logRoot);
 
     const result = await runAgent({
       runId: 'run-1',
       agent: makeAgent(),
       lockDir,
-      logStore,
+      logger,
       execute: async () => {
-        logStore.append({
+        logger.append({
           agentId: 'test-agent',
           runId: 'run-1',
           level: 'error',
@@ -320,8 +325,8 @@ describe('runAgent', () => {
     const lockDir = createTempDir('runner');
     const logRoot = createTempDir('runner-logs');
     dirs.push(lockDir, logRoot);
-    const logStore = new AgentLogStore({ root: logRoot, machineId: 'machine-uuid', hostname: 'test-mac' });
-    logStore.append({
+    const logger = createLogger(logRoot);
+    logger.append({
       agentId: 'test-agent',
       runId: 'run-0',
       level: 'error',
@@ -332,7 +337,7 @@ describe('runAgent', () => {
       runId: 'run-1',
       agent: makeAgent(),
       lockDir,
-      logStore,
+      logger,
       execute: async () => makeExecutionResult({ summary: 'Done' }),
       createReporter: () => makeSilentReporter(),
     });
