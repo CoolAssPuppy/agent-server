@@ -30,6 +30,13 @@ server-app/src/
     telegram.ts          -- Telegram channel (grammY, long-polling, inline keyboards)
     router.ts            -- LLM-powered message routing (picks agent from user message)
     dispatcher.ts        -- Maps channel names to Channel instances
+  documents/
+    extractor.ts         -- DocumentExtractor contract + typed DocumentError
+    zip.ts               -- Reads one named entry out of a ZIP container
+    docx-extractor.ts    -- .docx extractor (in-process, no subprocess, no dependency)
+    registry.ts          -- Resolves an extractor by extension, hashes the source, isolates throws
+    document-tool.ts     -- MCP read_document tool exposed to agents
+    tool-name.ts         -- Server and tool name, kept where permissions.ts can import it
   execution/
     default-executors.ts -- Registers the built-in Claude Code, Codex, and Kimi Code executors
     executor.ts          -- Stream event parsing, tool metadata extraction, types
@@ -155,6 +162,26 @@ Agents leave a record behind by calling the `write_log` MCP tool and read their 
 - **Caps.** Message truncated to 10,000 characters, metadata to 8 KB serialized. `machine_id`, `run_id`, `hostname` and `agent_id` are not columns: the row's machine comes from the credential and the run from the URL, so only `agent_id`, `hostname`, any caller-supplied fields, and a truncated `body` go into `metadata`.
 - **Retry.** Panel has no idempotency key, so a retried batch inserts duplicates. Only failures that say nothing was written are retried: 429 (honouring `Retry-After`), 5xx, network errors, and the 404 that means the run's status event has not landed yet. Backoff is exponential from 5 seconds, capped at 5 minutes, and after 6 attempts the batch is dropped with a warning. 400, 403 and 413 are dropped immediately because resending cannot fix them. A 401 stops the driver for the life of the process, since the credential cannot change without a restart.
 - **Checkpointing.** A batch leaves the queue only once Panel accepts it or refuses it in a way retrying cannot fix. A retryable failure puts it back at the head of the queue, so a run's entries keep the order they were written in.
+
+### Reading documents the Read tool cannot open
+
+Agents call the `read_document` MCP tool (`mcp__agent_documents__read_document`) for formats the SDK's `Read` tool cannot open, starting with `.docx`. The server does the conversion and the hashing, so an agent that reviews a Word file needs no shell and no scratch file of its own.
+
+**Extractors.** `documents/extractor.ts` defines `DocumentExtractor`: a `name`, the lowercase `extensions` it claims, and `extract({ path, bytes })` returning text plus whatever metadata the format gives up cheaply. To add a format, write the extractor and append it to the array in `builtInExtractors()` in `documents/registry.ts`. That is the only edit. The tool schema does not change, the permission layer does not change, and no call site changes, because none of them knows which formats exist.
+
+**Registry.** `DocumentExtractorRegistry.read(path)` resolves the extension to an extractor, stats the file, refuses anything over 64 MB, reads the bytes once, and returns text, a `sha256` of those same bytes, size, and mtime. One read covers both the hash and the parse, so the hash always describes the text returned beside it. Failures are typed (`unsupported_type`, `not_found`, `too_large`, `unreadable`), and an extractor that throws is caught and reported as `unreadable` naming the extractor. An unsupported extension names what is supported.
+
+**The .docx extractor** parses in process. A `.docx` is a ZIP holding `word/document.xml`, which `node:zlib` opens, so it runs the same on every platform, adds no dependency and no subprocess. Shelling out to `textutil` would have been shorter and macOS only. It reads `w:t`, `w:tab`, `w:br` and paragraph ends in document order rather than stripping tags, which is what keeps tracked deletions (`w:delText`) and field instructions (`w:instrText`) out of the result. `zip.ts` caps what it will inflate, so an archive that claims to expand to gigabytes is refused.
+
+**Paging.** One call returns at most 50,000 characters (20,000 by default) and ends on a paragraph boundary. The reply carries `characters`, `offset`, `next_offset`, and `has_more`; pass `next_offset` back to continue. `metadataOnly: true` returns the hash and length with no text, which is how a scheduled agent checks whether a document changed since its last run.
+
+**Permission.** This tool takes a path, so it is gated in both directions and is **not** auto-permitted the way `write_log` is.
+
+1. It is listed in `READ_FILE_TOOLS` in `execution/permissions.ts`. A path-taking tool in neither `READ_FILE_TOOLS` nor `WRITE_FILE_TOOLS` is treated as taking no path and is never checked against `file_access` at all, which is unbounded read. Any future path-taking tool goes in one of those two sets.
+2. It needs an explicit `permissions.allow` (or `tools`) entry like any other tool.
+3. The tool checks the grants again itself, through `createFileAccessCheck()`, rather than trusting that it was reached through the permission callback. Both gates canonicalize, so `..` and symlinks cannot climb out of a grant.
+
+The server injects the tool into every ordinary Claude Code run from `plugins/claude-code.ts`, next to the log server. A safe test composes a run with no MCP effects, so it does not get this one either.
 
 ### Runtime discovery and custom model providers
 
