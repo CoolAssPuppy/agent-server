@@ -22,6 +22,7 @@ import { ConnectionOperationBindingStore } from '../connections/operation-bindin
 import { createConnectionResolvingExecutor } from '../connections/connection-executor.js';
 import { RuntimeAssignmentStore } from '../agents/runtime-assignment-store.js';
 import { AgentBindingStore } from '../agents/agent-binding-store.js';
+import { createAgentLogStore } from '../logging/index.js';
 
 type RunOptions = {
   promptSuffix?: string;
@@ -41,8 +42,9 @@ function runAgentWithConfig(config: ServerConfig, agent: AgentConfig, options: R
   const operationBindings = new ConnectionOperationBindingStore(
     join(config.agentsDir, '..', 'connection-operation-bindings.json'),
   );
+  const logStore = createAgentLogStore({ logsDir: config.logsDir, machineId: config.machineId });
   const execute = createConnectionResolvingExecutor(profiles, (candidate) => async (resolved, reporter, extra) => (
-    registry.resolve(candidate)(resolved, reporter, { ...extra, ...runtimePaths })
+    registry.resolve(candidate)(resolved, reporter, { ...extra, ...runtimePaths, logStore })
   ), runtimeAssignments, agentBindings, capabilities, operationBindings);
   return runAgent({
     agent,
@@ -210,8 +212,9 @@ function createInvokeRun(config: ServerConfig): InvokeRun {
   const operationBindings = new ConnectionOperationBindingStore(
     join(config.agentsDir, '..', 'connection-operation-bindings.json'),
   );
+  const logStore = createAgentLogStore({ logsDir: config.logsDir, machineId: config.machineId });
   const execute = createConnectionResolvingExecutor(profiles, (candidate) => async (resolved, reporter, extra) => (
-    registry.resolve(candidate)(resolved, reporter, { ...extra, ...runtimePaths })
+    registry.resolve(candidate)(resolved, reporter, { ...extra, ...runtimePaths, logStore })
   ), runtimeAssignments, agentBindings, capabilities, operationBindings);
   return async (options) => {
     return runAgent({

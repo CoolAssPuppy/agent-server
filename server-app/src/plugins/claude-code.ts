@@ -27,11 +27,18 @@ import {
   type CredentialBrokerPlan,
 } from './credential-broker.js';
 import { buildMcpPolicyRelayCommand } from './mcp-relay-runtime.js';
+import {
+  AGENT_LOG_SERVER_NAME,
+  createAgentLogMcpServer,
+  type AgentLogStore,
+} from '../logging/index.js';
 
 type ExecuteAgentExtra = {
   abortController?: AbortController;
   decisionContext?: DecisionContext;
   runId?: string;
+  /** Server-owned log destination exposed to the agent as an in-process tool. */
+  logStore?: AgentLogStore;
   disableMcpServers?: boolean;
   /**
    * Path to the user's installed Claude executable. The app passes this key
@@ -137,6 +144,16 @@ export async function executeAgent(
     const mcpRuntime = extra?.disableMcpServers
       ? { servers: {}, credentialBroker: undefined }
       : buildClaudeMcpRuntime(agent);
+    // Every agent can leave a record behind without being granted file access.
+    // The tool takes no path, so the run decides what to say and the server
+    // decides where it goes.
+    if (extra?.logStore && extra.runId && !mcpRuntime.servers[AGENT_LOG_SERVER_NAME]) {
+      mcpRuntime.servers[AGENT_LOG_SERVER_NAME] = createAgentLogMcpServer({
+        store: extra.logStore,
+        agentId: agent.id,
+        runId: extra.runId,
+      });
+    }
     const closeCredentialBroker = await startCredentialBroker(mcpRuntime.credentialBroker);
     try {
       const stream = await startClaudeQueryWithMcp(

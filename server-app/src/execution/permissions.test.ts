@@ -95,6 +95,27 @@ describe('buildCanUseTool', () => {
     }
   });
 
+  it('allows the server-owned log tool without an allowlist entry', async () => {
+    const canUseTool = buildCanUseTool({ allow: ['Read'], deny: [] });
+    const result = await canUseTool('mcp__agent_log__write_log', {}, makeToolOptions());
+    expect(result.behavior).toBe('allow');
+  });
+
+  it('allows the log tool even when exact file grants are in force', async () => {
+    const canUseTool = buildCanUseTool(
+      { allow: ['Read'], deny: [] },
+      { cwd: tmpdir(), fileAccess: [{ path: join(tmpdir(), 'nothing'), kind: 'folder', access: 'read_only' }] },
+    );
+    const result = await canUseTool('mcp__agent_log__write_log', {}, makeToolOptions());
+    expect(result.behavior).toBe('allow');
+  });
+
+  it('still lets an agent deny the log tool outright', async () => {
+    const canUseTool = buildCanUseTool({ allow: ['Read'], deny: ['mcp__agent_log__*'] });
+    const result = await canUseTool('mcp__agent_log__write_log', {}, makeToolOptions());
+    expect(result.behavior).toBe('deny');
+  });
+
   it('returns deny for tools matching deny patterns', async () => {
     const canUseTool = buildCanUseTool({
       allow: ['mcp__claude_ai_Linear__*'],

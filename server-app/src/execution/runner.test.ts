@@ -5,8 +5,12 @@ import { runAgent } from './runner.js';
 import { OUTPUT_CONTRACT_UNMET_CODE } from './output-contract.js';
 import { TelemetryReporter } from '../reporting/reporter.js';
 import { makeAgent, makeExecutionResult, createTempDir } from '../test-factories.js';
+import { AgentLogStore } from '../logging/index.js';
 
 const noop = async () => {};
+const makeSilentReporter = () => ({
+  start: noop, progress: noop, complete: noop, fail: noop, stop: () => {},
+});
 const originalPromptGuard = process.env.AGENT_SERVER_PROMPT_INJECTION_GUARD;
 const originalPromptStrict = process.env.AGENT_SERVER_PROMPT_INJECTION_STRICT;
 
@@ -18,6 +22,68 @@ describe('runAgent', () => {
     dirs.length = 0;
     process.env.AGENT_SERVER_PROMPT_INJECTION_GUARD = originalPromptGuard;
     process.env.AGENT_SERVER_PROMPT_INJECTION_STRICT = originalPromptStrict;
+  });
+
+  it('logs the outcome of a completed run without the agent asking', async () => {
+    const lockDir = createTempDir('runner');
+    const logRoot = createTempDir('runner-logs');
+    dirs.push(lockDir, logRoot);
+    const logStore = new AgentLogStore({ root: logRoot, machineId: 'machine-uuid', hostname: 'test-mac' });
+
+    await runAgent({
+      runId: 'run-1',
+      agent: makeAgent(),
+      lockDir,
+      logStore,
+      execute: async () => makeExecutionResult({ summary: 'Posted the report.' }),
+      createReporter: () => makeSilentReporter(),
+    });
+
+    expect(logStore.readRun({ agentId: 'test-agent', runId: 'run-1' })).toMatchObject([
+      { level: 'info', message: 'Run completed', body: 'Posted the report.' },
+    ]);
+  });
+
+  it('logs the reason a run failed', async () => {
+    const lockDir = createTempDir('runner');
+    const logRoot = createTempDir('runner-logs');
+    dirs.push(lockDir, logRoot);
+    const logStore = new AgentLogStore({ root: logRoot, machineId: 'machine-uuid', hostname: 'test-mac' });
+
+    await runAgent({
+      runId: 'run-1',
+      agent: makeAgent(),
+      lockDir,
+      logStore,
+      execute: async () => { throw new Error('Notion refused the write'); },
+      createReporter: () => makeSilentReporter(),
+    });
+
+    expect(logStore.readRun({ agentId: 'test-agent', runId: 'run-1' })).toMatchObject([
+      { level: 'error', message: 'Run failed', body: 'Notion refused the write' },
+    ]);
+  });
+
+  it('keeps what the agent logged mid-run alongside the outcome', async () => {
+    const lockDir = createTempDir('runner');
+    const logRoot = createTempDir('runner-logs');
+    dirs.push(lockDir, logRoot);
+    const logStore = new AgentLogStore({ root: logRoot, machineId: 'machine-uuid', hostname: 'test-mac' });
+
+    await runAgent({
+      runId: 'run-1',
+      agent: makeAgent(),
+      lockDir,
+      logStore,
+      execute: async () => {
+        logStore.append({ agentId: 'test-agent', runId: 'run-1', message: 'Unsent page', body: '# Draft' });
+        return makeExecutionResult({ summary: 'Done' });
+      },
+      createReporter: () => makeSilentReporter(),
+    });
+
+    expect(logStore.readRun({ agentId: 'test-agent', runId: 'run-1' }).map((entry) => entry.message))
+      .toEqual(['Unsent page', 'Run completed']);
   });
 
   it('generates a run ID and returns it', async () => {

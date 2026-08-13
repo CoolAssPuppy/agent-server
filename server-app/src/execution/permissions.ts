@@ -3,6 +3,8 @@ import type { AgentConfig } from '../agents/config.js';
 import { homedir } from 'node:os';
 import { realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { AGENT_LOG_TOOL_NAME } from '../logging/log-tool.js';
+import { AGENT_LOG_READ_TOOL_NAME } from '../logging/log-read-tool.js';
 
 export function matchesPattern(toolName: string, pattern: string): boolean {
   const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
@@ -110,6 +112,12 @@ export function buildCanUseTool(permissions: Permissions, fileOptions?: FileAcce
     })),
   } : undefined;
   return async (toolName, input) => {
+    // The log tool takes no path and writes only where the server puts it, so it
+    // needs no allowlist entry. An agent that explicitly denies it still wins.
+    const isLogTool = toolName === AGENT_LOG_TOOL_NAME || toolName === AGENT_LOG_READ_TOOL_NAME;
+    if (isLogTool && !matchesAnyPattern(toolName, permissions.deny)) {
+      return { behavior: 'allow' };
+    }
     if (isToolAllowed(toolName, permissions)) {
       if (canonicalFileOptions && !hasFileAccess(toolName, input, canonicalFileOptions)) {
         return { behavior: 'deny', message: `Tool "${toolName}" cannot access that file or folder` };

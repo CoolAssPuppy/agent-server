@@ -7,6 +7,7 @@ import { assessPromptInjectionRisk, wrapUntrustedUserContext } from './prompt-in
 import type { DecisionContext } from './decision-handler.js';
 import { toErrorMessage } from '../util/errors.js';
 import { withTimeout } from '../util/with-timeout.js';
+import type { AgentLogStore, LogLevel } from '../logging/index.js';
 import { expandHome } from '../agents/file-watcher.js';
 import {
   assertRequiredOutput,
@@ -90,6 +91,11 @@ type RunAgentOptions = {
    * ignores the abort signal.
    */
   abortController?: AbortController;
+  /**
+   * When present, every run leaves an outcome entry behind without the agent
+   * having to ask, so a run that died mid-flight is still explainable.
+   */
+  logStore?: AgentLogStore;
 };
 
 export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
@@ -105,6 +111,14 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
     abortController,
   } = options;
   const runId = options.runId ?? randomUUID();
+  const recordOutcome = (level: LogLevel, message: string, body?: string): void => {
+    if (!options.logStore) return;
+    try {
+      options.logStore.append({ agentId: agent.id, runId, level, message, body, source: 'server' });
+    } catch {
+      // A run is not worth failing over its own log entry.
+    }
+  };
 
   if (!acquireLock(lockDir, agent.id)) {
     const reason = `This run was skipped because ${agent.name} is already running.`;
@@ -211,12 +225,14 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
         }
       },
     });
+    recordOutcome('info', 'Run completed', result.summary);
     await reporter.complete(result);
     reporter.stop();
     return { runId, status: 'completed', result };
   } catch (err) {
     const error = err instanceof Error ? err : new Error(String(err));
     if (isTimeoutError(error)) {
+      recordOutcome('error', 'Run timed out', error.message);
       if (typeof reporter.cancel === 'function') {
         await reporter.cancel(error.message, RUN_TIMEOUT_CODE);
       } else {
@@ -235,6 +251,7 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
     }
     if (isAbortError(error)) {
       const code = abortReasonCode(abortController);
+      recordOutcome('warn', 'Run canceled', error.message || 'Canceled');
       if (typeof reporter.cancel === 'function') {
         await reporter.cancel(error.message || 'Canceled', code);
       } else {
@@ -243,6 +260,7 @@ export async function runAgent(options: RunAgentOptions): Promise<RunResult> {
       reporter.stop();
       return { runId, status: 'failed', error: error.message, code };
     }
+    recordOutcome('error', 'Run failed', error.message);
     await reporter.fail(error);
     reporter.stop();
     return {
