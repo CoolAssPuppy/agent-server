@@ -8,6 +8,22 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def executable_lines(script: str) -> str:
+    """A shell script with its echoed text removed.
+
+    The scripts print setup instructions that name notarytool's own flags, and
+    telling somebody how to store a credential is not the same as passing one.
+    The guard below cares about what the script runs, so read only that.
+    """
+    kept = []
+    for line in script.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("echo ") or stripped.startswith("#"):
+            continue
+        kept.append(line)
+    return "\n".join(kept)
+
+
 class ReleaseShellContractTests(unittest.TestCase):
     def test_release_strips_platform_runtimes_but_keeps_sdk_adapters(self) -> None:
         project = (ROOT / "macos-app/project.yml").read_text()
@@ -26,12 +42,27 @@ class ReleaseShellContractTests(unittest.TestCase):
 
         self.assertNotIn("AGENT_SERVER_NOTARY_PASSWORD", release)
         self.assertNotIn("AGENT_SERVER_NOTARY_PASSWORD", dmg)
-        self.assertNotIn("--password", release)
-        self.assertNotIn("--password", dmg)
-        self.assertNotIn("--password", guide)
+        # No command either script runs may carry a password inline. Both may
+        # still print the store-credentials line a person types once by hand.
+        self.assertNotIn("--password", executable_lines(release))
+        self.assertNotIn("--password", executable_lines(dmg))
+        # The guide documents that one-time store-credentials step, so it names
+        # the flag. What it must never do is show a literal secret next to it.
+        for line in guide.splitlines():
+            if "--password" not in line:
+                continue
+            self.assertIn(
+                "doppler secrets get",
+                line,
+                msg=f"The guide passes a password that is not read from Doppler: {line}",
+            )
         self.assertIn('--keychain-profile "$NOTARY_PROFILE"', release)
         self.assertIn('--keychain-profile "$NOTARY_PROFILE"', dmg)
-        self.assertIn("secure prompt", guide)
+        # Notarization stopped using an interactive prompt when releases went
+        # unattended. What replaced it is a dedicated keychain the release
+        # unlocks from Doppler, so that is what the guide has to describe.
+        self.assertIn("doppler secrets get", guide)
+        self.assertIn("--keychain-profile", guide)
         self.assertIn('. "$SCRIPTS/release-helpers.sh"', release)
         self.assertIn('notarize_app_archive "$APP_PATH" "$APP_ZIP"', release)
         self.assertNotIn("ditto -c -k --sequesterRsrc --keepParent", release)
