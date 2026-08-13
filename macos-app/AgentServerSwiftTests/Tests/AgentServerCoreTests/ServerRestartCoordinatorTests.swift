@@ -35,6 +35,19 @@ final class ServerRestartCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.state, .running(startedAt: "new"))
     }
 
+    // One copy of the contract floor. A second copy here drifted from
+    // LocalServerCompatibility and the coordinator accepted a server the rest
+    // of the app had already judged too old.
+    func testDefaultFloorIsTheSharedContractVersion() {
+        let floor = LocalServerCompatibility.requiredAPIVersion
+        var coordinator = ServerRestartCoordinator()
+        coordinator.observeRunning(startedAt: "old")
+        XCTAssertTrue(coordinator.requestRestart(activeRunCount: 0))
+
+        XCTAssertFalse(coordinator.observeRestartHealth(startedAt: "new", apiVersion: floor - 1))
+        XCTAssertTrue(coordinator.observeRestartHealth(startedAt: "new", apiVersion: floor))
+    }
+
     func testRequestDuringRestartSchedulesOneFollowUpRestart() {
         var coordinator = ServerRestartCoordinator()
         coordinator.observeRunning(startedAt: "first")
