@@ -42,7 +42,12 @@ function runAgentWithConfig(config: ServerConfig, agent: AgentConfig, options: R
   const operationBindings = new ConnectionOperationBindingStore(
     join(config.agentsDir, '..', 'connection-operation-bindings.json'),
   );
-  const logger = createAgentLogger({ logsDir: config.logsDir, machineId: config.machineId });
+  const logger = createAgentLogger({
+    logsDir: config.logsDir,
+    machineId: config.machineId,
+    panelUrl: config.panelUrl,
+    panelApiKey: config.panelApiKey,
+  });
   const execute = createConnectionResolvingExecutor(profiles, (candidate) => async (resolved, reporter, extra) => (
     registry.resolve(candidate)(resolved, reporter, { ...extra, ...runtimePaths, logger })
   ), runtimeAssignments, agentBindings, capabilities, operationBindings);
@@ -212,7 +217,12 @@ function createInvokeRun(config: ServerConfig): InvokeRun {
   const operationBindings = new ConnectionOperationBindingStore(
     join(config.agentsDir, '..', 'connection-operation-bindings.json'),
   );
-  const logger = createAgentLogger({ logsDir: config.logsDir, machineId: config.machineId });
+  const logger = createAgentLogger({
+    logsDir: config.logsDir,
+    machineId: config.machineId,
+    panelUrl: config.panelUrl,
+    panelApiKey: config.panelApiKey,
+  });
   const execute = createConnectionResolvingExecutor(profiles, (candidate) => async (resolved, reporter, extra) => (
     registry.resolve(candidate)(resolved, reporter, { ...extra, ...runtimePaths, logger })
   ), runtimeAssignments, agentBindings, capabilities, operationBindings);

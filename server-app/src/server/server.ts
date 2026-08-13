@@ -356,7 +356,12 @@ export function startServer(
   // can fall back to SDK runtimes; Kimi Code requires an installed executable.
   // Resolve once because a `which` lookup per run would be wasteful.
   const runtimePaths = discoverRuntimePaths();
-  const logger = createAgentLogger({ logsDir: config.logsDir, machineId: config.machineId });
+  const logger = createAgentLogger({
+    logsDir: config.logsDir,
+    machineId: config.machineId,
+    panelUrl: config.panelUrl,
+    panelApiKey: config.panelApiKey,
+  });
   let codexMcpServers = discoverCodexMcpInventory(runtimePaths.codexExecutablePath);
   let kimiMcpServers = discoverKimiMcpInventory(runtimePaths.kimiExecutablePath);
   let codexMcpState = runtimePaths.codexExecutablePath === undefined
@@ -1508,6 +1513,9 @@ export function startServer(
       // one. The server flushes what the server captured rather than trusting
       // its caller to, because `startServer` has callers other than the CLI.
       await attempt(() => analytics.flush());
+      // Same reason, and the last entries a run wrote are the ones somebody
+      // reading Panel afterwards most wants.
+      await attempt(() => logger.shutdown());
 
       console.log('Agent Server stopped.');
       if (shutdownErrors.length === 1) throw shutdownErrors[0];

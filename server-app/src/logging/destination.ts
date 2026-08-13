@@ -14,6 +14,12 @@ export interface LogDestination {
   /** Stable slug used in warnings. Never written into a record. */
   readonly name: string;
   write(record: LogRecord): void | Promise<void>;
+  /**
+   * Optional last chance to deliver. A driver that queues implements this so
+   * the entries it is holding go out before the process exits; a driver that
+   * writes on the spot has nothing to do here.
+   */
+  shutdown?(): Promise<void>;
 }
 
 /**

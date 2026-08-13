@@ -75,6 +75,21 @@ export class AgentLogger {
     return record;
   }
 
+  /**
+   * Lets every driver deliver what it is holding. A driver that fails here is
+   * reported and the rest still get their turn, because a shutdown that throws
+   * would cost the others theirs.
+   */
+  async shutdown(): Promise<void> {
+    for (const destination of [this.readsFrom, ...this.destinations]) {
+      try {
+        await destination.shutdown?.();
+      } catch (error) {
+        this.warn(destination, error);
+      }
+    }
+  }
+
   readRun(query: LogRunQuery): LogRecord[] {
     return this.readsFrom.readRun(query);
   }

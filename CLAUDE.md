@@ -47,6 +47,15 @@ server-app/src/
     schema.ts            -- InteractionRequest, InteractionConfig, NotificationConfig schemas
     notification.ts      -- Notification message formatting
     store.ts             -- In-memory pending interaction store with expiry
+  logging/
+    record.ts            -- LogRecord shape, stamping, JSONL serialization
+    destination.ts       -- LogDestination / ReadableLogDestination driver contracts
+    logger.ts            -- AgentLogger: stamps once, fans out, isolates each driver
+    log-store.ts         -- Local JSONL driver (one file per agent per day); reads come from here
+    panel-log-destination.ts -- Agent Panel driver: queues, batches by run, retries
+    log-filter.ts        -- Strips escape and control characters before an entry is kept
+    log-tool.ts          -- MCP write_log tool exposed to agents
+    log-read-tool.ts     -- MCP read_log tool exposed to agents
   reporting/
     reporter.ts          -- A2A telemetry reporter with heartbeat and worker_id
     reporter-factory.ts  -- Creates noop or telemetry reporter based on config
@@ -120,6 +129,32 @@ The reporter includes `worker_id` (hostname-pid) in metadata on every event, all
 ### Local run persistence (SQLite)
 
 Run history is durable, backed by SQLite via Node's built-in `node:sqlite` (no native dependency to compile or code-sign into the macOS app bundle). `SqliteRunStore` (`reporting/sqlite-store.ts`) is a drop-in for the in-memory `RunStore` behind the shared `RunStoreLike` interface; both normalize through `reporting/run-normalization.ts`. The database lives at `~/.agent-server/runs.db` (`AGENT_SERVER_RUN_DB`; `:memory:` for ephemeral). `startServer` builds it with a graceful fallback to in-memory history if the file is unusable, and closes it on shutdown. Because history now survives restarts, `failOrphanedLocalRuns()` (`reporting/local-reconcile.ts`) runs at boot to fail any run left `running` by a killed previous instance — local ghost-run cleanup that needs no panel.
+
+### Agent logging
+
+Agents leave a record behind by calling the `write_log` MCP tool and read their own history back with `read_log`. Callers pass a message, never a path or a provider, so an agent needs no file access to log and cannot write anywhere else by asking.
+
+**Drivers.** `logging/destination.ts` defines `LogDestination` (`name` plus `write(record)`, and an optional `shutdown()` for drivers that queue). `ReadableLogDestination` adds `readRun` and `readAgent`. To add a driver, implement the interface and append it to the array `AgentLogger` receives in `createAgentLogger()`. No call site changes, because no call site knows a driver exists. Two drivers ship today:
+
+| Driver | `name` | Role |
+|---|---|---|
+| `AgentLogStore` (`log-store.ts`) | `local_jsonl` | One JSONL file per agent per day under `~/.agent-server/logs/agents/`, 30-day retention. Reads come back from this one. |
+| `PanelLogDestination` (`panel-log-destination.ts`) | `agent_panel` | Ships entries to Agent Panel over HTTP. Write-only. |
+
+**Fan-out.** `AgentLogger.append()` stamps the record once (timestamp, machine id, hostname, source) so every driver gets the identical record, checks it against a 1 MB ceiling, then writes to the readable driver first and the rest after. Each driver is isolated: one that throws or rejects is warned about and never stops the others. Only a failure of the readable driver reaches the caller, because a caller told the entry was written expects to read it back. `append` is synchronous, so a promise-returning driver owns its own queue.
+
+**Reads have one authority.** Merging N drivers would return entries that differ by delivery lag and duplicate each other, so exactly one driver is designated readable and `read_log` never asks another.
+
+#### Agent Panel log driver
+
+`POST {panelUrl}/api/runs/{runId}/logs` with the machine credential as a bearer token and `{ protocol_version: 2, machine_id, entries[] }` as the body. Enabled only when a panel URL, a credential, and a paired machine id are all present. An organization key names no machine and Panel takes the row's machine from the credential, so an unpaired server keeps its logs local rather than filing them against another Mac.
+
+- **Queue.** `write()` only appends to a bounded in-memory queue (2,000 entries) and returns. A panel that is down or slow can never delay or fail a run. Delivery runs on an unref'd 5-second timer, and `shutdown()` flushes what is left; `startServer` calls it during the stop sequence, after the run drain.
+- **Backpressure.** When the queue is full the oldest entries go first. Panel is a live view of a run, so the newest lines are the ones somebody is waiting on, and every dropped line is still on disk in the local driver, which is where reads come from. Drops are counted and reported once per flush rather than per entry.
+- **Grouping.** One request carries one run's entries, so the queue is bucketed by `run_id` at flush time. Batches are capped at 200 entries and about 255 KB, whichever comes first; the remainder waits for the next flush.
+- **Caps.** Message truncated to 10,000 characters, metadata to 8 KB serialized. `machine_id`, `run_id`, `hostname` and `agent_id` are not columns: the row's machine comes from the credential and the run from the URL, so only `agent_id`, `hostname`, any caller-supplied fields, and a truncated `body` go into `metadata`.
+- **Retry.** Panel has no idempotency key, so a retried batch inserts duplicates. Only failures that say nothing was written are retried: 429 (honouring `Retry-After`), 5xx, network errors, and the 404 that means the run's status event has not landed yet. Backoff is exponential from 5 seconds, capped at 5 minutes, and after 6 attempts the batch is dropped with a warning. 400, 403 and 413 are dropped immediately because resending cannot fix them. A 401 stops the driver for the life of the process, since the credential cannot change without a restart.
+- **Checkpointing.** A batch leaves the queue only once Panel accepts it or refuses it in a way retrying cannot fix. A retryable failure puts it back at the head of the queue, so a run's entries keep the order they were written in.
 
 ### Runtime discovery and custom model providers
 

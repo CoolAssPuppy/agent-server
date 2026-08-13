@@ -187,6 +187,38 @@ describe('agent logger', () => {
     expect(destination.records[0]).toMatchObject({ spend: 42, agent_id: 'daily-focus', level: 'info' });
   });
 
+  it('gives every driver that queues a last chance to deliver', async () => {
+    const delivered: string[] = [];
+    const queueing = (name: string): LogDestination => ({
+      name,
+      write: () => {},
+      shutdown: async () => { delivered.push(name); },
+    });
+    const logger = createLogger({ destinations: [queueing('first'), queueing('second')] });
+
+    await logger.shutdown();
+
+    expect(delivered).toEqual(['first', 'second']);
+  });
+
+  it('shuts the remaining drivers down when one of them fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const delivered: string[] = [];
+      const logger = createLogger({
+        destinations: [
+          { name: 'broken', write: () => {}, shutdown: async () => { throw new Error('no route'); } },
+          { name: 'healthy', write: () => {}, shutdown: async () => { delivered.push('healthy'); } },
+        ],
+      });
+
+      await expect(logger.shutdown()).resolves.toBeUndefined();
+      expect(delivered).toEqual(['healthy']);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it('marks who wrote the entry so the server cannot be impersonated', () => {
     const destination = createRecordingDestination();
     const logger = createLogger({ destinations: [destination] });
