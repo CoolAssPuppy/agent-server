@@ -6,6 +6,24 @@
     <description>Agent Server updates</description>
     <language>en</language>
     <item>
+      <title>Version 3.8.0</title>
+      <pubDate>Thu, 13 Aug 2026 08:38:02 +0000</pubDate>
+      <sparkle:version>65</sparkle:version>
+      <sparkle:shortVersionString>3.8.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Agent logs now go to Agent Panel as well as the local file, so a run is explainable from either place.</li><li>An agent that logs an error now reports its run as failed, instead of finishing quietly with the work undelivered.</li><li>The security check drawer is redesigned. Counts up front, agents grouped by whether they need approval, and approving one moves straight to the next.</li><li>An agent page that fails to load shows one failure message with one retry button, next to the error it belongs to.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.8.0.dmg"
+        sparkle:edSignature="9jq5SdPCSUBdbqgQD2czzww1qAvintRw9RBik3DQMIjUZDIko0CMTl1YyZhF3IZwuwyU+wubwtxbpfZxuzm/Bw=="
+        length="19965498"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
       <title>Version 3.7.13</title>
       <pubDate>Thu, 13 Aug 2026 07:27:07 +0000</pubDate>
       <sparkle:version>64</sparkle:version>
