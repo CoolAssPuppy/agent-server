@@ -1198,6 +1198,60 @@ describe('guided agent proposal creation', () => {
     expect(result.status).toBe('needs_information');
   });
 
+  it('accepts a file-editing proposal rated needs review', () => {
+    const proposal = validProposal();
+    proposal.permissions = {
+      can_modify_files: true,
+      can_run_commands: false,
+      requires_network: false,
+      can_use_connected_apps: false,
+      can_send_messages: false,
+    };
+    proposal.connections = [];
+    proposal.notification_destination = null;
+    proposal.file_access = [{
+      path: '~/Documents/Reports', access: 'read_write', is_suggestion: false, reason: 'Saves the report.',
+    }];
+    proposal.risk = { level: 'needs_review', reasons: ['It can change files.'], finding_count: 1 };
+
+    expect(CreationProposalSchema.safeParse(proposal).success).toBe(true);
+  });
+
+  it('still rejects a file-editing proposal rated low', () => {
+    const proposal = validProposal();
+    proposal.permissions = {
+      can_modify_files: true,
+      can_run_commands: false,
+      requires_network: false,
+      can_use_connected_apps: false,
+      can_send_messages: false,
+    };
+    proposal.connections = [];
+    proposal.notification_destination = null;
+    proposal.file_access = [{
+      path: '~/Documents/Reports', access: 'read_write', is_suggestion: false, reason: 'Saves the report.',
+    }];
+    proposal.risk = { level: 'low', reasons: [], finding_count: 0 };
+
+    expect(CreationProposalSchema.safeParse(proposal).success).toBe(false);
+  });
+
+  it('still requires a high rating for command execution', () => {
+    const proposal = validProposal();
+    proposal.permissions = {
+      can_modify_files: false,
+      can_run_commands: true,
+      requires_network: false,
+      can_use_connected_apps: false,
+      can_send_messages: false,
+    };
+    proposal.connections = [];
+    proposal.notification_destination = null;
+    proposal.risk = { level: 'needs_review', reasons: ['It can run commands.'], finding_count: 1 };
+
+    expect(CreationProposalSchema.safeParse(proposal).success).toBe(false);
+  });
+
   it('rejects invalid schedules, time zones, and incomplete watch triggers', async () => {
     const proposal = validProposal();
     proposal.trigger = { type: 'watch', schedule: 'not a schedule', human_description: 'When files change.' };

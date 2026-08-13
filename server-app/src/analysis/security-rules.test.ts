@@ -6,6 +6,10 @@ import {
   detectSensitivePath,
 } from './security-rules.js';
 
+function severityOf(findings: { rule_id: string; severity: string }[], ruleId: string): string | undefined {
+  return findings.find((finding) => finding.rule_id === ruleId)?.severity;
+}
+
 describe('deterministic security analysis', () => {
   it('classifies a narrow read-only agent as low risk', () => {
     const result = analyzeAgentSecurity({
@@ -21,6 +25,35 @@ describe('deterministic security analysis', () => {
 
     expect(result.risk.level).toBe('low');
     expect(result.findings.filter((finding) => finding.severity !== 'low')).toEqual([]);
+  });
+
+  it('rates a scheduled agent that edits files in its own folder as needs review', () => {
+    const result = analyzeAgentSecurity({
+      agent: makeAgent({
+        tools: ['Read', 'Write', 'Edit'],
+        working_directory: '~/Documents/Reports',
+      }),
+      rawContent: 'Update the daily report.',
+      homeDir: '/Users/tester',
+    });
+
+    expect(result.risk.level).toBe('needs_review');
+    expect(severityOf(result.findings, 'permissions.file_write')).toBe('needs_review');
+    expect(severityOf(result.findings, 'trigger.automatic_state_change')).toBe('needs_review');
+  });
+
+  it('keeps commands combined with internet access at high risk', () => {
+    const result = analyzeAgentSecurity({
+      agent: makeAgent({
+        tools: ['Bash', 'WebFetch'],
+        working_directory: '~/Documents/Reports',
+      }),
+      rawContent: 'Fetch the feed and run the import script.',
+      homeDir: '/Users/tester',
+    });
+
+    expect(result.risk.level).toBe('high');
+    expect(severityOf(result.findings, 'permissions.commands_and_network')).toBe('high');
   });
 
   it('honors the authoritative permissions allowlist', () => {

@@ -99,15 +99,24 @@ function validateProposal(value: z.infer<typeof AgentProposalSchema>, ctx: z.Ref
     ...(value.native_services.calendar?.resources ?? []),
     ...(value.native_services.reminders?.resources ?? []),
   ].some((resource) => resource.actions.some((action) => action !== 'read'));
-  const powerfulLocalAccess = value.permissions.can_modify_files
-    || value.permissions.can_run_commands
-    || canModifyCalendar
-    || canModifyNativeService;
-  if (powerfulLocalAccess && value.risk.level !== 'high' && value.risk.level !== 'critical') {
+  // Command execution keeps the high floor. File and native-service edits sit a
+  // step below it: they describe most useful agents, so rating them high left
+  // nothing to say about an agent that can also run commands or reach the network.
+  if (value.permissions.can_run_commands && value.risk.level !== 'high' && value.risk.level !== 'critical') {
     ctx.addIssue({
       code: 'custom',
       path: ['risk', 'level'],
-      message: 'File editing and command execution require a high-risk review',
+      message: 'Command execution requires a high-risk review',
+    });
+  }
+  const changesLocalState = value.permissions.can_modify_files
+    || canModifyCalendar
+    || canModifyNativeService;
+  if (changesLocalState && value.risk.level === 'low') {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['risk', 'level'],
+      message: 'File and app changes require review',
     });
   }
   const externalAccess = value.permissions.requires_network

@@ -213,7 +213,7 @@ function analyzePermissions(agent: AgentConfig): Finding[] {
 
   if (canWrite) {
     findings.push(finding(
-      'permissions.file_write', 'high', 'This agent can change files',
+      'permissions.file_write', 'needs_review', 'This agent can change files',
       'File editing can overwrite or remove information in its writable area.',
       'A mistaken instruction could change files the user expected to keep.',
       'One or more file editing actions are enabled.',
@@ -418,7 +418,7 @@ function analyzeConnectionsAndAutomation(agent: AgentConfig): Finding[] {
     || canChangeNativeState;
   if (isAutomatic && canChangeState) {
     findings.push(finding(
-      'trigger.automatic_state_change', 'high', 'This agent can make changes automatically',
+      'trigger.automatic_state_change', 'needs_review', 'This agent can make changes automatically',
       'Scheduled and watched agents can act while you are not reviewing each run.',
       'A mistaken instruction could change files, app information, or run a command without a fresh confirmation.',
       agent.watch?.length ? 'A file watcher can start a state-changing run.' : 'A schedule can start a state-changing run.',

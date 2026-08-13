@@ -14,9 +14,15 @@ Review the selected notes without changing them.
 `;
 
 const highContent = lowContent
+  .replace('id: reader', 'id: importer')
+  .replace('name: Reader', 'name: Importer')
+  .replace('tools: [Read]', 'tools: [Read, Bash, WebFetch]')
+  .replace('without changing them', 'and run the import script');
+
+const scheduledWriterContent = lowContent
   .replace('id: reader', 'id: editor')
   .replace('name: Reader', 'name: Editor')
-  .replace('tools: [Read]', 'tools: [Read, Write]')
+  .replace('tools: [Read]', 'tools: [Read, Write]\nschedule: "0 6 * * *"')
   .replace('without changing them', 'and update the summary');
 
 const criticalContent = lowContent
@@ -47,6 +53,19 @@ describe('before-run security preflight', () => {
     expect(low).toMatchObject({ decision: 'allow', acknowledgement_required: false });
     expect(high).toMatchObject({ decision: 'confirm', acknowledgement_required: true });
     expect(high.analyzer_version).toBe('1.1.0');
+    reviewStore.close();
+  });
+
+  it('lets a scheduled agent that edits its own files run without a review', async () => {
+    const { service, reviewStore } = createService();
+    const preflight = await service.preflight({
+      content: scheduledWriterContent,
+      agent: parseAgentFile(scheduledWriterContent),
+    });
+
+    expect(preflight).toMatchObject({
+      decision: 'allow', acknowledgement_required: false, risk: { level: 'needs_review' },
+    });
     reviewStore.close();
   });
 
