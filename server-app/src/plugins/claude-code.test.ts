@@ -40,6 +40,9 @@ const mockQuery = vi.fn();
 
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: (...args: unknown[]) => mockQuery(...args),
+  // The server's own in-process tools are built with these two.
+  createSdkMcpServer: (config: { name: string }) => ({ type: 'sdk', name: config.name }),
+  tool: (name: string) => ({ name }),
 }));
 
 beforeEach(() => {
@@ -124,6 +127,20 @@ describe('executeAgent with Agent SDK', () => {
     expect(request.options).not.toHaveProperty('mcpServers');
     expect(mockSetMcpServers).toHaveBeenCalledWith({
       notes: { command: '/usr/bin/notes-mcp', args: ['serve'], env: undefined },
+      agent_documents: { type: 'sdk', name: 'agent_documents' },
+    });
+  });
+
+  it('offers the document reader to an ordinary run', async () => {
+    const { executeAgent } = await import('./claude-code.js');
+    mockQuery.mockReturnValue(createAsyncGenerator([
+      createResultSuccess({ result: 'Done', num_turns: 1 }),
+    ]));
+
+    await executeAgent(createAgentConfig(), createMockReporter());
+
+    expect(mockSetMcpServers).toHaveBeenCalledWith({
+      agent_documents: { type: 'sdk', name: 'agent_documents' },
     });
   });
 

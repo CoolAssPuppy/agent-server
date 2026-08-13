@@ -116,6 +116,73 @@ describe('buildCanUseTool', () => {
     expect(result.behavior).toBe('deny');
   });
 
+  it('refuses the document tool until the agent allows it', async () => {
+    const canUseTool = buildCanUseTool({ allow: ['Read'], deny: [] });
+    const result = await canUseTool(
+      'mcp__agent_documents__read_document',
+      { path: '/Users/test/Book/manuscript.docx' },
+      makeToolOptions(),
+    );
+    expect(result.behavior).toBe('deny');
+  });
+
+  it('holds the document tool to the reviewed file grants', async () => {
+    const canUseTool = buildCanUseTool(
+      { allow: ['mcp__agent_documents__read_document'], deny: [] },
+      {
+        cwd: '/Users/test',
+        fileAccess: [
+          { path: '/Users/test/Book/manuscript.docx', kind: 'file', access: 'read_only' },
+        ],
+      },
+    );
+
+    await expect(canUseTool(
+      'mcp__agent_documents__read_document',
+      { path: '/Users/test/Book/manuscript.docx' },
+      makeToolOptions(),
+    )).resolves.toEqual({ behavior: 'allow' });
+    await expect(canUseTool(
+      'mcp__agent_documents__read_document',
+      { path: '/Users/test/Private/diary.docx' },
+      makeToolOptions(),
+    )).resolves.toMatchObject({ behavior: 'deny' });
+    await expect(canUseTool(
+      'mcp__agent_documents__read_document',
+      { path: '/Users/test/Book/../Private/diary.docx' },
+      makeToolOptions(),
+    )).resolves.toMatchObject({ behavior: 'deny' });
+    await expect(canUseTool(
+      'mcp__agent_documents__read_document',
+      {},
+      makeToolOptions(),
+    )).resolves.toMatchObject({ behavior: 'deny' });
+  });
+
+  it('refuses a document path that leaves its grant through a symlink', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'agent-document-grants-'));
+    const allowed = join(root, 'allowed');
+    const outside = join(root, 'outside');
+    mkdirSync(allowed);
+    mkdirSync(outside);
+    writeFileSync(join(outside, 'private.docx'), 'secret');
+    symlinkSync(outside, join(allowed, 'linked-outside'));
+    const canUseTool = buildCanUseTool(
+      { allow: ['mcp__agent_documents__read_document'], deny: [] },
+      { cwd: root, fileAccess: [{ path: allowed, kind: 'folder', access: 'read_only' }] },
+    );
+
+    try {
+      await expect(canUseTool(
+        'mcp__agent_documents__read_document',
+        { path: join(allowed, 'linked-outside', 'private.docx') },
+        makeToolOptions(),
+      )).resolves.toMatchObject({ behavior: 'deny' });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('returns deny for tools matching deny patterns', async () => {
     const canUseTool = buildCanUseTool({
       allow: ['mcp__claude_ai_Linear__*'],

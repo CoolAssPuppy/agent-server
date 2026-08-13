@@ -16,7 +16,7 @@ import {
 } from '../execution/executor.js';
 import { expandHome } from '../agents/file-watcher.js';
 import { parseInteractionBlock, parseDecisionBlock } from '../interaction/parser.js';
-import { buildCanUseTool } from '../execution/permissions.js';
+import { buildCanUseTool, createFileAccessCheck } from '../execution/permissions.js';
 import { runDecisionCycle, type DecisionContext } from '../execution/decision-handler.js';
 import { nativeServiceGrantEnvironment } from '../agents/native-services.js';
 import { resolveSavedConnectionValues } from '../connections/runtime-resolution.js';
@@ -32,6 +32,14 @@ import {
   createAgentLogMcpServer,
   type AgentLogger,
 } from '../logging/index.js';
+import {
+  AGENT_DOCUMENT_SERVER_NAME,
+  createDocumentExtractorRegistry,
+  createDocumentMcpServer,
+} from '../documents/index.js';
+
+// Extractors hold no per-run state, so one registry serves every run.
+const documentRegistry = createDocumentExtractorRegistry();
 
 type ExecuteAgentExtra = {
   abortController?: AbortController;
@@ -152,6 +160,17 @@ export async function executeAgent(
         logger: extra.logger,
         agentId: agent.id,
         runId: extra.runId,
+      });
+    }
+    // Formats the Read tool cannot open, read by the server on the agent's
+    // behalf. Offered to every ordinary run, but it takes a path, so it reaches
+    // nothing the agent has not been allowed and granted. A safe test composes a
+    // run with no MCP effects at all, so it does not get this one either.
+    if (!extra?.disableMcpServers && !mcpRuntime.servers[AGENT_DOCUMENT_SERVER_NAME]) {
+      mcpRuntime.servers[AGENT_DOCUMENT_SERVER_NAME] = createDocumentMcpServer({
+        registry: documentRegistry,
+        cwd,
+        ...(fileAccess ? { canAccessFile: createFileAccessCheck(fileAccess) } : {}),
       });
     }
     const closeCredentialBroker = await startCredentialBroker(mcpRuntime.credentialBroker);
