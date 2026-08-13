@@ -77,7 +77,7 @@ public struct ServerRestartCoordinator: Equatable, Sendable {
 
     public mutating func observeRestartHealth(startedAt: String?, apiVersion: Int) -> Bool {
         guard let generation = restartingGeneration,
-              apiVersion == requiredAPIVersion,
+              apiVersion >= requiredAPIVersion,
               let startedAt,
               startedAt != lastStartedAt else {
             return false

@@ -26,6 +26,15 @@ final class ServerRestartCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.state, .running(startedAt: "new"))
     }
 
+    func testAcceptsHealthFromAServerNewerThanTheContractFloor() {
+        var coordinator = ServerRestartCoordinator(requiredAPIVersion: 13)
+        coordinator.observeRunning(startedAt: "old")
+        XCTAssertTrue(coordinator.requestRestart(activeRunCount: 0))
+
+        XCTAssertTrue(coordinator.observeRestartHealth(startedAt: "new", apiVersion: 14))
+        XCTAssertEqual(coordinator.state, .running(startedAt: "new"))
+    }
+
     func testRequestDuringRestartSchedulesOneFollowUpRestart() {
         var coordinator = ServerRestartCoordinator()
         coordinator.observeRunning(startedAt: "first")

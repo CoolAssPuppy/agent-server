@@ -12,15 +12,52 @@ public enum LocalServerAction: Equatable, Sendable {
 }
 
 public enum LocalServerCompatibility {
+    /// The oldest HTTP contract this app can still talk to.
     public static let requiredAPIVersion = 13
 
-    public static func shouldReplace(apiVersion: Int?) -> Bool {
-        guard let apiVersion else { return true }
-        return apiVersion < requiredAPIVersion
+    /// Whether a server answering on the local port speaks a contract this app
+    /// understands. A floor, so a server ahead of it is still supported.
+    public static func isSupported(apiVersion: Int?) -> Bool {
+        guard let apiVersion else { return false }
+        return apiVersion >= requiredAPIVersion
     }
 
-    public static func action(apiVersion: Int?, replacementIsReady: Bool) -> LocalServerAction {
-        guard shouldReplace(apiVersion: apiVersion) else { return .adoptExisting }
+    /// Whether a server already listening on the local port has to be replaced
+    /// by the one this app bundles.
+    ///
+    /// The decision is build identity, not the protocol floor. `api_version`
+    /// only moves when the wire format changes, so judging by the floor alone
+    /// meant every release that kept the format adopted the previous release's
+    /// process and left it running -- through the Sparkle relaunch and past
+    /// the next reboot, because the updated app never started it and so never
+    /// stops it.
+    public static func shouldReplace(
+        apiVersion: Int?,
+        serverVersion: String?,
+        appVersion: String
+    ) -> Bool {
+        guard isSupported(apiVersion: apiVersion) else { return true }
+        // With no version of our own there is nothing to compare against, and
+        // replacing unconditionally would restart the server on every launch.
+        guard !appVersion.isEmpty else { return false }
+        // server_version is absent only before 3.7.6, old enough to replace.
+        guard let serverVersion, !serverVersion.isEmpty else { return true }
+        return serverVersion != appVersion
+    }
+
+    public static func action(
+        apiVersion: Int?,
+        serverVersion: String?,
+        appVersion: String,
+        replacementIsReady: Bool
+    ) -> LocalServerAction {
+        guard shouldReplace(
+            apiVersion: apiVersion,
+            serverVersion: serverVersion,
+            appVersion: appVersion
+        ) else {
+            return .adoptExisting
+        }
         return replacementIsReady ? .replaceExisting : .keepExisting
     }
 }

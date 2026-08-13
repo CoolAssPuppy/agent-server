@@ -9,32 +9,116 @@ final class ServerProcessReliabilityTests: XCTestCase {
         )
     }
 
-    func testCurrentServerAPIVersionCanBeAdopted() {
-        XCTAssertFalse(LocalServerCompatibility.shouldReplace(apiVersion: 13))
-        XCTAssertTrue(LocalServerCompatibility.shouldReplace(apiVersion: 12))
+    func testServerBuiltFromThisAppVersionCanBeAdopted() {
+        XCTAssertFalse(LocalServerCompatibility.shouldReplace(
+            apiVersion: 14,
+            serverVersion: "3.8.1",
+            appVersion: "3.8.1"
+        ))
     }
 
-    func testMissingOrOlderServerAPIVersionMustBeReplaced() {
-        XCTAssertTrue(LocalServerCompatibility.shouldReplace(apiVersion: nil))
-        XCTAssertTrue(LocalServerCompatibility.shouldReplace(apiVersion: 1))
-        XCTAssertTrue(LocalServerCompatibility.shouldReplace(apiVersion: 2))
-        XCTAssertTrue(LocalServerCompatibility.shouldReplace(apiVersion: 3))
-        XCTAssertTrue(LocalServerCompatibility.shouldReplace(apiVersion: 4))
-        XCTAssertTrue(LocalServerCompatibility.shouldReplace(apiVersion: 5))
-        XCTAssertTrue(LocalServerCompatibility.shouldReplace(apiVersion: 6))
+    func testMissingServerAPIVersionMustBeReplaced() {
+        XCTAssertTrue(LocalServerCompatibility.shouldReplace(
+            apiVersion: nil,
+            serverVersion: "3.8.1",
+            appVersion: "3.8.1"
+        ))
     }
 
-    func testHealthyOlderServerStaysRunningWhenReplacementPreflightFails() {
+    func testServerAPIVersionBelowTheFloorMustBeReplaced() {
+        for apiVersion in [1, 6, 12] {
+            XCTAssertTrue(LocalServerCompatibility.shouldReplace(
+                apiVersion: apiVersion,
+                serverVersion: "3.8.1",
+                appVersion: "3.8.1"
+            ))
+        }
+    }
+
+    func testAPIVersionAtOrAboveTheFloorIsSupported() {
+        XCTAssertFalse(LocalServerCompatibility.isSupported(apiVersion: nil))
+        XCTAssertFalse(LocalServerCompatibility.isSupported(apiVersion: 12))
+        XCTAssertTrue(LocalServerCompatibility.isSupported(apiVersion: 13))
+        XCTAssertTrue(LocalServerCompatibility.isSupported(apiVersion: 14))
+    }
+
+    func testServerThatDoesNotReportItsVersionMustBeReplaced() {
+        XCTAssertTrue(LocalServerCompatibility.shouldReplace(
+            apiVersion: 14,
+            serverVersion: nil,
+            appVersion: "3.8.1"
+        ))
+        XCTAssertTrue(LocalServerCompatibility.shouldReplace(
+            apiVersion: 14,
+            serverVersion: "",
+            appVersion: "3.8.1"
+        ))
+    }
+
+    func testServerLeftOverFromThePreviousReleaseMustBeReplaced() {
+        XCTAssertTrue(LocalServerCompatibility.shouldReplace(
+            apiVersion: 14,
+            serverVersion: "3.8.0",
+            appVersion: "3.8.1"
+        ))
+    }
+
+    func testServerNewerThanThisAppMustBeReplaced() {
+        XCTAssertTrue(LocalServerCompatibility.shouldReplace(
+            apiVersion: 14,
+            serverVersion: "3.9.0",
+            appVersion: "3.8.1"
+        ))
+    }
+
+    func testUnknownAppVersionFallsBackToTheProtocolFloor() {
+        XCTAssertFalse(LocalServerCompatibility.shouldReplace(
+            apiVersion: 14,
+            serverVersion: "3.8.0",
+            appVersion: ""
+        ))
+        XCTAssertTrue(LocalServerCompatibility.shouldReplace(
+            apiVersion: 12,
+            serverVersion: "3.8.0",
+            appVersion: ""
+        ))
+    }
+
+    func testStaleServerStaysRunningWhenReplacementPreflightFails() {
         XCTAssertEqual(
-            LocalServerCompatibility.action(apiVersion: 12, replacementIsReady: false),
+            LocalServerCompatibility.action(
+                apiVersion: 14,
+                serverVersion: "3.8.0",
+                appVersion: "3.8.1",
+                replacementIsReady: false
+            ),
             .keepExisting
         )
         XCTAssertEqual(
-            LocalServerCompatibility.action(apiVersion: 12, replacementIsReady: true),
+            LocalServerCompatibility.action(
+                apiVersion: 14,
+                serverVersion: "3.8.0",
+                appVersion: "3.8.1",
+                replacementIsReady: true
+            ),
             .replaceExisting
         )
         XCTAssertEqual(
-            LocalServerCompatibility.action(apiVersion: 13, replacementIsReady: true),
+            LocalServerCompatibility.action(
+                apiVersion: 14,
+                serverVersion: "3.8.1",
+                appVersion: "3.8.1",
+                replacementIsReady: true
+            ),
+            .adoptExisting
+        )
+        XCTAssertEqual(
+            LocalServerCompatibility.action(
+                apiVersion: 14,
+                serverVersion: "3.8.1",
+                appVersion: "3.8.1",
+                replacementIsReady: false
+            ),
             .adoptExisting
         )
     }

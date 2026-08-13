@@ -90,6 +90,13 @@ final class ServerProcessManager {
         return FileManager.default.fileExists(atPath: candidate) ? candidate : nil
     }
 
+    /// The version of the server this app bundles, which is the app's own.
+    /// Read here so the compatibility rule stays a pure function that tests can
+    /// call without a bundle.
+    private static func appVersion() -> String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+    }
+
     private static func bundledEventKitHelperPath() -> String? {
         let bundlePath = Bundle.main.bundlePath
         let candidate = (bundlePath as NSString)
@@ -101,7 +108,12 @@ final class ServerProcessManager {
         let health = await serverHealth()
         guard !Task.isCancelled else { return }
         if let health {
-            guard LocalServerCompatibility.shouldReplace(apiVersion: health.apiVersion) else {
+            let appVersion = Self.appVersion()
+            guard LocalServerCompatibility.shouldReplace(
+                apiVersion: health.apiVersion,
+                serverVersion: health.serverVersion,
+                appVersion: appVersion
+            ) else {
                 lifecycle.observedExistingServer()
                 return
             }
@@ -109,6 +121,8 @@ final class ServerProcessManager {
             let configuration = prepareLaunch()
             guard LocalServerCompatibility.action(
                 apiVersion: health.apiVersion,
+                serverVersion: health.serverVersion,
+                appVersion: appVersion,
                 replacementIsReady: configuration != nil
             ) == .replaceExisting,
                   let configuration else {
@@ -356,7 +370,7 @@ final class ServerProcessManager {
         while clock.now < deadline, !Task.isCancelled {
             if let health = await serverHealth(),
                health.status == "ok",
-               health.apiVersion == LocalServerCompatibility.requiredAPIVersion,
+               LocalServerCompatibility.isSupported(apiVersion: health.apiVersion),
                let startedAt = health.startedAt,
                startedAt != previousStartedAt {
                 return health
