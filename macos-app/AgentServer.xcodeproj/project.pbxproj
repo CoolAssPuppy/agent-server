@@ -1233,7 +1233,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = AgentServer/AgentServer.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 67;
+				CURRENT_PROJECT_VERSION = 68;
 				INFOPLIST_FILE = AgentServer/Info.plist;
 				INFOPLIST_KEY_NSContactsUsageDescription = "Agent Server reads only the contact groups and details you choose for an agent.";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1241,7 +1241,7 @@
 					"@executable_path/../Frameworks",
 				);
 				LS_MINIMUM_SYSTEM_VERSION = 14.0;
-				MARKETING_VERSION = 3.8.2;
+				MARKETING_VERSION = 3.8.3;
 				POSTHOG_API_KEY = "";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.strategicnerds.agent-server";
 				PRODUCT_NAME = "Agent Server";
@@ -1342,7 +1342,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = AgentServer/AgentServer.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 67;
+				CURRENT_PROJECT_VERSION = 68;
 				INFOPLIST_FILE = AgentServer/Info.plist;
 				INFOPLIST_KEY_NSContactsUsageDescription = "Agent Server reads only the contact groups and details you choose for an agent.";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1350,7 +1350,7 @@
 					"@executable_path/../Frameworks",
 				);
 				LS_MINIMUM_SYSTEM_VERSION = 14.0;
-				MARKETING_VERSION = 3.8.2;
+				MARKETING_VERSION = 3.8.3;
 				POSTHOG_API_KEY = "";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.strategicnerds.agent-server";
 				PRODUCT_NAME = "Agent Server";

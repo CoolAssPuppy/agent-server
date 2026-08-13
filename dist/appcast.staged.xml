@@ -6,6 +6,24 @@
     <description>Agent Server updates</description>
     <language>en</language>
     <item>
+      <title>Version 3.8.3</title>
+      <pubDate>Thu, 13 Aug 2026 21:20:19 +0000</pubDate>
+      <sparkle:version>68</sparkle:version>
+      <sparkle:shortVersionString>3.8.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>Bug fixes</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.8.3.dmg"
+        sparkle:edSignature="J6sT26srrdNqZHx4Ci4iAhSQeGTPswM2k/SevyKPnqofgpaXmvKVkKjpkrY63NMZG/yuuob/Y8N4XiK9JZTTBQ=="
+        length="20057822"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
       <title>Version 3.8.2</title>
       <pubDate>Thu, 13 Aug 2026 10:32:51 +0000</pubDate>
       <sparkle:version>67</sparkle:version>
