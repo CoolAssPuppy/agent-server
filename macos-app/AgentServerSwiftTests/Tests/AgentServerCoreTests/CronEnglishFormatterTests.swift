@@ -137,6 +137,102 @@ final class CronEnglishFormatterTests: XCTestCase {
         )
     }
 
+    // MARK: - Recovery attempts
+
+    // Every scheduled agent that fires more than once a day pairs the cron with
+    // rerun_policy: skip_if_completed_today. The later firings only do work when
+    // the first one died, so the schedule is the first firing and the rest are
+    // retries.
+
+    private func recovering(_ expression: String) -> CronScheduleDescription {
+        CronEnglishFormatter.schedule(expression, rerunPolicy: .skipIfCompletedToday)
+    }
+
+    func testDailyAdSpendWatchRunsOnceWithTwoRetries() {
+        let described = recovering("0,20,40 16 * * *")
+        XCTAssertEqual(described.summary, "Daily at 4:00 PM")
+        XCTAssertEqual(described.retryNote, "Retries at 4:20 PM and 4:40 PM if it fails")
+    }
+
+    func testDailyFocusRunsOnceOnItsWeekdayRange() {
+        let described = recovering("0,20,40 7 * * 2-5")
+        XCTAssertEqual(described.summary, "Tuesday–Friday at 7:00 AM")
+        XCTAssertEqual(described.retryNote, "Retries at 7:20 AM and 7:40 AM if it fails")
+    }
+
+    func testDailyManuscriptReviewRunsOnce() {
+        let described = recovering("0,20,40 3 * * *")
+        XCTAssertEqual(described.summary, "Daily at 3:00 AM")
+        XCTAssertEqual(described.retryNote, "Retries at 3:20 AM and 3:40 AM if it fails")
+    }
+
+    func testDailyPortugueseAndFrenchRunsOnce() {
+        let described = recovering("0,20,40 5 * * *")
+        XCTAssertEqual(described.summary, "Daily at 5:00 AM")
+        XCTAssertEqual(described.retryNote, "Retries at 5:20 AM and 5:40 AM if it fails")
+    }
+
+    // Two-hour recovery windows used to read "Custom schedule", because a
+    // minute list crossed with an hour range is a shape the formatter cannot
+    // name. Collapsing the retries leaves a shape it can.
+    func testCmoCoachingRunsOnceOnSaturday() {
+        let described = recovering("0,20,40 9-10 * * 6")
+        XCTAssertEqual(described.summary, "Saturday at 9:00 AM")
+        XCTAssertEqual(described.retryNote, "Retries every 20 minutes until 10:40 AM if it fails")
+    }
+
+    func testWeeklyGoalsReportRunsOnceOnMonday() {
+        let described = recovering("0,20,40 7-8 * * 1")
+        XCTAssertEqual(described.summary, "Monday at 7:00 AM")
+        XCTAssertEqual(described.retryNote, "Retries every 20 minutes until 8:40 AM if it fails")
+    }
+
+    func testWeeklyStatusReportRunsOnceOnWednesday() {
+        let described = recovering("0,20,40 9-10 * * 3")
+        XCTAssertEqual(described.summary, "Wednesday at 9:00 AM")
+        XCTAssertEqual(described.retryNote, "Retries every 20 minutes until 10:40 AM if it fails")
+    }
+
+    // proactive-work has no rerun policy: it genuinely runs every three hours,
+    // and must keep saying so.
+    func testRepeatingScheduleWithoutARerunPolicyIsUnchanged() {
+        let described = CronEnglishFormatter.schedule("0 7-19/3 * * *")
+        XCTAssertEqual(described.summary, "Every 3 hours, 7 AM–7 PM")
+        XCTAssertNil(described.retryNote)
+    }
+
+    func testMinuteListWithoutARerunPolicyStillListsEveryFiring() {
+        let described = CronEnglishFormatter.schedule("0,20,40 16 * * *")
+        XCTAssertEqual(described.summary, "Daily at 4:00 PM, 4:20 PM and 4:40 PM")
+        XCTAssertNil(described.retryNote)
+    }
+
+    func testSingleFiringScheduleGainsNoRetryNote() {
+        let described = recovering("0 9 * * 1-5")
+        XCTAssertEqual(described.summary, "Weekdays at 9:00 AM")
+        XCTAssertNil(described.retryNote)
+    }
+
+    func testUnnameableScheduleStaysCustomEvenWithARerunPolicy() {
+        let described = recovering("@yearly")
+        XCTAssertEqual(described.summary, "Custom schedule")
+        XCTAssertNil(described.retryNote)
+    }
+
+    func testSingleRetryReadsAsOneTime() {
+        let described = recovering("0,30 6 * * *")
+        XCTAssertEqual(described.summary, "Daily at 6:00 AM")
+        XCTAssertEqual(described.retryNote, "Retries at 6:30 AM if it fails")
+    }
+
+    // Unevenly spaced retries cannot claim an interval, so they report only
+    // how long the recovery window stays open.
+    func testUnevenRetriesReportOnlyTheWindow() {
+        let described = recovering("0,5,25,55 8 * * *")
+        XCTAssertEqual(described.summary, "Daily at 8:00 AM")
+        XCTAssertEqual(described.retryNote, "Retries until 8:55 AM if it fails")
+    }
+
     func testLabelNeverShowsCronNotation() {
         // describe() may echo shapes it cannot phrase; label() is what
         // screens use, and a screen never shows an asterisk.

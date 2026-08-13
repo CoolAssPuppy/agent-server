@@ -167,6 +167,7 @@ struct AgentDetailDrawer: View {
             name: agent?.name ?? agentId,
             description: agent?.description,
             schedule: agent?.scheduleDisplay,
+            retryNote: agent?.scheduleDescription?.retryNote,
             nextRun: nextRunDescription,
             run: headerRunPresentation,
             security: securityIndicator,

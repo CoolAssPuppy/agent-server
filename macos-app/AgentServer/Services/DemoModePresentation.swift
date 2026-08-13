@@ -29,6 +29,7 @@ extension DemoModeFixtures {
                 timeout: "30m",
                 permissionMode: "default",
                 workingDirectory: fixture.workingDirectory,
+                rerunPolicy: nil,
                 capabilities: nil
             )
         }

@@ -32,6 +32,9 @@ struct Agent: Codable, Identifiable {
     let timeout: String?
     let permissionMode: String?
     let workingDirectory: String?
+    /// How the agent treats a second firing on the same day. Held as the raw
+    /// string so an unfamiliar policy from a newer server still decodes.
+    let rerunPolicy: String?
     /// Derived by the server from tools/disallowed_tools/mcp_servers.
     /// Optional so the app still decodes agents from older servers.
     let capabilities: [AgentCapability]?
@@ -48,6 +51,7 @@ struct Agent: Codable, Identifiable {
         case disallowedTools = "disallowed_tools"
         case permissionMode = "permission_mode"
         case workingDirectory = "working_directory"
+        case rerunPolicy = "rerun_policy"
     }
 
     var isScheduled: Bool {
@@ -77,9 +81,17 @@ struct Agent: Codable, Identifiable {
         return .onDemand
     }
 
+    var rerunPolicyValue: CronRerunPolicy? {
+        rerunPolicy.flatMap(CronRerunPolicy.init(rawValue:))
+    }
+
+    var scheduleDescription: CronScheduleDescription? {
+        schedule.map { CronEnglishFormatter.schedule($0, rerunPolicy: rerunPolicyValue) }
+    }
+
     var scheduleDisplay: String {
-        if let schedule {
-            return CronEnglishFormatter.label(schedule)
+        if let scheduleDescription {
+            return scheduleDescription.summary
         }
         return AgentTriggerPresentation(schedule: nil, hasWatch: hasWatch).fallbackLabel ?? "On demand"
     }

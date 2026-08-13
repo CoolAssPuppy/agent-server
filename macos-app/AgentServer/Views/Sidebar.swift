@@ -22,7 +22,9 @@ struct Sidebar: View {
                 slug: agent.id,
                 name: agent.name,
                 description: agent.description,
-                scheduleLabel: agent.schedule.map { CronEnglishFormatter.label($0) },
+                // Summary only. The row is 240pt wide and already truncates,
+                // so the retry sentence belongs on the detail header.
+                scheduleLabel: agent.scheduleDescription?.summary,
                 kind: SidebarKindBridge.from(agent.kind),
                 lastRunFailed: lastRuns[agent.id]?.status == .failed,
                 isEnabled: agent.enabled,

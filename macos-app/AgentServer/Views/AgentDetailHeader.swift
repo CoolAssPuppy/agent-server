@@ -5,6 +5,9 @@ struct AgentDetailHeader: View {
     let name: String
     let description: String?
     let schedule: String?
+    /// Recovery attempts, when the schedule fires more than once a day and
+    /// only the first firing is a real run.
+    let retryNote: String?
     let nextRun: String?
     let run: AgentDetailHeaderRunPresentation
     let security: AgentDetailSecurityIndicatorPresentation
@@ -33,6 +36,7 @@ struct AgentDetailHeader: View {
         name: String,
         description: String?,
         schedule: String?,
+        retryNote: String? = nil,
         nextRun: String?,
         run: AgentDetailHeaderRunPresentation,
         security: AgentDetailSecurityIndicatorPresentation,
@@ -44,6 +48,7 @@ struct AgentDetailHeader: View {
         self.name = name
         self.description = description
         self.schedule = schedule
+        self.retryNote = retryNote
         self.nextRun = nextRun
         self.run = run
         self.security = security
@@ -87,6 +92,12 @@ struct AgentDetailHeader: View {
                 }
                 .font(NTypography.captionSmall)
                 .foregroundStyle(theme.tokens.mutedForeground)
+
+                if let retryNote {
+                    Text(retryNote)
+                        .font(NTypography.captionSmall)
+                        .foregroundStyle(theme.tokens.mutedForeground.opacity(0.8))
+                }
             }
         }
     }
