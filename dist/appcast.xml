@@ -6,6 +6,24 @@
     <description>Agent Server updates</description>
     <language>en</language>
     <item>
+      <title>Version 3.8.2</title>
+      <pubDate>Thu, 13 Aug 2026 10:32:51 +0000</pubDate>
+      <sparkle:version>67</sparkle:version>
+      <sparkle:shortVersionString>3.8.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <ul>
+          <li>An agent that runs once a day now says so. The schedule used to list every retry as though it were another run, so an agent with two recovery attempts read as running three times.</li><li>Agents on a weekly schedule show the day and time instead of Custom schedule.</li><li>A safe test that cannot start now says why, instead of appearing to do nothing.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://pub-9c8d72fe664b4ce18aac0d718b4e0346.r2.dev/apps/agent-server/AgentServer-3.8.2.dmg"
+        sparkle:edSignature="jsMDwyedOOf3+a6M+d1gSTytg3von0zpKruPGtqQzqzrKwjO8CqwDS4btFbrM4NbIP3XyI36H1I2WG+w8XVmAA=="
+        length="20014061"
+        type="application/x-apple-diskimage" />
+    </item>
+
+    <item>
       <title>Version 3.8.1</title>
       <pubDate>Thu, 13 Aug 2026 09:55:23 +0000</pubDate>
       <sparkle:version>66</sparkle:version>
