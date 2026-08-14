@@ -184,6 +184,53 @@ describe('run lifecycle', () => {
     expect(harness.store.get(contextualId)?.status).toBe('completed');
   });
 
+  it('runs an agent a person asked for even though it already ran today', async () => {
+    const now = new Date('2026-07-21T10:00:00.000Z');
+    const harness = createHarness(undefined, undefined, undefined, () => now);
+    const agent = makeAgent({
+      id: 'daily-manuscript-review',
+      timezone: 'Europe/Lisbon',
+      rerun_policy: 'skip_if_completed_today',
+    });
+    harness.store.add(makeStoredRun({
+      runId: 'this-mornings-run',
+      agentId: agent.id,
+      status: 'completed',
+      completedAt: new Date('2026-07-21T02:00:00.000Z'),
+    }));
+
+    const manualId = harness.lifecycle.trigger(agent, { source: 'manual' });
+    await harness.lifecycle.waitForTerminal(manualId);
+    const panelId = harness.lifecycle.trigger(agent, { source: 'panel' });
+    await harness.lifecycle.waitForTerminal(panelId);
+
+    expect(harness.run).toHaveBeenCalledTimes(2);
+    expect(harness.store.get(manualId)?.status).toBe('completed');
+    expect(harness.store.get(panelId)?.status).toBe('completed');
+  });
+
+  it('still skips a scheduled firing of an agent that already ran today', async () => {
+    const now = new Date('2026-07-21T10:00:00.000Z');
+    const harness = createHarness(undefined, undefined, undefined, () => now);
+    const agent = makeAgent({
+      id: 'daily-manuscript-review',
+      timezone: 'Europe/Lisbon',
+      rerun_policy: 'skip_if_completed_today',
+    });
+    harness.store.add(makeStoredRun({
+      runId: 'this-mornings-run',
+      agentId: agent.id,
+      status: 'completed',
+      completedAt: new Date('2026-07-21T02:00:00.000Z'),
+    }));
+
+    const runId = harness.lifecycle.trigger(agent, { source: 'schedule' });
+    await harness.lifecycle.waitForTerminal(runId);
+
+    expect(harness.run).not.toHaveBeenCalled();
+    expect(harness.store.get(runId)?.code).toBe('already_completed_today');
+  });
+
   it('records and broadcasts a run through its terminal state', async () => {
     const { lifecycle, store, events, notify, onTerminal } = createHarness();
     const agent = makeAgent();

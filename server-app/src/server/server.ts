@@ -798,7 +798,13 @@ export function startServer(
     source: RunTriggerSource,
     confirmedContentHash?: string,
   ): Promise<string | undefined> {
-    return runPreflightGate.run(agent, triggerOptions, { source, confirmedContentHash });
+    // The lifecycle needs to know what asked, so a person pressing Run Now
+    // outranks a daily rerun policy written for the schedule.
+    return runPreflightGate.run(
+      agent,
+      { ...triggerOptions, source },
+      { source, confirmedContentHash },
+    );
   }
   const getAgents = (): Promise<AgentConfig[]> => discoverConfiguredAgents();
   const guidanceApi = createGuidanceApi({

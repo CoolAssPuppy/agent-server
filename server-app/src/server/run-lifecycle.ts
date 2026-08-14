@@ -13,6 +13,7 @@ import {
 import type { NotificationData } from '../interaction/notification.js';
 import type { InteractionRequest } from '../interaction/schema.js';
 import type { AgentLogger } from '../logging/index.js';
+import type { RunTriggerSource } from '../analysis/run-preflight.js';
 import type { RunStoreLike } from '../reporting/store.js';
 import { toErrorMessage } from '../util/errors.js';
 import { withTimeout } from '../util/with-timeout.js';
@@ -40,7 +41,22 @@ export type TriggerRunOptions = {
   retryOfRunId?: string;
   repairId?: string;
   chain?: TriggerChain;
+  /** What asked for this run. Absent is treated as automatic. */
+  source?: RunTriggerSource;
 };
+
+/**
+ * Sources that mean a person is asking for this run right now: Run Now in the
+ * app or the API, Run in Agent Panel, or a message to the bot. A daily rerun
+ * policy exists to stop a schedule from repeating work, so it never overrides
+ * somebody who just asked. The other sources are machinery — a cron firing, a
+ * file changing, an upstream agent finishing — and those still obey the policy.
+ */
+const PERSON_INITIATED_SOURCES: ReadonlySet<RunTriggerSource> = new Set([
+  'manual',
+  'panel',
+  'channel',
+]);
 
 export type RunLifecycle = {
   trigger: (agent: AgentConfig, options?: TriggerRunOptions) => string;
@@ -183,6 +199,7 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
   ): boolean {
     if (agent.rerun_policy !== 'skip_if_completed_today') return false;
     if ((options.mode ?? 'normal') !== 'normal') return false;
+    if (options.source && PERSON_INITIATED_SOURCES.has(options.source)) return false;
     if (options.promptSuffix || options.conversationId || options.retryOfRunId) return false;
 
     const timeZone = agent.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
