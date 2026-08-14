@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
+import { rmSync } from 'node:fs';
 import { runAgent, type Reporter, type RunResult } from '../execution/runner.js';
 import { RunStore } from '../reporting/store.js';
+import { AgentLogger, AgentLogStore } from '../logging/index.js';
 import {
+  createTempDir,
   makeAgent,
   makeExecutionResult,
   makeRecordingAnalytics,
@@ -649,6 +652,77 @@ describe('run lifecycle analytics', () => {
       agent_id: 'busy',
       reason: 'concurrency_limit',
       active_runs: 2,
+    });
+  });
+
+  it('tells the executor which run it is, so the agent log tool is bound to this run', async () => {
+    const lockDir = createTempDir('lifecycle-locks');
+    const execute = vi.fn().mockResolvedValue(makeExecutionResult({ summary: 'Done' }));
+    const store = new RunStore();
+    const lifecycle = createRunLifecycle({
+      maxConcurrentRuns: 2,
+      lockDir,
+      runTimeoutMs: 30_000,
+      store,
+      broadcaster: new ProgressBroadcaster(),
+      execute,
+      createReporter: () => reporter,
+      notify: vi.fn(),
+      onInteraction: vi.fn(),
+      onTerminal: vi.fn(),
+    });
+
+    const runId = lifecycle.trigger(makeAgent({ id: 'daily-manuscript-review' }));
+    await lifecycle.waitForTerminal(runId);
+    rmSync(lockDir, { recursive: true, force: true });
+
+    expect(execute).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ runId }),
+    );
+  });
+
+  it('fails a run whose agent logged its own failure', async () => {
+    const lockDir = createTempDir('lifecycle-locks');
+    const logRoot = createTempDir('lifecycle-logs');
+    const logger = new AgentLogger({
+      readsFrom: new AgentLogStore({ root: logRoot }),
+      machineId: 'machine-uuid',
+      hostname: 'test-mac',
+    });
+    const store = new RunStore();
+    const lifecycle = createRunLifecycle({
+      maxConcurrentRuns: 2,
+      lockDir,
+      runTimeoutMs: 30_000,
+      store,
+      broadcaster: new ProgressBroadcaster(),
+      logger,
+      execute: async (agent, _reporter, options) => {
+        logger.append({
+          agentId: agent.id,
+          runId: options?.runId ?? 'missing-run-id',
+          level: 'error',
+          message: 'Stopped. The run cannot proceed.',
+          source: 'agent',
+        });
+        return makeExecutionResult({ summary: 'Stopped. The run cannot proceed.' });
+      },
+      createReporter: () => reporter,
+      notify: vi.fn(),
+      onInteraction: vi.fn(),
+      onTerminal: vi.fn(),
+    });
+
+    const runId = lifecycle.trigger(makeAgent({ id: 'daily-manuscript-review' }));
+    await lifecycle.waitForTerminal(runId);
+    rmSync(lockDir, { recursive: true, force: true });
+    rmSync(logRoot, { recursive: true, force: true });
+
+    expect(store.get(runId)).toMatchObject({
+      status: 'failed',
+      error: 'The agent logged a failure: Stopped. The run cannot proceed.',
     });
   });
 

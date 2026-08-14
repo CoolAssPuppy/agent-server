@@ -543,6 +543,7 @@ export function startServer(
     runTimeoutMs: config.runTimeoutMs,
     store,
     broadcaster,
+    logger,
     execute: createConnectionResolvingExecutor(
       connectionProfileStore,
       (agent) => async (resolvedAgent, reporter, executorOptions) => executorRegistry.resolve(agent)(

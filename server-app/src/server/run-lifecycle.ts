@@ -12,6 +12,7 @@ import {
 } from '../execution/runner.js';
 import type { NotificationData } from '../interaction/notification.js';
 import type { InteractionRequest } from '../interaction/schema.js';
+import type { AgentLogger } from '../logging/index.js';
 import type { RunStoreLike } from '../reporting/store.js';
 import { toErrorMessage } from '../util/errors.js';
 import { withTimeout } from '../util/with-timeout.js';
@@ -86,6 +87,12 @@ type RunLifecycleDependencies = {
   ) => Promise<void> | void;
   createRunId?: () => string;
   now?: () => Date;
+  /**
+   * The server-owned log. The runner needs it to read back what the agent
+   * logged for this run, and the executor needs it to offer the log tool at
+   * all. Without it a run that told us it failed is still recorded completed.
+   */
+  logger?: AgentLogger;
   /** Anonymous product analytics. Defaults to a no-op so tests send nothing. */
   analytics?: Analytics;
 };
@@ -262,6 +269,7 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
         promptSuffix: options.promptSuffix,
         conversationId: options.conversationId,
         mode: options.mode ?? 'normal',
+        logger: dependencies.logger,
         timeoutMs: dependencies.resolveTimeoutMs?.(agent) ??
           (dependencies.runTimeoutMs > 0 ? dependencies.runTimeoutMs : undefined),
         abortController,
@@ -288,7 +296,11 @@ export function createRunLifecycle(dependencies: RunLifecycleDependencies): RunL
       broadcaster: dependencies.broadcaster,
       reporter,
     });
+    // The run id travels with the call because the agent's own log tool is
+    // built per run: without it the executor cannot offer write_log or
+    // read_log, and an agent that was told to log its failure has no way to.
     const result = await dependencies.execute(effectiveAgent, wrappedReporter, {
+      runId,
       abortController,
       disableMcpServers: (options.mode ?? 'normal') === 'safe_test',
     });

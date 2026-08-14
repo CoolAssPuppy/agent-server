@@ -55,6 +55,7 @@ function runAgentWithConfig(config: ServerConfig, agent: AgentConfig, options: R
     agent,
     lockDir: config.lockDir,
     execute,
+    logger,
     createReporter: (runId, agentName, convId) => createReporter(config, runId, agentName, {
       conversationId: convId,
       agentTelemetry: agent.telemetry,
@@ -231,6 +232,7 @@ function createInvokeRun(config: ServerConfig): InvokeRun {
       agent: options.agent,
       lockDir: config.lockDir,
       execute,
+      logger,
       createReporter: (runId, agentName, convId) => {
         const reporter = createReporter(config, runId, agentName, {
           conversationId: convId,
